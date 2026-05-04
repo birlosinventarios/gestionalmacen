@@ -132,33 +132,6 @@
   border-left: 4px solid #d93025 !important; /* Acento lateral de marca */
 }
 
-::-webkit-scrollbar {
-  width: 8px;  /* Equilibrio entre elegancia y usabilidad */
-  height: 8px; /* Para scroll horizontal si fuera necesario */
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-color); /* Fondo limpio */
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--secondary-light); /* Casi invisible en reposo */
-  border-radius: 20px;
-  border: 2px solid var(--bg-color); /* Efecto de "flotado" */
-  transition: all 0.4s ease-in-out;
-}
-
-/* El toque de distinción: se vuelve rojo al interactuar */
-::-webkit-scrollbar-thumb:hover {
-  background: var(--primary); 
-  border: 1px solid var(--primary-dark);
-}
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--secondary-light) var(--bg-color);
-}
-
   </style>
 </head>
 <body>
