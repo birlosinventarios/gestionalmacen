@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">  
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Gestión - Birlos y Tornillos</title>
+  
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+
+
+  <style>
+
+  <?!= HtmlService.createHtmlOutputFromFile('Estilos_Globales').getContent(); ?>
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
+    
+    :root {
+      --primary: #d93025;
+      --bg-color: #f8f9fa;
+      --text-main: #1c1d1f;
+    }
+
+   body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw; /* Asegura el ancho total */
+  background-color: var(--bg-color);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif; /* Fallbacks de sistema para mayor velocidad */
+  overflow: hidden; /* Mantiene la App fija, el scroll se maneja en los contenedores internos */
+  -webkit-font-smoothing: antialiased; /* Mejora la legibilidad de la fuente en Mac/iOS */
+}
+    /* Transiciones de la Sidebar */
+    .sidebar-transition {
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .sidebar-mini { width: 80px; }
+    .sidebar-visible { width: 280px; }
+
+    /* Área invisible para detectar hover */
+    .sidebar-trigger {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 20px;
+      height: 100vh;
+      z-index: 50;
+    }
+
+    .overlay-fade {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.3);
+      backdrop-filter: blur(2px);
+      z-index: 30;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .logo-container {
+      background: white;
+      padding: 4px;
+      border-radius: 8px;
+      width: 50px;
+      height: 50px;
+    }
+
+
+      .custom-scroll::-webkit-scrollbar { width: 4px; }
+      .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+      .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
+      
+      /* Estilo simple para notificaciones tipo Toast manuales si Sonner falla */
+      .toast-container {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+      }
+
+/* Animación de entrada: se desliza desde la derecha y aparece */
+@keyframes toastIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Animación de salida: se desliza hacia la derecha y se desvanece */
+@keyframes toastOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Clases para SweetAlert */
+.animate-toast-in {
+  animation: toastIn 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+.animate-toast-out {
+  animation: toastOut 0.4s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+.swal2-popup.swal2-toast {
+  backdrop-filter: blur(8px);
+  background-color: rgba(28, 29, 31, 0.95) !important; /* Fondo ligeramente traslúcido */
+  border-left: 4px solid #d93025 !important; /* Acento lateral de marca */
+}
+
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const Icon = ({ name, size = 20, className = "" }) => {
+      const iconRef = useRef(null);
+      useEffect(() => {
+        if (window.lucide && iconRef.current) {
+          iconRef.current.innerHTML = '';
+          const i = document.createElement('i');
+          i.setAttribute('data-lucide', name);
+          i.style.width = `${size}px`;
+          i.style.height = `${size}px`;
+          if (className) i.className = className;
+          iconRef.current.appendChild(i);
+          window.lucide.createIcons();
+        }
+      }, [name, size, className]);
+      return <span ref={iconRef} className="inline-flex items-center"></span>;
+    };
+
+const TOOLS = [
+  // CATEGORÍA: PROCESOS
+  { id: 'FormularioTraspasos', name: 'Registrar Traspasos', icon: 'arrow-right-left', category: 'Procesos' },
+  { id: 'MonitorTraspasos', name: 'Traspasos Pendientes', icon: 'clipboard-list', category: 'Procesos' },
+  
+  // CATEGORÍA: ETIQUETADO
+  { id: 'FormularioEtiquetas', name: 'Etiquetas Identificadoras', icon: 'tag', category: 'Etiquetado' },
+  { id: 'FormularioEtiquetasExcedentes', name: 'Etiquetas Excedentes', icon: 'tag', category: 'Etiquetado' },
+  { id: 'FormularioEtiquetasExcedentesReimpresion', name: 'Reimpresión Excedentes', icon: 'printer', category: 'Etiquetado' },
+  
+  // CATEGORÍA: CONSULTA / GESTIÓN
+  { id: 'HistorialTraspasos', name: 'Historial Traspasos', icon: 'history', category: 'Consultas' },
+  { id: 'GestorExcedentes', name: 'Gestión Excedentes', icon: 'settings', category: 'Consultas' },
+
+    // CATEGORÍA: Pruebas
+  { id: 'PrototipoTraspasos', name: 'Prueba Traspasos', icon: 'cloud-alert', category: 'Pruebas' }
+];
+
+    const App = () => {
+      const [activeTool, setActiveTool] = useState('traspasos');
+      const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+      const [viewContent, setViewContent] = useState(""); // 📥 Aquí guardaremos el HTML
+      const [loading, setLoading] = useState(false); // ⏳ Para mostrar un estado de carga
+      const containerRef = useRef(null);
+      const seleccionarVista = (id, fileName) => {
+        setViewContent(""); // 🧹 Limpiar antes de cargar
+        setActiveTool(id);
+        setLoading(true);
+        
+        google.script.run
+          .withSuccessHandler((html) => {
+            setViewContent(html);
+            setLoading(false);
+          })
+          .obtenerContenidoVista(fileName);
+      };
+
+// vista inicial
+useEffect(() => {
+  // Carga inicial por defecto
+  seleccionarVista('FormularioTraspasos', 'FormularioTraspasos');
+}, []);
+
+
+// ⚡ Motor de encendido de scripts (Versión Optimizada)
+useEffect(() => {
+  if (!containerRef.current || !viewContent) return;
+
+  const scripts = containerRef.current.querySelectorAll('script');
+  
+  scripts.forEach(oldScript => {
+    const newScript = document.createElement('script');
+    
+    Array.from(oldScript.attributes).forEach(attr => {
+      if (attr.name !== 'type') newScript.setAttribute(attr.name, attr.value);
+    });
+    
+    let codeToExecute = oldScript.innerHTML;
+
+    if (oldScript.getAttribute('type') === 'text/babel') {
+      try {
+        codeToExecute = Babel.transform(codeToExecute, { 
+          presets: ['react'],
+          filename: 'vista_dinamica.js' // Ayuda a debuguear en consola
+        }).code;
+      } catch (babelError) {
+        console.error("🚨 Error Babel:", babelError);
+        return;
+      }
+    }
+    
+    newScript.appendChild(document.createTextNode(`{ ${codeToExecute} }`));
+    // Inyectamos dentro del contenedor de la vista para mantener coherencia
+    containerRef.current.appendChild(newScript);
+  });
+
+  // 🚀 DISPARADOR MANUAL CON DOBLE FRAME
+  // Esto asegura que el div "render-gestor-excedentes" YA EXISTE en el DOM
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const nombreFuncion = "cargar_" + activeTool;
+      if (typeof window[nombreFuncion] === "function") {
+        console.log("🔥 Ejecutando: " + nombreFuncion);
+        window[nombreFuncion]();
+      } else {
+        console.warn("⚠️ Función no lista: " + nombreFuncion + ". Reintentando en 200ms...");
+        // Reintento de emergencia
+        setTimeout(() => {
+          if (typeof window[nombreFuncion] === "function") window[nombreFuncion]();
+        }, 200);
+      }
+    });
+  });
+
+}, [viewContent, activeTool]);
+
+const toolsByCategory = TOOLS.reduce((acc, tool) => {
+  if (!acc[tool.category]) acc[tool.category] = [];
+  acc[tool.category].push(tool);
+  return acc;
+}, {});
+
+
+
+
+      return (
+        <div className="flex h-screen w-full overflow-hidden">
+          
+          <div className="sidebar-trigger" onMouseEnter={() => setIsSidebarOpen(true)}></div>
+
+          {/* SIDEBAR */}
+          <aside 
+            onMouseEnter={() => setIsSidebarOpen(true)}
+            onMouseLeave={() => setIsSidebarOpen(false)}
+            className={`bg-[#1c1d1f] flex flex-col z-40 sidebar-transition relative shadow-xl ${
+              isSidebarOpen ? 'sidebar-visible' : 'sidebar-mini'
+            }`}
+          >
+            {/* LOGO SECTION */}
+            <div className="p-4 flex flex-col items-center">
+              <div className="logo-container flex items-center justify-center shadow-md">
+                <img 
+                  src="https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png" 
+                  alt="Logo" className="w-full h-full object-contain"
+                />
+              </div>
+              <div className={`mt-4 text-center transition-all duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>
+                <span className="block text-white font-black uppercase text-[15px] tracking-[0.05em]">
+                  Gestión de Almacén
+                </span>
+                <span className="text-[#d93025] font-bold text-[12px] uppercase tracking-[0.20em]">
+                  Birlos y Tornillos
+                </span>
+              </div>
+            </div>
+
+              {/*  Borde gris  */}
+            <div className="flex justify-center my-2">
+              <div className={`h-[3px] bg-gray-700/50 transition-all duration-500 ${isSidebarOpen ? 'w-4/5' : 'w-1/2'}`}></div>
+            </div>
+
+            {/* Lista de vistas */}
+            <nav className="flex-1 px-3 space-y-6 mt-4 custom-scroll overflow-y-auto">
+              {Object.keys(toolsByCategory).map(category => (
+                <div key={category} className="space-y-2">
+                  {/* Título de Categoría */}
+                  <div className={`px-4 transition-all duration-300 ${isSidebarOpen ? 'opacity-100 h-auto mb-2' : 'opacity-0 h-0 overflow-hidden'}`}>
+                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">
+                      {category}
+                    </p>
+                  </div>
+
+                  {/* Botones de la Categoría */}
+                  <div className="space-y-1">
+                    {toolsByCategory[category].map(tool => (
+                      <button 
+                        key={tool.id}
+                        onClick={() => seleccionarVista(tool.id, tool.id)}
+                        className={`w-full h-11 flex items-center rounded-xl transition-all group relative ${
+                          activeTool === tool.id ? 'bg-[#d93025] text-white shadow-lg shadow-red-900/20' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <div className="min-w-[50px] flex items-center justify-center">
+                          <Icon name={tool.icon} size={18} />
+                        </div>
+                        <span className={`font-bold uppercase text-[11px] tracking-tight transition-opacity duration-300 ${
+                          isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'
+                        }`}>
+                          {tool.name}
+                        </span>
+                        
+                        {/* Indicador visual de activo (bolita a la derecha) */}
+                        {activeTool === tool.id && isSidebarOpen && (
+                          <div className="absolute right-4 w-1.5 h-1.5 bg-white rounded-full"></div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* SEPARADOR ENTRE CATEGORÍAS */}
+                            <div className="flex justify-center pb-2">
+                              <div className={`h-[3px] bg-gray-700/50 rounded-full transition-all duration-500 ${
+                                isSidebarOpen ? 'w-4/5 opacity-100' : 'w-0 opacity-0 overflow-hidden'
+                              }`}></div>
+                            </div>
+                          </div>
+              ))}
+            </nav>
+          </aside>
+
+          {/* MAIN CONTENT AREA */}
+          <main className="flex-1 flex flex-col relative bg-[#f8f9fa]">
+            {isSidebarOpen && <div className="overlay-fade" onClick={() => setIsSidebarOpen(false)}></div>}
+
+            {/* HEADER DINÁMICO */}
+            <header className="h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10">
+              <div>
+                <h1 className="text-xl font-black uppercase tracking-tighter">
+                  {TOOLS.find(t => t.id === activeTool)?.name}
+                </h1>
+              </div>
+            </header>
+
+            {/* CONTENEDOR DE VISTAS */}
+          <div className="flex-1 overflow-hidden bg-white m-4 rounded-2xl shadow-sm border border-[#dadce0]">
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <Icon name="loader-2" className="animate-spin text-[#d93025]" size={40} />
+              </div>
+            ) : (
+              /* 💉 Conectamos la referencia aquí */
+              <div ref={containerRef} dangerouslySetInnerHTML={{ __html: viewContent }} />
+            )}
+          </div>
+          </main>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
