@@ -59,6 +59,19 @@
         if(window.lucide) window.lucide.createIcons();
       }, [busqueda, data]);
 
+      useEffect(() => {
+  google.script.run
+    .withSuccessHandler(res => {
+      setData(res || []);
+      setLoading(false);
+    })
+    .withFailureHandler(err => {
+      console.error("ERROR CRÍTICO EN SERVIDOR:", err);
+      setLoading(false);
+    })
+    .obtenerBalanceVirtualExcedentes();
+}, []);
+
       // Cálculos para las tarjetas
       const stats = useMemo(() => {
         const disponibles = data.filter(i => (i.UBICACION || '').toUpperCase().includes('DISPONIBLE')).length;
