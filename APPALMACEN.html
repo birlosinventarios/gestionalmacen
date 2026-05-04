@@ -1,117 +1,75 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">  
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema de Gestión - Birlos y Tornillos</title>
+  
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
 
 
   <style>
-    <? !=HtmlService.createHtmlOutputFromFile('Estilos_Globales').getContent();
-    ?>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
 
+  <?!= HtmlService.createHtmlOutputFromFile('Estilos_Globales').getContent(); ?>
+
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
+    
     :root {
       --primary: #d93025;
       --bg-color: #f8f9fa;
       --text-main: #1c1d1f;
     }
 
-    body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      width: 100vw;
-      /* Asegura el ancho total */
-      background-color: var(--bg-color);
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      /* Fallbacks de sistema para mayor velocidad */
-      overflow: hidden;
-      /* Mantiene la App fija, el scroll se maneja en los contenedores internos */
-      -webkit-font-smoothing: antialiased;
-      /* Mejora la legibilidad de la fuente en Mac/iOS */
-    }
-
-    /* Sidebar con prioridad absoluta */
-    aside {
-      position: fixed !important;
-      /* Sacarla del flujo para que no sea empujada */
-      left: 0;
-      top: 0;
-      bottom: 0;
-      z-index: 100;
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    /* Compensación para el contenido principal */
-    main {
-      margin-left: 80px;
-      /* Ancho de la sidebar mini */
-      transition: margin-left 0.4s ease;
-      min-width: 0;
-      /* VITAL: Evita que el contenido empuje la UI */
-    }
-
-    /* Cuando la sidebar se expande */
-    .sidebar-expanded+main {
-      margin-left: 260px;
-      /* Ancho de la sidebar abierta */
-    }
-
-    /* El disparador de seguridad */
-    .sidebar-trigger {
-      position: fixed;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 12px;
-      z-index: 110;
-      background: transparent;
-    }
+   body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw; /* Asegura el ancho total */
+  background-color: var(--bg-color);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif; /* Fallbacks de sistema para mayor velocidad */
+  overflow: hidden; /* Mantiene la App fija, el scroll se maneja en los contenedores internos */
+  -webkit-font-smoothing: antialiased; /* Mejora la legibilidad de la fuente en Mac/iOS */
+}
+    
 
     .sidebar-transition {
       transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .sidebar-mini {
-      width: 80px;
-    }
+    .sidebar-mini { width: 80px; }
+    .sidebar-visible { width: 280px; }
 
-    .sidebar-visible {
-      width: 280px;
+    /* Área invisible para detectar hover */
+    .sidebar-trigger {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 20px;
+      height: 100vh;
+      z-index: 50;
     }
 
     .overlay-fade {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.3);
+      background: rgba(0,0,0,0.3);
       backdrop-filter: blur(2px);
       z-index: 30;
       animation: fadeIn 0.3s ease;
     }
 
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-      }
-
-      to {
-        opacity: 1;
-      }
-    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
     .logo-container {
       background: white;
@@ -122,74 +80,60 @@
     }
 
 
-    .custom-scroll::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    .custom-scroll::-webkit-scrollbar-thumb {
-      background: #e5e7eb;
-      border-radius: 10px;
-    }
-
-    .glass {
-      background: rgba(255, 255, 255, 0.8);
-      backdrop-filter: blur(12px);
-    }
-
-    /* Estilo simple para notificaciones tipo Toast manuales si Sonner falla */
-    .toast-container {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 9999;
-    }
-
-    /* Animación de entrada: se desliza desde la derecha y aparece */
-    @keyframes toastIn {
-      from {
-        transform: translateX(100%);
-        opacity: 0;
+      .custom-scroll::-webkit-scrollbar { width: 4px; }
+      .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+      .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
+      
+      /* Estilo simple para notificaciones tipo Toast manuales si Sonner falla */
+      .toast-container {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
       }
 
-      to {
-        transform: translateX(0);
-        opacity: 1;
-      }
-    }
+/* Animación de entrada: se desliza desde la derecha y aparece */
+@keyframes toastIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
 
-    /* Animación de salida: se desliza hacia la derecha y se desvanece */
-    @keyframes toastOut {
-      from {
-        transform: translateX(0);
-        opacity: 1;
-      }
+/* Animación de salida: se desliza hacia la derecha y se desvanece */
+@keyframes toastOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
 
-      to {
-        transform: translateX(100%);
-        opacity: 0;
-      }
-    }
+/* Clases para SweetAlert */
+.animate-toast-in {
+  animation: toastIn 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
 
-    /* Clases para SweetAlert */
-    .animate-toast-in {
-      animation: toastIn 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-    }
+.animate-toast-out {
+  animation: toastOut 0.4s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
 
-    .animate-toast-out {
-      animation: toastOut 0.4s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-    }
+.swal2-popup.swal2-toast {
+  backdrop-filter: blur(8px);
+  background-color: rgba(28, 29, 31, 0.95) !important; /* Fondo ligeramente traslúcido */
+  border-left: 4px solid #d93025 !important; /* Acento lateral de marca */
+}
 
-    .swal2-popup.swal2-toast {
-      backdrop-filter: blur(8px);
-      background-color: rgba(28, 29, 31, 0.95) !important;
-      /* Fondo ligeramente traslúcido */
-      border-left: 4px solid #d93025 !important;
-      /* Acento lateral de marca */
-    }
   </style>
 </head>
-
 <body>
   <div id="root"></div>
 
@@ -319,15 +263,18 @@ const toolsByCategory = TOOLS.reduce((acc, tool) => {
 
 
       return (
-        <div className="flex h-screen w-full overflow-hidden bg-[#1c1d1f]">
-          {/* TRIGGER FIJO: No depende del flujo del DOM, siempre detecta el mouse */}
-          <div 
-            className="fixed left-0 top-0 w-4 h-full z-[110] bg-transparent"
-            onMouseEnter={() => setIsSidebarOpen(true)}
-          ></div>
+        <div className="flex h-screen w-full overflow-hidden">
+          
+          <div className="sidebar-trigger" onMouseEnter={() => setIsSidebarOpen(true)}></div>
 
           {/* SIDEBAR */}
-          <aside className={`z-[100] sidebar-transition ${isSidebarOpen ? 'sidebar-visible' : 'sidebar-mini'}`}>
+          <aside 
+            onMouseEnter={() => setIsSidebarOpen(true)}
+            onMouseLeave={() => setIsSidebarOpen(false)}
+            className={`bg-[#1c1d1f] flex flex-col z-40 sidebar-transition relative shadow-xl ${
+              isSidebarOpen ? 'sidebar-visible' : 'sidebar-mini'
+            }`}
+          >
             {/* LOGO SECTION */}
             <div className="p-4 flex flex-col items-center">
               <div className="logo-container flex items-center justify-center shadow-md">
@@ -400,22 +347,30 @@ const toolsByCategory = TOOLS.reduce((acc, tool) => {
             </nav>
           </aside>
 
-          {/* MAIN: El contenedor de vistas con su propio scroll */}
-            <main className="flex-1 flex flex-col min-w-0 bg-[#f8f9fa] relative z-10">
-              <header className="h-20 shrink-0 bg-white border-b flex items-center px-8">
+          {/* MAIN CONTENT AREA */}
+          <main className="flex-1 flex flex-col relative bg-[#f8f9fa]">
+            {isSidebarOpen && <div className="overlay-fade" onClick={() => setIsSidebarOpen(false)}></div>}
+
+            {/* HEADER DINÁMICO */}
+            <header className="h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10">
+              <div>
                 <h1 className="text-xl font-black uppercase tracking-tighter">
                   {TOOLS.find(t => t.id === activeTool)?.name}
                 </h1>
-              </header>
-
-            {/* EL CONTENEDOR MÁGICO */}
-              <div className="flex-1 m-4 bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col border border-gray-200">
-                <div 
-                  ref={containerRef} 
-                  className="flex-1 overflow-y-auto custom-scroll p-6" // Aquí vive el scroll
-                  dangerouslySetInnerHTML={{ __html: viewContent }} 
-                />
               </div>
+            </header>
+
+            {/* CONTENEDOR DE VISTAS */}
+          <div className="flex-1 overflow-hidden bg-white m-4 rounded-2xl shadow-sm border border-[#dadce0]">
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <Icon name="loader-2" className="animate-spin text-[#d93025]" size={40} />
+              </div>
+            ) : (
+              /* 💉 Conectamos la referencia aquí */
+              <div ref={containerRef} dangerouslySetInnerHTML={{ __html: viewContent }} />
+            )}
+          </div>
           </main>
         </div>
       );
@@ -425,5 +380,4 @@ const toolsByCategory = TOOLS.reduce((acc, tool) => {
     root.render(<App />);
   </script>
 </body>
-
 </html>
