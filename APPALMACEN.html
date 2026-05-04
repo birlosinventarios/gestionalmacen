@@ -263,18 +263,15 @@ const toolsByCategory = TOOLS.reduce((acc, tool) => {
 
 
       return (
-        <div className="flex h-screen w-full overflow-hidden">
-          
-          <div className="sidebar-trigger" onMouseEnter={() => setIsSidebarOpen(true)}></div>
+        <div className="flex h-screen w-full overflow-hidden bg-[#1c1d1f]">
+          {/* TRIGGER FIJO: No depende del flujo del DOM, siempre detecta el mouse */}
+          <div 
+            className="fixed left-0 top-0 w-4 h-full z-[110] bg-transparent"
+            onMouseEnter={() => setIsSidebarOpen(true)}
+          ></div>
 
           {/* SIDEBAR */}
-          <aside 
-            onMouseEnter={() => setIsSidebarOpen(true)}
-            onMouseLeave={() => setIsSidebarOpen(false)}
-            className={`bg-[#1c1d1f] flex flex-col z-40 sidebar-transition relative shadow-xl ${
-              isSidebarOpen ? 'sidebar-visible' : 'sidebar-mini'
-            }`}
-          >
+          <aside className={`z-[100] sidebar-transition ${isSidebarOpen ? 'sidebar-visible' : 'sidebar-mini'}`}>
             {/* LOGO SECTION */}
             <div className="p-4 flex flex-col items-center">
               <div className="logo-container flex items-center justify-center shadow-md">
@@ -347,30 +344,22 @@ const toolsByCategory = TOOLS.reduce((acc, tool) => {
             </nav>
           </aside>
 
-          {/* MAIN CONTENT AREA */}
-          <main className="flex-1 flex flex-col relative bg-[#f8f9fa]">
-            {isSidebarOpen && <div className="overlay-fade" onClick={() => setIsSidebarOpen(false)}></div>}
-
-            {/* HEADER DINÁMICO */}
-            <header className="h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10">
-              <div>
+          {/* MAIN: El contenedor de vistas con su propio scroll */}
+            <main className="flex-1 flex flex-col min-w-0 bg-[#f8f9fa] relative z-10">
+              <header className="h-20 shrink-0 bg-white border-b flex items-center px-8">
                 <h1 className="text-xl font-black uppercase tracking-tighter">
                   {TOOLS.find(t => t.id === activeTool)?.name}
                 </h1>
-              </div>
-            </header>
+              </header>
 
-            {/* CONTENEDOR DE VISTAS */}
-          <div className="flex-1 overflow-hidden bg-white m-4 rounded-2xl shadow-sm border border-[#dadce0]">
-            {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <Icon name="loader-2" className="animate-spin text-[#d93025]" size={40} />
+            {/* EL CONTENEDOR MÁGICO */}
+              <div className="flex-1 m-4 bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col border border-gray-200">
+                <div 
+                  ref={containerRef} 
+                  className="flex-1 overflow-y-auto custom-scroll p-6" // Aquí vive el scroll
+                  dangerouslySetInnerHTML={{ __html: viewContent }} 
+                />
               </div>
-            ) : (
-              /* 💉 Conectamos la referencia aquí */
-              <div ref={containerRef} dangerouslySetInnerHTML={{ __html: viewContent }} />
-            )}
-          </div>
           </main>
         </div>
       );
