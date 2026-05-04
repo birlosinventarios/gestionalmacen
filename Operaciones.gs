@@ -246,3 +246,53 @@ function actualizarRegistroDesdeHistorialCompleto(numFila, datos) {
     lock.releaseLock();
   }
 }
+
+/**
+ * Calcula el balance virtual basado en la concatenación de Serie + Codigo
+ */
+function obtenerBalanceVirtualExcedentes() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Bitacora-Traspasos");
+  const datos = sheet.getDataRange().getValues();
+  const cabeceras = datos.shift();
+  
+  const col = {
+    tipo: cabeceras.indexOf("Tipo de movimiento"),
+    serie: cabeceras.indexOf("Serie"),
+    codigo: cabeceras.indexOf("Codigo"),
+    desc: cabeceras.indexOf("Descripcion"),
+    cant: cabeceras.indexOf("Cantidad"),
+    bodega: cabeceras.indexOf("Bodega Entrada") // Usamos la de entrada como referencia de stock actual
+  };
+
+  const balance = {};
+
+  datos.forEach(fila => {
+    const serie = fila[col.serie];
+    const codigo = fila[col.codigo];
+    const llaveVirtual = `${serie}-${codigo}`; // Tu ID de concatenación
+    const tipo = (fila[col.tipo] || "").toLowerCase();
+    const cantidad = Number(fila[col.cant]) || 0;
+
+    if (!balance[llaveVirtual]) {
+      balance[llaveVirtual] = {
+        llave: llaveVirtual,
+        codigo: codigo,
+        serie: serie,
+        descripcion: fila[col.desc],
+        cantidad: 0,
+        bodega: fila[col.bodega]
+      };
+    }
+
+    // Balance Virtual: Suma si es entrada, resta si es salida
+    if (tipo.includes("acomodo")) {
+      balance[llaveVirtual].cantidad += cantidad;
+    } else if (tipo.includes("surtido")) {
+      balance[llaveVirtual].cantidad -= cantidad;
+    }
+  });
+
+  // Solo enviamos al Gestor las ubicaciones que tengan saldo positivo
+  return Object.values(balance).filter(item => item.cantidad > 0);
+}
