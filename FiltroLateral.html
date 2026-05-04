@@ -1,0 +1,90 @@
+<div class="offcanvas offcanvas-end" tabindex="-1" id="panelFiltros" aria-labelledby="offcanvasLabel">
+  
+  <div class="offcanvas-header">
+      <h5 id="panelFiltrosLabel">Filtros de Búsqueda</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+
+  <div class="offcanvas-body">
+    <div class="contenedor-filtros">
+      
+      <div class="campo">
+        <label>Fecha</label>
+        <div class="input-con-icono">
+          <span class="material-icons">date_range</span>
+          <input type="date" id="filterFecha" onchange="aplicarFiltros()">
+        </div>
+      </div>
+
+      <div class="campo">
+        <label>Tipo de movimiento</label>
+        <div class="input-con-icono">
+          <span class="material-icons">back_hand</span>
+          <input type="text" id="filterTipo" list="listaTipos" placeholder="Escribe o selecciona un movimiento..." onkeyup="aplicarFiltros()">
+          <datalist id="listaTipos"></datalist>
+          </div>
+      </div>
+
+      <div class="campo">
+        <label>Codigo</label>
+        <div class="input-con-icono">
+          <span class="material-icons">qr_code_2</span>
+          <input type="text" id="filterCodigo" list="listaCodigos" placeholder="Escribe o selecciona un codigo..." onkeyup="aplicarFiltros()">
+          <datalist id="listaCodigos"></datalist>
+        </div>
+      </div>
+
+      <div class="campo">
+        <label>Bodega (Origen/Destino)</label>
+        <div class="input-con-icono">
+          <span class="material-icons">storefront</span>
+          <input type="text" id="filterAlmacen" list="listaAlmacenes" placeholder="Escribe o selecciona una bodega..." onkeyup="aplicarFiltros()">
+          <datalist id="listaAlmacenes"></datalist>
+        </div>
+      </div>
+
+      <div class="campo">
+        <label>Solicitante</label>
+        <div class="input-con-icono">
+          <span class="material-icons">person_search</span>
+          <input type="text" id="filterSolicitante" list="listaSolicitantes" placeholder="Escribe o selecciona un nombre..." onkeyup="aplicarFiltros()">
+          <datalist id="listaSolicitantes"></datalist>
+        </div>
+      </div>
+
+      <div class="campo">
+        <label>Responsable</label>
+        <div class="input-con-icono">
+          <span class="material-icons">person_search</span>
+          <input type="text" id="filterResponsable" list="listaResponsables" placeholder="Escribe o selecciona un nombre..." onkeyup="aplicarFiltros()">
+          <datalist id="listaResponsables"></datalist>
+        </div>
+      </div>
+
+      <div class="campo">
+        <label>Folio del Sistema</label>
+        <div class="input-con-icono">
+          <span class="material-icons">tag</span>
+          <input type="text" id="filterFolio" list="listaFolios" placeholder="Escribe o selecciona un folio..." onkeyup="aplicarFiltros()">
+          <datalist id="listaFolios"></datalist>
+        </div>
+      </div>
+
+      <hr style="border-top: 1px dashed var(--border-color); margin: 25px 0;">
+
+      <button class="btn-anadir-ajustado" 
+              style="background-color: var(--secondary) !important;" 
+              onclick="limpiarFiltros()">
+        <span class="material-icons">filter_list_off</span>
+        Limpiar filtros
+      </button>
+
+      <div style="margin-top: 20px; text-align: center;">
+        <small style="color: var(--text-secondary); font-style: italic;">
+          Los resultados se filtran en tiempo real mientras escribes.
+        </small>
+      </div>
+
+    </div>
+  </div>
+</div>

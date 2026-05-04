@@ -1,0 +1,23 @@
+<script type="text/template" id="plantillaEtiqueta">
+  <li class="fila-etiqueta-item-etiqueta" id="fila-{{INDEX}}">
+    <div class="fila-etiqueta-card-traspaso">
+      <div class="ft-col-meta">
+        <div class="ft-icon-badge" style="background-color: var(--primary-light); color: var(--primary-dark); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+          <span class="material-icons">local_offer</span>
+        </div>
+      </div>
+
+      <div class="fila-col-info" style="flex-grow: 1;"> 
+        <div class="fila-col-info-codigo-txt" style="font-weight: bold; color: var(--text-main);">{{CODIGO}}</div>
+        <div class="fila-col-info-desc-txt" style="color: var(--text-secondary); font-size: 13px;">{{DESCRIPCION}}</div>
+        <div class="fila-col-info-ubi-contenedor" style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; margin-top: 4px;">
+          <i class="material-icons" style="font-size: 14px;">straighten</i> {{ALTO}}mm x {{ANCHO}}mm
+        </div>
+      </div>
+
+      <button class="btn-borrar" onclick="quitarDeLista({{INDEX}})" title="Eliminar">
+        <span class="material-icons">delete_outline</span>
+      </button>
+    </div>
+  </li>
+</script>

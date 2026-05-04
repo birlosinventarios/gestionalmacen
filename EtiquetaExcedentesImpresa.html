@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    /* VARIABLES DE ESCALA PARA 12.5x8 (Compensado a 13x8.4) */
+    :root {
+      --ancho-papel: 9.5cm; /* Un poco más que el alto original para dar margen */
+      --alto-papel: 15cm;  /* Un poco más que el ancho original */
+
+      /* Estas son las dimensiones de tu DISEÑO */
+      --ancho-diseno: 15cm;
+      --alto-diseno: 9.5cm;
+    }
+
+    * { box-sizing: border-box; }
+
+    @page {
+      size: letter; /* Hoja tamaño carta */
+     
+    }
+
+    body {
+      margin: 0; padding: 0;
+      font-family: "Century Gothic", AppleGothic, sans-serif;
+      background-color: #f0f0f0; /* Gris para verlas en pantalla, blanco al imprimir */
+    }
+
+    /* El contenedor ahora permite que las etiquetas fluyan */
+    .contenedor-impresion {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+
+    .etiqueta {
+      /* FORZAMOS DIMENSIONES REALES */
+      width: var(--ancho-diseno);
+      height: var(--alto-diseno);
+      border: 2px solid black;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      page-break-inside: avoid; /* No se rompe entre hojas */
+      transform: rotate(90deg) translate(0, calc(-1 * var(--ancho-diseno) + 26.5mm));
+      transform-origin: top left;
+      background: white;
+    }
+
+    @media print {
+      body { background: white; }
+      .contenedor-impresion { padding: 0; gap: 2px; }
+    }
+
+    .marca-agua {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80%;
+      opacity: 0.07;
+      z-index: -1;
+      filter: grayscale(100%);
+    }
+   
+    .header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 4px solid black;
+      padding-bottom: 5px;
+      margin-bottom: 10px;
+    }
+   
+    .codigo-titulo {
+      font-weight: 600;
+      font-size: 16pt;
+      margin: 0;
+    }
+   
+    .fecha-badge {
+      font-size: 11pt; /* Un poco más grande para compensar que ya no tiene recuadro */
+      font-weight: bold;
+      color: #000; /* Negro sólido */
+      padding: 0;
+      border-radius: 0;
+      background: none; /* Quitamos el relleno negro */
+      text-align: right;
+    }
+   
+    .cuerpo {
+      display: flex;
+      flex: 1;
+      justify-content: space-between;
+      align-items: stretch;
+    }
+   
+    .info {
+      width: 55%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+   
+    .descripcion {
+      font-weight: bold;
+      font-size: 16pt;
+      color: #333;
+      line-height: 1.1;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+   
+    .pzas-container {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+   
+    .pzas-valor {
+      font-size: 28pt;
+      font-weight: 900;
+      line-height: 0.8;
+    }
+   
+    .pzas-label {
+      font-size: 12pt;
+      font-weight: bold;
+    }
+   
+    .qr-seccion {
+      width: 40%;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: flex-end;
+    }
+   
+    .qr-container {
+      width: 170px;
+      height: 170px;
+      border: 1px solid #ddd;
+      background: white;
+      margin-bottom: 5px;
+      display:flex;
+      justify-content: center;
+      align-items: center;
+    }
+   
+    .qr-container img {
+      width: 90%;
+      height: 90%;
+    }
+   
+    .excedentes-label {
+        font-size: 10pt;
+      font-weight: 900;
+      text-align: right;
+      width: 140px;
+      border-top: 3px solid black;
+      padding-top: 3px;
+    }
+   
+    .footer-datos {
+      margin-top: 5px;
+      font-size: 8pt;
+      font-weight: bold;
+      font-family: monospace;
+    }
+
+  </style>
+</head>
+<body>
+ 
+    <div class="contenedor-impresion">
+    <? lote.forEach(function(item) { ?>
+      <div class="etiqueta">
+        <img src="https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png" class="marca-agua" onload="verificarCarga()">
+
+        <div class="header">
+            <h1 class="codigo-titulo"><?= item.codigo ?></h1>
+            <span class="fecha-badge"><?= fechaHora ?></span>
+        </div>
+
+        <div class="cuerpo">
+            <div class="info">
+                <div class="descripcion"><?= item.descripcion ?></div>
+                <div class="pzas-container">
+                  <span class="pzas-valor"><?= item.cantidad ?></span>
+                  <span class="pzas-label">PZAS</span>
+                </div>
+            </div>
+
+            <div class="qr-seccion">
+                <div class="qr-container">
+                    <img src="https://quickchart.io/qr?text=<?= encodeURIComponent(item.id) ?>&size=200&margin=1"
+                         onload="verificarCarga()"
+                         onerror="this.src='https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=<?= encodeURIComponent(item.idUnico) ?>'">
+                </div>
+                <div class="excedentes-label">EXCEDENTES</div>
+            </div>
+        </div>
+
+        <div class="footer-datos">
+          <span><?= item.idUnico ?></span>
+        </div>
+      </div>
+    <? }); ?>
+
+  <script>
+    let imagenesCargadas = 0;
+    // Multiplicamos por 2 (Logo + QR). Si no hay lote, evitamos error con || 0
+    const totalImagenesEsperadas = (parseInt("<?= lote.length ?>") || 0) * 2;
+    let impresionLanzada = false;
+
+    function lanzarImpresion() {
+      if (!impresionLanzada) {
+        impresionLanzada = true;
+        console.log("Lanzando impresión...");
+        window.print();
+      }
+    }
+
+    function verificarCarga() {
+      imagenesCargadas++;
+      // Si ya cargaron todas las que esperábamos, imprimimos
+      if (imagenesCargadas >= totalImagenesEsperadas) {
+        lanzarImpresion();
+      }
+    }
+
+    // SEGURO DE VIDA: Si después de 3.5 segundos las imágenes no han avisado,
+    // imprimimos lo que haya para no bloquear al usuario Fito.
+    window.onload = function() {
+      setTimeout(lanzarImpresion, 3500);
+    };
+  </script>
+</body>
+</html>

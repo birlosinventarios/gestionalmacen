@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        :root {
+            --primary-red: #d93025;
+            --label-width: 70mm;
+            --label-height: 45mm;
+        }
+
+        body { background-color: #f0f0f0; font-family: 'Segoe UI', Roboto, sans-serif; }
+
+        /* Contenedor de la etiqueta */
+        .etiqueta-excedente {
+            width: var(--label-width);
+            height: var(--label-height);
+            background: white;
+            border: 1px solid #000; /* Borde guía para corte */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4mm;
+            box-sizing: border-box;
+            margin: 20px auto;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Franja superior estética */
+        .etiqueta-excedente::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 3mm;
+            background: #1c1d1f;
+        }
+
+        .logo-container {
+            width: 100%;
+            display: flex;
+            justify-content: flex-start; /* Logo a la izquierda como la original */
+            margin-top: 2mm;
+        }
+
+        .logo-img {
+            height: 12mm; /* Escala proporcional */
+            object-fit: contain;
+        }
+
+        .texto-principal {
+            text-align: center;
+            color: #1c1d1f;
+            text-transform: uppercase;
+            font-weight: 800;
+            font-size: 16pt;
+            line-height: 1.1;
+            margin: 0;
+        }
+
+        .texto-secundario {
+            text-align: center;
+            color: #454040;
+            text-transform: uppercase;
+            font-weight: 600;
+            font-size: 10pt;
+            letter-spacing: 1px;
+            border-top: 1px solid #dadce0;
+            padding-top: 2mm;
+            width: 80%;
+        }
+
+        /* Configuración para Impresora */
+        @media print {
+            body { background: none; margin: 0; }
+            .etiqueta-excedente { 
+                margin: 0; 
+                border: 0.1mm solid #eee; /* Borde casi invisible al imprimir */
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="etiqueta-excedente">
+        <div class="logo-container">
+            <img src="https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png" alt="Logo" class="logo-img">
+        </div>
+
+        <h1 class="texto-principal">
+            Este producto tiene excedente
+        </h1>
+
+        <div class="texto-secundario">
+            Consultar Estatus
+        </div>
+    </div>
+
+</body>
+</html>

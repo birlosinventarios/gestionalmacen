@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+        :root {
+          --ancho-papel: 10cm; /* Un poco más que el alto original para dar margen */
+          --alto-papel: 15.5cm;  /* Un poco más que el ancho original */
+
+          /* Estas son las dimensiones de tu DISEÑO */
+          --ancho-diseno: 15.6cm;
+          --alto-diseno: 9.5cm;
+        }
+            
+            * { box-sizing: border-box; }
+
+        @page {
+          size: letter; /* Hoja tamaño carta */
+        
+        } 
+
+        body {
+          margin: 0; padding: 0;
+          font-family: "Century Gothic", AppleGothic, sans-serif;
+          background-color: #f0f0f0; /* Gris para verlas en pantalla, blanco al imprimir */
+        }
+
+        .contenedor-pagina {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .etiqueta {
+          /* FORZAMOS DIMENSIONES REALES */
+          width: var(--ancho-diseno);
+          height: var(--alto-diseno);
+          border: 2px solid black;
+          padding: 30px;
+          display: flex;
+          flex-direction: column;
+          position: relative;
+          overflow: hidden;
+          page-break-inside: avoid; /* No se rompe entre hojas */
+          transform: rotate(90deg) translate(1.8mm, calc(-1 * var(--ancho-diseno) + 34.2mm));
+          transform-origin: top left;
+          background: white;
+        }
+
+        .marca-agua {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 80%;
+          opacity: 0.07;
+          z-index: -1;
+          filter: grayscale(100%);
+        }
+
+        .header {
+          display: flex;
+          justify-content: space-between;
+          border-bottom: 4px solid black;
+          padding-bottom: 5px;
+          margin-bottom: 10px;
+          align-items: center;
+        }
+
+        .codigo-titulo {
+          font-weight: 20pt;
+          margin: 0;
+        }
+
+        .tipo-badge {
+          font-size: 11pt; /* Un poco más grande para compensar que ya no tiene recuadro */
+          font-weight: bold;
+          color: #000; /* Negro sólido */
+          padding: 0;
+          border-radius: 0;
+          background: none; /* Quitamos el relleno negro */
+          text-align: right;
+          align-items: center;
+        }
+
+        .cuerpo {
+          display: flex;
+          flex: 1;
+          justify-content: space-between;
+          align-items: stretch;
+        }
+
+        .info {
+          width: 55%;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+
+        .descripcion {
+          font-weight: bold;
+          font-size: 25pt;
+          color: #333;
+          line-height: 1.1;
+          text-transform: uppercase;
+          margin-bottom: 5px;
+        }
+
+        .qr-container {
+          width: 200px;
+          height: 200px;
+          border: 1px solid #ddd;
+          background: white;
+          margin-bottom: 5px;
+          display:flex;
+          justify-content: center;
+          align-items: center;
+        }
+
+        .qr-container img {
+          width: 90%;
+          height: 90%;
+        }
+
+        @media print {
+          .etiqueta { page-break-inside: avoid; }
+        }
+
+  </style>
+
+</head>
+
+<body>
+  <div class="contenedor-pagina">
+    <? 
+       // 1. Variable para rastrear el cambio de tamaño
+       var tipoAnterior = ""; 
+       
+       lote.forEach(function(item, index) { 
+         // Calculamos la escala individual
+         var miEscala = item.alto / 7.5; 
+
+         // 2. Si NO es la primera etiqueta Y el tipo cambió, forzamos salto de página
+         if (index > 0 && item.tipo !== tipoAnterior) { 
+    ?>
+           <div style="page-break-after: always; height: 0; margin: 0; padding: 0;"></div>
+    <?   
+         } 
+         // Actualizamos el rastreador para la siguiente vuelta
+         tipoAnterior = item.tipo; 
+    ?>
+      <div class="etiqueta" style="--escala: <?= miEscala ?>; --ancho-cm: <?= item.ancho ?>cm; --alto-cm: <?= item.alto ?>cm;">
+
+          <img src="https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png" 
+          class="marca-agua" 
+          onload="verificarCarga()">      
+
+        <div class="header">
+          <h1 class="codigo-titulo"><?= item.codigo ?></h1>
+          <span class="tipo-badge"><?= fechaHora ?></span>
+        </div>
+
+        <div class="cuerpo">
+          <div class="info">
+            <div class="descripcion"><?= item.descripcion ?></div>
+          </div>
+
+          <div class="qr-container">
+            <img src="https://quickchart.io/qr?text=<?= encodeURIComponent(item.id) ?>&size=250&margin=1"
+                 onload="verificarCarga()"
+                 onerror="this.src='https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=<?= encodeURIComponent(item.id) ?>'">
+          </div>
+        </div>
+      </div>
+    <? }); ?>
+</div>
+
+  <script>
+    let imagenesCargadas = 0;
+    // Multiplicamos por 2 porque ahora hay 2 imágenes (Logo + QR) por etiqueta
+    const totalImagenesEsperadas = <?= lote.length ?> * 2; 
+    let impresionLanzada = false;
+
+    function lanzarImpresion() {
+      if (!impresionLanzada) {
+        impresionLanzada = true;
+        window.print();
+      }
+    }
+
+    function verificarCarga() {
+      imagenesCargadas++;
+      // Solo imprime cuando el logo y el QR de todas las etiquetas estén listos
+      if (imagenesCargadas >= totalImagenesEsperadas) {
+        setTimeout(lanzarImpresion, 500);
+      }
+    }
+
+    window.onload = function() {
+      // Aumentamos el Plan B a 5 segundos por si el logo externo es lento
+      setTimeout(lanzarImpresion, 5000);
+    };
+  </script> 
+
+</body>
+
+</html>

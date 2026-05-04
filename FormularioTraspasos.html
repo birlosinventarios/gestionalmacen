@@ -1,0 +1,551 @@
+      <div class="container">
+
+        <div class="campo">
+          <label for="tipoMovimientoInput">Tipo de movimiento</label>
+          <div class="input-con-icono">
+          <input type="text" id="tipoMovimientoInput" list="listaTipos" placeholder="Escribe o selecciona un tipo de movimiento">
+          <span class="material-icons">label</span>
+          </div>
+          <datalist id="listaTipos">
+            <option value="Acomodo">
+            <option value="Surtido">
+            <option value="Cambio de bodega">
+          </datalist>
+        </div>
+
+        <div id="cuerpoFormulario" style="display: none;">
+
+        <div class="campo">
+          <label for="solicitanteInput">Solicitante</label>
+          <div class="input-con-icono">
+          <input type="text" id="solicitanteInput" list="listaSolicitantes" placeholder="Escribe o selecciona un nombre">
+          <span class="material-icons">account_circle</span>
+          </div>
+          <datalist id="listaSolicitantes"></datalist>
+        </div>
+
+        <div id="seccionSalida">
+          <div class="fila-doble">
+            <div class="campo">
+              <label id="labelBodegaSalida">Bodega (Salida)</label>
+              <div class="input-con-icono">
+                <input type="text" id="bodegaSalidaInput" list="listaBodega" placeholder="Selecciona una bodega" onchange="cargarUbicaciones('bodegaSalidaInput', 'listaUbiSalida', 'ubiSalidaInput')">
+                <span class="material-icons">store</span>
+              </div>
+              <datalist id="listaBodega"></datalist>
+            </div>
+
+            <div class="campo">
+              <label id="labelUbiSalida">Ubicación (Salida)</label>
+              <div class="input-con-icono">
+                <input type="text" id="ubiSalidaInput" list="listaUbiSalida" placeholder="Selecciona una ubicacion">
+                <span class="material-icons">place</span>
+              </div>
+              <datalist id="listaUbiSalida"></datalist>
+            </div>
+          </div>
+        </div>
+
+        <div id="seccionEntrada">
+          <div class="fila-doble">
+            <div class="campo">
+              <label>Bodega (Entrada)</label>
+              <div class="input-con-icono">
+                <input type="text" id="bodegaEntradaInput" list="listaBodega" placeholder="Selecciona una bodega" onchange="cargarUbicaciones('bodegaEntradaInput', 'listaUbiEntrada', 'ubiEntradaInput')">
+                <span class="material-icons">store_mall_directory</span>
+              </div>
+              <datalist id="listaBodega"></datalist>
+            </div>
+
+            <div class="campo">
+              <label>Ubicación (Entrada)</label>
+              <div class="input-con-icono">
+                <input type="text" id="ubiEntradaInput" list="listaUbiEntrada" placeholder="Selecciona una ubicacion">
+                <span class="material-icons">near_me</span>
+              </div>
+              <datalist id="listaUbiEntrada"></datalist>
+            </div>
+          </div>
+        </div>
+
+          <div class="campo">
+            <label for="codigoInput">Codigo</label>
+            <div class="input-con-icono">
+              <input type="text" id="codigoInput" list="listaCodigosDinamica" placeholder="Escribe o selecciona un codigo">
+              <span class="material-icons">inventory_2</span>
+            </div>
+            <datalist id="listaCodigosDinamica"></datalist>
+            </div>
+
+        <div class="campo">
+          <label for="descripcion">Descripcion</label>
+          <div class="input-con-icono">
+          <input type="text" id="descripcionInput" placeholder="" readonly placeholder="Esperando código..." style="background-color: #eee;">
+          <span class="material-icons">description</span>
+          </div>
+        </div>        
+
+        <div class="campo">
+          <label for="cantidad">Cantidad</label>
+          <div class="input-con-icono">
+          <input type="number" id="cantidadInput" placeholder="Ej: 1800">
+          <span class="material-icons">tag</span>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: center; width: 100%;">
+          <button class="btn-anadir-ajustado" onclick="agregarALista()" style="width: 100%; height: 50px;">
+            <span class="material-icons">add</span>Añadir a la Fila
+          </button>
+        </div>
+
+
+            <div class="cola-container" style="margin-top: 20px; border-top: 2px solid var(--border-color); padding-top: 15px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label style="margin-bottom: 0;">Traspasos solicitados: <span id="contador" class="badge">0</span></label>
+                
+                <div id="displaySolicitante" style="font-size: 12px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; display: flex; align-items: center; gap: 5px;">
+                  <span class="material-icons" style="font-size: 16px;">person</span>
+                  <span id="nombreSolicitanteDinamico">Sin solicitante</span>
+                </div>
+              </div>
+
+              <ul id="listaTraspasos" class="lista-datos">
+                </ul>
+              
+              <button id="btnRegistrarTodo" onclick="generar()" class="btn-registrar-ajustado">
+                <span class="material-icons">save</span> 
+                <span id="textoBotonRegistrar">Registrar</span>
+              </button>
+            </div>
+
+            <div id="snackbar"></div>
+
+
+      </div>
+
+
+        <?!= HtmlService.createHtmlOutputFromFile('FilaTraspasos').getContent(); ?>
+
+      <script>
+var colaDeTraspasos = colaDeTraspasos || [];
+  let snackbarTimeout;
+  let cacheCatalogo = {}; 
+  let todosLosCodigosGlobal = []; // Se llenará al cargar
+  let mapaUbicacionesGlobal = [];
+  let usuariosGlobal = []; 
+  let bodegasGlobal = [];
+  
+  const DEFAULT_VALUE = "1 - Almacen Birlos";
+
+// 1. Declarar la función en el objeto window
+window.cargar_FormularioTraspasos = function() {
+  console.log("🔄 Ejecutando carga: Formulario de Traspasos");
+  
+  // Limpieza visual inmediata (opcional)
+  const dlSolicitantes = document.getElementById('listaSolicitantes');
+  if (dlSolicitantes) dlSolicitantes.innerHTML = "";
+
+  lanzarNotificacion("Descargando catálogo...", "info");
+
+  google.script.run
+    .withSuccessHandler(function(datos) {
+      if (!datos) {
+        console.error("No se recibieron datos del servidor");
+        return;
+      }
+      console.log("✅ Datos de traspasos recibidos:", datos);
+      
+      // GUARDAR EN GLOBALES
+      usuariosGlobal = datos.usuarios || [];
+      bodegasGlobal = datos.bodegas || [];
+      todosLosCodigosGlobal = datos.codigos || [];
+      mapaUbicacionesGlobal = datos.mapaUbicaciones || [];
+
+      // --- LLENAR DATALISTS ---
+      
+      // Usuarios / Solicitantes
+      if (dlSolicitantes) {
+        dlSolicitantes.innerHTML = usuariosGlobal
+          .map(u => `<option value="${u.nombre}">`)
+          .join('');
+      }
+      
+      // Bodegas
+      const opcionesBodegas = bodegasGlobal.map(b => `<option value="${b}">`).join('');
+      document.querySelectorAll('#listaBodega').forEach(el => {
+        el.innerHTML = opcionesBodegas;
+      });
+      
+      // Actualizar Datalist de productos (si la función existe)
+      if (typeof actualizarDatalist === "function") {
+        actualizarDatalist(todosLosCodigosGlobal);
+      }
+      
+      lanzarNotificacion("Catálogo sincronizado", "success");
+    })
+    .withFailureHandler(err => {
+      console.error("❌ Error al cargar megadata:", err);
+      lanzarNotificacion("Error: " + err.message, "error");
+    })
+    .obtenerMegaDataInicial(); 
+};
+
+// 2. Disparar automáticamente la primera vez que se carga el script
+// Esto cubre el caso de que la vista sea la primera en cargar al abrir la URL
+window.cargar_FormularioTraspasos();
+
+
+// --- 2. GESTIÓN DE ESCRITURA ---
+document.getElementById('codigoInput').addEventListener('change', function() {
+  buscarPorCodigo(); // Centralizamos la lógica aquí
+});
+
+  // --- 3. LÓGICA DE INTERFAZ ---
+  document.getElementById('solicitanteInput').addEventListener('input', (e) => {
+    const nombre = e.target.value.trim();
+    document.getElementById('nombreSolicitanteDinamico').innerText = nombre || "Sin solicitante";
+  });
+
+  document.getElementById('tipoMovimientoInput').addEventListener('change', gestionarVisibilidad);
+
+function gestionarVisibilidad() {
+  const tipo = document.getElementById('tipoMovimientoInput').value;
+  const cuerpoForm = document.getElementById('cuerpoFormulario');
+  const tiposValidos = ["Acomodo", "Surtido", "Cambio de bodega"];
+
+  if (!tiposValidos.includes(tipo)) {
+    cuerpoForm.style.display = "none";
+    return;
+  }
+
+  cuerpoForm.style.display = "block";
+  
+  // Solo controlamos si se ve la sección de Entrada (para Cambios de Bodega)
+  const seccionEntrada = document.getElementById('seccionEntrada');
+  seccionEntrada.style.display = (tipo === "Cambio de bodega") ? "block" : "none";
+
+  // Limpiamos inputs para nueva captura
+  ["bodegaSalidaInput", "ubiSalidaInput", "bodegaEntradaInput", "ubiEntradaInput"].forEach(id => {
+    document.getElementById(id).value = "";
+  });
+
+  // PASO 2: Foco automático al Solicitante
+  document.getElementById('solicitanteInput').focus();
+}
+
+  // --- 4. FUNCIONES DE DATOS ---
+function actualizarDatalist(lista) {
+    const dl = document.getElementById('listaCodigosDinamica');
+    if (!dl) return;
+    
+    // Un solo join para 16k elementos es mucho más rápido que 16k manipulaciones de DOM
+    dl.innerHTML = lista.map(c => `<option value="${c}">`).join('');
+  }
+
+function buscarPorCodigo() {
+  const inputCodigo = document.getElementById('codigoInput');
+  const codigo = inputCodigo.value.trim().toUpperCase();
+  
+  if (!codigo) return;
+
+  // --- VALIDACIÓN ESTRICTA ---
+  if (!todosLosCodigosGlobal.includes(codigo)) {
+    lanzarNotificacion(`⚠️ El código "${codigo}" no existe en el catálogo.`, "error");
+    inputCodigo.value = "";
+    document.getElementById('descripcionInput').value = "";
+    inputCodigo.focus();
+    return;
+  }
+
+  if (cacheCatalogo[codigo]) {
+    document.getElementById('descripcionInput').value = cacheCatalogo[codigo];
+    document.getElementById('cantidadInput').focus();
+    return;
+  }
+
+  document.getElementById('descripcionInput').placeholder = "Buscando...";
+  google.script.run.withSuccessHandler(res => {
+      if (res.encontrado) {
+        document.getElementById('descripcionInput').value = res.descripcion;
+        cacheCatalogo[codigo] = res.descripcion;
+        document.getElementById('cantidadInput').focus(); 
+      }
+    })
+    .buscarProductoPorCodigo(codigo);
+}
+
+function cargarUbicaciones(idInputBodega, idDatalist, idInputUbi) {
+  const inputBodega = document.getElementById(idInputBodega);
+  const bodegaSeleccionada = inputBodega.value.trim().toUpperCase();
+  const dlUbicaciones = document.getElementById(idDatalist);
+  const inputUbi = document.getElementById(idInputUbi);
+
+  if (!bodegaSeleccionada) {
+    dlUbicaciones.innerHTML = "";
+    return;
+  }
+
+  // FILTRADO INSTANTÁNEO EN MEMORIA
+  const filtradas = mapaUbicacionesGlobal
+    .filter(item => item.bodega === bodegaSeleccionada)
+    .map(item => item.ubi);
+
+  if (filtradas.length > 0) {
+    // Quitar duplicados y ordenar alfabéticamente
+    const unicas = [...new Set(filtradas)].sort();
+    
+    dlUbicaciones.innerHTML = unicas.map(u => `<option value="${u}">`).join('');
+    inputUbi.placeholder = "Seleccione ubicación";
+    
+    // EL SALTO PROFESIONAL: Al ser local, el foco es inmediato
+    inputUbi.focus(); 
+  } else {
+    inputUbi.placeholder = "⚠️ Sin ubicaciones";
+    dlUbicaciones.innerHTML = "";
+  }
+}
+
+  // --- 5. GESTIÓN DE LA COLA ---
+function agregarALista() {
+  const getVal = (id) => document.getElementById(id).value.trim();
+  const tipo = getVal('tipoMovimientoInput');
+
+  // Verificación final de integridad
+  const codValido = todosLosCodigosGlobal.includes(getVal('codigoInput').toUpperCase());
+  const solValido = usuariosGlobal.some(u => u.nombre.toUpperCase() === getVal('solicitanteInput').toUpperCase());
+
+  if (!codValido || !solValido) {
+    lanzarNotificacion("❌ No se puede añadir: Hay valores no permitidos o campos vacíos", "error");
+    return;
+  }
+  
+  // Capturamos valores actuales de los inputs
+  let vSalidaBod = getVal('bodegaSalidaInput');
+  let vSalidaUbi = getVal('ubiSalidaInput');
+  let vEntradaBod = getVal('bodegaEntradaInput');
+  let vEntradaUbi = getVal('ubiEntradaInput');
+
+  let bSalida, uSalida, bEntrada, uEntrada;
+
+  if (tipo === "Surtido") {
+    bSalida = vSalidaBod || DEFAULT_VALUE;
+    uSalida = vSalidaUbi;
+    bEntrada = DEFAULT_VALUE;
+    uEntrada = DEFAULT_VALUE;
+  } 
+  else if (tipo === "Acomodo") {
+    // En acomodo usamos los campos "Superiores" como entrada
+    bSalida = DEFAULT_VALUE;
+    uSalida = DEFAULT_VALUE;
+    bEntrada = vSalidaBod || DEFAULT_VALUE;
+    uEntrada = vSalidaUbi;
+  } 
+  else { // Cambio de bodega
+    bSalida = vSalidaBod || DEFAULT_VALUE;
+    uSalida = vSalidaUbi;
+    bEntrada = vEntradaBod || DEFAULT_VALUE;
+    uEntrada = vEntradaUbi;
+  }
+
+  const item = {
+    tipo: tipo,
+    solicitante: getVal('solicitanteInput').toUpperCase(),
+    codigo: getVal('codigoInput').toUpperCase(),
+    descripcion: getVal('descripcionInput').toUpperCase(),
+    cantidad: parseFloat(getVal('cantidadInput')),
+    bodegaSalida: bSalida,
+    ubiSalida: uSalida,
+    bodegaEntrada: bEntrada,
+    ubiEntrada: uEntrada,
+    idUnico: `${Date.now()}-${getVal('codigoInput')}`.replace(/\s+/g, '')
+  };
+
+  // VALIDACIÓN GENERAL
+  if (!item.tipo || !item.solicitante || !item.codigo || isNaN(item.cantidad) || item.cantidad <= 0) {
+    return lanzarNotificacion("❌ Datos incompletos", "error");
+  }
+
+  // VALIDACIÓN DE UBICACIÓN SEGÚN EL TIPO
+  if ((tipo === "Surtido" || tipo === "Cambio de bodega") && !uSalida) {
+    return lanzarNotificacion("⚠️ Indica la ubicación de Salida", "warning");
+  }
+  if ((tipo === "Acomodo" || tipo === "Cambio de bodega") && !uEntrada) {
+    return lanzarNotificacion("⚠️ Indica la ubicación de Entrada", "warning");
+  }
+
+  colaDeTraspasos.push(item);
+  actualizarVistaLista();
+  
+  // Limpieza de campos de producto
+  document.getElementById('codigoInput').value = "";
+  document.getElementById('descripcionInput').value = "";
+  document.getElementById('cantidadInput').value = "";
+  document.getElementById('codigoInput').focus();
+  lanzarNotificacion("✅ Añadido");
+}
+
+  function actualizarVistaLista() {
+  const listaUL = document.getElementById('listaTraspasos');
+  const plantilla = document.getElementById('plantillaTraspaso').innerHTML;
+  const btnRegistrar = document.getElementById('btnRegistrarTodo');
+  const textoBtn = document.getElementById('textoBotonRegistrar');
+  const contador = document.getElementById('contador');
+
+  // Renderizar lista
+  listaUL.innerHTML = colaDeTraspasos.map((item, i) => {
+    const tipoCss = item.tipo.toLowerCase().replace(/\s+/g, '-');
+    let ubiHtml = (item.tipo === "Cambio de bodega") 
+      ? `<span class="ubi-badge">${item.ubiSalida}</span> ➔ <span class="ubi-badge">${item.ubiEntrada}</span>`
+      : `<span class="ubi-badge">${item.tipo === "Acomodo" ? item.ubiEntrada : item.ubiSalida}</span>`;
+
+    return plantilla
+      .replace(/{{INDEX}}/g, i)
+      .replace("{{TIPO_CSS}}", tipoCss)
+      .replace("{{TIPO}}", item.tipo)
+      .replace("{{CODIGO}}", item.codigo)
+      .replace("{{DESCRIPCION}}", item.descripcion)
+      .replace("{{UBI_HTML}}", ubiHtml)
+      .replace("{{CANTIDAD}}", item.cantidad);
+  }).join('');
+
+  // Lógica del botón y contador
+  const cant = colaDeTraspasos.length;
+  contador.innerText = cant;
+
+  if (cant > 0) {
+    btnRegistrar.style.display = "block"; // Aseguramos que se vea
+    textoBtn.innerText = `Registrar traspasos`;
+  } else {
+    btnRegistrar.style.display = "none";
+  }
+}
+
+  function quitarDeLista(index) {
+    colaDeTraspasos.splice(index, 1);
+    actualizarVistaLista();
+  }
+
+function generar() {
+  if (colaDeTraspasos.length === 0) return;
+
+  const btn = document.getElementById('btnRegistrarTodo');
+  const contenidoOriginal = btn.innerHTML; // Guardamos icono y texto
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-icons rotating">sync</span> Procesando...';
+
+  google.script.run
+    .withSuccessHandler(msg => {
+      lanzarNotificacion(msg, "success");
+      colaDeTraspasos = [];
+      actualizarVistaLista();
+      btn.disabled = false;
+      btn.innerHTML = contenidoOriginal; // Restauramos estado
+    })
+    .withFailureHandler(err => {
+      lanzarNotificacion("❌ Error: " + err.message, "error");
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-icons">error</span> Reintentar';
+    })
+    .procesarTraspasos(colaDeTraspasos);
+}
+
+  function lanzarNotificacion(m, t) {
+    const x = document.getElementById("snackbar");
+    clearTimeout(snackbarTimeout);
+    x.innerText = m;
+    x.className = `show ${t || ''}`;
+    snackbarTimeout = setTimeout(() => { x.className = x.className.replace("show", ""); }, 3000);
+  }
+
+  // Salto: Solicitante -> Bodega Salida
+document.getElementById('solicitanteInput').addEventListener('change', function() {
+  if (this.value.trim()) document.getElementById('bodegaSalidaInput').focus();
+});
+
+// Salto: Ubicación Salida -> (Siguiente Bodega o Código)
+document.getElementById('ubiSalidaInput').addEventListener('change', function() {
+  if (!this.value.trim()) return;
+  const tipo = document.getElementById('tipoMovimientoInput').value;
+  if (tipo === "Cambio de bodega") {
+    document.getElementById('bodegaEntradaInput').focus();
+  } else {
+    document.getElementById('codigoInput').focus();
+  }
+});
+
+// Salto: Ubicación Entrada -> Código
+document.getElementById('ubiEntradaInput').addEventListener('change', function() {
+  if (this.value.trim()) document.getElementById('codigoInput').focus();
+});
+
+// Acción: Enter en Cantidad -> Agregar a lista
+document.getElementById('cantidadInput').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    agregarALista(); 
+    // Nota: agregarALista() ya tiene el foco de regreso al Código al final.
+  }
+});
+
+/**
+ * Valida si un valor existe en una lista. 
+ * Si no existe, limpia el input y lanza alerta.
+ */
+function validarValorEnLista(idInput, listaPermitida, nombreCampo) {
+  const input = document.getElementById(idInput);
+  const valor = input.value.trim().toUpperCase();
+
+  if (valor === "") return false;
+
+  // Verificamos si el valor existe en la lista (ignorando mayúsculas/minúsculas)
+  const existe = listaPermitida.some(item => 
+    (typeof item === 'string' ? item.toUpperCase() : item.nombre.toUpperCase()) === valor
+  );
+
+  if (!existe) {
+    lanzarNotificacion(`⚠️ El ${nombreCampo} "${valor}" no es válido. Seleccione uno de la lista.`, "error");
+    input.value = "";
+    input.focus();
+    return false;
+  }
+  return true;
+}
+
+// --- VALIDACIONES DE CATÁLOGO ---
+
+// Validar Solicitante
+document.getElementById('solicitanteInput').addEventListener('change', function() {
+  validarValorEnLista('solicitanteInput', usuariosGlobal, "solicitante");
+});
+
+// Validar Bodega Salida
+document.getElementById('bodegaSalidaInput').addEventListener('change', function() {
+  validarValorEnLista('bodegaSalidaInput', bodegasGlobal, "bodega");
+});
+
+// Validar Bodega Entrada
+document.getElementById('bodegaEntradaInput').addEventListener('change', function() {
+  validarValorEnLista('bodegaEntradaInput', bodegasGlobal, "bodega");
+});
+
+// Validar Ubicación Salida (Solo permite las que pertenecen a la bodega seleccionada)
+document.getElementById('ubiSalidaInput').addEventListener('change', function() {
+  const bodegaActual = document.getElementById('bodegaSalidaInput').value.toUpperCase();
+  const ubicacionesPermitidas = mapaUbicacionesGlobal
+    .filter(item => item.bodega === bodegaActual)
+    .map(item => item.ubi);
+  validarValorEnLista('ubiSalidaInput', ubicacionesPermitidas, "ubicación");
+});
+
+// Validar Ubicación Entrada
+document.getElementById('ubiEntradaInput').addEventListener('change', function() {
+  const bodegaActual = document.getElementById('bodegaEntradaInput').value.toUpperCase();
+  const ubicacionesPermitidas = mapaUbicacionesGlobal
+    .filter(item => item.bodega === bodegaActual)
+    .map(item => item.ubi);
+  validarValorEnLista('ubiEntradaInput', ubicacionesPermitidas, "ubicación");
+});
+
+</script>

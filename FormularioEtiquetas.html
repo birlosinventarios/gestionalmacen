@@ -1,0 +1,386 @@
+      <div class="container">
+
+        <div class="campo">
+          <label for="tipoetiquetaInput">Tipo de etiqueta</label>
+          <div class="input-con-icono">
+          <input type="text" id="tipoetiquetaInput" list="listaTipos" placeholder="Escribe o selecciona un tamaño">
+          <span class="material-icons">label</span>
+          </div>
+          <datalist id="listaTipos"></datalist>
+        </div>
+
+        <div class="campo">
+          <label for="codigoInput">Codigo</label>
+          <div class="input-con-icono">
+          <input type="text" id="codigoInput" list="listaCodigos" placeholder="Escribe o selecciona un código" onchange="buscarPorCodigo()">
+          <span class="material-icons">qr_code</span>
+          </div>
+          <datalist id="listaCodigos"></datalist>
+        </div>
+
+        <div class="campo">
+          <label for="descripcion">Descripcion</label>
+          <div class="input-con-icono">
+          <input type="text" id="descripcionInput" placeholder="" readonly style="background-color: #eee;">
+          <span class="material-icons">description</span>
+          </div>
+        </div>        
+
+        <div class="campo">
+          <label for="id">ID</label>
+          <div class="input-con-icono">
+          <input type="text" id="idInput" placeholder="" readonly style="background-color: #eee;">
+          <span class="material-icons">fingerprint</span>
+          </div>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: center;">
+          <button class="btn-anadir-ajustado" onclick="agregarALista()">
+            <span class="material-icons">add</span>Añadir a la Fila
+          </button>
+        </div>
+
+
+            <div class="cola-container" style="margin-top: 20px; border-top: 2px solid var(--border-color); padding-top: 15px;">
+              <label>Etiquetas en fila: <span id="contador" class="badge">0</span></label>
+              <ul id="listaEtiquetas" class="lista-etiquetas">
+                </ul>
+              
+              <button id="btnImprimirTodo" onclick="generar()">
+                <span class="material-icons">print</span>
+                <span id="textoBoton">Imprimir</span>
+              </button>
+            </div>
+
+            <div id="snackbar"></div>
+
+
+      </div>
+
+
+        <?!= HtmlService.createHtmlOutputFromFile('FilaEtiquetasIdentificadoras').getContent(); ?>
+      <script>
+        
+        let mapaProductosGlobal = {}; // Memoria RAM para productos
+        let mapaMedidasGlobal = {};   // Memoria RAM para medidas       
+        let colaDeImpresion = [];
+        let snackbarTimeout;
+        let listaNombresEtiquetasGlobal = []; // Para validar el tipo de etiqueta
+        let listaCodigosGlobal = [];          // Para validar el código
+
+        
+            function lanzarNotificacion(mensaje, tipo = 'success') {
+                const x = document.getElementById("snackbar");
+                
+                if (snackbarTimeout) clearTimeout(snackbarTimeout);
+
+                x.innerText = mensaje;
+                x.className = "show " + tipo;
+                x.style.visibility = "visible";
+                x.style.opacity = "1";
+
+                // Función para cerrar la notificación
+                const cerrar = function() {
+                  x.style.opacity = "0";
+                  setTimeout(function() {
+                    x.className = ""; 
+                    x.style.visibility = "hidden";
+                  }, 400); // Tiempo de la transición de salida
+                };
+
+                // Cerrar automáticamente en 1.5 segundos (antes eran 3s)
+                snackbarTimeout = setTimeout(cerrar, 1500);
+
+                // NUEVO: Si haces clic en la notificación, se cierra inmediatamente
+                x.onclick = cerrar;
+            }
+
+
+
+// --- CARGA INICIAL (EJECUCIÓN INMEDIATA PARA REACT/SPA) ---
+(function() {
+  console.log("Iniciando Formulario de Etiquetas...");
+  lanzarNotificacion("Cargando base de datos...", "info");
+  
+  google.script.run
+    .withSuccessHandler(function(datos) {
+      // 1. ASIGNACIÓN A VARIABLES GLOBALES
+      // Asegúrate de que estas variables estén declaradas con 'let' al inicio de tu <script>
+      mapaProductosGlobal = datos.mapaProductos || {};
+      mapaMedidasGlobal = datos.mapaMedidas || {};
+      listaCodigosGlobal = datos.codigos || [];
+      listaNombresEtiquetasGlobal = datos.nombresEtiquetas || [];
+
+      // 2. LLENAR DATALIST DE CÓDIGOS
+      const dlCodigos = document.getElementById('listaCodigos');
+      if (dlCodigos) {
+        // Usamos join para mejorar el rendimiento con listas largas
+        dlCodigos.innerHTML = listaCodigosGlobal
+          .map(c => `<option value="${c}">`)
+          .join('');
+      }
+
+      // 3. LLENAR DATALIST DE TIPOS DE ETIQUETAS
+      const dlTipos = document.getElementById('listaTipos');
+      if (dlTipos) {
+        dlTipos.innerHTML = listaNombresEtiquetasGlobal
+          .map(n => `<option value="${n}">`)
+          .join('');
+      }
+
+      console.log("Catálogo de etiquetas cargado correctamente.");
+      lanzarNotificacion("Sistema Listo", "success");
+    })
+    .withFailureHandler(function(err) {
+      console.error("Error al cargar datos de etiquetas:", err);
+      lanzarNotificacion("Error al conectar con el servidor", "error");
+    })
+    .obtenerMegaDataInicial();
+})();
+
+function buscarPorCodigo() {
+  const input = document.getElementById('codigoInput');
+  const codigo = input.value.trim().toUpperCase();
+  
+  if (codigo === "") return;
+
+  // Validación estricta
+  if (!listaCodigosGlobal.includes(codigo)) {
+    lanzarNotificacion(`❌ El código "${codigo}" no existe.`, "error");
+    limpiarCampos();
+    return;
+  }
+
+  const producto = mapaProductosGlobal[codigo];
+  if (producto) {
+    document.getElementById('idInput').value = producto.id;
+    document.getElementById('descripcionInput').value = producto.descripcion;
+  }
+}
+        
+
+
+        function limpiarCampos () {
+            document.getElementById('idInput').value = '';
+            document.getElementById('descripcionInput').value = '';
+            document.getElementById('codigoInput').value = '';
+            document.getElementById('codigoInput').focus();
+          }
+
+
+
+        function agregarALista() {
+const tipo = document.getElementById('tipoetiquetaInput').value;
+  const cod = document.getElementById('codigoInput').value.trim().toUpperCase();
+  const desc = document.getElementById('descripcionInput').value; // Aseguramos capturar el valor del input
+  const id = document.getElementById('idInput').value;
+
+  // VALIDACIÓN FINAL ANTES DE AÑADIR
+  if (!listaNombresEtiquetasGlobal.includes(tipo)) {
+    return lanzarNotificacion("❌ Selecciona un tipo de etiqueta de la lista", "error");
+  }
+  if (!listaCodigosGlobal.includes(cod) || !id) {
+    return lanzarNotificacion("❌ Código no válido o no encontrado", "error");
+  }
+
+  const medidas = mapaMedidasGlobal[tipo];
+
+  // Añadimos a la cola SIN esperar al servidor
+  colaDeImpresion.push({ 
+    tipo: tipo, 
+    codigo: cod, 
+    descripcion: desc, 
+    id: id,
+    alto: medidas.alto,
+    ancho: medidas.ancho
+  });
+
+  actualizarVistaLista();
+  limpiarCampos();
+  lanzarNotificacion("Añadido a la fila", "success");
+}          
+
+
+
+        function actualizarVistaLista() {
+            const listaUL = document.getElementById('listaEtiquetas');
+            const btnPrint = document.getElementById('btnImprimirTodo');
+            const contador = document.getElementById('contador');
+            const textoBoton = document.getElementById('textoBoton');
+            
+            // Obtenemos el molde del archivo FilaEtiquetasIdentificadoras.html
+            const plantilla = document.getElementById('plantillaEtiqueta').innerHTML;
+
+            // Ordenar la cola por tipo y luego por código
+            colaDeImpresion.sort((a, b) => {
+                let comparacionTipo = a.tipo.localeCompare(b.tipo);
+                if (comparacionTipo === 0) return a.codigo.localeCompare(b.codigo);
+                return comparacionTipo;
+            });
+
+            listaUL.innerHTML = ""; 
+            contador.innerText = colaDeImpresion.length;
+
+            colaDeImpresion.forEach((item, index) => {
+                // Reemplazamos los marcadores {{...}} por los datos del objeto
+                let htmlFila = plantilla
+                    .replace(/{{INDEX}}/g, index)
+                    .replace("{{TIPO}}", item.tipo)
+                    .replace("{{CODIGO}}", item.codigo)
+                    .replace("{{DESCRIPCION}}", item.descripcion)
+                    .replace("{{ALTO}}", item.alto)
+                    .replace("{{ANCHO}}", item.ancho);
+
+                listaUL.insertAdjacentHTML('beforeend', htmlFila);
+            });
+
+            if (colaDeImpresion.length > 0) {
+                btnPrint.classList.add('visible');
+                textoBoton.innerText = `Imprimir Lote (${colaDeImpresion.length})`;
+            } else {
+                btnPrint.classList.remove('visible');
+            }
+        }
+
+
+
+
+        // Borra una etiqueta si te equivocaste
+        function quitarDeLista(index) {
+              colaDeImpresion.splice(index, 1);
+              actualizarVistaLista();
+            }
+
+
+        function generar() {
+          if (colaDeImpresion.length === 0) {
+            alert("Agrega etiquetas a la lista primero.");
+            return;
+          }
+
+          // --- NUEVO: Ordenar la cola por tipo de etiqueta ---
+          colaDeImpresion.sort((a, b) => {
+            if (a.tipo < b.tipo) return -1;
+            if (a.tipo > b.tipo) return 1;
+            return 0;
+          });
+
+          const btn = document.getElementById('btnImprimirTodo');
+          btn.innerText = "⏳ Generando...";
+          btn.disabled = true;
+
+          var win = window.open("", "_blank");
+
+          if (!win) {
+            lanzarNotificacion("⚠️ Ventana bloqueada. Por favor permite los pop-ups en la barra de direcciones.");
+            btn.disabled = false;
+            btn.innerText = "🖨️ Imprimir";
+            return;
+            }
+
+                      win.document.write(`
+                          <html>
+                            <head>
+                              <title>Generando Etiquetas...</title>
+                              <style>
+                                body { 
+                                  font-family: 'Google Sans', Roboto, Arial, sans-serif; 
+                                  display: flex; 
+                                  flex-direction: column; 
+                                  align-items: center; 
+                                  justify-content: center; 
+                                  height: 100vh; 
+                                  margin: 0; 
+                                  color: #5f6368; 
+                                  background-color: #f8f9fa;
+                                }
+                                .spinner {
+                                  width: 50px;
+                                  height: 50px;
+                                  border: 5px solid #f3f3f3;
+                                  border-top: 5px solid #d93025; /* Color rojo de tu interfaz */
+                                  border-radius: 50%;
+                                  animation: spin 1s linear infinite;
+                                  margin-bottom: 20px;
+                                }
+                                @keyframes spin {
+                                  0% { transform: rotate(0deg); }
+                                  100% { transform: rotate(360deg); }
+                                }
+                                h3 { font-weight: 400; }
+                              </style>
+                            </head>
+                            <body>
+                              <div class="spinner"></div>
+                              <h3>Preparando tus etiquetas...</h3>
+                              <p>Esto tomará solo unos segundos.</p>
+                            </body>
+                          </html>
+                        `);
+                        win.document.close();
+
+              // --- PASO 2: Consultar medidas y procesar ---
+                  google.script.run
+                    .withSuccessHandler(function(htmlGenerado) {
+                      // --- PASO 3: Llenar la ventana que ya estaba abierta ---
+                      win.document.open();
+                      win.document.write(htmlGenerado);
+                      win.document.close();
+
+                      // Reset de la interfaz
+                      colaDeImpresion = [];
+                      actualizarVistaLista();
+                      btn.innerText = "🖨️ Imprimir";
+                      btn.disabled = false;
+                    })
+                    .withFailureHandler(function(err) {
+                  win.close();
+                  alert("Error: " + err);
+                  btn.disabled = false;
+                })
+                .procesarLoteEtiquetas(colaDeImpresion); // Quitamos los parámetros alto/ancho de aquí
+            }          
+
+            function solicitarAccesoMantenimiento() {
+                const pass = prompt("Introduzca la contraseña para acceder a Mantenimiento:");
+                if (pass === "1234") { // Cambia "1234" por tu clave
+                  lanzarNotificacion("Acceso concedido", "success");
+                  // Aquí abriremos el panel de mantenimiento más adelante
+                } else if (pass !== null) {
+                  lanzarNotificacion("❌ Contraseña incorrecta", "error");
+                }
+              }
+
+/**
+ * Valida si un valor existe en una lista. 
+ */
+function validarValorEnLista(idInput, listaPermitida, nombreCampo) {
+  const input = document.getElementById(idInput);
+  const valor = input.value.trim().toUpperCase();
+
+  if (valor === "") return false;
+
+  const existe = listaPermitida.some(item => item.toUpperCase() === valor);
+
+  if (!existe) {
+    lanzarNotificacion(`⚠️ El ${nombreCampo} "${valor}" no es válido.`, "error");
+    input.value = "";
+    if(idInput === 'codigoInput') limpiarCampos(); // Limpia ID y Desc si es código
+    input.focus();
+    return false;
+  }
+  return true;
+}
+
+// Validar tipo de etiqueta al cambiar
+document.getElementById('tipoetiquetaInput').addEventListener('change', function() {
+  validarValorEnLista('tipoetiquetaInput', listaNombresEtiquetasGlobal, "tipo de etiqueta");
+});
+
+// Validar código al cambiar (adicional al buscarPorCodigo)
+document.getElementById('codigoInput').addEventListener('change', function() {
+  validarValorEnLista('codigoInput', listaCodigosGlobal, "código");
+});
+
+      </script>

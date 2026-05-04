@@ -1,0 +1,201 @@
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            primary: '#d93025',
+            dark: '#a50e0e',
+            light: 'rgba(217, 48, 37, 0.08)',
+            gray: '#696160',
+            grayDark: '#1c1d1f',
+            text: '#1c1d1f',
+            textSec: '#5f6368'
+          }
+        },
+        boxShadow: {
+          'soft': '0 10px 40px -10px rgba(0,0,0,0.08)',
+          'brand-red': '0 8px 20px -4px rgba(217, 48, 37, 0.3)',
+        }
+      }
+    }
+  }
+</script>
+
+<div id="render-gestor-excedentes" class="h-full w-full bg-slate-50"></div>
+
+<script type="text/babel">
+{ 
+  // Encapsulamos todo en un bloque { } para evitar conflictos de variables globales
+  const { useState, useEffect, useMemo, useCallback } = React;
+  const motion = window.Motion ? window.Motion.motion : (props) => <div {...props} />;
+  const AnimatePresence = window.Motion ? window.Motion.AnimatePresence : React.Fragment;
+
+  // --- COMPONENTES INTERNOS ---
+  const SummaryCard = ({ label, value, iconName, color, desc }) => {
+    const colorClasses = {
+      indigo: 'bg-blue-50 text-blue-600',
+      amber: 'bg-orange-50 text-orange-600',
+      emerald: 'bg-emerald-50 text-emerald-600',
+    };
+    useEffect(() => { if(window.lucide) window.lucide.createIcons(); }, [value]);
+
+    return (
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -4 }}
+        className="bg-white p-6 rounded-[1.5rem] border border-slate-100 shadow-soft flex items-center gap-5"
+      >
+        <div className={`p-4 rounded-2xl ${colorClasses[color]}`}>
+          <i data-lucide={iconName.toLowerCase()} style={{ width: '24px', height: '24px' }}></i>
+        </div>
+        <div>
+          <p className="text-[14px] font-bold text-slate-500 uppercase tracking-widest mb-1">{label}</p>
+          <div className="flex items-baseline gap-2">
+            <h4 className="text-3xl font-black text-slate-800">{value}</h4>
+            <span className="text-[14px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">{desc}</span>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
+  // --- COMPONENTE PRINCIPAL DE LA VISTA ---
+  const GestorView = () => {
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [bodegaActiva, setBodegaActiva] = useState('ALL');
+    const [busqueda, setBusqueda] = useState('');
+    const evento = new CustomEvent('cambiarEstadoSistema', { detail: 'active' });
+window.dispatchEvent(evento);
+
+    const BODEGAS = [
+      { id: 'B1', nombre: 'BODEGA 1', prefix: 'B1' },
+      { id: 'B2', nombre: 'BODEGA 2', prefix: 'B2' },
+      { id: 'B3', nombre: 'BODEGA 3', prefix: 'B3' },
+      { id: 'BM', nombre: 'MOSTRADOR', prefix: 'BM' },
+      { id: 'CB1', nombre: 'CASA BLANCA 1', prefix: 'CB1' },
+      { id: 'CB2', nombre: 'CASA BLANCA 2', prefix: 'CB2' },
+    ];
+
+    const cargarDatos = useCallback(() => {
+      setLoading(true);
+      if (typeof google !== 'undefined' && google.script) {
+        google.script.run
+          .withSuccessHandler((res) => {
+            setData(res || []);
+            setLoading(false);
+          })
+          .obtenerTodaLaBaseExcedentes();
+      }
+    }, []);
+
+    useEffect(() => { cargarDatos(); }, []);
+    useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [data, bodegaActiva]);
+
+    const stats = useMemo(() => {
+      const inbox = data.filter(i => (i.UBICACION || '').toUpperCase().includes('DISPONIBLE')).length;
+      return { total: data.length, inbox, ubicado: data.length - inbox };
+    }, [data]);
+
+    const itemsFiltrados = useMemo(() => {
+      return data.filter(item => {
+        const matchBusqueda = !busqueda || 
+          (item.CODIGO || '').toLowerCase().includes(busqueda.toLowerCase()) || 
+          (item.DESCRIPCION || '').toLowerCase().includes(busqueda.toLowerCase());
+        
+        if (bodegaActiva === 'ALL') return matchBusqueda;
+        const prefix = BODEGAS.find(b => b.id === bodegaActiva)?.prefix || '';
+        return matchBusqueda && (item.UBICACION || '').toUpperCase().startsWith(prefix.toUpperCase());
+      });
+    }, [data, busqueda, bodegaActiva]);
+
+    return (
+      <div className="p-6 h-full flex flex-col gap-6 overflow-hidden">
+        {/* Filtros de Bodega rápidos (Sub-tabs) */}
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <SummaryCard label="Total" value={stats.total} iconName="database" color="indigo" desc="Items" />
+          <SummaryCard label="Pendientes" value={stats.inbox} iconName="package-plus" color="amber" desc="Sin Ubicar" />
+          <SummaryCard label="Ubicados" value={stats.ubicado} iconName="check-circle" color="emerald" desc="OK" />
+        </div>
+
+
+        <div className="flex gap-2 overflow-x-auto pb-2 custom-scroll">
+          <button 
+            onClick={() => setBodegaActiva('ALL')}
+            className={`px-4 py-2 rounded-xl font-bold text-xs uppercase transition-all ${bodegaActiva === 'ALL' ? 'bg-brand-primary text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-100'}`}
+          >
+            Todos ({data.length})
+          </button>
+          {BODEGAS.map(b => (
+            <button 
+              key={b.id}
+              onClick={() => setBodegaActiva(b.id)}
+              className={`px-4 py-2 rounded-xl font-bold text-xs uppercase transition-all ${bodegaActiva === b.id ? 'bg-slate-800 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-100'}`}
+            >
+              {b.nombre}
+            </button>
+          ))}
+        </div>
+
+
+
+        {/* Buscador local */}
+        <div className="relative">
+          <i data-lucide="search" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
+          <input 
+            type="text"
+            placeholder="Filtrar por código o descripción en esta vista..."
+            className="w-full pl-12 pr-4 py-3 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-brand-primary/20 outline-none transition-all"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </div>
+
+        {/* Tabla */}
+        <div className="flex-1 bg-white rounded-[2rem] shadow-soft border border-slate-100 overflow-hidden flex flex-col">
+          <div className="overflow-y-auto flex-1 custom-scroll">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 sticky top-0 z-10">
+                <tr>
+                  <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase">Código</th>
+                  <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase">Descripción</th>
+                  <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase text-center">Stock</th>
+                  <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase text-center">Ubicación</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {itemsFiltrados.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-6 py-4 font-bold text-brand-primary">{item.CODIGO}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600 font-medium">{item.DESCRIPCION}</td>
+                    <td className="px-6 py-4 text-center font-black text-slate-700">{item.CANTIDAD}</td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black border ${(item.UBICACION || '').includes('DISPONIBLE') ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                        {item.UBICACION}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {loading && <div className="p-20 text-center text-slate-400 animate-pulse uppercase font-black text-xs">Cargando base de datos...</div>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // --- DISPARADOR DE CARGA ---
+  // Esta función es la que llama APPALMACEN automáticamente
+  window.cargar_GestorExcedentes = () => {
+    console.log("🚀 Inicializando Gestor de Excedentes...");
+    const rootDiv = document.getElementById('render-gestor-excedentes');
+    if (rootDiv) {
+      const root = ReactDOM.createRoot(rootDiv);
+      root.render(<GestorView />);
+    }
+  };
+}
+</script>

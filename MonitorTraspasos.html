@@ -1,0 +1,352 @@
+    <div class="container">
+      
+      <div id="listaPendientes">
+        <p style="text-align:center; color: #666;">Cargando movimientos pendientes...</p>
+      </div>
+    </div>
+
+    <div id="snackbar"></div>
+
+      <script>
+        
+        let escribiendo = false;
+        let responsables = [];
+        let temporizadorActualizacion;
+        let procesando = false;
+
+            document.getElementById('listaPendientes').onmouseenter = () => { 
+                escribiendo = true; 
+            };
+
+            document.getElementById('listaPendientes').onmouseleave = () => { 
+                // Solo liberamos si realmente no hay nada escrito en ningún folio
+                const inputs = document.querySelectorAll('input[type="text"]');
+                const hayTexto = Array.from(inputs).some(i => i.value.trim() !== "");
+                
+                // Si no hay texto, permitimos que el temporizador vuelva a trabajar
+                if (!hayTexto) {
+                    escribiendo = false;
+                }
+            };
+
+
+// --- 1. EJECUCIÓN INMEDIATA AL CARGAR LA VISTA ---
+(function() {
+    console.log("Iniciando vista de Pendientes...");
+
+    // Limpieza de seguridad: Si ya existía un temporizador previo, lo detenemos
+    // para evitar que se acumulen procesos de fondo.
+    if (window.temporizadorActualizacion) {
+        clearInterval(window.temporizadorActualizacion);
+        console.log("Temporizador previo limpiado.");
+    }
+
+    // PASO 1: Cargar MegaData
+    google.script.run
+        .withSuccessHandler(function(megaData) {
+            // ✅ FILTRO CRÍTICO: Solo usuarios cuyo rol sea RESPONSABLE o ADMIN
+            responsables = megaData.usuarios
+                .filter(u => u.rol === "RESPONSABLE" || u.rol === "ADMIN")
+                .map(u => u.nombre);
+            
+            console.log("Responsables autorizados listos:", responsables);
+            
+            // PASO 2: Cargar los pendientes por primera vez (con spinner de carga)
+            cargarPendientes(true);
+            
+            // PASO 3: Iniciar ciclo de actualización automática
+            // Guardamos el ID en 'window' para poder detenerlo si cambiamos de vista
+            window.temporizadorActualizacion = setInterval(function() {
+                // Verificamos si el contenedor de esta vista aún existe en el DOM
+                // Si no existe, significa que el usuario cambió de pestaña y debemos limpiar
+                if (!document.getElementById('tablaPendientes')) { // Cambia 'tablaPendientes' por un ID real de esta vista
+                    clearInterval(window.temporizadorActualizacion);
+                    console.log("Ciclo de actualización detenido: Vista no visible.");
+                    return;
+                }
+                
+                cargarPendientes(false);
+            }, 3000);
+        })
+        .withFailureHandler(function(err) {
+            console.error("Error al cargar MegaData inicial:", err);
+        })
+        .obtenerMegaDataInicial(); 
+
+})();
+
+
+        function cargarPendientes(forzar = false) {
+          // Si no estamos forzando y el sistema detecta que escribes o ya está cargando, sale.
+          if (!forzar && (procesando || escribiendo)) return; 
+          
+          procesando = true;
+          console.log(forzar ? "Sincronización forzada..." : "Sincronizando...");
+
+          google.script.run
+            .withSuccessHandler(function(pendientes) {
+              procesando = false; 
+              
+              if (escribiendo && !forzar) return;
+
+              if (pendientes && pendientes.length > 0) {
+                      pendientes.sort((a, b) => {
+                  let bodegaA = a.tipo === "Acomodo" ? a.bodegaEntrada : a.bodegaSalida;
+                  let bodegaB = b.tipo === "Acomodo" ? b.bodegaEntrada : b.bodegaSalida;
+                  return (bodegaA || "").localeCompare(bodegaB || "");
+                });
+              }
+              renderizarCards(pendientes);
+            })
+            .withFailureHandler(function(err) {
+              procesando = false;
+              console.error("Error: ", err);
+            })
+            .obtenerTraspasosPendientes();
+        }
+
+        function cargarResponsables() {
+          google.script.run
+            .withSuccessHandler(function(lista) {
+              responsables = lista;
+              console.log("Responsables cargados:", responsables);
+            })
+            .obtenerAgentesResponsables();
+        }
+
+        function renderizarCards(pendientes) {
+              const contenedor = document.getElementById('listaPendientes');
+              if (!pendientes || pendientes.length === 0) {
+                contenedor.innerHTML = '<div style="text-align:center; margin-top:50px; color: #666;"><span class="material-icons" style="font-size:48px; color:#4CAF50;">done_all</span><p>✅ No hay movimientos pendientes.</p></div>';
+                return;
+              }
+
+              let opcionesResponsablesHTML = '<option value="">Responsable...</option>';
+                responsables.forEach(r => {
+                  opcionesResponsablesHTML += `<option value="${r}">${r}</option>`;
+                });
+
+              // --- CAPA VISUAL: MAPEO ADMINISTRATIVO ---
+              const mapaAdmin = {
+                "BODEGA 1": "2 - Excedente Bodega",
+                "BODEGA 2": "2 - Excedente Bodega",
+                "BODEGA 3": "2 - Excedente Bodega",
+                "BODEGA MOSTRADOR": "2 - Excedente Bodega",
+                "CASA BLANCA 1": "3 - Excedente Casa Blanca",
+                "CASA BLANCA 2": "3 - Excedente Casa Blanca"
+              };
+
+            // PROCESAMIENTO DE CAPA VISUAL
+                pendientes.forEach(item => {
+                    // En Acomodo manda Destino, en Traspaso manda Origen
+                    let base = item.tipo === "Acomodo" ? item.destino : (item.origen || "");
+                    let clave = base.toString().toUpperCase().trim();
+                    item.bodegaVisual = mapaAdmin[clave] || base;
+                }); 
+
+
+                              // ORDENAR POR LA NUEVA CATEGORÍA VISUAL
+              pendientes.sort((a, b) => a.bodegaVisual.localeCompare(b.bodegaVisual));
+
+              contenedor.innerHTML = '';
+              let ultimaBodegaSegmentada = "";
+
+              pendientes.forEach(item => {
+                  let bodegaActual = item.bodegaVisual; // <-- USA ESTA PROPIEDAD
+                  
+                  if (bodegaActual !== ultimaBodegaSegmentada) {
+                    ultimaBodegaSegmentada = bodegaActual;
+                  // Contar elementos de este grupo específico
+                  const totalBodega = pendientes.filter(p => p.bodegaVisual === ultimaBodegaSegmentada).length;
+
+                  const separador = document.createElement('div');
+                    separador.className = 'separador-bodega';
+                    separador.innerHTML = `<span class="material-icons">store</span> ${bodegaActual}`;
+                    contenedor.appendChild(separador);
+                  }
+
+                const card = document.createElement('div');
+                card.className = 'card-pendiente';
+                card.style.display = "flex";
+                card.style.flexWrap = "wrap"; // Esto permite que los elementos bajen si no caben
+                card.style.alignItems = "center";
+                card.style.gap = "15px";
+                card.style.padding = "15px";
+                card.style.marginBottom = "15px";
+
+                // Construcción del contenido de la tarjeta
+                card.innerHTML = `
+                <div class="columnatiposerie">
+                  <div class="titulotiposerietraspaso">Tipo
+                  </div>
+
+                  <div class="itemtipotraspaso">
+                  ${item.tipo}
+                  </div>
+
+                  <div class="titulotiposerietraspaso">Serie
+                  </div>
+
+                  <div class="itemserietraspaso">
+                    <span class="material-icons">label
+                    </span>
+                    ${item.serie || '---'}
+                  </div>
+                </div>
+
+                <div class="columnacodigodescripcion">
+                    <div class="itemcodigotraspaso">
+                      ${item.codigo}
+                    </div>
+              
+                    <div class="itemdescripciontraspaso">
+                      ${item.descripcion}
+                    </div>
+                </div>
+
+
+                <div class="cuadrodatostraspaso">
+                    <div class="cuadrantecuadrodatostraspaso">
+                    <div class="tituloscuadrodatostraspaso">Almacen Salida:</div>
+                      <div class="itemcuadrodatostraspaso">
+                      ${limpiarNombre(item.origen)}</div>
+                    </div>
+
+                    <div class="cuadrantecuadrodatostraspaso">
+                    <div class="tituloscuadrodatostraspaso">Almacen Entrada:</div>
+                      <div class="itemcuadrodatostraspaso">
+                      ${limpiarNombre(item.destino)}</div>
+                    </div>
+
+                    <div class="cuadrantecuadrodatostraspaso">
+                    <div class="tituloscuadrodatostraspaso">Cantidad:</div>
+                      <div class="itemcuadrocantidadtraspaso">
+                      ${item.cantidad}</div>
+                    </div>
+
+                    <div class="cuadrantecuadrodatostraspaso">
+                    <div class="tituloscuadrodatostraspaso">Solicita:</div>
+                      <div class="itemcuadrodatostraspaso">
+                      ${item.solicitante}</div>
+                   </div>
+                </div>
+
+
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  
+                  <div class="input-con-icono" style="flex-grow:1;">
+                      <span class="material-icons">person</span>
+                      <select id="resp_${item.fila}" 
+                              onfocus="escribiendo = true" >
+                          ${opcionesResponsablesHTML}
+                      </select>
+                  </div>
+
+                  <div style="display:flex; gap:5px;">
+                    
+                    <div class="input-con-icono">
+                    <span class="material-icons">tag</span>
+                    <input type="number" 
+                            id="folio_${item.fila}" 
+                            placeholder="Folio" 
+                            onfocus="escribiendo = true" 
+                            oninput="escribiendo = true"
+                            style="height:38px !important; font-size:13px;">
+                    </div>
+
+                    <button onclick="procesarFila(${item.fila}, this)" class="btn-anadir-ajustado" style="min-width:45px; height:45px; background:#d93025;">
+                      <span class="material-icons">save</span>
+                    </button>
+
+                  </div>
+
+                </div>
+              `;
+                contenedor.appendChild(card);
+              });
+            }
+
+function limpiarNombre(nombre) {
+    if (!nombre || nombre === "---" || nombre === "") return "1 - Almacen Birlos";
+
+    // Mapa espejo para mantener la coherencia visual en las etiquetas de Origen/Destino
+    const mapaAdmin = {
+        "BODEGA 1": "2 - Excedente Bodega",
+        "BODEGA 2": "2 - Excedente Bodega",
+        "BODEGA 3": "2 - Excedente Bodega",
+        "BODEGA MOSTRADOR": "2 - Excedente Bodega",
+        "CASA BLANCA 1": "3 - Excedente Casa Blanca",
+        "CASA BLANCA 2": "3 - Excedente Casa Blanca"
+    };
+
+    let clave = nombre.toString().toUpperCase().trim();
+    
+    // Si el nombre técnico existe en nuestro mapa, devolvemos el nombre administrativo.
+    // De lo contrario, devolvemos el nombre original limpio.
+    return mapaAdmin[clave] || nombre.toString().trim();
+}
+
+
+
+        function procesarFila(numFila, boton) {
+          const folio = document.getElementById('folio_' + numFila).value.trim();
+          const resp = document.getElementById('resp_' + numFila).value;
+
+          if (!folio || !resp) {
+            lanzarNotificacion("⚠️ Indica Folio y Responsable", "error");
+            return;
+          }
+
+          // Deshabilitar botón
+          boton.disabled = true;
+          boton.style.opacity = "0.5";
+
+          google.script.run
+            .withSuccessHandler(function(res) {
+              lanzarNotificacion("✅ Traspaso procesado", "success");
+
+              // --- CAMBIO PARA VELOCIDAD INSTANTÁNEA ---
+              // Buscamos la tarjeta que contiene este botón y la ocultamos de inmediato
+              const card = boton.closest('.card-pendiente');
+              if (card) {
+                card.style.transition = "all 0.3s ease";
+                card.style.opacity = "0";
+                card.style.transform = "translateX(100px)"; // Efecto de deslizamiento
+                setTimeout(() => {
+                  card.style.display = "none";
+                  // Una vez oculta visualmente, liberamos el bloqueo de escritura
+                  escribiendo = false;
+                  // Actualizamos los datos en segundo plano por seguridad
+                  cargarPendientes(true);
+                }, 300);
+              }
+            })
+            .withFailureHandler(function(err) {
+              lanzarNotificacion("❌ Error: " + err, "error");
+              boton.disabled = false;
+              boton.style.opacity = "1";
+            })
+            .registrarMovimientoSistema(numFila, folio, resp);
+        }
+
+        function lanzarNotificacion(msg, tipo='success') {
+          const x = document.getElementById("snackbar");
+          x.innerText = msg;
+          x.className = "show " + (tipo === 'error' ? 'error' : '');
+          x.style.visibility = "visible";
+          setTimeout(() => { x.style.visibility = "hidden"; }, 3000);
+        }
+
+        function validarTexto(input) {
+        // Si el usuario deja texto, mantenemos "escribiendo = true" 
+        // para que el reloj NUNCA borre la lista mientras haya algo escrito.
+        if (input.value.trim() !== "") {
+          escribiendo = true;
+        } else {
+          escribiendo = false;
+        }
+        }
+
+
+
+      </script>

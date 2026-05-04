@@ -1,0 +1,34 @@
+<script type="text/template" id="plantillaExcedente">
+  <li class="fila-etiqueta-excedentes-item-etiqueta" id="fila-{{INDEX}}">
+    <div class="fila-etiqueta-excedentes-card">
+      <div class="ft-col-meta">
+        <div class="ft-icon-badge" style="background-color: var(--primary-light); color: var(--primary-dark); border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
+          <span class="material-icons">inventory_2</span>
+        </div>
+      </div>
+
+      <div class="fila-col-info" style="flex: 1; min-width: 0;"> 
+        <div style="font-size: 16px; font-weight: bold; color: var(--text-main);">{{CODIGO}}</div>
+        <div style="font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{DESCRIPCION}}</div>
+        
+        <div style="margin-top: 6px; display: flex; align-items: center; gap: 8px;">
+           <span style="font-size: 10px; font-weight: 800; color: var(--primary); background: var(--primary-light); padding: 2px 8px; border-radius: 4px; font-family: monospace;">
+             {{FOLIO}}
+           </span>
+           <span style="font-size: 11px; color: var(--text-secondary);">
+             Caja {{CAJA_NO}} de {{TOTAL_CAJAS}}
+           </span>
+        </div>
+      </div>
+
+      <div style="flex-shrink: 0; text-align: center; border-left: 1px solid var(--border-color); padding: 0 15px; margin-right: 35px;">
+        <div style="font-size: 20px; font-weight: 800; color: var(--text-main);">{{CANTIDAD}}</div>
+        <div style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase;">Pzas</div>
+      </div>
+
+      <button class="btn-borrar" onclick="quitar({{INDEX}})" title="Eliminar de la fila">
+        <span class="material-icons">delete_outline</span>
+      </button>
+    </div>
+  </li>
+</script>

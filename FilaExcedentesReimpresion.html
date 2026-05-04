@@ -1,0 +1,29 @@
+<script type="text/template" id="plantillaExcedenteReimpresion">
+  <li class="fila-traspasos-item-etiqueta" id="fila-{{index}}">
+    <div class="fila-card-traspaso">
+      <div class="fila-reimpresion-col-meta">
+        <div class="ft-icon-badge" style="background-color: var(--primary-light); color: var(--primary-dark); border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
+          <span class="material-icons">inventory_2</span>
+        </div>
+      </div>
+
+      <div class="fila-col-info"> 
+        <div class="fila-col-info-codigo-txt" style="font-size: 0.8rem; color: var(--text-secondary);">ID: {{idUnico}}</div>
+        <div class="fila-col-info-codigo-txt">{{codigo}}</div>
+        <div class="fila-col-info-desc-txt">{{descripcion}}</div>
+        <div class="fila-col-info-ubi-contenedor">
+          <i class="material-icons">place</i> {{ubicacion}}
+        </div>
+      </div>
+
+      <div class="fila-col-cantidad">
+        <span class="num">{{cantidad}}</span>
+        <span class="unit">PZ</span>
+      </div>
+
+      <button class="btn-borrar" onclick="quitarDeListaReimpresion({{index}})" title="Quitar">
+        <span class="material-icons">delete_outline</span>
+      </button>
+    </div>
+  </li>
+</script>

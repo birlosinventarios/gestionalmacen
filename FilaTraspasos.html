@@ -1,0 +1,26 @@
+<script type="text/template" id="plantillaTraspaso">
+  <li class="fila-traspasos-item-etiqueta tipo-{{TIPO_CSS}}" id="fila-{{INDEX}}">
+    <div class="fila-card-traspaso">
+      <div class="fila-col-meta">
+        <span class="fila-tipo-tag">{{TIPO}}</span>
+      </div>
+
+      <div class="fila-col-info"> 
+        <div class="fila-col-info-codigo-txt">{{CODIGO}}</div>
+        <div class="fila-col-info-desc-txt">{{DESCRIPCION}}</div>
+        <div class="fila-col-info-ubi-contenedor">
+          <i class="material-icons">place</i> {{UBI_HTML}}
+        </div>
+      </div>
+
+      <div class="fila-col-cantidad">
+        <span class="num">{{CANTIDAD}}</span>
+        <span class="unit">PZ</span>
+      </div>
+
+      <button class="btn-borrar" onclick="quitarDeLista({{INDEX}})" title="Eliminar" >
+        <span class="material-icons">delete_outline</span>
+      </button>
+    </div>
+  </li>
+</script>
