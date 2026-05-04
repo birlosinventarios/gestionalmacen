@@ -65,11 +65,16 @@
         return { total: data.length, disponibles, asignados: data.length - disponibles };
       }, [data]);
 
-      // Filtrado
-      const itemsFiltrados = data.filter(item => 
-        item.idVirtual.toLowerCase().includes(busqueda.toLowerCase()) ||
-        item.descripcion.toLowerCase().includes(busqueda.toLowerCase())
-      );
+      const itemsFiltrados = useMemo(() => {
+          return data.filter(item => {
+            // Blindaje: Si es undefined, lo convierte en string vacío antes de evaluar
+            const idSeguro = (item.idVirtual || '').toLowerCase();
+            const descSegura = (item.descripcion || '').toLowerCase();
+            const busquedaSegura = (busqueda || '').toLowerCase();
+
+            return idSeguro.includes(busquedaSegura) || descSegura.includes(busquedaSegura);
+          });
+        }, [data, busqueda]);
 
       return e('div', { className: "flex flex-col h-full overflow-y-auto custom-scroll p-4 md:p-8" },
         
@@ -129,11 +134,12 @@
                     e('td', { className: "px-8 py-5" }, 
                       e('span', { 
                         className: `text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-wider border ${
-                          item.serie.toUpperCase().includes('DISPONIBLE') 
+                          // Blindaje: (item.serie || '') protege contra celdas vacías
+                          (item.serie || '').toUpperCase().includes('DISPONIBLE') 
                             ? 'bg-amber-50 text-amber-600 border-amber-200' 
                             : 'bg-emerald-50 text-emerald-600 border-emerald-200'
                         }` 
-                      }, item.serie)
+                      }, item.serie || 'SIN UBICACIÓN')
                     )
                   )
                 )
