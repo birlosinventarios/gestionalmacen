@@ -112,19 +112,28 @@
               e('tbody', { className: "divide-y divide-[#dadce0]/50" },
                 itemsFiltrados.map((item, idx) => 
                   e('tr', { key: idx, className: "hover:bg-[#f8f9fa] transition-colors group" },
+                    // Columna 1: ID Virtual (Serie + Código)
                     e('td', { className: "px-8 py-5" }, 
-                      e('span', { className: "font-black text-[#d93025] text-sm bg-[rgba(217,48,37,0.05)] px-3 py-1.5 rounded-xl group-hover:bg-[rgba(217,48,37,0.1)] transition-colors" }, item.CODIGO)
+                      e('div', { className: "flex flex-col gap-1" },
+                        e('span', { className: "font-black text-[#d93025] text-sm bg-[rgba(217,48,37,0.05)] px-3 py-1.5 rounded-xl group-hover:bg-[rgba(217,48,37,0.1)] transition-colors w-fit" }, 
+                          item.idVirtual // Usamos la nueva llave concatenada
+                        ),
+                        e('span', { className: "text-[9px] text-[#5f6368] font-bold uppercase pl-1" }, `SKU: ${item.codigo}`)
+                      )
                     ),
-                    e('td', { className: "px-8 py-5 text-sm font-bold text-[#1c1d1f]" }, item.DESCRIPCION),
-                    e('td', { className: "px-8 py-5 text-center font-black text-[#454040] text-lg" }, item.CANTIDAD),
+                    // Columna 2: Descripción
+                    e('td', { className: "px-8 py-5 text-sm font-bold text-[#1c1d1f]" }, item.descripcion),
+                    // Columna 3: Cantidad (Balance Virtual)
+                    e('td', { className: "px-8 py-5 text-center font-black text-[#454040] text-lg" }, item.cantidad),
+                    // Columna 4: Ubicación (Serie)
                     e('td', { className: "px-8 py-5" }, 
                       e('span', { 
                         className: `text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-wider border ${
-                          item.UBICACION.toUpperCase().includes('DISPONIBLE') 
+                          item.serie.toUpperCase().includes('DISPONIBLE') 
                             ? 'bg-amber-50 text-amber-600 border-amber-200' 
                             : 'bg-emerald-50 text-emerald-600 border-emerald-200'
                         }` 
-                      }, item.UBICACION)
+                      }, item.serie)
                     )
                   )
                 )
