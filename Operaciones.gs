@@ -253,30 +253,33 @@ function actualizarRegistroDesdeHistorialCompleto(numFila, datos) {
 function obtenerBalanceVirtualExcedentes() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Bitacora-Traspasos");
-  const datos = sheet.getDataRange().getValues();
-  const cabeceras = datos.shift();
-  
+  const data = sheet.getDataRange().getValues();
+  const headers = data.shift();
+
+  // Mapeo dinámico de columnas (para evitar errores si mueves las columnas)
   const col = {
-    tipo: cabeceras.indexOf("Tipo de movimiento"),
-    serie: cabeceras.indexOf("Serie"),
-    codigo: cabeceras.indexOf("Codigo"),
-    desc: cabeceras.indexOf("Descripcion"),
-    cant: cabeceras.indexOf("Cantidad"),
-    bodega: cabeceras.indexOf("Bodega Entrada") // Usamos la de entrada como referencia de stock actual
+    tipo: headers.indexOf("Tipo de movimiento"),
+    serie: headers.indexOf("Serie"),
+    codigo: headers.indexOf("Codigo"),
+    desc: headers.indexOf("Descripcion"),
+    cant: headers.indexOf("Cantidad"),
+    bodega: headers.indexOf("Bodega Entrada")
   };
 
-  const balance = {};
+  const balanceMap = {};
 
-  datos.forEach(fila => {
+  data.forEach(fila => {
     const serie = fila[col.serie];
     const codigo = fila[col.codigo];
-    const llaveVirtual = `${serie}-${codigo}`; // Tu ID de concatenación
-    const tipo = (fila[col.tipo] || "").toLowerCase();
+    const idVirtual = `${serie}-${codigo}`; // TU IDENTIFICADOR MAESTRO
+    
+    const tipo = (fila[col.tipo] || "").toString().toLowerCase();
     const cantidad = Number(fila[col.cant]) || 0;
 
-    if (!balance[llaveVirtual]) {
-      balance[llaveVirtual] = {
-        llave: llaveVirtual,
+    // Si la llave no existe en el mapa, la inicializamos
+    if (!balanceMap[idVirtual]) {
+      balanceMap[idVirtual] = {
+        idVirtual: idVirtual,
         codigo: codigo,
         serie: serie,
         descripcion: fila[col.desc],
@@ -285,14 +288,14 @@ function obtenerBalanceVirtualExcedentes() {
       };
     }
 
-    // Balance Virtual: Suma si es entrada, resta si es salida
+    // Lógica de Balance Virtual
     if (tipo.includes("acomodo")) {
-      balance[llaveVirtual].cantidad += cantidad;
+      balanceMap[idVirtual].cantidad += cantidad;
     } else if (tipo.includes("surtido")) {
-      balance[llaveVirtual].cantidad -= cantidad;
+      balanceMap[idVirtual].cantidad -= cantidad;
     }
   });
 
-  // Solo enviamos al Gestor las ubicaciones que tengan saldo positivo
-  return Object.values(balance).filter(item => item.cantidad > 0);
+  // Convertimos el mapa a un array y filtramos lo que tiene stock
+  return Object.values(balanceMap).filter(item => item.cantidad > 0);
 }
