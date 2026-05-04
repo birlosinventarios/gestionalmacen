@@ -38,8 +38,26 @@
   width: 100vw; /* Asegura el ancho total */
   background-color: var(--bg-color);
   font-family: 'Inter', system-ui, -apple-system, sans-serif; /* Fallbacks de sistema para mayor velocidad */
-  overflow-y: auto;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased; /* Mejora la legibilidad de la fuente en Mac/iOS */
+}
+
+/* El contenedor principal de tu App (ej. #app-container) */
+.main-wrapper {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-color); /* #f8f9fa */
+}
+
+/* El área de contenido que REALMENTE debe scrollear */
+.scrollable-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* Suavidad en dispositivos móviles */
+  padding: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--secondary) transparent;
 }
     
 
@@ -361,7 +379,7 @@ const toolsByCategory = TOOLS.reduce((acc, tool) => {
             </header>
 
             {/* CONTENEDOR DE VISTAS */}
-          <div className="flex-1 overflow-hidden bg-white m-4 rounded-2xl shadow-sm border border-[#dadce0]">
+          <div className="flex-1 overflow-auto bg-white m-4 rounded-2xl shadow-sm border border-[#dadce0]">
             {loading ? (
               <div className="flex items-center justify-center h-full">
                 <Icon name="loader-2" className="animate-spin text-[#d93025]" size={40} />
