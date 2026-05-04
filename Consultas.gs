@@ -561,7 +561,6 @@ function navegarA(nombreVista) {
             contenedor.innerHTML = html;
 
             // 2. RE-EJECUCIÓN MANUAL DE SCRIPTS
-            // Buscamos todos los scripts dentro del HTML que acabamos de pegar
             const scripts = contenedor.querySelectorAll("script");
             scripts.forEach(oldScript => {
                 const newScript = document.createElement("script");
@@ -572,7 +571,6 @@ function navegarA(nombreVista) {
             });
 
             // 3. DISPARADOR DE CARGA
-            // Ahora que los scripts ya fueron "leídos" por el navegador, la función ya existe
             setTimeout(() => {
                 const nombreFuncion = "cargar_" + nombreVista;
                 if (typeof window[nombreFuncion] === "function") {
