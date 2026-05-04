@@ -1,201 +1,161 @@
+<!-- CONTENEDOR RAÍZ PARA LA VISTA DE EXCEDENTES -->
+<div id="vista-excedentes-root" class="h-full w-full bg-[#f8f9fa] overflow-hidden"></div>
+
 <script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          brand: {
-            primary: '#d93025',
-            dark: '#a50e0e',
-            light: 'rgba(217, 48, 37, 0.08)',
-            gray: '#696160',
-            grayDark: '#1c1d1f',
-            text: '#1c1d1f',
-            textSec: '#5f6368'
-          }
-        },
-        boxShadow: {
-          'soft': '0 10px 40px -10px rgba(0,0,0,0.08)',
-          'brand-red': '0 8px 20px -4px rgba(217, 48, 37, 0.3)',
-        }
-      }
-    }
-  }
-</script>
+  (function() {
+    // Referencias a React
+    const e = React.createElement;
+    const { useState, useEffect, useMemo, useCallback } = React;
 
-<div id="render-gestor-excedentes" class="h-full w-full bg-slate-50"></div>
+    // --- COMPONENTE: TARJETA DE RESUMEN (Estilo Prototipo 1) ---
+    const SummaryCardPremium = ({ label, value, iconName, colorTheme }) => {
+      // Temas de color basados en tu paleta
+      const themes = {
+        brand: 'bg-[rgba(217,48,37,0.1)] text-[#d93025]',
+        emerald: 'bg-emerald-50 text-emerald-600',
+        amber: 'bg-amber-50 text-amber-600',
+        gray: 'bg-[#f8f9fa] text-[#696160]'
+      };
 
-<script type="text/babel">
-{ 
-  // Encapsulamos todo en un bloque { } para evitar conflictos de variables globales
-  const { useState, useEffect, useMemo, useCallback } = React;
-  const motion = window.Motion ? window.Motion.motion : (props) => <div {...props} />;
-  const AnimatePresence = window.Motion ? window.Motion.AnimatePresence : React.Fragment;
-
-  // --- COMPONENTES INTERNOS ---
-  const SummaryCard = ({ label, value, iconName, color, desc }) => {
-    const colorClasses = {
-      indigo: 'bg-blue-50 text-blue-600',
-      amber: 'bg-orange-50 text-orange-600',
-      emerald: 'bg-emerald-50 text-emerald-600',
+      return e('div', { 
+        className: "bg-white p-6 rounded-[2rem] border border-[#dadce0] shadow-[0_10px_25px_rgba(0,0,0,0.06)] flex items-center gap-5 transition-transform duration-300 hover:-translate-y-1 hover:shadow-[0_15px_35px_rgba(217,48,37,0.1)]" 
+      },
+        e('div', { className: `p-4 rounded-2xl ${themes[colorTheme] || themes.gray}` }, 
+          e('i', { 'data-lucide': iconName, style: { width: '28px', height: '28px' } })
+        ),
+        e('div', null,
+          e('p', { className: "text-[11px] font-black text-[#5f6368] uppercase tracking-widest mb-1" }, label),
+          e('h4', { className: "text-4xl font-black text-[#1c1d1f] tracking-tight" }, value)
+        )
+      );
     };
-    useEffect(() => { if(window.lucide) window.lucide.createIcons(); }, [value]);
 
-    return (
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} whileHover={{ y: -4 }}
-        className="bg-white p-6 rounded-[1.5rem] border border-slate-100 shadow-soft flex items-center gap-5"
-      >
-        <div className={`p-4 rounded-2xl ${colorClasses[color]}`}>
-          <i data-lucide={iconName.toLowerCase()} style={{ width: '24px', height: '24px' }}></i>
-        </div>
-        <div>
-          <p className="text-[14px] font-bold text-slate-500 uppercase tracking-widest mb-1">{label}</p>
-          <div className="flex items-baseline gap-2">
-            <h4 className="text-3xl font-black text-slate-800">{value}</h4>
-            <span className="text-[14px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">{desc}</span>
-          </div>
-        </div>
-      </motion.div>
-    );
-  };
+    // --- COMPONENTE PRINCIPAL ---
+    function GestorExcedentesApp() {
+      const [data, setData] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [busqueda, setBusqueda] = useState('');
 
-  // --- COMPONENTE PRINCIPAL DE LA VISTA ---
-  const GestorView = () => {
-    const [data, setData] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [bodegaActiva, setBodegaActiva] = useState('ALL');
-    const [busqueda, setBusqueda] = useState('');
-    const evento = new CustomEvent('cambiarEstadoSistema', { detail: 'active' });
-window.dispatchEvent(evento);
+      // Simulación de carga (Sustituir con tu google.script.run)
+      const cargarDatos = useCallback(() => {
+        setLoading(true);
+        setTimeout(() => {
+          setData([
+            { CODIGO: 'EX-100', DESCRIPCION: 'TUERCA GALVANIZADA 1/2', CANTIDAD: 150, UBICACION: 'DISPONIBLE' },
+            { CODIGO: 'EX-101', DESCRIPCION: 'BIRLO DE ACERO INOX', CANTIDAD: 45, UBICACION: 'B1-ESTANTE-A' },
+            { CODIGO: 'EX-102', DESCRIPCION: 'ARANDELA DE PRESION', CANTIDAD: 300, UBICACION: 'CB1-PASILLO-2' },
+          ]);
+          setLoading(false);
+          setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 100);
+        }, 800);
+      }, []);
 
-    const BODEGAS = [
-      { id: 'B1', nombre: 'BODEGA 1', prefix: 'B1' },
-      { id: 'B2', nombre: 'BODEGA 2', prefix: 'B2' },
-      { id: 'B3', nombre: 'BODEGA 3', prefix: 'B3' },
-      { id: 'BM', nombre: 'MOSTRADOR', prefix: 'BM' },
-      { id: 'CB1', nombre: 'CASA BLANCA 1', prefix: 'CB1' },
-      { id: 'CB2', nombre: 'CASA BLANCA 2', prefix: 'CB2' },
-    ];
+      useEffect(() => {
+        cargarDatos();
+      }, [cargarDatos]);
 
-    const cargarDatos = useCallback(() => {
-      setLoading(true);
-      if (typeof google !== 'undefined' && google.script) {
-        google.script.run
-          .withSuccessHandler((res) => {
-            setData(res || []);
-            setLoading(false);
-          })
-          .obtenerTodaLaBaseExcedentes();
-      }
-    }, []);
+      // Refrescar iconos cuando cambia la búsqueda
+      useEffect(() => {
+        if(window.lucide) window.lucide.createIcons();
+      }, [busqueda, data]);
 
-    useEffect(() => { cargarDatos(); }, []);
-    useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [data, bodegaActiva]);
+      // Cálculos para las tarjetas
+      const stats = useMemo(() => {
+        const disponibles = data.filter(i => (i.UBICACION || '').toUpperCase().includes('DISPONIBLE')).length;
+        return { total: data.length, disponibles, asignados: data.length - disponibles };
+      }, [data]);
 
-    const stats = useMemo(() => {
-      const inbox = data.filter(i => (i.UBICACION || '').toUpperCase().includes('DISPONIBLE')).length;
-      return { total: data.length, inbox, ubicado: data.length - inbox };
-    }, [data]);
+      // Filtrado
+      const itemsFiltrados = useMemo(() => {
+        return data.filter(i => {
+          const texto = `${i.CODIGO} ${i.DESCRIPCION}`.toLowerCase();
+          return texto.includes(busqueda.toLowerCase());
+        });
+      }, [data, busqueda]);
 
-    const itemsFiltrados = useMemo(() => {
-      return data.filter(item => {
-        const matchBusqueda = !busqueda || 
-          (item.CODIGO || '').toLowerCase().includes(busqueda.toLowerCase()) || 
-          (item.DESCRIPCION || '').toLowerCase().includes(busqueda.toLowerCase());
+      return e('div', { className: "flex flex-col h-full overflow-y-auto custom-scroll p-4 md:p-8" },
         
-        if (bodegaActiva === 'ALL') return matchBusqueda;
-        const prefix = BODEGAS.find(b => b.id === bodegaActiva)?.prefix || '';
-        return matchBusqueda && (item.UBICACION || '').toUpperCase().startsWith(prefix.toUpperCase());
-      });
-    }, [data, busqueda, bodegaActiva]);
+        // ENCABEZADO Y BUSCADOR (Estilo Prototipo 2)
+        e('div', { className: "flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8" },
+          e('div', null,
+            e('h1', { className: "text-3xl font-black text-[#1c1d1f] tracking-tight mb-1" }, "Control de Excedentes"),
+            e('p', { className: "text-sm font-semibold text-[#5f6368]" }, "Monitor general de inventario de Birlos y Tornillos")
+          ),
+          e('div', { className: "relative w-full md:w-80" },
+            e('i', { 'data-lucide': 'search', className: "absolute left-4 top-1/2 -translate-y-1/2 text-[#5f6368] w-5 h-5" }),
+            e('input', { 
+              type: "text", 
+              placeholder: "Buscar código o descripción...", 
+              className: "w-full bg-white border border-[#dadce0] rounded-2xl py-3 pl-12 pr-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#d93025] focus:border-transparent transition-all shadow-sm",
+              value: busqueda,
+              onChange: (ev) => setBusqueda(ev.target.value)
+            }),
+            busqueda && e('button', {
+              onClick: () => setBusqueda(''),
+              className: "absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 rounded-full text-[#5f6368] transition-colors"
+            }, e('i', { 'data-lucide': 'x', className: "w-4 h-4" }))
+          )
+        ),
 
-    return (
-      <div className="p-6 h-full flex flex-col gap-6 overflow-hidden">
-        {/* Filtros de Bodega rápidos (Sub-tabs) */}
+        // TARJETAS DE RESUMEN (Grid)
+        e('div', { className: "grid grid-cols-1 md:grid-cols-3 gap-6 mb-8" },
+          e(SummaryCardPremium, { label: "Total Registros", value: stats.total, iconName: "database", colorTheme: "brand" }),
+          e(SummaryCardPremium, { label: "Por Asignar", value: stats.disponibles, iconName: "alert-circle", colorTheme: "amber" }),
+          e(SummaryCardPremium, { label: "Ubicados", value: stats.asignados, iconName: "check-circle-2", colorTheme: "emerald" })
+        ),
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <SummaryCard label="Total" value={stats.total} iconName="database" color="indigo" desc="Items" />
-          <SummaryCard label="Pendientes" value={stats.inbox} iconName="package-plus" color="amber" desc="Sin Ubicar" />
-          <SummaryCard label="Ubicados" value={stats.ubicado} iconName="check-circle" color="emerald" desc="OK" />
-        </div>
-
-
-        <div className="flex gap-2 overflow-x-auto pb-2 custom-scroll">
-          <button 
-            onClick={() => setBodegaActiva('ALL')}
-            className={`px-4 py-2 rounded-xl font-bold text-xs uppercase transition-all ${bodegaActiva === 'ALL' ? 'bg-brand-primary text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-100'}`}
-          >
-            Todos ({data.length})
-          </button>
-          {BODEGAS.map(b => (
-            <button 
-              key={b.id}
-              onClick={() => setBodegaActiva(b.id)}
-              className={`px-4 py-2 rounded-xl font-bold text-xs uppercase transition-all ${bodegaActiva === b.id ? 'bg-slate-800 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-100'}`}
-            >
-              {b.nombre}
-            </button>
-          ))}
-        </div>
-
-
-
-        {/* Buscador local */}
-        <div className="relative">
-          <i data-lucide="search" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
-          <input 
-            type="text"
-            placeholder="Filtrar por código o descripción en esta vista..."
-            className="w-full pl-12 pr-4 py-3 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-brand-primary/20 outline-none transition-all"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
-        </div>
-
-        {/* Tabla */}
-        <div className="flex-1 bg-white rounded-[2rem] shadow-soft border border-slate-100 overflow-hidden flex flex-col">
-          <div className="overflow-y-auto flex-1 custom-scroll">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 sticky top-0 z-10">
-                <tr>
-                  <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase">Código</th>
-                  <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase">Descripción</th>
-                  <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase text-center">Stock</th>
-                  <th className="px-6 py-4 text-[11px] font-black text-slate-400 uppercase text-center">Ubicación</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {itemsFiltrados.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 font-bold text-brand-primary">{item.CODIGO}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600 font-medium">{item.DESCRIPCION}</td>
-                    <td className="px-6 py-4 text-center font-black text-slate-700">{item.CANTIDAD}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-black border ${(item.UBICACION || '').includes('DISPONIBLE') ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
-                        {item.UBICACION}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {loading && <div className="p-20 text-center text-slate-400 animate-pulse uppercase font-black text-xs">Cargando base de datos...</div>}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // --- DISPARADOR DE CARGA ---
-  // Esta función es la que llama APPALMACEN automáticamente
-  window.cargar_GestorExcedentes = () => {
-    console.log("🚀 Inicializando Gestor de Excedentes...");
-    const rootDiv = document.getElementById('render-gestor-excedentes');
-    if (rootDiv) {
-      const root = ReactDOM.createRoot(rootDiv);
-      root.render(<GestorView />);
+        // TABLA DE DATOS (Estilo Premium con mucho whitespace)
+        e('div', { className: "bg-white border border-[#dadce0] rounded-[2rem] shadow-[0_10px_25px_rgba(0,0,0,0.06)] overflow-hidden flex-1 flex flex-col" },
+          e('div', { className: "overflow-x-auto flex-1" },
+            e('table', { className: "w-full text-left border-collapse" },
+              e('thead', { className: "bg-[#f8f9fa] border-b border-[#dadce0]" },
+                e('tr', null,
+                  ['Código', 'Descripción', 'Cantidad', 'Ubicación Física'].map(h => 
+                    e('th', { key: h, className: "px-8 py-5 text-[10px] font-black text-[#5f6368] uppercase tracking-widest whitespace-nowrap" }, h)
+                  )
+                )
+              ),
+              e('tbody', { className: "divide-y divide-[#dadce0]/50" },
+                itemsFiltrados.map((item, idx) => 
+                  e('tr', { key: idx, className: "hover:bg-[#f8f9fa] transition-colors group" },
+                    e('td', { className: "px-8 py-5" }, 
+                      e('span', { className: "font-black text-[#d93025] text-sm bg-[rgba(217,48,37,0.05)] px-3 py-1.5 rounded-xl group-hover:bg-[rgba(217,48,37,0.1)] transition-colors" }, item.CODIGO)
+                    ),
+                    e('td', { className: "px-8 py-5 text-sm font-bold text-[#1c1d1f]" }, item.DESCRIPCION),
+                    e('td', { className: "px-8 py-5 text-center font-black text-[#454040] text-lg" }, item.CANTIDAD),
+                    e('td', { className: "px-8 py-5" }, 
+                      e('span', { 
+                        className: `text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-wider border ${
+                          item.UBICACION.toUpperCase().includes('DISPONIBLE') 
+                            ? 'bg-amber-50 text-amber-600 border-amber-200' 
+                            : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                        }` 
+                      }, item.UBICACION)
+                    )
+                  )
+                )
+              )
+            )
+          ),
+          
+          // ESTADOS VACÍOS O DE CARGA
+          itemsFiltrados.length === 0 && !loading && e('div', { className: "p-24 flex flex-col items-center justify-center text-[#5f6368]" }, 
+            e('i', { 'data-lucide': 'search-x', className: "w-12 h-12 mb-4 opacity-50" }),
+            e('p', { className: "font-bold text-lg" }, "No se encontraron registros.")
+          ),
+          loading && e('div', { className: "p-24 flex flex-col items-center justify-center text-[#d93025]" }, 
+            e('i', { 'data-lucide': 'loader-2', className: "w-10 h-10 mb-4 animate-spin" }),
+            e('p', { className: "font-bold text-[#5f6368]" }, "Sincronizando con base de datos...")
+          )
+        )
+      );
     }
-  };
-}
+
+    // Renderizar la vista en el contenedor inyectado
+    const rootContainer = document.getElementById('vista-excedentes-root');
+    if (rootContainer) {
+      const root = ReactDOM.createRoot(rootContainer);
+      root.render(e(GestorExcedentesApp));
+    }
+  })();
 </script>
