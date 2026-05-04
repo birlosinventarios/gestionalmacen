@@ -66,12 +66,10 @@
       }, [data]);
 
       // Filtrado
-      const itemsFiltrados = useMemo(() => {
-        return data.filter(i => {
-          const texto = `${i.CODIGO} ${i.DESCRIPCION}`.toLowerCase();
-          return texto.includes(busqueda.toLowerCase());
-        });
-      }, [data, busqueda]);
+      const itemsFiltrados = data.filter(item => 
+        item.idVirtual.toLowerCase().includes(busqueda.toLowerCase()) ||
+        item.descripcion.toLowerCase().includes(busqueda.toLowerCase())
+      );
 
       return e('div', { className: "flex flex-col h-full overflow-y-auto custom-scroll p-4 md:p-8" },
         
