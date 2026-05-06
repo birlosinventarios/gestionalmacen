@@ -481,57 +481,51 @@ function buscarProductoPorCodigo(codigo) {
 }
 
 /**
- * Obtiene todos los registros crudos de la hoja 'Bitacora-TRASPASOS'
- * sin aplicar filtros ni agrupaciones, mapeados por el nombre de su columna.
+ * Obtiene los datos crudos y mapeados de la bitácora respetando 
+ * exactamente los encabezados proporcionados por Fito.
  * @return {Array<Object>} Arreglo de registros de la bitácora.
  */
 function obtenerTodaLaBaseExcedentes() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const hoja = ss.getSheetByName('Bitacora-TRASPASOS');
-    if (!hoja) {
-      throw new Error("No se encontró la hoja 'Bitacora-TRASPASOS'");
-    }
-
-    const rangoDatos = hoja.getDataRange();
-    const valores = rangoDatos.getValues();
+    // Validamos ambos casos comunes de escritura de la pestaña
+    const hoja = ss.getSheetByName('Bitacora-TRASPASOS') || ss.getSheetByName('Bitacora-Traspasos');
     
-    if (valores.length <= 1) {
-      return []; // Está vacía o solo tiene encabezados
+    if (!hoja) {
+      throw new Error("No se encontró la hoja de 'Bitacora-TRASPASOS'");
     }
 
-    // Extraemos la fila de encabezados (normalizar a minúsculas y sin espacios raros)
-    const encabezados = valores.shift().map(h => String(h).trim());
+    const valores = hoja.getDataRange().getValues();
+    if (valores.length <= 1) return [];
 
-    // Mapeamos cada fila cruda a un objeto basado en el nombre de la columna
-    const registrosCrudos = valores.map((fila, index) => {
-      const registro = {
-        _idFila: index + 2 // Guardamos la fila física real de Sheets por si se requiere después
+    // Removemos la primera fila que contiene los encabezados
+    valores.shift();
+
+    // Mapeo exacto basado en el orden de tus columnas físicas
+    return valores.map((fila, index) => {
+      return {
+        idFila: index + 2,                                // Fila física en Sheets
+        fecha: fila instanceof Date ? Utilities.formatDate(fila, ss.getSpreadsheetTimeZone(), "dd/MM/yyyy") : String(fila || ""),
+        hora: fila[1] instanceof Date ? Utilities.formatDate(fila[1], ss.getSpreadsheetTimeZone(), "HH:mm:ss") : String(fila[1] || ""),
+        tipoMovimiento: String(fila[2] || "").trim(),     // Tipo de movimiento
+        serie: String(fila[3] || "").trim(),              // Serie
+        bodegaSalida: String(fila[4] || "").trim(),       // Bodega Salida
+        ubiExcedenteSalida: String(fila[5] || "").trim(), // Ubicacion excedente salida
+        bodegaEntrada: String(fila[6] || "").trim(),      // Bodega Entrada
+        ubiExcedenteEntrada: String(fila[7] || "").trim(),// Ubicacion excedente Entrada
+        solicitante: String(fila[8] || "").trim(),        // Solicitante
+        codigo: String(fila[9] || "").trim(),             // Codigo
+        descripcion: String(fila[10] || "").trim(),       // Descripcion
+        cantidad: Number(fila[11]) || 0,                  // Cantidad
+        folio: String(fila[12] || "").trim(),             // Folio
+        responsable: String(fila[13] || "").trim(),       // Responsable
+        idUnico: String(fila[14] || "").trim()            // IDUNICO
       };
-      
-      encabezados.forEach((encabezado, colIndex) => {
-        if (encabezado) {
-          // Si es una celda de fecha/hora de Google Apps Script, conservamos su formato de texto legible o nativo
-          let valorCelda = fila[colIndex];
-          if (valorCelda instanceof Date) {
-            // Si es la columna FECHA o HORA, puedes formatearla convenientemente o enviarla como string
-            if (encabezado.toUpperCase() === 'FECHA') {
-              valorCelda = Utilities.formatDate(valorCelda, ss.getSpreadsheetTimeZone(), "dd/MM/yyyy");
-            } else if (encabezado.toUpperCase() === 'HORA') {
-              valorCelda = Utilities.formatDate(valorCelda, ss.getSpreadsheetTimeZone(), "HH:mm:ss");
-            }
-          }
-          registro[encabezado] = valorCelda;
-        }
-      });
-      
-      return registro;
     });
 
-    return registrosCrudos;
   } catch (error) {
     Logger.log("Error en obtenerTodaLaBaseExcedentes: " + error.toString());
-    throw new Error("Error al leer la base de datos: " + error.message);
+    return [];
   }
 }
 
