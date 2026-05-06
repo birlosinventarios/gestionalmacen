@@ -1,183 +1,187 @@
-<!-- CONTENEDOR RAÍZ PARA LA VISTA DE EXCEDENTES -->
 <div id="vista-excedentes-root" class="h-full w-full bg-[#f8f9fa] overflow-hidden"></div>
 
-<script>
+<script type="text/babel">
   (function() {
-    // Referencias a React
-    const e = React.createElement;
     const { useState, useEffect, useMemo, useCallback } = React;
 
-    // --- COMPONENTE: TARJETA DE RESUMEN (Estilo Prototipo 1) ---
-    const SummaryCardPremium = ({ label, value, iconName, colorTheme }) => {
-      // Temas de color basados en tu paleta
-      const themes = {
-        brand: 'bg-[rgba(217,48,37,0.1)] text-[#d93025]',
-        emerald: 'bg-emerald-50 text-emerald-600',
-        amber: 'bg-amber-50 text-amber-600',
-        gray: 'bg-[#f8f9fa] text-[#696160]'
-      };
+    // --- COMPONENTE: TARJETA DE RESUMEN PREMIUM ---
+    const SummaryCard = ({ label, value, iconName, colorClass }) => (
+      <div className={`bg-white p-6 rounded-[2rem] border border-[#dadce0] shadow-soft flex items-center gap-5 transition-transform duration-300 hover:-translate-y-1`}>
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${colorClass}`}>
+          <LocalIcon name={iconName} size={28} />
+        </div>
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-widest text-[#5f6368] mb-1">{label}</p>
+          <h3 className="text-3xl font-black text-[#1c1d1f] leading-none">{value}</h3>
+        </div>
+      </div>
+    );
 
-      return e('div', { 
-        className: "bg-white p-6 rounded-[2rem] border border-[#dadce0] shadow-[0_10px_25px_rgba(0,0,0,0.06)] flex items-center gap-5 transition-transform duration-300 hover:-translate-y-1 hover:shadow-[0_15px_35px_rgba(217,48,37,0.1)]" 
-      },
-        e('div', { className: `p-4 rounded-2xl ${themes[colorTheme] || themes.gray}` }, 
-          e('i', { 'data-lucide': iconName, style: { width: '28px', height: '28px' } })
-        ),
-        e('div', null,
-          e('p', { className: "text-[11px] font-black text-[#5f6368] uppercase tracking-widest mb-1" }, label),
-          e('h4', { className: "text-4xl font-black text-[#1c1d1f] tracking-tight" }, value)
-        )
-      );
+    // Componente de icono local para asegurar compatibilidad con Lucide
+    const LocalIcon = ({ name, size = 20, className = "" }) => {
+      useEffect(() => {
+        if (window.lucide) lucide.createIcons();
+      }, [name]);
+      return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
     };
 
-    // --- COMPONENTE PRINCIPAL ---
-    function GestorExcedentesApp() {
+    const VistaGestorExcedentes = () => {
       const [data, setData] = useState([]);
       const [loading, setLoading] = useState(true);
-      const [busqueda, setBusqueda] = useState('');
+      const [filtro, setFiltro] = useState("");
 
-      // Simulación de carga (Sustituir con tu google.script.run)
-      const cargarDatos = useCallback(() => {
+      // 1. CARGA INICIAL DE DATOS
+      const refrescarDatos = useCallback(() => {
         setLoading(true);
-        setTimeout(() => {
-          setData([
-            { CODIGO: 'EX-100', DESCRIPCION: 'TUERCA GALVANIZADA 1/2', CANTIDAD: 150, UBICACION: 'DISPONIBLE' },
-            { CODIGO: 'EX-101', DESCRIPCION: 'BIRLO DE ACERO INOX', CANTIDAD: 45, UBICACION: 'B1-ESTANTE-A' },
-            { CODIGO: 'EX-102', DESCRIPCION: 'ARANDELA DE PRESION', CANTIDAD: 300, UBICACION: 'CB1-PASILLO-2' },
-          ]);
-          setLoading(false);
-          setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 100);
-        }, 800);
+        google.script.run
+          .withSuccessHandler((res) => {
+            setData(res || []);
+            setLoading(false);
+          })
+          .withFailureHandler(() => setLoading(false))
+          .obtenerTodaLaBaseExcedentes();
       }, []);
 
       useEffect(() => {
-        cargarDatos();
-      }, [cargarDatos]);
+        refrescarDatos();
+      }, [refrescarDatos]);
 
-      // Refrescar iconos cuando cambia la búsqueda
-      useEffect(() => {
-        if(window.lucide) window.lucide.createIcons();
-      }, [busqueda, data]);
+      // 2. LÓGICA DE FILTRADO Y CÁLCULOS (useMemo para rendimiento)
+      const { itemsFiltrados, totales } = useMemo(() => {
+        const filtrados = data.filter(item => {
+          const busqueda = filtro.toLowerCase();
+          return (
+            (item.codigo || "").toLowerCase().includes(busqueda) ||
+            (item.descripcion || "").toLowerCase().includes(busqueda) ||
+            (item.serie || "").toLowerCase().includes(busqueda)
+          );
+        });
 
-      useEffect(() => {
-  google.script.run
-    .withSuccessHandler(res => {
-      setData(res || []);
-      setLoading(false);
-    })
-    .withFailureHandler(err => {
-      console.error("ERROR CRÍTICO EN SERVIDOR:", err);
-      setLoading(false);
-    })
-    .obtenerBalanceVirtualExcedentes();
-}, []);
+        const sumaTotal = filtrados.reduce((acc, curr) => acc + (Number(curr.cantidad) || 0), 0);
+        const unicos = new Set(filtrados.map(i => i.codigo)).size;
 
-      // Cálculos para las tarjetas
-      const stats = useMemo(() => {
-        const disponibles = data.filter(i => (i.UBICACION || '').toUpperCase().includes('DISPONIBLE')).length;
-        return { total: data.length, disponibles, asignados: data.length - disponibles };
-      }, [data]);
+        return { itemsFiltrados: filtrados, totales: { sumaTotal, unicos } };
+      }, [data, filtro]);
 
-      const itemsFiltrados = useMemo(() => {
-          return data.filter(item => {
-            // Blindaje: Si es undefined, lo convierte en string vacío antes de evaluar
-            const idSeguro = (item.idVirtual || '').toLowerCase();
-            const descSegura = (item.descripcion || '').toLowerCase();
-            const busquedaSegura = (busqueda || '').toLowerCase();
+      return (
+        <div className="p-8 h-screen flex flex-col gap-8 fade-in">
+          
+          {/* CABECERA Y BUSCADOR */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <h1 className="text-4xl font-black text-[#1c1d1f] tracking-tight">Gestor de <span className="text-[#d93025]">Excedentes</span></h1>
+              <p className="text-[#5f6368] font-medium mt-1">Control de inventario virtual y físico en tiempo real</p>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-[#5f6368] group-focus-within:text-[#d93025] transition-colors">
+                  <LocalIcon name="search" size={20} />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar por código, descripción o serie..."
+                  className="pl-12 pr-6 py-4 w-80 bg-white border border-[#dadce0] rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#d93025]/20 focus:border-[#d93025] transition-all font-medium"
+                  value={filtro}
+                  onChange={(e) => setFiltro(e.target.value)}
+                />
+              </div>
+              <button 
+                onClick={refrescarDatos}
+                className={`p-4 bg-white border border-[#dadce0] rounded-2xl hover:bg-gray-50 transition-all ${loading ? 'animate-spin text-[#d93025]' : 'text-[#5f6368]'}`}
+              >
+                <LocalIcon name="refresh-cw" />
+              </button>
+            </div>
+          </div>
 
-            return idSeguro.includes(busquedaSegura) || descSegura.includes(busquedaSegura);
-          });
-        }, [data, busqueda]);
+          {/* TARJETAS DE RESUMEN */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <SummaryCard 
+              label="SKUs Registrados" 
+              value={totales.unicos} 
+              iconName="package" 
+              colorClass="bg-red-50 text-[#d93025]" 
+            />
+            <SummaryCard 
+              label="Cantidad Total" 
+              value={totales.sumaTotal} 
+              iconName="hash" 
+              colorClass="bg-emerald-50 text-emerald-600" 
+            />
+            <SummaryCard 
+              label="Estado de Red" 
+              value={loading ? "Sincronizando" : "En línea"} 
+              iconName="database" 
+              colorClass="bg-blue-50 text-blue-600" 
+            />
+          </div>
 
-      return e('div', { className: "flex flex-col h-full overflow-y-auto custom-scroll p-4 md:p-8" },
-        
-        // ENCABEZADO Y BUSCADOR (Estilo Prototipo 2)
-        e('div', { className: "flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8" },
-          e('div', { className: "relative w-full md:w-80" },
-            e('i', { 'data-lucide': 'search', className: "absolute left-4 top-1/2 -translate-y-1/2 text-[#5f6368] w-5 h-5" }),
-            e('input', { 
-              type: "text", 
-              placeholder: "Buscar código o descripción...", 
-              className: "w-full bg-white border border-[#dadce0] rounded-2xl py-3 pl-12 pr-4 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#d93025] focus:border-transparent transition-all shadow-sm",
-              value: busqueda,
-              onChange: (ev) => setBusqueda(ev.target.value)
-            }),
-            busqueda && e('button', {
-              onClick: () => setBusqueda(''),
-              className: "absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 rounded-full text-[#5f6368] transition-colors"
-            }, e('i', { 'data-lucide': 'x', className: "w-4 h-4" }))
-          )
-        ),
-
-        // TARJETAS DE RESUMEN (Grid)
-        e('div', { className: "grid grid-cols-1 md:grid-cols-3 gap-6 mb-8" },
-          e(SummaryCardPremium, { label: "Total Registros", value: stats.total, iconName: "database", colorTheme: "brand" }),
-          e(SummaryCardPremium, { label: "Por Asignar", value: stats.disponibles, iconName: "alert-circle", colorTheme: "amber" }),
-          e(SummaryCardPremium, { label: "Ubicados", value: stats.asignados, iconName: "check-circle-2", colorTheme: "emerald" })
-        ),
-
-        // TABLA DE DATOS (Estilo Premium con mucho whitespace)
-        e('div', { className: "bg-white border border-[#dadce0] rounded-[2rem] shadow-[0_10px_25px_rgba(0,0,0,0.06)] overflow-hidden flex-1 flex flex-col" },
-          e('div', { className: "overflow-x-auto flex-1" },
-            e('table', { className: "w-full text-left border-collapse" },
-              e('thead', { className: "bg-[#f8f9fa] border-b border-[#dadce0]" },
-                e('tr', null,
-                  ['Código', 'Descripción', 'Cantidad', 'Ubicación Física'].map(h => 
-                    e('th', { key: h, className: "px-8 py-5 text-[10px] font-black text-[#5f6368] uppercase tracking-widest whitespace-nowrap" }, h)
-                  )
-                )
-              ),
-              e('tbody', { className: "divide-y divide-[#dadce0]/50" },
-                itemsFiltrados.map((item, idx) => 
-                  e('tr', { key: idx, className: "hover:bg-[#f8f9fa] transition-colors group" },
-                    // Columna 1: ID Virtual (Serie + Código)
-                    e('td', { className: "px-8 py-5" }, 
-                      e('div', { className: "flex flex-col gap-1" },
-                        e('span', { className: "font-black text-[#d93025] text-sm bg-[rgba(217,48,37,0.05)] px-3 py-1.5 rounded-xl group-hover:bg-[rgba(217,48,37,0.1)] transition-colors w-fit" }, 
-                          item.idVirtual // Usamos la nueva llave concatenada
-                        ),
-                        e('span', { className: "text-[9px] text-[#5f6368] font-bold uppercase pl-1" }, `SKU: ${item.codigo}`)
-                      )
-                    ),
-                    // Columna 2: Descripción
-                    e('td', { className: "px-8 py-5 text-sm font-bold text-[#1c1d1f]" }, item.descripcion),
-                    // Columna 3: Cantidad (Balance Virtual)
-                    e('td', { className: "px-8 py-5 text-center font-black text-[#454040] text-lg" }, item.cantidad),
-                    // Columna 4: Ubicación (Serie)
-                    e('td', { className: "px-8 py-5" }, 
-                      e('span', { 
-                        className: `text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-wider border ${
-                          // Blindaje: (item.serie || '') protege contra celdas vacías
+          {/* CONTENEDOR DE TABLA */}
+          <div className="flex-1 bg-white rounded-[2rem] border border-[#dadce0] shadow-soft overflow-hidden flex flex-col">
+            <div className="overflow-y-auto custom-scroll-container">
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 bg-white z-10">
+                  <tr>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-[#5f6368] border-bottom border-[#dadce0]">Código / ID</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-[#5f6368] border-bottom border-[#dadce0]">Descripción</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-[#5f6368] border-bottom border-[#dadce0]">Serie / Ubicación</th>
+                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-[#5f6368] border-bottom border-[#dadce0] text-right">Cantidad</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f1f3f4]">
+                  {!loading && itemsFiltrados.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-[#f8f9fa] transition-colors group">
+                      <td className="px-8 py-4">
+                        <span className="font-mono text-sm font-bold text-[#d93025] bg-red-50 px-3 py-1 rounded-lg">
+                          {item.codigo}
+                        </span>
+                      </td>
+                      <td className="px-8 py-4 text-sm font-medium text-[#1c1d1f] max-w-xs truncate">
+                        {item.descripcion}
+                      </td>
+                      <td className="px-8 py-4">
+                        <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full border ${
                           (item.serie || '').toUpperCase().includes('DISPONIBLE') 
                             ? 'bg-amber-50 text-amber-600 border-amber-200' 
                             : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                        }` 
-                      }, item.serie || 'SIN UBICACIÓN')
-                    )
-                  )
-                )
-              )
-            )
-          ),
-          
-          // ESTADOS VACÍOS O DE CARGA
-          itemsFiltrados.length === 0 && !loading && e('div', { className: "p-24 flex flex-col items-center justify-center text-[#5f6368]" }, 
-            e('i', { 'data-lucide': 'search-x', className: "w-12 h-12 mb-4 opacity-50" }),
-            e('p', { className: "font-bold text-lg" }, "No se encontraron registros.")
-          ),
-          loading && e('div', { className: "p-24 flex flex-col items-center justify-center text-[#d93025]" }, 
-            e('i', { 'data-lucide': 'loader-2', className: "w-10 h-10 mb-4 animate-spin" }),
-            e('p', { className: "font-bold text-[#5f6368]" }, "Sincronizando con base de datos...")
-          )
-        )
-      );
-    }
+                        }`}>
+                          {item.serie || 'SIN UBICACIÓN'}
+                        </span>
+                      </td>
+                      <td className="px-8 py-4 text-right">
+                        <span className="text-lg font-black text-[#1c1d1f]">{item.cantidad}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-    // Renderizar la vista en el contenedor inyectado
-    const rootContainer = document.getElementById('vista-excedentes-root');
-    if (rootContainer) {
-      const root = ReactDOM.createRoot(rootContainer);
-      root.render(e(GestorExcedentesApp));
+              {/* ESTADOS VACÍOS O DE CARGA */}
+              {itemsFiltrados.length === 0 && !loading && (
+                <div className="p-24 flex flex-col items-center justify-center text-[#5f6368] opacity-50">
+                  <LocalIcon name="search-x" size={48} className="mb-4" />
+                  <p className="font-bold text-lg italic">No se encontraron registros para tu búsqueda</p>
+                </div>
+              )}
+              
+              {loading && (
+                <div className="p-24 flex flex-col items-center justify-center text-[#d93025]">
+                  <LocalIcon name="loader-2" size={40} className="mb-4 animate-spin" />
+                  <p className="font-black uppercase tracking-widest text-xs text-[#5f6368]">Conectando con Google Sheets...</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // Renderizado final
+    const rootDiv = document.getElementById('vista-excedentes-root');
+    if (rootDiv) {
+      const root = ReactDOM.createRoot(rootDiv);
+      root.render(<VistaGestorExcedentes />);
     }
   })();
 </script>
