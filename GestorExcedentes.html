@@ -1,341 +1,169 @@
-<div id="vista-excedentes-root" class="h-full w-full bg-[#f8f9fa] overflow-hidden"></div>
+<div id="vista-excedentes-root" class="h-full w-full bg-[#f8f9fa] overflow-hidden relative"></div>
 
 <script type="text/babel">
   (function() {
-    const { useState, useEffect, useMemo, useCallback } = React;
+    const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-    // --- COMPONENTE: TARJETA DE RESUMEN PREMIUM ---
+    // --- COMPONENTE: ICONOS DE LUCIDE ---
+    const LocalIcon = ({ name, size = 20, className = "" }) => {
+      useEffect(() => {
+        if (window.lucide) window.lucide.createIcons();
+      }, [name]);
+      return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+    };
+
+    // --- COMPONENTE: TARJETA DE MÉTRICAS ---
     const SummaryCard = ({ label, value, iconName, colorClass }) => (
-      <div className="bg-white p-6 rounded-[2rem] border border-[#dadce0] shadow-soft flex items-center gap-5 transition-transform duration-300 hover:-translate-y-1">
+      <div className="bg-white p-6 rounded-[2rem] border border-[#dadce0] shadow-sm flex items-center gap-5 transition-all hover:shadow-md hover:-translate-y-1">
         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${colorClass}`}>
           <LocalIcon name={iconName} size={28} />
         </div>
         <div>
-          <p className="text-[11px] font-black uppercase tracking-widest text-[#5f6368] mb-1">{label}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#5f6368] mb-1">{label}</p>
           <h3 className="text-3xl font-black text-[#1c1d1f] leading-none">{value}</h3>
         </div>
       </div>
     );
 
-    // Componente de icono local para asegurar compatibilidad con Lucide
-    const LocalIcon = ({ name, size = 20, className = "" }) => {
-      useEffect(() => {
-        if (window.lucide) lucide.createIcons();
-      }, [name]);
-      return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
-    };
-
     const VistaGestorExcedentes = () => {
       const [data, setData] = useState([]);
       const [loading, setLoading] = useState(true);
       const [filtro, setFiltro] = useState("");
-      const [bodegaSeleccionada, setBodegaSeleccionada] = useState("TODAS");
+      const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+      const inputRef = useRef(null);
 
-      // 1. CARGA INICIAL DE DATOS
+      // --- CARGA DE DATOS ---
       const refrescarDatos = useCallback(() => {
         setLoading(true);
-        google.script.run
-          .withSuccessHandler((res) => {
-            setData(res || []);
+        if (typeof google !== 'undefined') {
+          google.script.run
+            .withSuccessHandler((res) => {
+              setData(res || []);
+              setLoading(false);
+            })
+            .withFailureHandler(() => setLoading(false))
+            .obtenerTodaLaBaseExcedentes();
+        } else {
+          // Datos de simulación
+          setTimeout(() => {
+            setData([
+              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: 500, serie: "BODEGA 1" },
+              { codigo: "T-500", descripcion: "TORNILLO HEXAGONAL 1/2", cantidad: 1200, serie: "BODEGA 2" }
+            ]);
             setLoading(false);
-          })
-          .withFailureHandler((err) => {
-            setLoading(false);
-            if (window.Swal) {
-              Swal.fire('Error', 'No se pudieron cargar los excedentes: ' + err, 'error');
-            }
-          })
-          .obtenerTodaLaBaseExcedentes();
+          }, 800);
+        }
       }, []);
 
+      useEffect(() => { refrescarDatos(); }, [refrescarDatos]);
+
       useEffect(() => {
-        refrescarDatos();
-      }, [refrescarDatos]);
+        if (isSearchExpanded && inputRef.current) inputRef.current.focus();
+      }, [isSearchExpanded]);
 
-      // 2. EXTRAER BODEGAS ÚNICAS PARA EL FILTRO DINÁMICO
-      const listaBodegas = useMemo(() => {
-        const bodegasMap = data.map(item => item.bodega).filter(Boolean);
-        return ["TODAS", ...new Set(bodegasMap)];
-      }, [data]);
-
-      // 3. LÓGICA DE FILTRADO Y CÁLCULOS (Búsqueda + Bodega)
-      const { itemsFiltrados, totales } = useMemo(() => {
-        const filtrados = data.filter(item => {
-          const busqueda = filtro.toLowerCase();
-          const coincideBusqueda = (
-            (item.codigo || "").toLowerCase().includes(busqueda) ||
-            (item.descripcion || "").toLowerCase().includes(busqueda) ||
-            (item.serie || "").toLowerCase().includes(busqueda)
-          );
-          const coincideBodega = bodegaSeleccionada === "TODAS" || item.bodega === bodegaSeleccionada;
-          
-          return coincideBusqueda && coincideBodega;
-        });
-
-        const sumaTotal = filtrados.reduce((acc, curr) => acc + (Number(curr.cantidad) || 0), 0);
-        const unicos = new Set(filtrados.map(i => i.codigo)).size;
-
-        return { itemsFiltrados: filtrados, totales: { sumaTotal, unicos } };
-      }, [data, filtro, bodegaSeleccionada]);
-
-      // 4. ACCIÓN: AJUSTE DE STOCK RÁPIDO
-      const handleAjustarStock = (item) => {
-        if (!window.Swal) return;
-
-        Swal.fire({
-          title: 'Ajuste de Stock (Inventario Cíclico)',
-          html: `
-            <div class="text-left font-sans">
-              <p class="mb-2 text-sm text-gray-600"><strong>SKU:</strong> ${item.codigo}</p>
-              <p class="mb-4 text-sm text-gray-600"><strong>Ubicación:</strong> ${item.serie}</p>
-              <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Nueva Cantidad Física</label>
-              <input id="swal-nueva-cant" type="number" class="w-full p-3 border rounded-xl mb-4 font-mono text-lg text-center" value="${item.cantidad}" min="0">
-              
-              <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Motivo del Ajuste (Auditoría)</label>
-              <select id="swal-motivo" class="w-full p-3 border rounded-xl bg-white text-sm">
-                <option value="Diferencia física en conteo">Diferencia física en conteo</option>
-                <option value="Daño o merma">Daño o merma de producto</option>
-                <option value="Error de captura previo">Error de captura previo</option>
-                <option value="Ajuste autorizado por supervisor">Ajuste autorizado por supervisor</option>
-              </select>
-            </div>
-          `,
-          showCancelButton: true,
-          confirmButtonText: 'Guardar Ajuste',
-          cancelButtonText: 'Cancelar',
-          confirmButtonColor: '#1e8e3e',
-          preConfirm: () => {
-            const nuevaCant = document.getElementById('swal-nueva-cant').value;
-            const motivo = document.getElementById('swal-motivo').value;
-            if (!nuevaCant || nuevaCant < 0) {
-              Swal.showValidationMessage('La cantidad debe ser 0 o superior');
-              return false;
-            }
-            return { nuevaCantidad: Number(nuevaCant), motivo: motivo };
-          }
-        }).then((result) => {
-          if (result.isConfirmed) {
-            Swal.fire({
-              title: 'Procesando...',
-              text: 'Actualizando stock y registrando en bitácora',
-              allowOutsideClick: false,
-              didOpen: () => Swal.showLoading()
-            });
-
-            // Llamamos a tu motor de operaciones backend
-            google.script.run
-              .withSuccessHandler((res) => {
-                if (res.success) {
-                  Swal.fire('¡Ajustado!', 'El inventario se actualizó correctamente.', 'success');
-                  refrescarDatos(); // Recargar datos frescos de la hoja
-                } else {
-                  Swal.fire('Error', res.message || 'No se pudo realizar el ajuste.', 'error');
-                }
-              })
-              .withFailureHandler((err) => {
-                Swal.fire('Error de Red', err.toString(), 'error');
-              })
-              .ajustarInventarioExcedente(item.codigo, item.serie, result.value.nuevaCantidad, result.value.motivo);
-          }
-        });
-      };
-
-      // 5. ACCIÓN: IMPRIMIR ETIQUETA DIRECTA
-      const handleImprimirEtiqueta = (item) => {
-        if (!window.Swal) return;
-        
-        Swal.fire({
-          title: '¿Generar etiqueta?',
-          text: `Se mandará a cola de impresión el SKU: ${item.codigo}`,
-          icon: 'question',
-          showCancelButton: true,
-          confirmButtonText: 'Sí, generar',
-          confirmButtonColor: '#d93025'
-        }).then((result) => {
-          if (result.isConfirmed) {
-            google.script.run
-              .withSuccessHandler(() => {
-                Swal.fire({
-                  toast: true,
-                  position: 'top-end',
-                  icon: 'success',
-                  title: 'Etiqueta enviada a cola',
-                  showConfirmButton: false,
-                  timer: 3000
-                });
-              })
-              .registrarColaImpresion({
-                codigo: item.codigo,
-                descripcion: item.descripcion,
-                serie: item.serie,
-                cantidad: item.cantidad
-              });
-          }
-        });
-      };
+      const filtered = useMemo(() => {
+        const q = filtro.toLowerCase().trim();
+        return q ? data.filter(d => 
+          (d.codigo || "").toLowerCase().includes(q) || 
+          (d.descripcion || "").toLowerCase().includes(q)
+        ) : data;
+      }, [data, filtro]);
 
       return (
-        <div className="p-8 h-screen flex flex-col gap-8 fade-in">
-          
-          {/* CABECERA */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <h1 className="text-4xl font-black text-[#1c1d1f] tracking-tight">Gestor de <span className="text-[#d93025]">Excedentes PRO</span></h1>
-              <p className="text-[#5f6368] font-medium mt-1">Monitoreo, ajustes físicos y generación de etiquetas en vivo</p>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-4">
-              {/* FILTRO DE BODEGA DINÁMICO */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase text-[#5f6368] tracking-wider">Bodega:</span>
-                <select 
-                  className="bg-white border border-[#dadce0] rounded-2xl px-4 py-3 text-sm font-semibold text-[#1c1d1f] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#d93025]/20 focus:border-[#d93025] transition-all cursor-pointer"
-                  value={bodegaSeleccionada}
-                  onChange={(e) => setBodegaSeleccionada(e.target.value)}
-                >
-                  {listaBodegas.map((bod, idx) => (
-                    <option key={idx} value={bod}>{bod}</option>
-                  ))}
-                </select>
-              </div>
+        <div className="h-full w-full flex flex-col relative bg-[#f8f9fa]">
 
-              {/* BUSCADOR */}
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-[#5f6368] group-focus-within:text-[#d93025] transition-colors">
-                  <LocalIcon name="search" size={18} />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Buscar por código, descripción o serie..."
-                  className="pl-12 pr-6 py-3 w-72 bg-white border border-[#dadce0] rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#d93025]/20 focus:border-[#d93025] transition-all font-medium text-sm"
-                  value={filtro}
-                  onChange={(e) => setFiltro(e.target.value)}
-                />
-              </div>
-
-              <button 
-                onClick={refrescarDatos}
-                className={`p-3 bg-white border border-[#dadce0] rounded-2xl hover:bg-gray-50 transition-all ${loading ? 'animate-spin text-[#d93025]' : 'text-[#5f6368]'}`}
-                title="Sincronizar base de datos"
-              >
-                <LocalIcon name="refresh-cw" size={18} />
-              </button>
-            </div>
+          {/* Métricas */}
+          <div className="px-8 py-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <SummaryCard label="SKUs Totales" value={data.length} iconName="package" colorClass="bg-red-50 text-[#d93025]" />
+            <SummaryCard label="Stock Total" value={data.reduce((a, b) => a + (Number(b.cantidad) || 0), 0)} iconName="layers" colorClass="bg-emerald-50 text-emerald-600" />
+            <SummaryCard label="Filtro Actual" value={filtered.length} iconName="filter" colorClass="bg-blue-50 text-blue-600" />
           </div>
 
-          {/* TARJETAS DE RESUMEN DINÁMICAS */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <SummaryCard 
-              label="SKUs en Vista" 
-              value={totales.unicos} 
-              iconName="package" 
-              colorClass="bg-red-50 text-[#d93025]" 
-            />
-            <SummaryCard 
-              label="Suma de Cantidades" 
-              value={totales.sumaTotal} 
-              iconName="hash" 
-              colorClass="bg-emerald-50 text-emerald-600" 
-            />
-            <SummaryCard 
-              label="Estatus Filtro" 
-              value={bodegaSeleccionada === "TODAS" ? "Global" : "Filtrado"} 
-              iconName="sliders" 
-              colorClass="bg-blue-50 text-blue-600" 
-            />
-          </div>
-
-          {/* TABLA DE EXCEDENTES INTERACTIVA */}
-          <div className="flex-1 bg-white rounded-[2rem] border border-[#dadce0] shadow-soft overflow-hidden flex flex-col">
-            <div className="overflow-y-auto custom-scroll-container">
-              <table className="w-full text-left border-collapse">
-                <thead className="sticky top-0 bg-white z-10 border-b border-[#dadce0]">
+          {/* Tabla */}
+          <div className="flex-1 overflow-auto px-8 pb-40">
+            <div className="bg-white rounded-[2rem] border border-[#dadce0] overflow-hidden shadow-sm">
+              <table className="w-full text-left">
+                <thead className="bg-[#f8f9fa] border-b border-[#dadce0] sticky top-0 z-10">
                   <tr>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-[#5f6368]">Código</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-[#5f6368]">Descripción</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-[#5f6368]">Bodega</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-[#5f6368]">Serie / Ubicación</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-[#5f6368] text-right">Cantidad</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-[#5f6368] text-center w-36">Acciones</th>
+                    <th className="px-8 py-4 text-[10px] font-black uppercase text-[#5f6368]">Código</th>
+                    <th className="px-8 py-4 text-[10px] font-black uppercase text-[#5f6368]">Descripción</th>
+                    <th className="px-8 py-4 text-[10px] font-black uppercase text-[#5f6368] text-right">Cant.</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f3f4]">
-                  {!loading && itemsFiltrados.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-[#f8f9fa] transition-colors group">
-                      <td className="px-8 py-4">
-                        <span className="font-mono text-sm font-bold text-[#d93025] bg-red-50 px-3 py-1 rounded-lg">
-                          {item.codigo}
-                        </span>
-                      </td>
-                      <td className="px-8 py-4 text-sm font-medium text-[#1c1d1f] max-w-xs truncate" title={item.descripcion}>
-                        {item.descripcion}
-                      </td>
-                      <td className="px-8 py-4 text-sm font-bold text-[#5f6368]">
-                        {item.bodega || 'SIN ASIGNAR'}
-                      </td>
-                      <td className="px-8 py-4">
-                        <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full border ${
-                          (item.serie || '').toUpperCase().includes('DISPONIBLE') 
-                            ? 'bg-amber-50 text-amber-600 border-amber-200' 
-                            : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                        }`}>
-                          {item.serie || 'SIN UBICACIÓN'}
-                        </span>
-                      </td>
-                      <td className="px-8 py-4 text-right">
-                        <span className="text-lg font-black text-[#1c1d1f]">{item.cantidad}</span>
-                      </td>
-                      <td className="px-8 py-4">
-                        <div className="flex items-center justify-center gap-2">
-                          {/* BOTÓN: AJUSTAR STOCK */}
-                          <button
-                            onClick={() => handleAjustarStock(item)}
-                            className="p-2 text-[#5f6368] hover:text-[#1e8e3e] hover:bg-emerald-50 rounded-lg transition-all"
-                            title="Ajustar Inventario Físico"
-                          >
-                            <LocalIcon name="sliders" size={16} />
-                          </button>
-                          
-                          {/* BOTÓN: IMPRIMIR ETIQUETA */}
-                          <button
-                            onClick={() => handleImprimirEtiqueta(item)}
-                            className="p-2 text-[#5f6368] hover:text-[#d93025] hover:bg-red-50 rounded-lg transition-all"
-                            title="Imprimir Etiqueta"
-                          >
-                            <LocalIcon name="printer" size={16} />
-                          </button>
-                        </div>
-                      </td>
+                  {filtered.map((item, i) => (
+                    <tr key={i} className="hover:bg-[#fffafa] transition-colors">
+                      <td className="px-8 py-4 font-mono font-bold text-[#d93025]">{item.codigo}</td>
+                      <td className="px-8 py-4 text-sm font-medium text-[#1c1d1f]">{item.descripcion}</td>
+                      <td className="px-8 py-4 text-right font-black text-lg">{item.cantidad}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-
-              {/* ESTADOS VACÍOS O DE CARGA */}
-              {itemsFiltrados.length === 0 && !loading && (
-                <div className="p-24 flex flex-col items-center justify-center text-[#5f6368] opacity-50">
-                  <LocalIcon name="search-x" size={48} className="mb-4" />
-                  <p className="font-bold text-lg italic">No se encontraron excedentes con los filtros seleccionados</p>
-                </div>
-              )}
-              
               {loading && (
-                <div className="p-24 flex flex-col items-center justify-center text-[#d93025]">
-                  <LocalIcon name="loader-2" size={40} className="mb-4 animate-spin" />
-                  <p className="font-black uppercase tracking-widest text-xs text-[#5f6368]">Conectando con Google Sheets...</p>
+                <div className="p-20 flex flex-col items-center text-[#d93025]">
+                  <LocalIcon name="loader-2" size={40} className="animate-spin mb-2" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#5f6368]">Sincronizando...</span>
                 </div>
               )}
             </div>
+          </div>
+
+          {/* 🔘 BOTONES FLOTANTES (UX FITO) */}
+          <div className="fixed bottom-10 right-10 flex flex-col items-end gap-4 z-">
+            {/* Buscador */}
+            <div className="flex items-center gap-3">
+              {isSearchExpanded && (
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder="Buscar material..."
+                  className="w-72 bg-white border-2 border-[#d93025] rounded-2xl px-6 py-4 shadow-2xl outline-none font-bold text-sm animate-slide-left"
+                  value={filtro}
+                  onChange={(e) => setFiltro(e.target.value)}
+                />
+              )}
+              <button 
+                onClick={() => setIsSearchExpanded(!isSearchExpanded)}
+                className={`w-16 h-16 rounded-2xl shadow-lg flex items-center justify-center text-white transition-all active:scale-95 ${isSearchExpanded ? 'bg-[#1c1d1f]' : 'bg-[#d93025]'}`}
+              >
+                <LocalIcon name={isSearchExpanded ? "x" : "search"} size={28} />
+              </button>
+            </div>
+
+            {/* Actualizar (Sin efecto de giro en el botón completo) */}
+            <button 
+              onClick={refrescarDatos}
+              disabled={loading}
+              className="w-16 h-16 bg-white border border-[#dadce0] rounded-2xl shadow-xl flex items-center justify-center text-[#5f6368] hover:text-[#d93025] transition-all active:scale-90"
+              title="Actualizar tabla"
+            >
+              <LocalIcon 
+                name="refresh-cw" 
+                size={28} 
+                className={loading ? "animate-spin text-[#d93025]" : ""} 
+              />
+            </button>
           </div>
         </div>
       );
     };
 
-    // Renderizado final
-    const rootDiv = document.getElementById('vista-excedentes-root');
-    if (rootDiv) {
-      const root = ReactDOM.createRoot(rootDiv);
+    window.cargar_GestorExcedentes = () => {
+      const root = ReactDOM.createRoot(document.getElementById('vista-excedentes-root'));
       root.render(<VistaGestorExcedentes />);
-    }
+    };
+
+    if (document.getElementById('vista-excedentes-root')) window.cargar_GestorExcedentes();
   })();
 </script>
+
+<style>
+  .animate-slide-left {
+    animation: slideL 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes slideL {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+</style>
