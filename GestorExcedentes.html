@@ -78,7 +78,7 @@
         return { itemsFiltrados: filtrados, totales: { sumaTotal, unicos } };
       }, [data, filtro, bodegaSeleccionada]);
 
-      // 4. ACCIÓN: AJUSTE DE STOCK RÁPIDO (INTEGRACIÓN CON BACKEND)
+      // 4. ACCIÓN: AJUSTE DE STOCK RÁPIDO
       const handleAjustarStock = (item) => {
         if (!window.Swal) return;
 
