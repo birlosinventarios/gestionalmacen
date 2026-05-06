@@ -211,25 +211,6 @@ function obtenerAgentesResponsables() {
     .sort();
 }
 
-function obtenerTodaLaBaseExcedentes() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName('BD-EXCEDENTES');
-  if (!hoja) return [];
-
-  const ultimaFila = hoja.getLastRow();
-  if (ultimaFila < 2) return [];
-
-  const data = hoja.getRange(2, 1, ultimaFila - 1, 9).getValues();
-
-  return data.map(fila => ({
-    IDUNICO: String(fila[0]).trim(),    // ID Único (Col A)
-    FECHA: fila[1],                     // Fecha (Col B)
-    CODIGO: String(fila[4]).trim(),     // Código (Col E)
-    DESCRIPCION: String(fila[5]),       // Descripción (Col F)
-    CANTIDAD: String(fila[6]),          // Cantidad (Col G) - Forzamos string para evitar errores en HTML
-    UBICACION: String(fila[7]).trim()   // Ubicación (Col H)
-  }));
-}
 
 /**
  * Esta función es la que llama tu formulario Generador de Etiquetas
@@ -499,40 +480,58 @@ function buscarProductoPorCodigo(codigo) {
   return { encontrado: false };
 }
 
+/**
+ * Obtiene todos los registros crudos de la hoja 'Bitacora-TRASPASOS'
+ * sin aplicar filtros ni agrupaciones, mapeados por el nombre de su columna.
+ * @return {Array<Object>} Arreglo de registros de la bitácora.
+ */
 function obtenerTodaLaBaseExcedentes() {
-  console.log("Iniciando función en el servidor..."); // <--- Ver esto en Ejecuciones
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var hoja = ss.getSheetByName('BD-EXCEDENTES');
-    
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const hoja = ss.getSheetByName('Bitacora-TRASPASOS');
     if (!hoja) {
-      console.log("ERROR: No encontré la hoja BD-EXCEDENTES");
-      return []; // <--- IMPORTANTE: Devolver array vacío, nunca nada o null
+      throw new Error("No se encontró la hoja 'Bitacora-TRASPASOS'");
     }
 
-    var valores = hoja.getDataRange().getValues();
-    console.log("Filas encontradas en la hoja: " + valores.length);
+    const rangoDatos = hoja.getDataRange();
+    const valores = rangoDatos.getValues();
+    
+    if (valores.length <= 1) {
+      return []; // Está vacía o solo tiene encabezados
+    }
 
-    if (valores.length <= 1) return [];
+    // Extraemos la fila de encabezados (normalizar a minúsculas y sin espacios raros)
+    const encabezados = valores.shift().map(h => String(h).trim());
 
-    valores.shift(); // Quitar encabezados
-
-    var resultado = valores.map(function(fila) {
-      return {
-        IDUNICO: fila[0] || "",
-        CODIGO: String(fila[4] || ""),
-        DESCRIPCION: String(fila[5] || ""),
-        CANTIDAD: fila[6] || 0,
-        UBICACION: fila[7] || ""
+    // Mapeamos cada fila cruda a un objeto basado en el nombre de la columna
+    const registrosCrudos = valores.map((fila, index) => {
+      const registro = {
+        _idFila: index + 2 // Guardamos la fila física real de Sheets por si se requiere después
       };
+      
+      encabezados.forEach((encabezado, colIndex) => {
+        if (encabezado) {
+          // Si es una celda de fecha/hora de Google Apps Script, conservamos su formato de texto legible o nativo
+          let valorCelda = fila[colIndex];
+          if (valorCelda instanceof Date) {
+            // Si es la columna FECHA o HORA, puedes formatearla convenientemente o enviarla como string
+            if (encabezado.toUpperCase() === 'FECHA') {
+              valorCelda = Utilities.formatDate(valorCelda, ss.getSpreadsheetTimeZone(), "dd/MM/yyyy");
+            } else if (encabezado.toUpperCase() === 'HORA') {
+              valorCelda = Utilities.formatDate(valorCelda, ss.getSpreadsheetTimeZone(), "HH:mm:ss");
+            }
+          }
+          registro[encabezado] = valorCelda;
+        }
+      });
+      
+      return registro;
     });
 
-    console.log("Enviando al cliente " + resultado.length + " filas.");
-    return resultado; // <--- Asegúrate de que esto sea lo último que pase
-
-  } catch (e) {
-    console.log("ERROR CRÍTICO: " + e.message);
-    return []; // <--- Si algo explota, mandamos array vacío para que React no reciba null
+    return registrosCrudos;
+  } catch (error) {
+    Logger.log("Error en obtenerTodaLaBaseExcedentes: " + error.toString());
+    throw new Error("Error al leer la base de datos: " + error.message);
   }
 }
 
