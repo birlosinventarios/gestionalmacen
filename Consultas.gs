@@ -480,52 +480,61 @@ function buscarProductoPorCodigo(codigo) {
   return { encontrado: false };
 }
 
+/**
+ * Obtiene la base de excedentes consolidada por IDUNICO.
+ * Filtra vacíos y calcula el balance (Entradas - Salidas).
+ */
 function obtenerTodaLaBaseExcedentes() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    // Validamos ambos nombres posibles de la hoja
     const hoja = ss.getSheetByName('Bitacora-TRASPASOS') || ss.getSheetByName('Bitacora-Traspasos');
-    
-    if (!hoja) throw new Error("No se encontró la hoja de 'Bitacora-TRASPASOS'");
+    if (!hoja) throw new Error("Hoja no encontrada");
 
     const valores = hoja.getDataRange().getValues();
     if (valores.length <= 1) return [];
+    valores.shift(); // Quitar encabezados
 
-    // Eliminamos encabezados
-    valores.shift();
+    // Mapa para consolidar saldos por IDUNICO
+    const mapaExcedentes = {};
 
-    const zonaHoraria = ss.getSpreadsheetTimeZone();
+    valores.forEach(fila => {
+      const idUnico = String(fila || "").trim();
+      if (!idUnico) return; // Despreciar vacíos
 
-    // Filtramos y mapeamos en un solo paso para mayor eficiencia
-    return valores
-      .filter(fila => {
-        // La columna 14 corresponde al IDUNICO (Columna O)
-        const idUnico = String(fila[14] || "").trim();
-        return idUnico !== ""; // DESPRECIAR VACÍOS: Solo pasan los que tienen IDUNICO
-      })
-      .map((fila, index) => {
-        return {
-          idFila: index + 2, 
-          fecha: fila instanceof Date ? Utilities.formatDate(fila, zonaHoraria, "dd/MM/yyyy") : String(fila || ""),
-          hora: fila[1] instanceof Date ? Utilities.formatDate(fila[1], zonaHoraria, "HH:mm:ss") : String(fila[1] || ""),
-          tipoMovimiento: String(fila[2] || "").trim(),
-          serie: String(fila[3] || "").trim(),
-          bodegaSalida: String(fila[4] || "").trim(),
-          ubiExcedenteSalida: String(fila[5] || "").trim(),
-          bodegaEntrada: String(fila[6] || "").trim(),
-          ubiExcedenteEntrada: String(fila[7] || "").trim(),
-          solicitante: String(fila[8] || "").trim(),
-          codigo: String(fila[9] || "").trim(),
-          descripcion: String(fila[10] || "").trim(),
-          cantidad: Number(fila[11]) || 0,
-          folio: String(fila[12] || "").trim(),
-          responsable: String(fila[13] || "").trim(),
-          idUnico: String(fila[14] || "").trim() 
+      const tipo = String(fila || "").toUpperCase();
+      const cantidad = Number(fila) || 0;
+
+      if (!mapaExcedentes[idUnico]) {
+        mapaExcedentes[idUnico] = {
+          idUnico: idUnico,
+          codigo: String(fila || "").trim(),
+          descripcion: String(fila || "").trim(),
+          serie: String(fila || "").trim(),
+          entradas: 0,
+          salidas: 0,
+          balance: 0
         };
+      }
+
+      // Lógica de Balance: Acomodo/Ingreso suma, Surtido/Salida resta
+      if (tipo.includes("ACOMODO") || tipo.includes("ENTRADA") || tipo.includes("INGRESO")) {
+        mapaExcedentes[idUnico].entradas += cantidad;
+      } else if (tipo.includes("SURTIDO") || tipo.includes("SALIDA") || tipo.includes("TRASPASO")) {
+        mapaExcedentes[idUnico].salidas += cantidad;
+      }
+    });
+
+    // Convertir mapa a array y calcular balance final
+    return Object.values(mapaExcedentes)
+      .map(item => {
+        item.balance = item.entradas - item.salidas;
+        return item;
       })
-      .reverse(); // Los más recientes primero
-  } catch (error) {
-    Logger.log("Error en obtenerTodaLaBaseExcedentes: " + error.toString());
+      .filter(item => item.balance > 0) // Opcional: solo mostrar lo que tiene stock real
+      .sort((a, b) => b.balance - a.balance); // Los de mayor stock arriba
+
+  } catch (e) {
+    Logger.log("Error: " + e.toString());
     return [];
   }
 }

@@ -85,17 +85,34 @@
               <table className="w-full text-left">
                 <thead className="bg-[#f8f9fa] border-b border-[#dadce0] sticky top-0 z-10">
                   <tr>
-                    <th className="px-8 py-4 text-[10px] font-black uppercase text-[#5f6368]">Código</th>
+                    <th className="px-8 py-4 text-[10px] font-black uppercase text-[#5f6368]">SKU</th>
                     <th className="px-8 py-4 text-[10px] font-black uppercase text-[#5f6368]">Descripción</th>
-                    <th className="px-8 py-4 text-[10px] font-black uppercase text-[#5f6368] text-right">Cant.</th>
+                    <th className="px-8 py-4 text-[10px] font-black uppercase text-[#5f6368] text-right">Cantidad</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f3f4]">
                   {filtered.map((item, i) => (
-                    <tr key={i} className="hover:bg-[#fffafa] transition-colors">
-                      <td className="px-8 py-4 font-mono font-bold text-[#d93025]">{item.codigo}</td>
-                      <td className="px-8 py-4 text-sm font-medium text-[#1c1d1f]">{item.descripcion}</td>
-                      <td className="px-8 py-4 text-right font-black text-lg">{item.cantidad}</td>
+                    <tr key={item.idUnico} className="group hover:bg-[#f8f9fa] transition-all border-b border-gray-100">
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-mono text-gray-400 uppercase tracking-tighter">ID: {item.idUnico}</span>
+                          <span className="text-sm font-bold text-[#1c1d1f] tracking-tight">{item.codigo}</span>
+                        </div>
+                      </td>
+                      
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-700 leading-tight line-clamp-1">{item.descripcion}</span>
+                          <span className="text-[9px] font-semibold text-[#d93025]/70 uppercase">Serie: {item.serie || 'N/A'}</span>
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-4 text-right">
+                        <div className="inline-flex items-center justify-end px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100">
+                          <span className="text-lg font-black text-emerald-700">{item.balance}</span>
+                          <span className="ml-1 text-[10px] font-bold text-emerald-600/50 uppercase">u.</span>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
