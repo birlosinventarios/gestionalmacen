@@ -480,49 +480,50 @@ function buscarProductoPorCodigo(codigo) {
   return { encontrado: false };
 }
 
-/**
- * Obtiene los datos crudos y mapeados de la bitácora respetando 
- * exactamente los encabezados proporcionados por Fito.
- * @return {Array<Object>} Arreglo de registros de la bitácora.
- */
 function obtenerTodaLaBaseExcedentes() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    // Validamos ambos casos comunes de escritura de la pestaña
+    // Validamos ambos nombres posibles de la hoja
     const hoja = ss.getSheetByName('Bitacora-TRASPASOS') || ss.getSheetByName('Bitacora-Traspasos');
     
-    if (!hoja) {
-      throw new Error("No se encontró la hoja de 'Bitacora-TRASPASOS'");
-    }
+    if (!hoja) throw new Error("No se encontró la hoja de 'Bitacora-TRASPASOS'");
 
     const valores = hoja.getDataRange().getValues();
     if (valores.length <= 1) return [];
 
-    // Removemos la primera fila que contiene los encabezados
+    // Eliminamos encabezados
     valores.shift();
 
-    // Mapeo exacto basado en el orden de tus columnas físicas
-    return valores.map((fila, index) => {
-      return {
-        idFila: index + 2,                                // Fila física en Sheets
-        fecha: fila instanceof Date ? Utilities.formatDate(fila, ss.getSpreadsheetTimeZone(), "dd/MM/yyyy") : String(fila || ""),
-        hora: fila[1] instanceof Date ? Utilities.formatDate(fila[1], ss.getSpreadsheetTimeZone(), "HH:mm:ss") : String(fila[1] || ""),
-        tipoMovimiento: String(fila[2] || "").trim(),     // Tipo de movimiento
-        serie: String(fila[3] || "").trim(),              // Serie
-        bodegaSalida: String(fila[4] || "").trim(),       // Bodega Salida
-        ubiExcedenteSalida: String(fila[5] || "").trim(), // Ubicacion excedente salida
-        bodegaEntrada: String(fila[6] || "").trim(),      // Bodega Entrada
-        ubiExcedenteEntrada: String(fila[7] || "").trim(),// Ubicacion excedente Entrada
-        solicitante: String(fila[8] || "").trim(),        // Solicitante
-        codigo: String(fila[9] || "").trim(),             // Codigo
-        descripcion: String(fila[10] || "").trim(),       // Descripcion
-        cantidad: Number(fila[11]) || 0,                  // Cantidad
-        folio: String(fila[12] || "").trim(),             // Folio
-        responsable: String(fila[13] || "").trim(),       // Responsable
-        idUnico: String(fila[14] || "").trim()            // IDUNICO
-      };
-    });
+    const zonaHoraria = ss.getSpreadsheetTimeZone();
 
+    // Filtramos y mapeamos en un solo paso para mayor eficiencia
+    return valores
+      .filter(fila => {
+        // La columna 14 corresponde al IDUNICO (Columna O)
+        const idUnico = String(fila[14] || "").trim();
+        return idUnico !== ""; // DESPRECIAR VACÍOS: Solo pasan los que tienen IDUNICO
+      })
+      .map((fila, index) => {
+        return {
+          idFila: index + 2, 
+          fecha: fila instanceof Date ? Utilities.formatDate(fila, zonaHoraria, "dd/MM/yyyy") : String(fila || ""),
+          hora: fila[1] instanceof Date ? Utilities.formatDate(fila[1], zonaHoraria, "HH:mm:ss") : String(fila[1] || ""),
+          tipoMovimiento: String(fila[2] || "").trim(),
+          serie: String(fila[3] || "").trim(),
+          bodegaSalida: String(fila[4] || "").trim(),
+          ubiExcedenteSalida: String(fila[5] || "").trim(),
+          bodegaEntrada: String(fila[6] || "").trim(),
+          ubiExcedenteEntrada: String(fila[7] || "").trim(),
+          solicitante: String(fila[8] || "").trim(),
+          codigo: String(fila[9] || "").trim(),
+          descripcion: String(fila[10] || "").trim(),
+          cantidad: Number(fila[11]) || 0,
+          folio: String(fila[12] || "").trim(),
+          responsable: String(fila[13] || "").trim(),
+          idUnico: String(fila[14] || "").trim() 
+        };
+      })
+      .reverse(); // Los más recientes primero
   } catch (error) {
     Logger.log("Error en obtenerTodaLaBaseExcedentes: " + error.toString());
     return [];
