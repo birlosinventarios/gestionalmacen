@@ -364,6 +364,8 @@ function calcularBalancePorIDUnico() {
     // Convertir el mapa a un arreglo plano y calcular saldos finales matemáticos
     const resultadoFinal = Object.values(mapaBalances).map(item => {
       item.saldoDisponible = item.totalEntradas - item.totalSalidas;
+      // AGREGA ESTA LÍNEA TEMPORALMENTE:
+      console.log("ID: " + item.idUnico + " | Saldo: " + item.saldoDisponible);
       return item;
     });
     
