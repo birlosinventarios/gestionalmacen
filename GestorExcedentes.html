@@ -90,7 +90,7 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
             
             <SummaryCard 
               label="Stock Total Excedente" 
-              value={data.reduce((acc, item) => acc + (Number(item.balance) || 0), 0)} 
+              value={data.reduce((acc, item) => acc + (Number(item.saldoDisponible) || 0), 0)} 
               iconName="package-check" 
               colorClass="bg-emerald-50 text-emerald-600 border-emerald-100" 
             />
@@ -150,9 +150,15 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
                       </td>
 
                       {/* BALANCE: Centrado */}
-                      <td className="px-6 py-4 text-center">
-                        <div className={`inline-block px-4 py-1 rounded-full font-black text-[20px] ${item.balance > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-600'}`}>
-                          {item.balance}
+                      <td className="px-8 py-6 text-center">
+                        <div className="inline-flex flex-col items-end">
+                          {/* Texto ahora en negro sólido */}
+                          <span className="text-[20px] font-black text-[#1c1d1f]">
+                            {item.saldoDisponible || 0}
+                          </span>
+                          <span className="text-[15px] font-bold uppercase text-[#9aa0a6] tracking-tighter">
+                            Unidades Disp.
+                          </span>
                         </div>
                       </td>
 
