@@ -85,21 +85,72 @@
               <table className="w-full text-left">
                 <thead className="bg-[#f8f9fa] border-b border-[#dadce0] sticky top-0 z-10">
                   <tr>
-                    <th className="px-8 py-4 text-[10px] font-black uppercase text-[#5f6368]">SKU</th>
-                    <th className="px-8 py-4 text-[10px] font-black uppercase text-[#5f6368]">Descripción</th>
-                    <th className="px-8 py-4 text-[10px] font-black uppercase text-[#5f6368] text-right">Cantidad</th>
+                    <th className="px-8 py-5 text-[20px] font-black uppercase tracking-[0.15em] text-[#5f6368] text-center w-[25%]">
+                      <div className="flex items-center gap-2">
+                        <LocalIcon name="hash" size={14} className="text-[#d93025]" />
+                        SKU
+                      </div>
+                    </th>
+                    <th className="px-8 py-5 text-[20px] font-black uppercase tracking-[0.15em] text-[#5f6368] text-center w-[35%]">
+                      <div className="flex items-center gap-2">
+                        <LocalIcon name="package" size={14} />
+                        Descripcion
+                      </div>
+                    </th>
+                    <th className="px-8 py-5 text-[20px] font-black uppercase tracking-[0.15em] text-[#5f6368] text-center w-[20%]">
+                      Cantidad
+                    </th>
+                    <th className="px-8 py-5 text-[20px] font-black uppercase tracking-[0.15em] text-[#5f6368] text-center w-[20%]">
+                      Ubicacion
+                    </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#f1f3f4]">
-                  {filtered.map((item) => (
-  <tr key={item.idUnico}>
-    <td>{item.idUnico}</td>
-    <td>{item.codigo}</td>
-    <td>{item.descripcion}</td>
-    <td className="font-bold text-emerald-600">{item.balance}</td>
-    <td>{item.serie}</td>
-  </tr>
-))}
+                <tbody className="divide-y divide-[#f1f3f4] bg-white">
+                  {filtered.map((item, i) => (
+                    <tr key={item.idUnico || i} className="group hover:bg-[#fffafa] transition-all duration-200">
+                      
+                      {/* COLUMNA 1: ID UNICO Y CODIGO */}
+                      <td className="px-8 py-6 text-left">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[20px] font-mono font-bold text-[#d93025] bg-red-50 px-2 py-0.5 rounded-md w-fit">
+                            {item.idUnico}
+                          </span>
+                          <span className="text-[18px] font-black text-[#1c1d1f] mt-1 tracking-tight">
+                            {item.codigo}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* COLUMNA 2: DESCRIPCION Y SERIE */}
+                      <td className="px-8 py-6 text-left">
+                        <div className="flex flex-col">
+                          <span className="text-[20px] font-medium text-[#3c4043] leading-relaxed line-clamp-1 group-hover:line-clamp-none transition-all">
+                            {item.descripcion}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* COLUMNA 3: BALANCE DINÁMICO */}
+                      <td className="px-8 py-6 text-center">
+                        <div className="inline-flex flex-col items-end ">
+                          <span className={`text-xl font-black ${item.balance > 0 ? 'text-emerald-600' : 'text-amber-500'}`}>
+                            {item.balance}
+                          </span>
+                          <span className="text-[9px] font-bold uppercase text-[#9aa0a6] tracking-tighter">
+                            Unidades Disp.
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* COLUMNA 4: UBICACION */}
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-2 mt-2  text-center">
+                          <span className="text-[10px] text-[#80868b] font-medium italic">S: {item.serie || 'N/A'}</span>
+                        </div>
+                      </td>
+
+                    </tr>
+                  ))}
                 </tbody>
               </table>
               {loading && (
