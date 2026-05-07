@@ -45,12 +45,9 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
         if (typeof google !== 'undefined') {
           google.script.run
             .withSuccessHandler((res) => {
-              // CORRECCIÓN: res es un objeto { usuarios, productos, bodegas }
-              // Debemos tomar específicamente la propiedad 'productos'
+              // Solo guardamos la lista de productos en el estado de la tabla
               if (res && res.productos) {
                 setData(res.productos);
-              } else if (Array.isArray(res)) {
-                setData(res); // Por si la función devolviera el array directo
               }
               setLoading(false);
             })
@@ -177,7 +174,7 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
                         <div className="flex flex-col items-center">
                           {/* Serie con estilo destacado */}
                           <span className="text-[20px] text-[#5f6368] font-medium bg-gray-100 px-3 py-0.5 rounded-lg mb-1">
-                            {item.serie || 'Sin Serie'}
+                            {item.idUnico.split('|') || 'Sin Serie'}
                           </span>
 
                           {/* Lógica Condicional para el nombre de la Bodega */}
