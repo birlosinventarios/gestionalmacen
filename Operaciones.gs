@@ -299,3 +299,79 @@ function obtenerBalanceVirtualExcedentes() {
   // Convertimos el mapa a un array y filtramos lo que tiene stock
   return Object.values(balanceMap).filter(item => item.cantidad > 0);
 }
+
+/**
+ * Calcula el balance consolidado de inventario agrupado estrictamente por IDUNICO.
+ * Toma las entradas (Acomodo, Devolución, etc.) y resta las salidas (Traspaso, Surtido, etc.)
+ * @return {Array<Object>} Arreglo con los saldos activos e históricos por IDUNICO.
+ */
+function calcularBalancePorIDUnico() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const hoja = ss.getSheetByName('Bitacora-TRASPASOS') || ss.getSheetByName('Bitacora-Traspasos');
+    
+    if (!hoja) throw new Error("No se encontró la hoja 'Bitacora-TRASPASOS'");
+    
+    const valores = hoja.getDataRange().getValues();
+    if (valores.length <= 1) return [];
+    
+    // Quitamos encabezados
+    valores.shift();
+    
+    const mapaBalances = {};
+    
+    valores.forEach(fila => {
+      const tipoMovimiento = String(fila || "").trim().toUpperCase();
+      const codigo = String(fila || "").trim();
+      const descripcion = String(fila || "").trim();
+      const cantidad = Number(fila) || 0;
+      const idUnico = String(fila || "").trim();
+      
+      // Saltamos registros sin ID Único asignado
+      if (!idUnico) return;
+      
+      // Si el ID Único no ha sido registrado en el mapa, lo inicializamos
+      if (!mapaBalances[idUnico]) {
+        mapaBalances[idUnico] = {
+          idUnico: idUnico,
+          codigo: codigo,
+          descripcion: descripcion,
+          bodegaActual: String(fila || fila || "").trim(), // Prioriza donde entró, si no, dónde salió
+          ubicacionActual: String(fila || fila || "").trim(), // Prioriza ubicación entrada (casillero)
+          totalEntradas: 0,
+          totalSalidas: 0,
+          saldoDisponible: 0,
+          historialMovimientos: 0
+        };
+      }
+      
+      // Determinamos si el movimiento suma o resta al casillero de excedentes
+      // Tipos de ENTRADA comunes: ACOMODO, INGRESO, DEVOLUCION
+      if (tipoMovimiento.includes("ACOMODO") || tipoMovimiento.includes("ENTRADA") || tipoMovimiento.includes("INGRESO")) {
+        mapaBalances[idUnico].totalEntradas += cantidad;
+        // Al ser acomodo, actualizamos la ubicación final del excedente donde reside
+        if(fila) mapaBalances[idUnico].bodegaActual = String(fila).trim();
+        if(fila) mapaBalances[idUnico].ubicacionActual = String(fila).trim();
+      } 
+      // Tipos de SALIDA comunes: TRASPASO, SURTIDO, SALIDA
+      else if (tipoMovimiento.includes("TRASPASO") || tipoMovimiento.includes("SALIDA") || tipoMovimiento.includes("SURTIDO")) {
+        mapaBalances[idUnico].totalSalidas += cantidad;
+      }
+      
+      mapaBalances[idUnico].historialMovimientos += 1;
+    });
+    
+    // Convertir el mapa a un arreglo plano y calcular saldos finales matemáticos
+    const resultadoFinal = Object.values(mapaBalances).map(item => {
+      item.saldoDisponible = item.totalEntradas - item.totalSalidas;
+      return item;
+    });
+    
+    // Devolvemos ordenados para que los que tengan más saldo disponible salgan arriba
+    return resultadoFinal.sort((a, b) => b.saldoDisponible - a.saldoDisponible);
+    
+  } catch (error) {
+    Logger.log("Error en calcularBalancePorIDUnico: " + error.toString());
+    return [];
+  }
+}
