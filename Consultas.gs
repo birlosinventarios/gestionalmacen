@@ -2,84 +2,60 @@ function obtenerMegaDataInicial() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // 1. CARGAR BALANCES DINÁMICOS (Desde Operaciones.gs)
-    // Esto nos da el stock real calculado de la Bitácora-TRASPASOS
+    // 1. BALANCES (Ya lo tienes, solo asegúrate de que se llame)
     const balances = obtenerBalancesExcedentes(); 
     
-    // 2. USUARIOS Y UBICACIONES (Tu lógica existente)
+    // 2. USUARIOS: Acceder a índices específicos
     const hojaUsuarios = ss.getSheetByName('USUARIOS');
     const dataUsuarios = hojaUsuarios.getRange(2, 1, hojaUsuarios.getLastRow() - 1, 3).getValues();
     const usuariosProcesados = dataUsuarios
-      .map(f => ({ nombre: String(f).trim(), rol: String(f).trim().toUpperCase() }))
+      .map(f => ({ 
+        nombre: String(f).trim(), // Columna B
+        rol: String(f).trim().toUpperCase() // Columna C
+      }))
       .filter(u => u.nombre !== "");
 
+    // 3. BODEGAS: Tu log muestra Array(3), hay que sacar el nombre (Col B)
     const datosUbi = ss.getSheetByName('UBICACIONES').getDataRange().getValues().slice(1);
-    const bodegas = [...new Set(datosUbi.map(f => f))].filter(Boolean).sort();
+    const bodegas = [...new Set(datosUbi.map(f => String(f).trim()))] // Índice es la Bodega
+      .filter(Boolean)
+      .sort();
 
-    // 3. CATALOGO CONEXIÓN TOTAL
+    // 4. CATALOGO: Aquí es donde el saldo se une
     const hojaCat = ss.getSheetByName('CATALOGO');
-    const dataCat = hojaCat.getDataRange().getValues().slice(1); // Traemos todo para mapear Serie
+    const dataCat = hojaCat.getDataRange().getValues().slice(1); 
     
-    let productosFinales = [];
-    
-    dataCat.forEach(f => {
-      const codigo = String(f).trim().toUpperCase(); // Col A: Código
-      const serie = String(f).trim().toUpperCase();  // Col B: Serie
-      const desc = String(f).trim();                // Col C: Descripción
-      const idUnico = `${codigo} | ${serie}`;          // La KEY maestra
+    const productosFinales = dataCat.map(f => {
+      const codigo = String(f).trim().toUpperCase(); // Col A
+      const serie = String(f).trim().toUpperCase();  // Col B
+      const desc = String(f).trim();                // Col C
+      const idUnico = `${codigo} | ${serie}`;
       
-      // BUSCAMOS EL SALDO EN LOS BALANCES
+      // BUSCAR EN EL MAPA DE BALANCES
       const registroBalance = balances.find(b => b.idUnico === idUnico);
-      const saldoActual = registroBalance ? registroBalance.saldoDisponible : 0;
-      const ubiActual = registroBalance ? registroBalance.ubicacionActual : "SIN UBICACIÓN";
-
-      productosFinales.push({
+      
+      return {
         id: idUnico,
         codigo: codigo,
         serie: serie,
         descripcion: desc,
-        saldo: saldoActual,
-        ubicacion: ubiActual
-      });
+        saldo: registroBalance ? registroBalance.saldoDisponible : 0,
+        ubicacion: registroBalance ? registroBalance.ubicacionActual : "SIN UBICACIÓN"
+      };
     });
 
-    // 4. MEDIDAS DE ETIQUETAS
-    const hojaConfig = ss.getSheetByName('ETIQUETAS');
-    let mapaMedidas = {};
-    if (hojaConfig) {
-      const dataMedidas = hojaConfig.getDataRange().getValues().slice(1);
-      dataMedidas.forEach(f => { mapaMedidas[f] = { alto: f, ancho: f }; });
-    }
-
-    // RETORNO MAESTRO PARA REACT
     return { 
       usuarios: usuariosProcesados, 
       bodegas: bodegas, 
-      productos: productosFinales, // <--- Este arreglo ya tiene el saldo inyectado
-      mapaMedidas: mapaMedidas,
-      nombresEtiquetas: Object.keys(mapaMedidas)
+      productos: productosFinales,
+      nombresEtiquetas: [] // Agrega tu lógica de etiquetas aquí si es necesario
     }; 
     
   } catch (e) {
-    console.error("Error en MegaData: " + e.message);
+    console.error("Error: " + e.message);
     return { error: e.message };
   }
 }
-
-function buscarCodigosPorFiltro(termino) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName('CATALOGO'); // Ajusta al nombre de tu hoja
-  const datos = hoja.getRange(2, 1, hoja.getLastRow() - 1, 1).getValues().flat();
-  const filtro = termino.toUpperCase();
-
-  // Filtrado rápido y limitación de resultados
-  const resultados = datos
-    .filter(codigo => codigo && String(codigo).toUpperCase().includes(filtro))
-    .slice(0, 25); // No satures el DOM con más de 25 opciones
-
-  return resultados;
-}
-
 
 function buscarProductoPorCodigo(codigo) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
