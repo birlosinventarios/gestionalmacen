@@ -45,17 +45,27 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
         if (typeof google !== 'undefined') {
           google.script.run
             .withSuccessHandler((res) => {
-              setData(res || []);
+              // CORRECCIÓN: res es un objeto { usuarios, productos, bodegas }
+              // Debemos tomar específicamente la propiedad 'productos'
+              if (res && res.productos) {
+                setData(res.productos);
+              } else if (Array.isArray(res)) {
+                setData(res); // Por si la función devolviera el array directo
+              }
               setLoading(false);
             })
-            .withFailureHandler(() => setLoading(false))
-            .obtenerTodaLaBaseExcedentes();
+            .withFailureHandler((err) => {
+              console.error("Error cargando excedentes:", err);
+              setLoading(false);
+            })
+            // CORRECCIÓN: Llamamos a la función que centraliza los datos
+            .obtenerMegaDataInicial(); 
         } else {
-          // Datos de simulación
+          // Datos de simulación para pruebas locales
           setTimeout(() => {
             setData([
-              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: 500, serie: "BODEGA 1" },
-              { codigo: "T-500", descripcion: "TORNILLO HEXAGONAL 1/2", cantidad: 1200, serie: "BODEGA 2" }
+              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", saldo: 500, serie: "B1-01", idUnico: "B-200 | B1-01" },
+              { codigo: "T-500", descripcion: "TORNILLO HEXAGONAL 1/2", saldo: 1200, serie: "B2-05", idUnico: "T-500 | B2-05" }
             ]);
             setLoading(false);
           }, 800);
@@ -90,7 +100,7 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
             
             <SummaryCard 
               label="Stock Total Excedente" 
-              value={data.reduce((acc, item) => acc + (Number(item.saldoDisponible) || 0), 0)} 
+              value={data.reduce((acc, item) => acc + (Number(item.saldo) || 0), 0)} 
               iconName="package-check" 
               colorClass="bg-emerald-50 text-emerald-600 border-emerald-100" 
             />
@@ -154,7 +164,7 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
                         <div className="inline-flex flex-col items-end">
                           {/* Texto ahora en negro sólido */}
                           <span className="text-[20px] font-black text-[#1c1d1f]">
-                            {item.saldoDisponible || 0}
+                            {item.saldo || 0}
                           </span>
                           <span className="text-[15px] font-bold uppercase text-[#9aa0a6] tracking-tighter">
                             Unidades Disp.

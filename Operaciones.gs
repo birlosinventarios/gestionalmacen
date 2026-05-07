@@ -384,76 +384,39 @@ function calcularBalancePorIDUnico() {
 }
 
 function obtenerBalancesExcedentes() {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const hoja = ss.getSheetByName('Bitacora-TRASPASOS') || ss.getSheetByName('Bitacora-Traspasos');
-    if (!hoja) return [];
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName('Bitacora-TRASPASOS') || ss.getSheetByName('Bitacora-Traspasos');
+  if (!hoja) return [];
 
-    const data = hoja.getDataRange().getValues();
-    if (data.length <= 1) return [];
+  const data = hoja.getDataRange().getValues();
+  const mapaBalances = {};
+  const getCol = (key) => COL_BITACORA[key] - 1;
 
-    const mapaBalances = {};
+  data.slice(1).forEach(fila => {
+    const codigo = String(fila[getCol('CODIGO')]).trim();
+    const serie = String(fila[getCol('SERIE')]).trim();
+    let idUnico = String(fila[getCol('IDUNICO')]).trim();
     
-    // IMPORTANTE: Definimos un offset (desplazamiento) de -1 porque 
-    // COL_BITACORA.CODIGO es 10, pero en el array es el índice 9.
-    const getCol = (key) => COL_BITACORA[key] - 1;
+    if (!idUnico) idUnico = `${codigo} | ${serie}`;
+    if (!codigo) return;
 
-    data.slice(1).forEach(fila => {
-      // 1. Extraer datos con el índice correcto (-1)
-      const codigo = String(fila[getCol('CODIGO')] || "").trim();
-      const serie = String(fila[getCol('SERIE')] || "").trim();
-      let idUnico = String(fila[getCol('IDUNICO')] || "").trim();
-      
-      // 2. Backup de IDUNICO: Si la celda está vacía, generamos la llave igual que en el catálogo
-      if (!idUnico || idUnico === "") {
-        if (!codigo) return; // Si no hay código, saltamos la fila
-        idUnico = `${codigo.toUpperCase()} | ${serie.toUpperCase()}`;
-      }
+    const tipo = String(fila[getCol('TIPO')]).toUpperCase();
+    const cant = Number(fila[getCol('CANT')]) || 0;
 
-      // 3. Obtener tipo y cantidad (Asegúrate que la constante se llama CANT o CANTIDAD)
-      const tipoMovimiento = String(fila[getCol('TIPO')] || "").toUpperCase();
-      const cantColIndex = COL_BITACORA.CANT ? getCol('CANT') : getCol('CANTIDAD');
-      const cantidad = Number(fila[cantColIndex]) || 0;
+    if (!mapaBalances[idUnico]) {
+      mapaBalances[idUnico] = { idUnico, totalEntradas: 0, totalSalidas: 0, ubicacionActual: "" };
+    }
 
-      // 4. Inicializar objeto en el mapa
-      if (!mapaBalances[idUnico]) {
-        mapaBalances[idUnico] = {
-          idUnico: idUnico,
-          codigo: codigo.toUpperCase(),
-          serie: serie.toUpperCase(),
-          descripcion: String(fila[getCol('DESC')] || "Sin descripción"),
-          totalEntradas: 0,
-          totalSalidas: 0,
-          saldoDisponible: 0,
-          // Guardamos la última ubicación de entrada como referencia
-          ubicacionActual: String(fila[getCol('U_ENTRADA')] || "SIN UBICACIÓN")
-        };
-      }
+    if (/ACOMODO|ENTRADA|INGRESO/.test(tipo)) {
+      mapaBalances[idUnico].totalEntradas += cant;
+      mapaBalances[idUnico].ubicacionActual = String(fila[getCol('U_ENTRADA')] || "");
+    } else if (/TRASPASO|SALIDA|SURTIDO/.test(tipo)) {
+      mapaBalances[idUnico].totalSalidas += cant;
+    }
+  });
 
-      // 5. Lógica Aritmética
-      // Entradas: Suman al stock
-      if (tipoMovimiento.includes("ACOMODO") || tipoMovimiento.includes("ENTRADA") || tipoMovimiento.includes("INGRESO")) {
-        mapaBalances[idUnico].totalEntradas += cantidad;
-        // Actualizamos la ubicación con el último acomodo realizado
-        mapaBalances[idUnico].ubicacionActual = String(fila[getCol('U_ENTRADA')] || mapaBalances[idUnico].ubicacionActual);
-      } 
-      // Salidas: Restan al stock
-      else if (tipoMovimiento.includes("TRASPASO") || tipoMovimiento.includes("SALIDA") || tipoMovimiento.includes("SURTIDO")) {
-        mapaBalances[idUnico].totalSalidas += cantidad;
-      }
-    });
-
-    // 6. Cálculo final y filtro de stock positivo
-    const resultados = Object.values(mapaBalances).map(item => {
-      item.saldoDisponible = item.totalEntradas - item.totalSalidas;
-      return item;
-    }).filter(item => item.saldoDisponible > 0);
-
-    console.log("✅ Balances calculados: " + resultados.length + " productos con stock.");
-    return resultados;
-
-  } catch (error) {
-    console.error("❌ Error calculando balances: " + error.message);
-    return [];
-  }
+  return Object.values(mapaBalances).map(item => {
+    item.saldoDisponible = item.totalEntradas - item.totalSalidas;
+    return item;
+  });
 }

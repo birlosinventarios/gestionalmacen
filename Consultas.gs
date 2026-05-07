@@ -2,58 +2,60 @@ function obtenerMegaDataInicial() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // 1. BALANCES (Ya lo tienes, solo asegúrate de que se llame)
+    // 1. Obtener Balances Calculados
     const balances = obtenerBalancesExcedentes(); 
-    
-    // 2. USUARIOS: Acceder a índices específicos
+    const mapaSaldos = {};
+    balances.forEach(b => {
+      mapaSaldos[b.idUnico] = { saldo: b.saldoDisponible, ubicacion: b.ubicacionActual };
+    });
+
+    // 2. Usuarios (Col B: Nombre, Col C: Rol)
     const hojaUsuarios = ss.getSheetByName('USUARIOS');
     const dataUsuarios = hojaUsuarios.getRange(2, 1, hojaUsuarios.getLastRow() - 1, 3).getValues();
-    const usuariosProcesados = dataUsuarios
-      .map(f => ({ 
-        nombre: String(f).trim(), // Columna B
-        rol: String(f).trim().toUpperCase() // Columna C
-      }))
-      .filter(u => u.nombre !== "");
+    const usuariosProcesados = dataUsuarios.map(f => ({
+      nombre: String(f).trim(),
+      rol: String(f).trim().toUpperCase()
+    })).filter(u => u.nombre !== "");
 
-    // 3. BODEGAS: Tu log muestra Array(3), hay que sacar el nombre (Col B)
+    // 3. Bodegas (Separar el string 'ID,Nombre,Ubi')
     const datosUbi = ss.getSheetByName('UBICACIONES').getDataRange().getValues().slice(1);
-    const bodegas = [...new Set(datosUbi.map(f => String(f).trim()))] // Índice es la Bodega
+    const bodegasUnicas = [...new Set(datosUbi.map(f => String(f).trim()))] // f es el nombre de la bodega
       .filter(Boolean)
       .sort();
 
-    // 4. CATALOGO: Aquí es donde el saldo se une
+    // 4. Catálogo y Cruce de Saldos
     const hojaCat = ss.getSheetByName('CATALOGO');
     const dataCat = hojaCat.getDataRange().getValues().slice(1); 
     
     const productosFinales = dataCat.map(f => {
-      const codigo = String(f).trim().toUpperCase(); // Col A
-      const serie = String(f).trim().toUpperCase();  // Col B
-      const desc = String(f).trim();                // Col C
+      const codigo = String(f).trim(); // Col A
+      const serie = String(f).trim();  // Col B
+      const desc = String(f).trim();   // Col C
       const idUnico = `${codigo} | ${serie}`;
       
-      // BUSCAR EN EL MAPA DE BALANCES
-      const registroBalance = balances.find(b => b.idUnico === idUnico);
+      const infoStock = mapaSaldos[idUnico];
       
       return {
-        id: idUnico,
+        idUnico: idUnico,
         codigo: codigo,
         serie: serie,
         descripcion: desc,
-        saldo: registroBalance ? registroBalance.saldoDisponible : 0,
-        ubicacion: registroBalance ? registroBalance.ubicacionActual : "SIN UBICACIÓN"
+        saldo: infoStock ? infoStock.saldo : 0,
+        ubicacion: infoStock ? infoStock.ubicacion : "SIN STOCK"
       };
-    });
+    }).filter(p => p.saldo > 0); // IMPORTANTE: Solo enviar lo que tiene stock
+
+    console.log("Enviando " + productosFinales.length + " productos con stock al Gestor.");
 
     return { 
       usuarios: usuariosProcesados, 
-      bodegas: bodegas, 
+      bodegas: bodegasUnicas, 
       productos: productosFinales,
-      nombresEtiquetas: [] // Agrega tu lógica de etiquetas aquí si es necesario
+      nombresEtiquetas: [] 
     }; 
     
   } catch (e) {
-    console.error("Error: " + e.message);
-    return { error: e.message };
+    return { error: e.message, productos: [], bodegas: [] };
   }
 }
 
