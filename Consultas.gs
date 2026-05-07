@@ -2,72 +2,67 @@ function obtenerMegaDataInicial() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // 1. USUARIOS (Filtrado por ROL: RESPONSABLE)
-    const hojaUsuarios = ss.getSheetByName('USUARIOS');
-    // Leemos Col B (Nombre) y Col C (Rol)
-    const dataUsuarios = hojaUsuarios.getRange(2, 1, hojaUsuarios.getLastRow() - 1, 3).getValues();
-
-    const usuariosProcesados = dataUsuarios
-      .map(f => ({
-        nombre: String(f[1]).trim(),
-        rol: String(f[2]).trim().toUpperCase()
-      }))
-      .filter(u => u.nombre !== "")
-      .sort((a, b) => a.nombre.localeCompare(b.nombre));
-      
-    // 2. MAPA DE UBICACIONES (Hoja 'UBICACIONES')
-    const datosUbi = ss.getSheetByName('UBICACIONES').getDataRange().getValues().slice(1);
-    const bodegas = [...new Set(datosUbi.map(f => f[1]))].filter(Boolean).sort();
-    const mapaUbicaciones = datosUbi.map(f => ({
-      bodega: String(f[1]).trim().toUpperCase(),
-      ubi: String(f[2]).trim()
-    })).filter(f => f.bodega && f.ubi);
-
-    // 3. CATALOGO DE PRODUCTOS (Hoja 'CATALOGO')
-    // Traemos A (ID), B (Código) y C (Descripción)
-    const hojaCat = ss.getSheetByName('CATALOGO');
-    const dataCat = hojaCat.getRange(2, 1, hojaCat.getLastRow() - 1, 3).getValues();
+    // 1. CARGAR BALANCES DINÁMICOS (Desde Operaciones.gs)
+    // Esto nos da el stock real calculado de la Bitácora-TRASPASOS
+    const balances = obtenerBalancesExcedentes(); 
     
-    let mapaProductos = {};
-    let todosLosCodigos = [];
+    // 2. USUARIOS Y UBICACIONES (Tu lógica existente)
+    const hojaUsuarios = ss.getSheetByName('USUARIOS');
+    const dataUsuarios = hojaUsuarios.getRange(2, 1, hojaUsuarios.getLastRow() - 1, 3).getValues();
+    const usuariosProcesados = dataUsuarios
+      .map(f => ({ nombre: String(f).trim(), rol: String(f).trim().toUpperCase() }))
+      .filter(u => u.nombre !== "");
+
+    const datosUbi = ss.getSheetByName('UBICACIONES').getDataRange().getValues().slice(1);
+    const bodegas = [...new Set(datosUbi.map(f => f))].filter(Boolean).sort();
+
+    // 3. CATALOGO CONEXIÓN TOTAL
+    const hojaCat = ss.getSheetByName('CATALOGO');
+    const dataCat = hojaCat.getDataRange().getValues().slice(1); // Traemos todo para mapear Serie
+    
+    let productosFinales = [];
     
     dataCat.forEach(f => {
-      const codigo = String(f[1]).trim().toUpperCase();
-      if (codigo) {
-        mapaProductos[codigo] = {
-          id: f[0],         // Columna A
-          descripcion: f[2] // Columna C
-        };
-        todosLosCodigos.push(codigo);
-      }
+      const codigo = String(f).trim().toUpperCase(); // Col A: Código
+      const serie = String(f).trim().toUpperCase();  // Col B: Serie
+      const desc = String(f).trim();                // Col C: Descripción
+      const idUnico = `${codigo} | ${serie}`;          // La KEY maestra
+      
+      // BUSCAMOS EL SALDO EN LOS BALANCES
+      const registroBalance = balances.find(b => b.idUnico === idUnico);
+      const saldoActual = registroBalance ? registroBalance.saldoDisponible : 0;
+      const ubiActual = registroBalance ? registroBalance.ubicacionActual : "SIN UBICACIÓN";
+
+      productosFinales.push({
+        id: idUnico,
+        codigo: codigo,
+        serie: serie,
+        descripcion: desc,
+        saldo: saldoActual,
+        ubicacion: ubiActual
+      });
     });
 
-    // 4. CONFIGURACIÓN DE ETIQUETAS (Hoja 'CONFIG_ETIQUETAS')
-    // Estructura sugerida: Col A: Nombre, Col B: Alto, Col C: Ancho
+    // 4. MEDIDAS DE ETIQUETAS
     const hojaConfig = ss.getSheetByName('ETIQUETAS');
     let mapaMedidas = {};
     if (hojaConfig) {
       const dataMedidas = hojaConfig.getDataRange().getValues().slice(1);
-      dataMedidas.forEach(f => {
-        mapaMedidas[f[0]] = { alto: f[1], ancho: f[2] };
-      });
+      dataMedidas.forEach(f => { mapaMedidas[f] = { alto: f, ancho: f }; });
     }
 
-    // RETORNO MAESTRO
+    // RETORNO MAESTRO PARA REACT
     return { 
       usuarios: usuariosProcesados, 
       bodegas: bodegas, 
-      mapaUbicaciones: mapaUbicaciones,
-      codigos: todosLosCodigos.sort(),
-      mapaProductos: mapaProductos,
+      productos: productosFinales, // <--- Este arreglo ya tiene el saldo inyectado
       mapaMedidas: mapaMedidas,
       nombresEtiquetas: Object.keys(mapaMedidas)
     }; 
     
   } catch (e) {
-    console.error("Error en MegaData Unificado: " + e.message);
-    return { usuarios: [], bodegas: [], mapaUbicaciones: [], codigos: [], mapaProductos: {} 
-    };
+    console.error("Error en MegaData: " + e.message);
+    return { error: e.message };
   }
 }
 
