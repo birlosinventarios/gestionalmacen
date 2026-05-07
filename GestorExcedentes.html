@@ -13,17 +13,24 @@
     };
 
     // --- COMPONENTE: TARJETA DE MÉTRICAS ---
-    const SummaryCard = ({ label, value, iconName, colorClass }) => (
-      <div className="bg-white p-6 rounded-[2rem] border border-[#dadce0] shadow-sm flex items-center gap-5 transition-all hover:shadow-md hover:-translate-y-1">
-        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${colorClass}`}>
-          <LocalIcon name={iconName} size={28} />
-        </div>
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-[#5f6368] mb-1">{label}</p>
-          <h3 className="text-3xl font-black text-[#1c1d1f] leading-none">{value}</h3>
-        </div>
-      </div>
-    );
+const SummaryCard = ({ label, value, iconName, colorClass }) => (
+  <div className={`bg-white p-6 rounded-[1.5rem] border ${colorClass.split(' ') || 'border-gray-100'} shadow-sm flex items-center gap-6 transition-all hover:shadow-lg hover:-translate-y-1`}>
+    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${colorClass.split(' ').slice(0,2).join(' ')} shadow-inner`}>
+      <LocalIcon name={iconName} size={32} />
+    </div>
+    <div className="flex flex-col">
+      <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#5f6368] mb-1">
+        {label}
+      </p>
+      <h3 className="text-4xl font-black text-[#1c1d1f] tracking-tighter">
+        {value.toLocaleString()} 
+        <span className="text-sm font-bold text-gray-400 ml-2 italic">
+          {label.includes("Stock") ? "uds" : "reg"}
+        </span>
+      </h3>
+    </div>
+  </div>
+);
 
     const VistaGestorExcedentes = () => {
       const [data, setData] = useState([]);
@@ -73,10 +80,27 @@
         <div className="h-full w-full flex flex-col relative bg-[#f8f9fa]">
 
           {/* Métricas */}
-          <div className="px-8 py-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <SummaryCard label="SKUs Totales" value={data.length} iconName="package" colorClass="bg-red-50 text-[#d93025]" />
-            <SummaryCard label="Stock Total" value={data.reduce((a, b) => a + (Number(b.cantidad) || 0), 0)} iconName="layers" colorClass="bg-emerald-50 text-emerald-600" />
-            <SummaryCard label="Filtro Actual" value={filtered.length} iconName="filter" colorClass="bg-blue-50 text-blue-600" />
+          <div className="px-8 py-6 grid grid-cols-1 md:grid-cols-3 gap-8">
+            <SummaryCard 
+              label="IDs en Sistema" 
+              value={data.length} 
+              iconName="database" 
+              colorClass="bg-slate-50 text-slate-700 border-slate-100" 
+            />
+            
+            <SummaryCard 
+              label="Stock Total Excedente" 
+              value={data.reduce((acc, item) => acc + (Number(item.balance) || 0), 0)} 
+              iconName="package-check" 
+              colorClass="bg-emerald-50 text-emerald-600 border-emerald-100" 
+            />
+            
+            <SummaryCard 
+              label="Resultados Búsqueda" 
+              value={filtered.length} 
+              iconName="search" 
+              colorClass="bg-[#fffafa] text-[#d93025] border-[#fdecea]" 
+            />
           </div>
 
           {/* Tabla */}
@@ -95,7 +119,7 @@
                       Balance
                     </th>
                     <th style={{ fontSize: '20px' }} className="px-6 py-5 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[25%]">
-                      Ubicación / Serie
+                      Ubicación
                     </th>
                   </tr>
                 </thead>
@@ -106,15 +130,15 @@
                       {/* SKU: Alineado a la izquierda con ID en formato Label de alto contraste */}
                       <td className="px-6 py-4 text-left">
                         <div className="flex flex-col items-start gap-1.5">
-                          {/* ID UNICO como Label/Badge de alto contraste */}
-                          <span className="inline-block px-3 py-1 rounded-md bg-[#d93025]/15 border border-[#d93025]/30 text-[#d93025] font-mono text-[14px] font-bold tracking-wider shadow-sm backdrop-blur-sm">
-                            {item.idUnico}
-                          </span>
-                          
-                          {/* Código con contraste por grosor y tamaño */}
-                          <span className="text-[20px] font-black text-[#1c1d1f] leading-none ml-0.5">
+                            {/* Código con contraste por grosor y tamaño */}
+                          <span className="text-[18px] font-black text-[#1c1d1f] leading-none ml-0.5">
                             {item.codigo}
                           </span>
+
+                          {/* ID UNICO como Label/Badge de alto contraste */}
+                          <span className="inline-block px-3 py-1 rounded-md bg-[#d93025]/15 border border-[#d93025]/30 text-[#d93025] font-mono text-[20px] font-bold tracking-wider shadow-sm backdrop-blur-sm">
+                            {item.idUnico}
+                          </span>                    
                         </div>
                       </td>    
 
@@ -136,7 +160,7 @@
                       <td className="px-6 py-4 text-center">
                         <div className="flex flex-col items-center">
                           {/* Serie con estilo destacado */}
-                          <span className="text-[18px] text-[#5f6368] font-medium bg-gray-100 px-3 py-0.5 rounded-lg mb-1">
+                          <span className="text-[20px] text-[#5f6368] font-medium bg-gray-100 px-3 py-0.5 rounded-lg mb-1">
                             {item.serie || 'Sin Serie'}
                           </span>
 
