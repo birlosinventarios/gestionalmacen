@@ -91,30 +91,15 @@
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f3f4]">
-                  {filtered.map((item, i) => (
-                    <tr key={item.idUnico} className="group hover:bg-[#f8f9fa] transition-all border-b border-gray-100">
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] font-mono text-gray-400 uppercase tracking-tighter">ID: {item.idUnico}</span>
-                          <span className="text-sm font-bold text-[#1c1d1f] tracking-tight">{item.codigo}</span>
-                        </div>
-                      </td>
-                      
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-sm text-gray-700 leading-tight line-clamp-1">{item.descripcion}</span>
-                          <span className="text-[9px] font-semibold text-[#d93025]/70 uppercase">Serie: {item.serie || 'N/A'}</span>
-                        </div>
-                      </td>
-
-                      <td className="px-6 py-4 text-right">
-                        <div className="inline-flex items-center justify-end px-3 py-1 rounded-full bg-emerald-50 border border-emerald-100">
-                          <span className="text-lg font-black text-emerald-700">{item.balance}</span>
-                          <span className="ml-1 text-[10px] font-bold text-emerald-600/50 uppercase">u.</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filtered.map((item) => (
+  <tr key={item.idUnico}>
+    <td>{item.idUnico}</td>
+    <td>{item.codigo}</td>
+    <td>{item.descripcion}</td>
+    <td className="font-bold text-emerald-600">{item.balance}</td>
+    <td>{item.serie}</td>
+  </tr>
+))}
                 </tbody>
               </table>
               {loading && (
