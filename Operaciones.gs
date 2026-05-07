@@ -5,7 +5,7 @@
 const COL_BITACORA = {
   FECHA: 1, HORA: 2, TIPO: 3, SERIE: 4, B_SALIDA: 5, U_SALIDA: 6,
   B_ENTRADA: 7, U_ENTRADA: 8, SOLICITANTE: 9, CODIGO: 10, 
-  DESC: 11, CANT: 12, FOLIO: 13, RESP: 14
+  DESC: 11, CANT: 12, FOLIO: 13, RESP: 14, IDUNICO: 15
 };
 
 function procesarTraspasos(lote) {
@@ -374,6 +374,70 @@ function calcularBalancePorIDUnico() {
     
   } catch (error) {
     Logger.log("Error en calcularBalancePorIDUnico: " + error.toString());
+    return [];
+  }
+}
+
+/**
+ * Calcula el saldo disponible consolidando ENTRADAS y SALIDAS
+ * Basado estrictamente en la columna IDUNICO (Col O)
+ */
+function obtenerBalancesExcedentes() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const hoja = ss.getSheetByName('Bitacora-TRASPASOS') || ss.getSheetByName('Bitacora-Traspasos');
+    if (!hoja) return [];
+
+    const data = hoja.getDataRange().getValues();
+    if (data.length <= 1) return [];
+
+    const mapaBalances = {};
+    
+    // Eliminamos encabezados y procesamos
+    data.slice(1).forEach(fila => {
+      // 1. Extraer y limpiar la Key (IDUNICO)
+      let idUnico = String(fila[COL_BITACORA.IDUNICO] || "").trim();
+      
+      // Backup: Si IDUNICO está vacío en la celda, lo construimos para no perder el dato
+      if (!idUnico) {
+        idUnico = String(fila[COL_BITACORA.CODIGO]).trim() + " | " + String(fila[COL_BITACORA.SERIE]).trim();
+      }
+
+      const tipoMovimiento = String(fila[COL_BITACORA.TIPO] || "").toUpperCase();
+      const cantidad = Number(fila[COL_BITACORA.CANTIDAD]) || 0;
+
+      // 2. Inicializar objeto si el IDUNICO es nuevo en el mapa
+      if (!mapaBalances[idUnico]) {
+        mapaBalances[idUnico] = {
+          idUnico: idUnico,
+          codigo: String(fila[COL_BITACORA.CODIGO]).trim(),
+          serie: String(fila[COL_BITACORA.SERIE]).trim(),
+          descripcion: String(fila[COL_BITACORA.DESC] || "Sin descripción"),
+          totalEntradas: 0,
+          totalSalidas: 0,
+          saldoDisponible: 0
+        };
+      }
+
+      // 3. Lógica de Aritmética de Almacén
+      // Las entradas SUMAN al saldo de excedentes
+      if (tipoMovimiento.includes("ACOMODO") || tipoMovimiento.includes("ENTRADA") || tipoMovimiento.includes("INGRESO")) {
+        mapaBalances[idUnico].totalEntradas += cantidad;
+      } 
+      // Las salidas RESTAN al saldo de excedentes
+      else if (tipoMovimiento.includes("TRASPASO") || tipoMovimiento.includes("SALIDA") || tipoMovimiento.includes("SURTIDO")) {
+        mapaBalances[idUnico].totalSalidas += cantidad;
+      }
+    });
+
+    // 4. Calcular Saldo Final y convertir a Arreglo para el Frontend (React)
+    return Object.values(mapaBalances).map(item => {
+      item.saldoDisponible = item.totalEntradas - item.totalSalidas;
+      return item;
+    }).filter(item => item.saldoDisponible > 0); // Opcional: mostrar solo los que tienen stock
+
+  } catch (error) {
+    console.error("Error calculando balances: " + error.message);
     return [];
   }
 }
