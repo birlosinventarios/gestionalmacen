@@ -212,11 +212,66 @@ const TOOLS = [
           .obtenerContenidoVista(fileName);
       };
 
+      google.script.run
+  .withSuccessHandler(res => {
+    window.GLOBAL_DATA = res; // Guardamos usuarios, ubicaciones, etc. globalmente
+    setLoading(false);
+  })
+  .obtenerMegaDataInicial();
+
 // vista inicial
 useEffect(() => {
   // Carga inicial por defecto
   seleccionarVista('FormularioTraspasos', 'FormularioTraspasos');
 }, []);
+
+// ==========================================
+// 🔘 CONFIGURACIÓN UNIFICADA DE TOASTS (UX FITO)
+// ==========================================
+const ToastOscuro = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 3000,
+  timerProgressBar: true,
+  background: '#1c1d1f',      // Fondo oscuro de alto contraste
+  color: '#ffffff',          // Texto blanco
+  iconColor: '#d93025',       // Iconos en rojo institucional
+  showClass: {
+    popup: 'animate-toast-in'  // Clase de animación de entrada
+  },
+  hideClass: {
+    popup: 'animate-toast-out' // Clase de animación de salida
+  },
+  didOpen: (toast) => {
+    toast.addEventListener('mouseenter', Swal.stopTimer);
+    toast.addEventListener('mouseleave', Swal.resumeTimer);
+    
+    // Forzar que la barra de progreso use el rojo de tu paleta
+    const progress = toast.querySelector('.swal2-timer-progress-bar');
+    if (progress) progress.style.backgroundColor = '#d93025';
+  }
+});
+
+/**
+ * Función global de notificaciones accesibles desde cualquier sub-vista
+ * @param {string} mensaje - Texto principal a mostrar
+ * @param {string} tipo - 'success', 'error', 'warning', 'info'
+ * @param {number} [customTimer] - Duración en milisegundos (opcional)
+ */
+window.notificar = (mensaje, tipo = 'info', customTimer) => {
+  // Configuración de colores dinámicos de icono según la gravedad
+  let iconColor = '#d93025'; // Rojo por defecto para advertencias/errores
+  if (tipo === 'success') iconColor = '#10b981'; // Verde esmeralda para éxitos
+  if (tipo === 'info') iconColor = '#3b82f6';    // Azul para información neutral
+
+  ToastOscuro.fire({
+    icon: tipo,
+    title: mensaje,
+    iconColor: iconColor,
+    timer: customTimer !== undefined ? customTimer : 3000
+  });
+};
 
 
 // ⚡ Motor de encendido de scripts (Versión Optimizada)

@@ -39,62 +39,74 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
       const [isSearchExpanded, setIsSearchExpanded] = useState(false);
       const inputRef = useRef(null);
 
-      // --- CARGA DE DATOS CON CONSOLIDACIÓN EN TIEMPO REAL ---
-      const refrescarDatos = useCallback(() => {
-        setLoading(true);
+      // --- CARGA DE DATOS OPTIMIZADA ---
+const refrescarDatos = useCallback(() => {
+  setLoading(true);
+  
+  console.group("🔌 [CONEXIÓN] Sincronizando Bitácora");
+  
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    google.script.run
+      .withSuccessHandler((res) => {
+        // 1. Ahora 'res' es estrictamente un Array de movimientos (más ligero)
+        const movimientosRaw = Array.isArray(res) ? res : [];
         
-        console.group("🔌 [CONEXIÓN] Iniciando petición a Google Apps Script");
-        console.log("Llamando a: obtenerMovimientosBitacora()...");
+        if (movimientosRaw.length === 0) {
+          window.notificar("No hay movimientos registrados", "warning");
+          setData([]);
+          setLoading(false);
+          return;
+        }
 
-        if (typeof google !== 'undefined' && google.script && google.script.run) {
-  google.script.run
-    .withSuccessHandler((res) => {
-      const datosLimpios = Array.isArray(res) ? res : [];
-      
-      if (datosLimpios.length === 0) {
-        window.notificar("No se encontraron movimientos", "warning");
-        setData([]);
+        try {
+          // 2. Usamos el catálogo global que cargó APPALMACEN para cruzar datos si es necesario
+          // Aunque los movimientos ya traen descripción, esto asegura consistencia.
+          const catalogoGlobal = window.GLOBAL_DATA?.mapaProductos || {};
+
+          const acumulador = {};
+          
+          movimientosRaw.forEach((mov) => {
+            if (!mov.codigo || !mov.serie) return;
+
+            const sku = mov.codigo.toUpperCase().trim();
+            const serieUbicacion = mov.serie.toUpperCase().trim();
+            const idUnico = `${sku} | ${serieUbicacion}`;
+
+            if (!acumulador[idUnico]) {
+              acumulador[idUnico] = {
+                codigo: sku,
+                idUnico: idUnico,
+                // Si el movimiento no tiene descripción, la buscamos en el catálogo maestro
+                descripcion: mov.descripcion || catalogoGlobal[sku] || "SIN DESCRIPCIÓN",
+                saldo: 0,
+                serie: serieUbicacion,
+                bodegaActual: mov.bodegaEntrada || mov.bodegaSalida
+              };
+            }
+            
+            // Sumamos la cantidad al balance del ID Único
+            acumulador[idUnico].saldo += Number(mov.cantidad || 0);
+          });
+
+          // 3. Actualizamos el estado solo con los datos procesados
+          setData(Object.values(acumulador));
+          window.notificar("Vista actualizada", "success");
+          
+        } catch (err) {
+          console.error("Error en procesamiento:", err);
+          window.notificar("Error al procesar el balance", "error");
+        }
         setLoading(false);
-        return;
-      }
+        console.groupEnd();
+      })
+      .withFailureHandler((err) => {
+        window.notificar("Error de red", "error");
+        setLoading(false);
+        console.groupEnd();
+      })
+      .obtenerMovimientosBitacora(); // Esta función en el .gs ya no debe devolver usuarios ni bodegas
 
-      try {
-        const acumulador = {};
-        datosLimpios.forEach((mov) => {
-          if (!mov.codigo || !mov.serie) return;
-
-          const sku = mov.codigo.toUpperCase().trim();
-          const serieUbicacion = mov.serie.toUpperCase().trim();
-          const idUnico = `${sku} | ${serieUbicacion}`;
-
-          if (!acumulador[idUnico]) {
-            acumulador[idUnico] = {
-              codigo: sku,
-              idUnico: idUnico,
-              descripcion: mov.descripcion || "SIN DESCRIPCIÓN",
-              saldo: 0,
-              serie: serieUbicacion,
-              bodegaActual: mov.bodegaEntrada || mov.bodegaSalida
-            };
-          }
-          // El balance suma entradas y restas (el signo viene del servidor o se valida aquí)
-          acumulador[idUnico].saldo += Number(mov.cantidad || 0);
-        });
-
-        setData(Object.values(acumulador));
-        window.notificar("Sincronización completa", "success"); // Notificación elegante
-      } catch (err) {
-        window.notificar("Error procesando datos", "error");
-      }
-      setLoading(false);
-    })
-    .withFailureHandler((err) => {
-      window.notificar("Fallo de conexión con el servidor", "error");
-      setLoading(false);
-    })
-    .obtenerMovimientosBitacora();
-
-        } else {
+  } else {
           // --- DATOS DE SIMULACIÓN (MODO LOCAL) ---
           console.warn("⚠️ Ejecutando en entorno local (Fuera de Google Apps Script). Cargando datos de simulación.");
           setTimeout(() => {

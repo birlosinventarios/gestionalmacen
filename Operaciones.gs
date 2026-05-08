@@ -308,7 +308,7 @@ function obtenerMovimientosBitacora() {
       };
     });
 
-    return movimientos.reverse();
+    return movimientos;
 
   } catch (error) {
     console.error("❌ Error grave en obtenerMovimientosBitacora: " + error.toString());
