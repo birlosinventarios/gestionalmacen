@@ -267,7 +267,7 @@ function actualizarRegistroDesdeHistorialCompleto(numFila, datos) {
  * Obtiene TODOS los movimientos de la hoja 'Bitacora-TRASPASOS' sin filtros ni agrupaciones.
  * @return {Array<Object>} Lista de movimientos crudos
  */
-function obtenerMovimientosCrudosBitacora() {
+function obtenerMovimientosBitacora() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const hoja = ss.getSheetByName('Bitacora-TRASPASOS');

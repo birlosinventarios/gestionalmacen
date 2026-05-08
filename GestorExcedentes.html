@@ -39,31 +39,110 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
       const [isSearchExpanded, setIsSearchExpanded] = useState(false);
       const inputRef = useRef(null);
 
-      // --- CARGA DE DATOS ---
+      // --- CARGA DE DATOS CON CONSOLIDACIÓN EN TIEMPO REAL ---
       const refrescarDatos = useCallback(() => {
         setLoading(true);
-        if (typeof google !== 'undefined') {
+        
+        console.group("🔌 [CONEXIÓN] Iniciando petición a Google Apps Script");
+        console.log("Llamando a: obtenerMovimientosCrudosBitacora()...");
+
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
           google.script.run
             .withSuccessHandler((res) => {
-              // Solo guardamos la lista de productos en el estado de la tabla
-              if (res && res.productos) {
-                setData(res.productos);
+              console.group("✅ [CONEXIÓN EXITOSA] Procesando datos crudos");
+              console.log("Registros crudos recibidos:", Array.isArray(res) ? res.length : 0);
+
+              if (Array.isArray(res)) {
+                // ==========================================
+                // 🧮 AQUÍ SE APLICA LA ECUACIÓN DE CONSOLIDACIÓN
+                // ==========================================
+                const acumulador = {};
+
+                res.forEach((mov) => {
+                  const sku = (mov.codigo || "").toUpperCase().trim();
+                  const serieUbicacion = (mov.serie || "").toUpperCase().trim();
+                  
+                  // Omitimos registros inválidos sin SKU o serie
+                  if (!sku || !serieUbicacion) return;
+
+                  // Generamos la llave del ID ÚNICO tal como la pide tu diseño
+                  const idUnico = `${sku} | ${serieUbicacion}`;
+
+                  // Si el ID Único no ha sido registrado en nuestro acumulador, lo inicializamos
+                  if (!acumulador[idUnico]) {
+                    acumulador[idUnico] = {
+                      codigo: sku,
+                      idUnico: idUnico,
+                      descripcion: mov.descripcion || "SIN DESCRIPCIÓN",
+                      saldo: 0,                         // Inicializa en 0 para sumar entradas y salidas
+                      serie: serieUbicacion,
+                      bodegaActual: mov.tipo === "ACOMODO" ? mov.bodegaEntrada : mov.bodegaSalida
+                    };
+                  }
+
+                  // Sumamos algebraicamente la cantidad del movimiento
+                  // (Las salidas "SURTIDO" ya vienen con signo negativo desde tu Operaciones.gs)
+                  acumulador[idUnico].saldo += Number(mov.cantidad || 0);
+                });
+
+                // Convertimos el mapa de acumulados de vuelta a un Array plano
+                const datosConsolidados = Object.values(acumulador);
+
+                console.log("Registros consolidados listos para el diseño:", datosConsolidados.length);
+                if (datosConsolidados.length > 0) {
+                  console.log("Ejemplo de item procesado para tu tabla:", datosConsolidados);
+                }
+
+                // Guardamos los datos transformados en tu estado original de React
+                setData(datosConsolidados);
+
+              } else {
+                console.error("La respuesta del servidor no tiene formato de Array esperado:", res);
+                setData([]);
               }
+
+              console.groupEnd();
               setLoading(false);
             })
             .withFailureHandler((err) => {
-              console.error("Error cargando excedentes:", err);
+              console.group("❌ [ERROR EN CONEXIÓN] Falló la ejecución en el servidor");
+              console.error("Mensaje de error:", err.message || err);
+              console.groupEnd();
+              
+              setData([]);
               setLoading(false);
             })
-            // CORRECCIÓN: Llamamos a la función que centraliza los datos
-            .obtenerMegaDataInicial(); 
+            .obtenerMovimientosCrudosBitacora(); 
         } else {
-          // Datos de simulación para pruebas locales
+          // --- DATOS DE SIMULACIÓN (MODO LOCAL) ---
+          console.warn("⚠️ Ejecutando en entorno local (Fuera de Google Apps Script). Cargando datos de simulación.");
           setTimeout(() => {
-            setData([
-              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", saldo: 500, serie: "B1-01", idUnico: "B-200 | B1-01" },
-              { codigo: "T-500", descripcion: "TORNILLO HEXAGONAL 1/2", saldo: 1200, serie: "B2-05", idUnico: "T-500 | B2-05" }
-            ]);
+            const simulacionCruda = [
+              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: 600, tipo: "ACOMODO", serie: "B1-01", bodegaEntrada: "Bodega 1" },
+              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: -100, tipo: "SURTIDO", serie: "B1-01", bodegaSalida: "Bodega 1" },
+              { codigo: "T-500", descripcion: "TORNILLO HEXAGONAL 1/2", cantidad: 1200, tipo: "ACOMODO", serie: "B2-05", bodegaEntrada: "Bodega 2" }
+            ];
+
+            // Aplicamos la misma ecuación a la simulación para que se comporte igual
+            const acumulador = {};
+            simulacionCruda.forEach(mov => {
+              const idUnico = `${mov.codigo} | ${mov.serie}`;
+              if (!acumulador[idUnico]) {
+                acumulador[idUnico] = {
+                  codigo: mov.codigo,
+                  idUnico: idUnico,
+                  descripcion: mov.descripcion,
+                  saldo: 0,
+                  serie: mov.serie,
+                  bodegaActual: mov.bodegaEntrada
+                };
+              }
+              acumulador[idUnico].saldo += mov.cantidad;
+            });
+
+            const datosSimulados = Object.values(acumulador);
+            console.log("Simulando datos procesados:", datosSimulados);
+            setData(datosSimulados);
             setLoading(false);
           }, 800);
         }
