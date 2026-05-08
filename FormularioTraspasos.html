@@ -128,21 +128,19 @@
         <?!= HtmlService.createHtmlOutputFromFile('FilaTraspasos').getContent(); ?>
 
       <script>
-var colaDeTraspasos = colaDeTraspasos || [];
+  var colaDeTraspasos = colaDeTraspasos || [];
   var snackbarTimeout;
   var cacheCatalogo = {}; 
-  var todosLosCodigosGlobal = []; // Se llenará al cargar
+  var todosLosCodigosGlobal = [];
   var mapaUbicacionesGlobal = [];
   var usuariosGlobal = []; 
   var bodegasGlobal = [];
   
   const DEFAULT_VALUE = "1 - Almacen Birlos";
 
-// 1. Declarar la función en el objeto window
 window.cargar_FormularioTraspasos = function() {
   console.log("🔄 Ejecutando carga: Formulario de Traspasos");
   
-  // Limpieza visual inmediata (opcional)
   const dlSolicitantes = document.getElementById('listaSolicitantes');
   if (dlSolicitantes) dlSolicitantes.innerHTML = "";
 
