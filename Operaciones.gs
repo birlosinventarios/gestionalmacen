@@ -264,132 +264,52 @@ function actualizarRegistroDesdeHistorialCompleto(numFila, datos) {
 }
 
 /**
- * Calcula el balance virtual basado en la concatenación de Serie + Codigo
+ * Obtiene TODOS los movimientos de la hoja 'Bitacora-TRASPASOS' sin filtros ni agrupaciones.
+ * @return {Array<Object>} Lista de movimientos crudos
  */
-function obtenerBalanceVirtualExcedentes() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName("Bitacora-Traspasos");
-  const data = sheet.getDataRange().getValues();
-  const headers = data.shift();
-
-  // Mapeo dinámico de columnas (para evitar errores si mueves las columnas)
-  const col = {
-    tipo: headers.indexOf("Tipo de movimiento"),
-    serie: headers.indexOf("Serie"),
-    codigo: headers.indexOf("Codigo"),
-    desc: headers.indexOf("Descripcion"),
-    cant: headers.indexOf("Cantidad"),
-    bodega: headers.indexOf("Bodega Entrada")
-  };
-
-  const balanceMap = {};
-
-  data.forEach(fila => {
-    const serie = fila[col.serie];
-    const codigo = fila[col.codigo];
-    const idVirtual = `${serie}-${codigo}`; // TU IDENTIFICADOR MAESTRO
-    
-    const tipo = (fila[col.tipo] || "").toString().toLowerCase();
-    const cantidad = Number(fila[col.cant]) || 0;
-
-    // Si la llave no existe en el mapa, la inicializamos
-    if (!balanceMap[idVirtual]) {
-      balanceMap[idVirtual] = {
-        idVirtual: idVirtual,
-        codigo: codigo,
-        serie: serie,
-        descripcion: fila[col.desc],
-        cantidad: 0,
-        bodega: fila[col.bodega]
-      };
-    }
-
-    // Lógica de Balance Virtual
-    if (tipo.includes("acomodo")) {
-      balanceMap[idVirtual].cantidad += cantidad;
-    } else if (tipo.includes("surtido")) {
-      balanceMap[idVirtual].cantidad -= cantidad;
-    }
-  });
-
-  // Convertimos el mapa a un array y filtramos lo que tiene stock
-  return Object.values(balanceMap).filter(item => item.cantidad > 0);
-}
-
-/**
- * Calcula el balance consolidado de inventario agrupado estrictamente por IDUNICO.
- * Toma las entradas (Acomodo, Devolución, etc.) y resta las salidas (Traspaso, Surtido, etc.)
- * @return {Array<Object>} Arreglo con los saldos activos e históricos por IDUNICO.
- */
-function calcularBalancePorIDUnico() {
+function obtenerMovimientosCrudosBitacora() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const hoja = ss.getSheetByName('Bitacora-TRASPASOS') || ss.getSheetByName('Bitacora-Traspasos');
+    const hoja = ss.getSheetByName('Bitacora-TRASPASOS');
+    if (!hoja) throw new Error("La hoja 'Bitacora-TRASPASOS' no existe.");
+
+    const rango = hoja.getDataRange();
+    const valores = rango.getValues();
     
-    if (!hoja) throw new Error("No se encontró la hoja 'Bitacora-TRASPASOS'");
-    
-    const valores = hoja.getDataRange().getValues();
-    if (valores.length <= 1) return [];
-    
-    // Quitamos encabezados
-    valores.shift();
-    
-    const mapaBalances = {};
-    
-    valores.forEach(fila => {
-      const tipoMovimiento = String(fila || "").trim().toUpperCase();
-      const codigo = String(fila || "").trim();
-      const descripcion = String(fila || "").trim();
-      const cantidad = Number(fila) || 0;
-      const idUnico = String(fila || "").trim();
-      
-      // Saltamos registros sin ID Único asignado
-      if (!idUnico) return;
-      
-      // Si el ID Único no ha sido registrado en el mapa, lo inicializamos
-      if (!mapaBalances[idUnico]) {
-        mapaBalances[idUnico] = {
-          idUnico: idUnico,
-          codigo: codigo,
-          descripcion: descripcion,
-          bodegaActual: String(fila || fila || "").trim(), // Prioriza donde entró, si no, dónde salió
-          ubicacionActual: String(fila || fila || "").trim(), // Prioriza ubicación entrada (casillero)
-          totalEntradas: 0,
-          totalSalidas: 0,
-          saldoDisponible: 0,
-          historialMovimientos: 0
-        };
-      }
-      
-      // Determinamos si el movimiento suma o resta al casillero de excedentes
-      // Tipos de ENTRADA comunes: ACOMODO, INGRESO, DEVOLUCION
-      if (tipoMovimiento.includes("ACOMODO") || tipoMovimiento.includes("ENTRADA") || tipoMovimiento.includes("INGRESO")) {
-        mapaBalances[idUnico].totalEntradas += cantidad;
-        // Al ser acomodo, actualizamos la ubicación final del excedente donde reside
-        if(fila) mapaBalances[idUnico].bodegaActual = String(fila).trim();
-        if(fila) mapaBalances[idUnico].ubicacionActual = String(fila).trim();
-      } 
-      // Tipos de SALIDA comunes: TRASPASO, SURTIDO, SALIDA
-      else if (tipoMovimiento.includes("TRASPASO") || tipoMovimiento.includes("SALIDA") || tipoMovimiento.includes("SURTIDO")) {
-        mapaBalances[idUnico].totalSalidas += cantidad;
-      }
-      
-      mapaBalances[idUnico].historialMovimientos += 1;
+    if (valores.length <= 1) {
+      return []; // Retorna vacío si solo está la cabecera
+    }
+
+    // Omitimos la primera fila (cabeceras)
+    const cabecera = valores;
+    const filasDatos = valores.slice(1);
+
+    // Mapeamos las columnas a un formato de objeto legible y uniforme para React
+    const movimientos = filasDatos.map((fila, index) => {
+      return {
+        idFila: index + 2, // Fila real en la hoja de cálculo por si se necesita editar/ubicar
+        fecha: fila[COL_BITACORA.FECHA - 1] ? Utilities.formatDate(new Date(fila[COL_BITACORA.FECHA - 1]), "GMT-6", "yyyy-MM-dd") : "",
+        hora: fila[COL_BITACORA.HORA - 1] || "",
+        tipo: String(fila[COL_BITACORA.TIPO - 1]).toUpperCase().trim(),
+        serie: String(fila[COL_BITACORA.SERIE - 1]).trim(),
+        bodegaSalida: String(fila[COL_BITACORA.B_SALIDA - 1]).trim(),
+        ubiSalida: String(fila[COL_BITACORA.U_SALIDA - 1]).trim(),
+        bodegaEntrada: String(fila[COL_BITACORA.B_ENTRADA - 1]).trim(),
+        ubiEntrada: String(fila[COL_BITACORA.U_ENTRADA - 1]).trim(),
+        solicitante: String(fila[COL_BITACORA.SOLICITANTE - 1]).trim(),
+        codigo: String(fila[COL_BITACORA.CODIGO - 1]).trim(),
+        descripcion: String(fila[COL_BITACORA.DESC - 1]).trim(),
+        cantidad: Number(fila[COL_BITACORA.CANT - 1]) || 0,
+        folio: String(fila[COL_BITACORA.FOLIO - 1]).trim(),
+        responsable: String(fila[COL_BITACORA.RESP - 1]).trim()
+      };
     });
-    
-    // Convertir el mapa a un arreglo plano y calcular saldos finales matemáticos
-    const resultadoFinal = Object.values(mapaBalances).map(item => {
-      item.saldoDisponible = item.totalEntradas - item.totalSalidas;
-      // AGREGA ESTA LÍNEA TEMPORALMENTE:
-      console.log("ID: " + item.idUnico + " | Saldo: " + item.saldoDisponible);
-      return item;
-    });
-    
-    // Devolvemos ordenados para que los que tengan más saldo disponible salgan arriba
-    return resultadoFinal.sort((a, b) => b.saldoDisponible - a.saldoDisponible);
-    
+
+    // Invertimos el array para que los movimientos más recientes aparezcan arriba en el gestor
+    return movimientos.reverse();
+
   } catch (error) {
-    Logger.log("Error en calcularBalancePorIDUnico: " + error.toString());
-    return [];
+    console.error("Error en obtenerMovimientosCrudosBitacora: " + error.toString());
+    throw new Error("No se pudieron cargar los datos de la Bitácora: " + error.message);
   }
 }
