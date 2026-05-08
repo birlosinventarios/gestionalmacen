@@ -203,46 +203,35 @@ const TOOLS = [
 // ==========================================
 // 🔘 CONFIGURACIÓN UNIFICADA DE TOASTS (UX FITO)
 // ==========================================
-const ToastOscuro = Swal.mixin({
-  toast: true,
-  position: 'top-end',
-  showConfirmButton: false,
-  timer: 3000,
-  timerProgressBar: true,
-  background: '#1c1d1f',      // Fondo oscuro de alto contraste
-  color: '#ffffff',          // Texto blanco
-  iconColor: '#d93025',       // Iconos en rojo institucional por defecto
-  showClass: {
-    popup: 'animate-toast-in'  // Clase de animación de entrada
-  },
-  hideClass: {
-    popup: 'animate-toast-out' // Clase de animación de salida
-  }
-});
+window.notificar = (mensaje, tipo = 'info', customTimer = 3000) => {
+  const colores = {
+    success: '#10b981', // Verde éxito
+    warning: '#f59e0b', // Amarillo advertencia
+    error: '#d93025',   // Rojo error
+    info: '#ffffff'     // Blanco informativo neutral
+  };
 
-/**
- * Función global de notificaciones accesibles desde cualquier sub-vista
- */
-window.notificar = (mensaje, tipo = 'info', customTimer) => {
-  let colorTema = '#d93025'; // Rojo por defecto para advertencias/errores/info básica
-  if (tipo === 'success') colorTema = '#10b981'; // Verde para éxitos
-  if (tipo === 'warning') colorTema = '#f59e0b'; // Amarillo para advertencias
-  if (tipo === 'info') colorTema = '#ffffff';    // Blanco/gris para información neutral
+  const colorTema = colores[tipo] || colores.info;
 
   ToastOscuro.fire({
     icon: tipo,
     title: mensaje,
     iconColor: colorTema,
-    timer: customTimer !== undefined ? customTimer : 3000,
+    timer: customTimer,
     didOpen: (toast) => {
       toast.addEventListener('mouseenter', Swal.stopTimer);
       toast.addEventListener('mouseleave', Swal.resumeTimer);
       
       const progress = toast.querySelector('.swal2-timer-progress-bar');
-      if (progress) progress.style.backgroundColor = colorTema;
+      if (progress) {
+        progress.style.backgroundColor = tipo === 'success' ? '#10b981' : '#d93025';
+      }
     }
   });
 };
+
+// Crear un alias global de compatibilidad para evitar romper código viejo
+window.lanzarNotificacion = window.notificar;
 
 
 
@@ -338,7 +327,7 @@ window.notificar = (mensaje, tipo = 'info', customTimer) => {
           });
       }, []);
 
-      // ⚡ Motor de encendido de scripts dinámicos (Protegido contra caracteres '<')
+      // ⚡ Motor de encendido de scripts dinámicos (Optimizado para la UX FITO)
       useEffect(() => {
         if (!containerRef.current || !viewContent) return;
 
@@ -347,12 +336,15 @@ window.notificar = (mensaje, tipo = 'info', customTimer) => {
         scripts.forEach(oldScript => {
           const newScript = document.createElement('script');
           
+          // Copiar todos los atributos del script viejo al nuevo
           Array.from(oldScript.attributes).forEach(attr => {
             if (attr.name !== 'type') newScript.setAttribute(attr.name, attr.value);
           });
           
-          let codeToExecute = oldScript.innerHTML;
+          let codeToExecute = oldScript.innerHTML.trim();
+          if (!codeToExecute) return; // Si el script está vacío, no hacemos nada
 
+          // Compilar con Babel si el script está marcado como text/babel
           if (oldScript.getAttribute('type') === 'text/babel') {
             try {
               codeToExecute = Babel.transform(codeToExecute, { 
@@ -360,16 +352,18 @@ window.notificar = (mensaje, tipo = 'info', customTimer) => {
                 filename: 'vista_dinamica.js' 
               }).code;
             } catch (babelError) {
-              console.error("🚨 Error Babel:", babelError);
+              console.error("🚨 Error Babel al transpilar script dinámico:", babelError);
               return;
             }
           }
           
-          // Corrección definitiva al Uncaught SyntaxError del token '<'
+          // 🚀 EVITAR EL ERROR DE TOKENS '<' Y '}'
+          // Envolvemos el código en una IIFE (función autoejecutable) para aislar el scope de manera segura
+          // y aseguramos que se registre explícitamente en window si se declaran funciones.
           try {
-            newScript.text = `{ ${codeToExecute} }`;
+            newScript.textContent = `(function(){\n${codeToExecute}\n})();`;
           } catch(e) {
-            newScript.textContent = `{ ${codeToExecute} }`;
+            newScript.text = `(function(){\n${codeToExecute}\n})();`;
           }
 
           containerRef.current.appendChild(newScript);
@@ -385,7 +379,11 @@ window.notificar = (mensaje, tipo = 'info', customTimer) => {
             } else {
               console.warn("⚠️ Función no lista: " + nombreFuncion + ". Reintentando en 200ms...");
               setTimeout(() => {
-                if (typeof window[nombreFuncion] === "function") window[nombreFuncion]();
+                if (typeof window[nombreFuncion] === "function") {
+                  window[nombreFuncion]();
+                } else {
+                  console.error("🚨 Falló la inicialización. La función " + nombreFuncion + " no está definida globalmente.");
+                }
               }, 200);
             }
           });

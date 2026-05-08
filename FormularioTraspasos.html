@@ -138,40 +138,69 @@ var colaDeTraspasos = colaDeTraspasos || [];
   
   const DEFAULT_VALUE = "1 - Almacen Birlos";
 
-// 1. Declarar la función en el objeto window
 window.cargar_FormularioTraspasos = function() {
   console.log("🔄 Inicializando: Formulario de Traspasos");
   
   const dlSolicitantes = document.getElementById('listaSolicitantes');
   if (dlSolicitantes) dlSolicitantes.innerHTML = "";
 
-  // Auxiliar para procesar y renderizar los datos en el formulario
-  const procesarYRenderizarDatos = (datos) => {
-    // GUARDAR EN GLOBALES LOCALES DE LA VISTA
-    usuariosGlobal = datos.usuarios || [];
-    bodegasGlobal = datos.bodegas || [];
-    todosLosCodigosGlobal = datos.codigos || [];
-    mapaUbicacionesGlobal = datos.mapaUbicaciones || [];
+  // Auxiliar para procesar y renderizar los datos de forma segura en el DOM
+  const procesarYRenderizarDatos = () => {
+    // 🧹 Garantizamos el uso de las globales del contenedor principal (window)
+    const usuarios = window.usuariosGlobal || [];
+    const bodegas = window.bodegasGlobal || [];
+    const codigos = window.catalogoGlobal || []; // Sincronizado con catalogoGlobal de APPALMACEN
 
     // --- LLENAR DATALISTS ---
     // Usuarios / Solicitantes
-    if (dlSolicitantes) {
-      dlSolicitantes.innerHTML = usuariosGlobal
-        .map(u => `<option value="${u.nombre}">`)
+    if (dlSolicitantes && usuarios.length > 0) {
+      dlSolicitantes.innerHTML = usuarios
+        .map(u => `<option value="${u.nombre || u}">`) // Tolerante a objetos o strings planos
         .join('');
     }
     
     // Bodegas
-    const opcionesBodegas = bodegasGlobal.map(b => `<option value="${b}">`).join('');
-    document.querySelectorAll('#listaBodega').forEach(el => {
-      el.innerHTML = opcionesBodegas;
-    });
+    if (bodegas.length > 0) {
+      const opcionesBodegas = bodegas.map(b => `<option value="${b.nombre || b}">`).join('');
+      document.querySelectorAll('#listaBodega').forEach(el => {
+        el.innerHTML = opcionesBodegas;
+      });
+    }
     
-    // Actualizar Datalist de productos
-    if (typeof actualizarDatalist === "function") {
-      actualizarDatalist(todosLosCodigosGlobal);
+    // Actualizar Datalist de productos (si existe la función en la vista)
+    if (typeof window.actualizarDatalist === "function") {
+      window.actualizarDatalist(codigos);
+    } else if (typeof actualizarDatalist === "function") {
+      actualizarDatalist(codigos);
     }
   };
+
+  // --- CONTROL DE SINCRONIZACIÓN DE MEGADATA (UX FITO) ---
+  // Si la caché global de APPALMACEN ya está lista, renderizamos inmediatamente
+  if (window.DATA_ALMACEN_CACHE) {
+    console.log("⚡ [FormularioTraspasos] Renderizando desde caché de MegaData.");
+    procesarYRenderizarDatos();
+  } else {
+    // Si no está lista, mostramos un aviso y esperamos a que el inicializador termine
+    console.warn("⚠️ [FormularioTraspasos] MegaData no lista. Esperando sincronización...");
+    
+    if (typeof window.inicializarMegaData === 'function') {
+      window.inicializarMegaData()
+        .then(() => {
+          procesarYRenderizarDatos();
+        })
+        .catch(err => {
+          if (typeof window.lanzarNotificacion === 'function') {
+            window.lanzarNotificacion("Error al sincronizar formulario", "error");
+          }
+          console.error("Fallo al inicializar datos del formulario:", err);
+        });
+    } else {
+      // Fallback extremo si se corre fuera de APPALMACEN (Modo Desarrollo/Sandbox)
+      console.error("🚨 No se encontró el motor de inicialización unificado.");
+    }
+  }
+};
 
   // 🧠 CONDICIONANTE INTELIGENTE: ¿Ya existen datos precargados en el contenedor padre?
   const cacheDisponible = window.DATA_ALMACEN_CACHE || window.GLOBAL_DATA;
