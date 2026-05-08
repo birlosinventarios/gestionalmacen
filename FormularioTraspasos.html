@@ -140,55 +140,66 @@ var colaDeTraspasos = colaDeTraspasos || [];
 
 // 1. Declarar la función en el objeto window
 window.cargar_FormularioTraspasos = function() {
-  console.log("🔄 Ejecutando carga: Formulario de Traspasos");
+  console.log("🔄 Inicializando: Formulario de Traspasos");
   
-  // Limpieza visual inmediata (opcional)
   const dlSolicitantes = document.getElementById('listaSolicitantes');
   if (dlSolicitantes) dlSolicitantes.innerHTML = "";
 
-  lanzarNotificacion("Descargando catálogo...", "info");
+  // Auxiliar para procesar y renderizar los datos en el formulario
+  const procesarYRenderizarDatos = (datos) => {
+    // GUARDAR EN GLOBALES LOCALES DE LA VISTA
+    usuariosGlobal = datos.usuarios || [];
+    bodegasGlobal = datos.bodegas || [];
+    todosLosCodigosGlobal = datos.codigos || [];
+    mapaUbicacionesGlobal = datos.mapaUbicaciones || [];
 
-  google.script.run
-    .withSuccessHandler(function(datos) {
-      if (!datos) {
-        console.error("No se recibieron datos del servidor");
-        return;
-      }
-      console.log("✅ Datos de traspasos recibidos:", datos);
-      
-      // GUARDAR EN GLOBALES
-      usuariosGlobal = datos.usuarios || [];
-      bodegasGlobal = datos.bodegas || [];
-      todosLosCodigosGlobal = datos.codigos || [];
-      mapaUbicacionesGlobal = datos.mapaUbicaciones || [];
+    // --- LLENAR DATALISTS ---
+    // Usuarios / Solicitantes
+    if (dlSolicitantes) {
+      dlSolicitantes.innerHTML = usuariosGlobal
+        .map(u => `<option value="${u.nombre}">`)
+        .join('');
+    }
+    
+    // Bodegas
+    const opcionesBodegas = bodegasGlobal.map(b => `<option value="${b}">`).join('');
+    document.querySelectorAll('#listaBodega').forEach(el => {
+      el.innerHTML = opcionesBodegas;
+    });
+    
+    // Actualizar Datalist de productos
+    if (typeof actualizarDatalist === "function") {
+      actualizarDatalist(todosLosCodigosGlobal);
+    }
+  };
 
-      // --- LLENAR DATALISTS ---
-      
-      // Usuarios / Solicitantes
-      if (dlSolicitantes) {
-        dlSolicitantes.innerHTML = usuariosGlobal
-          .map(u => `<option value="${u.nombre}">`)
-          .join('');
-      }
-      
-      // Bodegas
-      const opcionesBodegas = bodegasGlobal.map(b => `<option value="${b}">`).join('');
-      document.querySelectorAll('#listaBodega').forEach(el => {
-        el.innerHTML = opcionesBodegas;
-      });
-      
-      // Actualizar Datalist de productos (si la función existe)
-      if (typeof actualizarDatalist === "function") {
-        actualizarDatalist(todosLosCodigosGlobal);
-      }
-      
-      lanzarNotificacion("Catálogo sincronizado", "success");
-    })
-    .withFailureHandler(err => {
-      console.error("❌ Error al cargar megadata:", err);
-      lanzarNotificacion("Error: " + err.message, "error");
-    })
-    .obtenerMegaDataInicial(); 
+  // 🧠 CONDICIONANTE INTELIGENTE: ¿Ya existen datos precargados en el contenedor padre?
+  const cacheDisponible = window.DATA_ALMACEN_CACHE || window.GLOBAL_DATA;
+
+  if (cacheDisponible) {
+    console.log("⚡ [FormularioTraspasos] Datos cargados instantáneamente desde la caché de APPALMACEN.");
+    procesarYRenderizarDatos(cacheDisponible);
+    // Nota: No lanzamos notificación aquí porque el usuario ya vio el éxito al iniciar la app.
+  } else {
+    // 🛟 FALLBACK: Si se ejecuta de forma independiente (Sandbox)
+    console.log("🌐 [FormularioTraspasos] Ejecución independiente. Solicitando datos al servidor...");
+    lanzarNotificacion("Descargando catálogo...", "info");
+
+    google.script.run
+      .withSuccessHandler(function(datos) {
+        if (!datos) {
+          console.error("No se recibieron datos del servidor");
+          return;
+        }
+        procesarYRenderizarDatos(datos);
+        lanzarNotificacion("Catálogo sincronizado", "success");
+      })
+      .withFailureHandler(err => {
+        console.error("❌ Error al cargar megadata de forma aislada:", err);
+        lanzarNotificacion("Error: " + err.message, "error");
+      })
+      .obtenerMegaDataInicial(); 
+  }
 };
 
 // 2. Disparar automáticamente la primera vez que se carga el script
