@@ -21,7 +21,7 @@ function procesarTraspasos(lote) {
     const config = _obtenerContextoTemporal(ss);
     const DEFAULT_VALUE = "1 - Almacen Birlos";
 
-   const filasParaInsertar = lote.map(item => {
+    const filasParaInsertar = lote.map(item => {
       // 1. Usamos directamente lo que viene del HTML (ya viene procesado)
       const bSalida = item.bodegaSalida;
       const uSalida = item.ubiSalida;
@@ -30,6 +30,22 @@ function procesarTraspasos(lote) {
       
       // La serie es la ubicación de destino si es Acomodo, o de origen si es Surtido
       const serie = (item.tipo === "Acomodo") ? uEntrada : uSalida;
+
+      // --- NUEVA REGLA DE NEGOCIO PARA EL SIGNO DE LA CANTIDAD ---
+      // 1. Forzamos que la cantidad de origen sea un número absoluto (sin signos)
+      const cantidadAbsoluta = Math.abs(Number(item.cantidad || 0));
+      
+      // 2. Normalizamos el tipo de movimiento
+      const tipoMovimiento = String(item.tipo || "").trim().toUpperCase();
+      
+      // 3. Si el tipo de movimiento es Acomodo, Ingreso o Entrada, se queda positivo.
+      // En cualquier otro caso (Surtido, Traspaso, Salida, etc.), se escribe negativo.
+      let cantidadConSigno = cantidadAbsoluta;
+      if (tipoMovimiento.includes("ACOMODO") || tipoMovimiento.includes("ENTRADA") || tipoMovimiento.includes("INGRESO")) {
+        cantidadConSigno = cantidadAbsoluta; // Positivo
+      } else {
+        cantidadConSigno = -cantidadAbsoluta; // Negativo
+      }
 
       const fila = new Array(14).fill("");
       fila[COL_BITACORA.FECHA - 1] = config.fecha;
@@ -43,7 +59,7 @@ function procesarTraspasos(lote) {
       fila[COL_BITACORA.SOLICITANTE - 1] = item.solicitante;
       fila[COL_BITACORA.CODIGO - 1] = item.codigo.toUpperCase();
       fila[COL_BITACORA.DESC - 1] = item.descripcion.toUpperCase();
-      fila[COL_BITACORA.CANT - 1] = Number(item.cantidad);
+      fila[COL_BITACORA.CANT - 1] = cantidadConSigno; // <-- Aquí inyectamos el valor con signo calculado
       fila[COL_BITACORA.FOLIO - 1] = ""; 
       fila[COL_BITACORA.RESP - 1] = ""; 
       

@@ -230,8 +230,13 @@ function renderizarHistorial(registros) {
             <div class="cuadrantecuadrodatostraspaso">
                 <div class="tituloscuadrodatostraspaso">Cant:</div>
                 <div class="itemcuadrocantidadtraspaso">
-                    <span id="cant_texto_${item.fila}">${item.cantidad}</span>
-                    <input type="number" id="cant_input_${item.fila}" value="${item.cantidad}" style="display:none; width:60px;" class="form-control form-control-sm">
+                    <span id="cant_texto_${item.fila}">${Math.abs(Number(item.cantidad || 0))}</span>
+                    
+                    <input type="number" 
+                          id="cant_input_${item.fila}" 
+                          value="${Math.abs(Number(item.cantidad || 0))}" 
+                          style="display:none; width:60px;" 
+                          class="form-control form-control-sm">
                 </div>
             </div>
             <div class="cuadrantecuadrodatostraspaso">

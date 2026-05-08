@@ -219,9 +219,10 @@
                     </div>
 
                     <div class="cuadrantecuadrodatostraspaso">
-                    <div class="tituloscuadrodatostraspaso">Cantidad:</div>
+                      <div class="tituloscuadrodatostraspaso">Cantidad:</div>
                       <div class="itemcuadrocantidadtraspaso">
-                      ${item.cantidad}</div>
+                        ${Math.abs(Number(item.cantidad || 0))}
+                      </div>
                     </div>
 
                     <div class="cuadrantecuadrodatostraspaso">
