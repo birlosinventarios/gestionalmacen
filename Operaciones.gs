@@ -271,23 +271,26 @@ function obtenerMovimientosBitacora() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const hoja = ss.getSheetByName('Bitacora-TRASPASOS');
-    if (!hoja) throw new Error("La hoja 'Bitacora-TRASPASOS' no existe.");
+    
+    if (!hoja) {
+      console.warn("⚠️ ERROR: No se encontró la pestaña 'Bitacora-TRASPASOS' en el Spreadsheet activo.");
+      return []; // Retorna un array vacío pacífico en lugar de romper la app
+    }
 
     const rango = hoja.getDataRange();
     const valores = rango.getValues();
     
     if (valores.length <= 1) {
-      return []; // Retorna vacío si solo está la cabecera
+      console.log("ℹ️ La hoja de bitácora está vacía o solo contiene la cabecera.");
+      return []; 
     }
 
-    // Omitimos la primera fila (cabeceras)
-    const cabecera = valores;
-    const filasDatos = valores.slice(1);
+    // Filtramos filas que no tengan datos esenciales (como el código o la serie) para evitar basura
+    const filasDatos = valores.slice(1).filter(fila => fila[COL_BITACORA.CODIGO - 1] && fila[COL_BITACORA.SERIE - 1]);
 
-    // Mapeamos las columnas a un formato de objeto legible y uniforme para React
     const movimientos = filasDatos.map((fila, index) => {
       return {
-        idFila: index + 2, // Fila real en la hoja de cálculo por si se necesita editar/ubicar
+        idFila: index + 2, 
         fecha: fila[COL_BITACORA.FECHA - 1] ? Utilities.formatDate(new Date(fila[COL_BITACORA.FECHA - 1]), "GMT-6", "yyyy-MM-dd") : "",
         hora: fila[COL_BITACORA.HORA - 1] || "",
         tipo: String(fila[COL_BITACORA.TIPO - 1]).toUpperCase().trim(),
@@ -305,11 +308,10 @@ function obtenerMovimientosBitacora() {
       };
     });
 
-    // Invertimos el array para que los movimientos más recientes aparezcan arriba en el gestor
     return movimientos.reverse();
 
   } catch (error) {
-    console.error("Error en obtenerMovimientosCrudosBitacora: " + error.toString());
-    throw new Error("No se pudieron cargar los datos de la Bitácora: " + error.message);
+    console.error("❌ Error grave en obtenerMovimientosBitacora: " + error.toString());
+    return []; // Resguardo de seguridad
   }
 }
