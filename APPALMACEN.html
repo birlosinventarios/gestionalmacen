@@ -224,9 +224,10 @@ const ToastOscuro = Swal.mixin({
  * Función global de notificaciones accesibles desde cualquier sub-vista
  */
 window.notificar = (mensaje, tipo = 'info', customTimer) => {
-  let colorTema = '#d93025'; // Rojo por defecto para advertencias/errores
+  let colorTema = '#d93025'; // Rojo por defecto para advertencias/errores/info básica
   if (tipo === 'success') colorTema = '#10b981'; // Verde para éxitos
-  if (tipo === 'info') colorTema = '#ffffff';    // Blanco para información neutral
+  if (tipo === 'warning') colorTema = '#f59e0b'; // Amarillo para advertencias
+  if (tipo === 'info') colorTema = '#ffffff';    // Blanco/gris para información neutral
 
   ToastOscuro.fire({
     icon: tipo,

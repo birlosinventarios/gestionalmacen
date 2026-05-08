@@ -7,90 +7,166 @@
 
     <div id="snackbar"></div>
 
-      <script>
-        
+<script>
+      (function() {
         let escribiendo = false;
         let responsables = [];
-        let temporizadorActualizacion;
         let procesando = false;
 
-            document.getElementById('listaPendientes').onmouseenter = () => { 
-                escribiendo = true; 
+        // ==========================================
+        // 1. GESTOR UNIFICADO DE NOTIFICACIONES (UX FITO)
+        // ==========================================
+        window.lanzarNotificacion = function(mensaje, tipo = "info") {
+          if (typeof window.notificar === 'function') {
+            window.notificar(mensaje, tipo);
+          } else if (typeof Swal !== 'undefined') {
+            // Paleta de colores para el Toast Oscuro de UX FITO
+            const coloresIcono = {
+              success: '#10b981',
+              warning: '#f59e0b',
+              error: '#d93025',
+              info: '#3b82f6'
             };
+            const colorSeleccionado = coloresIcono[tipo] || '#3b82f6';
 
-            document.getElementById('listaPendientes').onmouseleave = () => { 
-                // Solo liberamos si realmente no hay nada escrito en ningún folio
-                const inputs = document.querySelectorAll('input[type="text"]');
-                const hayTexto = Array.from(inputs).some(i => i.value.trim() !== "");
-                
-                // Si no hay texto, permitimos que el temporizador vuelva a trabajar
-                if (!hayTexto) {
-                    escribiendo = false;
-                }
-            };
+            const ToastOscuroLocal = Swal.mixin({
+              toast: true,
+              position: 'top-end',
+              showConfirmButton: false,
+              timer: 3000,
+              timerProgressBar: true,
+              background: '#1c1d1f',
+              color: '#ffffff',
+              iconColor: colorSeleccionado,
+              didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer);
+                toast.addEventListener('mouseleave', Swal.resumeTimer);
+                const progress = toast.querySelector('.swal2-timer-progress-bar');
+                if (progress) progress.style.backgroundColor = '#d93025'; // Acento rojo primary
+              }
+            });
 
+            ToastOscuroLocal.fire({
+              icon: tipo,
+              title: mensaje
+            });
+          } else {
+            // Fallback clásico en snackbar si SweetAlert2 no está disponible
+            const x = document.getElementById("snackbar");
+            if (x) {
+              x.innerText = mensaje;
+              // Aseguramos que se visualice si no hay CSS cargado para animaciones
+              x.style.position = "fixed";
+              x.style.bottom = "20px";
+              x.style.left = "50%";
+              x.style.transform = "translateX(-50%)";
+              x.style.backgroundColor = tipo === 'error' ? '#d93025' : '#1c1d1f';
+              x.style.color = "#ffffff";
+              x.style.padding = "12px 24px";
+              x.style.borderRadius = "8px";
+              x.style.zIndex = "9999";
+              x.style.boxShadow = "0 10px 25px rgba(0,0,0,0.2)";
+              x.style.display = "block";
+              
+              setTimeout(() => { x.style.display = "none"; }, 3000);
+            } else {
+              console.log(`[${tipo.toUpperCase()}]: ${mensaje}`);
+            }
+          }
+        };
 
-// --- 1. EJECUCIÓN INMEDIATA AL CARGAR LA VISTA ---
-(function() {
-    console.log("Iniciando vista de Pendientes...");
+        // ==========================================
+        // 2. CONTROL DE INTERACCIÓN DE ESCRITURA
+        // ==========================================
+        const contenedorPendientes = document.getElementById('listaPendientes');
+        if (contenedorPendientes) {
+          contenedorPendientes.onmouseenter = () => { 
+            escribiendo = true; 
+          };
 
-    // Limpieza de seguridad: Si ya existía un temporizador previo, lo detenemos
-    // para evitar que se acumulen procesos de fondo.
-    if (window.temporizadorActualizacion) {
-        clearInterval(window.temporizadorActualizacion);
-        console.log("Temporizador previo limpiado.");
-    }
+          contenedorPendientes.onmouseleave = () => { 
+            // Buscamos si hay folios numéricos activos para no interrumpir la captura
+            const inputs = document.querySelectorAll('input[type="number"]');
+            const hayTexto = Array.from(inputs).some(i => i.value.trim() !== "");
+            if (!hayTexto) {
+              escribiendo = false;
+            }
+          };
+        }
 
-    // PASO 1: Cargar MegaData
-    google.script.run
-        .withSuccessHandler(function(megaData) {
-            // ✅ FILTRO CRÍTICO: Solo usuarios cuyo rol sea RESPONSABLE o ADMIN
-            responsables = megaData.usuarios
-                .filter(u => u.rol === "RESPONSABLE" || u.rol === "ADMIN")
-                .map(u => u.nombre);
+        // ==========================================
+        // 3. ENTRADA DE LA VISTA (Hereda caché o hace Fetch)
+        // ==========================================
+        window.cargar_MonitorTraspasos = function() {
+          console.log("🔄 Inicializando: Monitor de Traspasos Pendientes");
+
+          if (window.temporizadorActualizacion) {
+            clearInterval(window.temporizadorActualizacion);
+            console.log("🧹 Temporizador previo limpiado.");
+          }
+
+          const cacheDisponible = window.DATA_ALMACEN_CACHE || window.GLOBAL_DATA;
+
+          if (cacheDisponible) {
+            console.log("⚡ Cargando responsables desde caché global...");
+            responsables = (cacheDisponible.usuarios || [])
+              .filter(u => u.rol === "RESPONSABLE" || u.rol === "ADMIN")
+              .map(u => u.nombre);
             
-            console.log("Responsables autorizados listos:", responsables);
-            
-            // PASO 2: Cargar los pendientes por primera vez (con spinner de carga)
             cargarPendientes(true);
-            
-            // PASO 3: Iniciar ciclo de actualización automática
-            // Guardamos el ID en 'window' para poder detenerlo si cambiamos de vista
-            window.temporizadorActualizacion = setInterval(function() {
-                // Verificamos si el contenedor de esta vista aún existe en el DOM
-                // Si no existe, significa que el usuario cambió de pestaña y debemos limpiar
-                if (!document.getElementById('tablaPendientes')) { // Cambia 'tablaPendientes' por un ID real de esta vista
-                    clearInterval(window.temporizadorActualizacion);
-                    console.log("Ciclo de actualización detenido: Vista no visible.");
-                    return;
-                }
+            iniciarCicloActualizacion();
+          } else {
+            console.log("🌐 Modo Sandbox activo. Solicitando MegaData...");
+            window.lanzarNotificacion("Sincronizando base de datos...", "info");
+
+            google.script.run
+              .withSuccessHandler(function(megaData) {
+                responsables = (megaData.usuarios || [])
+                  .filter(u => u.rol === "RESPONSABLE" || u.rol === "ADMIN")
+                  .map(u => u.nombre);
                 
-                cargarPendientes(false);
-            }, 3000);
-        })
-        .withFailureHandler(function(err) {
-            console.error("Error al cargar MegaData inicial:", err);
-        })
-        .obtenerMegaDataInicial(); 
+                window.lanzarNotificacion("Configuración sincronizada", "success");
+                cargarPendientes(true);
+                iniciarCicloActualizacion();
+              })
+              .withFailureHandler(function(err) {
+                console.error("❌ Error al cargar MegaData:", err);
+                window.lanzarNotificacion("Error al conectar con la base de datos", "error");
+              })
+              .obtenerMegaDataInicial(); 
+          }
+        };
 
-})();
+        // ==========================================
+        // 4. CICLO DE ACTUALIZACIÓN AUTOMÁTICA
+        // ==========================================
+        function iniciarCicloActualizacion() {
+          window.temporizadorActualizacion = setInterval(function() {
+            if (!document.getElementById('listaPendientes')) { 
+              clearInterval(window.temporizadorActualizacion);
+              console.log("🛑 Ciclo de actualización detenido: Vista fuera del DOM.");
+              return;
+            }
+            cargarPendientes(false);
+          }, 3000);
+        }
 
-
-        function cargarPendientes(forzar = false) {
-          // Si no estamos forzando y el sistema detecta que escribes o ya está cargando, sale.
+        // ==========================================
+        // 5. OBTENER Y CONFIGURAR PENDIENTES
+        // ==========================================
+        window.cargarPendientes = function(forzar = false) {
           if (!forzar && (procesando || escribiendo)) return; 
           
           procesando = true;
-          console.log(forzar ? "Sincronización forzada..." : "Sincronizando...");
+          console.log(forzar ? "⏳ Sincronización forzada..." : "⏳ Sincronizando...");
 
           google.script.run
             .withSuccessHandler(function(pendientes) {
               procesando = false; 
-              
               if (escribiendo && !forzar) return;
 
               if (pendientes && pendientes.length > 0) {
-                      pendientes.sort((a, b) => {
+                pendientes.sort((a, b) => {
                   let bodegaA = a.tipo === "Acomodo" ? a.bodegaEntrada : a.bodegaSalida;
                   let bodegaB = b.tipo === "Acomodo" ? b.bodegaEntrada : b.bodegaSalida;
                   return (bodegaA || "").localeCompare(bodegaB || "");
@@ -100,79 +176,67 @@
             })
             .withFailureHandler(function(err) {
               procesando = false;
-              console.error("Error: ", err);
+              console.error("❌ Error al sincronizar pendientes: ", err);
             })
             .obtenerTraspasosPendientes();
-        }
+        };
 
-        function cargarResponsables() {
-          google.script.run
-            .withSuccessHandler(function(lista) {
-              responsables = lista;
-              console.log("Responsables cargados:", responsables);
-            })
-            .obtenerAgentesResponsables();
-        }
+        // ==========================================
+        // 6. RENDERIZADO DE TARJETAS (CARDS)
+        // ==========================================
+        window.renderizarCards = function(pendientes) {
+          const contenedor = document.getElementById('listaPendientes');
+          if (!contenedor) return;
 
-        function renderizarCards(pendientes) {
-              const contenedor = document.getElementById('listaPendientes');
-              if (!pendientes || pendientes.length === 0) {
-                contenedor.innerHTML = '<div style="text-align:center; margin-top:50px; color: #666;"><span class="material-icons" style="font-size:48px; color:#4CAF50;">done_all</span><p>✅ No hay movimientos pendientes.</p></div>';
-                return;
-              }
+          if (!pendientes || pendientes.length === 0) {
+            contenedor.innerHTML = '<div style="text-align:center; margin-top:50px; color: #666;"><span class="material-icons" style="font-size:48px; color:#4CAF50;">done_all</span><p>✅ No hay movimientos pendientes.</p></div>';
+            return;
+          }
 
-              let opcionesResponsablesHTML = '<option value="">Responsable...</option>';
-                responsables.forEach(r => {
-                  opcionesResponsablesHTML += `<option value="${r}">${r}</option>`;
-                });
+          let opcionesResponsablesHTML = '<option value="">Responsable...</option>';
+          responsables.forEach(r => {
+            opcionesResponsablesHTML += `<option value="${r}">${r}</option>`;
+          });
 
-              // --- CAPA VISUAL: MAPEO ADMINISTRATIVO ---
-              const mapaAdmin = {
-                "BODEGA 1": "2 - Excedente Bodega",
-                "BODEGA 2": "2 - Excedente Bodega",
-                "BODEGA 3": "2 - Excedente Bodega",
-                "BODEGA MOSTRADOR": "2 - Excedente Bodega",
-                "CASA BLANCA 1": "3 - Excedente Casa Blanca",
-                "CASA BLANCA 2": "3 - Excedente Casa Blanca"
-              };
+          const mapaAdmin = {
+            "BODEGA 1": "2 - Excedente Bodega",
+            "BODEGA 2": "2 - Excedente Bodega",
+            "BODEGA 3": "2 - Excedente Bodega",
+            "BODEGA MOSTRADOR": "2 - Excedente Bodega",
+            "CASA BLANCA 1": "3 - Excedente Casa Blanca",
+            "CASA BLANCA 2": "3 - Excedente Casa Blanca"
+          };
 
-            // PROCESAMIENTO DE CAPA VISUAL
-                pendientes.forEach(item => {
-                    // En Acomodo manda Destino, en Traspaso manda Origen
-                    let base = item.tipo === "Acomodo" ? item.destino : (item.origen || "");
-                    let clave = base.toString().toUpperCase().trim();
-                    item.bodegaVisual = mapaAdmin[clave] || base;
-                }); 
+          pendientes.forEach(item => {
+            let base = item.tipo === "Acomodo" ? item.destino : (item.origen || "");
+            let clave = base.toString().toUpperCase().trim();
+            item.bodegaVisual = mapaAdmin[clave] || base;
+          }); 
 
+          pendientes.sort((a, b) => a.bodegaVisual.localeCompare(b.bodegaVisual));
 
-                              // ORDENAR POR LA NUEVA CATEGORÍA VISUAL
-              pendientes.sort((a, b) => a.bodegaVisual.localeCompare(b.bodegaVisual));
+          contenedor.innerHTML = '';
+          let ultimaBodegaSegmentada = "";
 
-              contenedor.innerHTML = '';
-              let ultimaBodegaSegmentada = "";
+          pendientes.forEach(item => {
+            let bodegaActual = item.bodegaVisual; 
+            
+            if (bodegaActual !== ultimaBodegaSegmentada) {
+              ultimaBodegaSegmentada = bodegaActual;
+              const separador = document.createElement('div');
+              separador.className = 'separador-bodega';
+              separador.innerHTML = `<span class="material-icons">store</span> ${bodegaActual}`;
+              contenedor.appendChild(separador);
+            }
 
-              pendientes.forEach(item => {
-                  let bodegaActual = item.bodegaVisual; // <-- USA ESTA PROPIEDAD
-                  
-                  if (bodegaActual !== ultimaBodegaSegmentada) {
-                    ultimaBodegaSegmentada = bodegaActual;
-                  // Contar elementos de este grupo específico
-                  const totalBodega = pendientes.filter(p => p.bodegaVisual === ultimaBodegaSegmentada).length;
-
-                  const separador = document.createElement('div');
-                    separador.className = 'separador-bodega';
-                    separador.innerHTML = `<span class="material-icons">store</span> ${bodegaActual}`;
-                    contenedor.appendChild(separador);
-                  }
-
-                const card = document.createElement('div');
-                card.className = 'card-pendiente';
-                card.style.display = "flex";
-                card.style.flexWrap = "wrap"; // Esto permite que los elementos bajen si no caben
-                card.style.alignItems = "center";
-                card.style.gap = "15px";
-                card.style.padding = "15px";
-                card.style.marginBottom = "15px";
+            const card = document.createElement('div');
+            card.className = 'card-pendiente';
+            card.style.display = "flex";
+            card.style.flexWrap = "wrap"; 
+            card.style.alignItems = "center";
+            card.style.gap = "15px";
+            card.style.padding = "15px";
+            card.style.marginBottom = "15px";
 
                 // Construcción del contenido de la tarjeta
                 card.innerHTML = `
@@ -265,89 +329,75 @@
               `;
                 contenedor.appendChild(card);
               });
-            }
-
-function limpiarNombre(nombre) {
-    if (!nombre || nombre === "---" || nombre === "") return "1 - Almacen Birlos";
-
-    // Mapa espejo para mantener la coherencia visual en las etiquetas de Origen/Destino
-    const mapaAdmin = {
-        "BODEGA 1": "2 - Excedente Bodega",
-        "BODEGA 2": "2 - Excedente Bodega",
-        "BODEGA 3": "2 - Excedente Bodega",
-        "BODEGA MOSTRADOR": "2 - Excedente Bodega",
-        "CASA BLANCA 1": "3 - Excedente Casa Blanca",
-        "CASA BLANCA 2": "3 - Excedente Casa Blanca"
-    };
-
-    let clave = nombre.toString().toUpperCase().trim();
-    
-    // Si el nombre técnico existe en nuestro mapa, devolvemos el nombre administrativo.
-    // De lo contrario, devolvemos el nombre original limpio.
-    return mapaAdmin[clave] || nombre.toString().trim();
-}
+            };
 
 
+        // ==========================================
+        // 7. AUXILIARES
+        // ==========================================
+        window.limpiarNombre = function(nombre) {
+          if (!nombre || nombre === "---" || nombre === "") return "1 - Almacen Birlos";
 
-        function procesarFila(numFila, boton) {
+          const mapaAdmin = {
+            "BODEGA 1": "2 - Excedente Bodega",
+            "BODEGA 2": "2 - Excedente Bodega",
+            "BODEGA 3": "2 - Excedente Bodega",
+            "BODEGA MOSTRADOR": "2 - Excedente Bodega",
+            "CASA BLANCA 1": "3 - Excedente Casa Blanca",
+            "CASA BLANCA 2": "3 - Excedente Casa Blanca"
+          };
+
+          let clave = nombre.toString().toUpperCase().trim();
+          return mapaAdmin[clave] || nombre.toString().trim();
+        };
+
+        // ==========================================
+        // 8. PROCESAR ACCIÓN DE GUARDADO
+        // ==========================================
+        window.procesarFila = function(numFila, boton) {
           const folio = document.getElementById('folio_' + numFila).value.trim();
           const resp = document.getElementById('resp_' + numFila).value;
 
           if (!folio || !resp) {
-            lanzarNotificacion("⚠️ Indica Folio y Responsable", "error");
+            window.lanzarNotificacion("Indica Folio y Responsable", "warning");
             return;
           }
 
-          // Deshabilitar botón
           boton.disabled = true;
           boton.style.opacity = "0.5";
 
           google.script.run
             .withSuccessHandler(function(res) {
-              lanzarNotificacion("✅ Traspaso procesado", "success");
+              window.lanzarNotificacion("Traspaso procesado con éxito", "success");
 
-              // --- CAMBIO PARA VELOCIDAD INSTANTÁNEA ---
-              // Buscamos la tarjeta que contiene este botón y la ocultamos de inmediato
+              // Animación de salida instantánea UX FITO
               const card = boton.closest('.card-pendiente');
               if (card) {
-                card.style.transition = "all 0.3s ease";
+                card.style.transition = "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
                 card.style.opacity = "0";
-                card.style.transform = "translateX(100px)"; // Efecto de deslizamiento
+                card.style.transform = "translateX(100px)"; 
                 setTimeout(() => {
                   card.style.display = "none";
-                  // Una vez oculta visualmente, liberamos el bloqueo de escritura
                   escribiendo = false;
-                  // Actualizamos los datos en segundo plano por seguridad
-                  cargarPendientes(true);
-                }, 300);
+                  cargarPendientes(true); // Recarga silenciosa en background
+                }, 3000);
               }
             })
             .withFailureHandler(function(err) {
-              lanzarNotificacion("❌ Error: " + err, "error");
+              window.lanzarNotificacion("Error: " + err, "error");
               boton.disabled = false;
               boton.style.opacity = "1";
             })
             .registrarMovimientoSistema(numFila, folio, resp);
+        };
+
+        window.validarTexto = function(input) {
+          escribiendo = input.value.trim() !== "";
+        };
+
+        // Si se carga de manera independiente, autoiniciar
+        if (!window.DATA_ALMACEN_CACHE) {
+          window.cargar_MonitorTraspasos();
         }
-
-        function lanzarNotificacion(msg, tipo='success') {
-          const x = document.getElementById("snackbar");
-          x.innerText = msg;
-          x.className = "show " + (tipo === 'error' ? 'error' : '');
-          x.style.visibility = "visible";
-          setTimeout(() => { x.style.visibility = "hidden"; }, 3000);
-        }
-
-        function validarTexto(input) {
-        // Si el usuario deja texto, mantenemos "escribiendo = true" 
-        // para que el reloj NUNCA borre la lista mientras haya algo escrito.
-        if (input.value.trim() !== "") {
-          escribiendo = true;
-        } else {
-          escribiendo = false;
-        }
-        }
-
-
-
-      </script>
+      })();
+    </script>
