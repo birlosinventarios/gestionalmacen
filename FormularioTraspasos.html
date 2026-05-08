@@ -129,12 +129,12 @@
 
       <script>
 var colaDeTraspasos = colaDeTraspasos || [];
-  let snackbarTimeout;
-  let cacheCatalogo = {}; 
-  let todosLosCodigosGlobal = []; // Se llenará al cargar
-  let mapaUbicacionesGlobal = [];
-  let usuariosGlobal = []; 
-  let bodegasGlobal = [];
+  var snackbarTimeout;
+  var cacheCatalogo = {}; 
+  var todosLosCodigosGlobal = []; // Se llenará al cargar
+  var mapaUbicacionesGlobal = [];
+  var usuariosGlobal = []; 
+  var bodegasGlobal = [];
   
   const DEFAULT_VALUE = "1 - Almacen Birlos";
 
@@ -321,12 +321,12 @@ function agregarALista() {
   }
   
   // Capturamos valores actuales de los inputs
-  let vSalidaBod = getVal('bodegaSalidaInput');
-  let vSalidaUbi = getVal('ubiSalidaInput');
-  let vEntradaBod = getVal('bodegaEntradaInput');
-  let vEntradaUbi = getVal('ubiEntradaInput');
+  var vSalidaBod = getVal('bodegaSalidaInput');
+  var vSalidaUbi = getVal('ubiSalidaInput');
+  var vEntradaBod = getVal('bodegaEntradaInput');
+  var vEntradaUbi = getVal('ubiEntradaInput');
 
-  let bSalida, uSalida, bEntrada, uEntrada;
+  var bSalida, uSalida, bEntrada, uEntrada;
 
   if (tipo === "Surtido") {
     bSalida = vSalidaBod || DEFAULT_VALUE;
@@ -395,7 +395,7 @@ function agregarALista() {
   // Renderizar lista
   listaUL.innerHTML = colaDeTraspasos.map((item, i) => {
     const tipoCss = item.tipo.toLowerCase().replace(/\s+/g, '-');
-    let ubiHtml = (item.tipo === "Cambio de bodega") 
+    var ubiHtml = (item.tipo === "Cambio de bodega") 
       ? `<span class="ubi-badge">${item.ubiSalida}</span> ➔ <span class="ubi-badge">${item.ubiEntrada}</span>`
       : `<span class="ubi-badge">${item.tipo === "Acomodo" ? item.ubiEntrada : item.ubiSalida}</span>`;
 

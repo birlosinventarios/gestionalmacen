@@ -352,7 +352,7 @@ window.lanzarNotificacion = window.notificar;
             }
           });
           
-          let codeToExecute = oldScript.innerHTML.trim();
+          var codeToExecute = oldScript.innerHTML.trim();
           if (!codeToExecute) return;
 
           const isBabel = oldScript.getAttribute('type') === 'text/babel';
