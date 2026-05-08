@@ -451,13 +451,38 @@ function generar() {
     .procesarTraspasos(colaDeTraspasos);
 }
 
-  function lanzarNotificacion(m, t) {
-    const x = document.getElementById("snackbar");
-    clearTimeout(snackbarTimeout);
-    x.innerText = m;
-    x.className = `show ${t || ''}`;
-    snackbarTimeout = setTimeout(() => { x.className = x.className.replace("show", ""); }, 3000);
+// ==========================================
+// 🔘 SISTEMA DE NOTIFICACIONES (ESTILO OSCURO UX FITO)
+// ==========================================
+function lanzarNotificacion(mensaje, tipo = "info") {
+  // 1. Intentar usar el sistema unificado del contenedor principal (APPALMACEN)
+  if (typeof window.notificar === 'function') {
+    window.notificar(mensaje, tipo);
+  } else {
+    // 2. Fallback local usando SweetAlert2 oscuro si se ejecuta de forma independiente
+    const ToastOscuroLocal = Swal.mixin({
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1c1d1f',
+      color: '#ffffff',
+      iconColor: tipo === 'success' ? '#10b981' : (tipo === 'info' ? '#ffffff' : '#d93025'),
+      didOpen: (toast) => {
+        toast.addEventListener('mouseenter', Swal.stopTimer);
+        toast.addEventListener('mouseleave', Swal.resumeTimer);
+        const progress = toast.querySelector('.swal2-timer-progress-bar');
+        if (progress) progress.style.backgroundColor = '#d93025';
+      }
+    });
+
+    ToastOscuroLocal.fire({
+      icon: tipo,
+      title: mensaje
+    });
   }
+}
 
   // Salto: Solicitante -> Bodega Salida
 document.getElementById('solicitanteInput').addEventListener('change', function() {

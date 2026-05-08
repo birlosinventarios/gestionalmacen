@@ -158,6 +158,13 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
+    // Variables globales de caché de almacenamiento de datos
+    window.DATA_ALMACEN_CACHE = null;
+    window.usuariosGlobal = [];
+    window.bodegasGlobal = [];
+    window.mapaUbicacionesGlobal = [];
+    window.catalogoGlobal = [];
+
     const Icon = ({ name, size = 20, className = "" }) => {
       const iconRef = useRef(null);
       useEffect(() => {
@@ -189,41 +196,9 @@ const TOOLS = [
   { id: 'HistorialTraspasos', name: 'Historial Traspasos', icon: 'history', category: 'Consultas' },
   { id: 'GestorExcedentes', name: 'Control de excedentes', icon: 'settings', category: 'Consultas' },
 
-    // CATEGORÍA: Pruebas
+  // CATEGORÍA: Pruebas
   { id: 'PrototipoTraspasos', name: 'Prueba Traspasos', icon: 'cloud-alert', category: 'Pruebas' }
 ];
-
-    const App = () => {
-      const [activeTool, setActiveTool] = useState('traspasos');
-      const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-      const [viewContent, setViewContent] = useState(""); // 📥 Aquí guardaremos el HTML
-      const [loading, setLoading] = useState(false); // ⏳ Para mostrar un estado de carga
-      const containerRef = useRef(null);
-      const seleccionarVista = (id, fileName) => {
-        setViewContent(""); // 🧹 Limpiar antes de cargar
-        setActiveTool(id);
-        setLoading(true);
-        
-        google.script.run
-          .withSuccessHandler((html) => {
-            setViewContent(html);
-            setLoading(false);
-          })
-          .obtenerContenidoVista(fileName);
-      };
-
-      google.script.run
-  .withSuccessHandler(res => {
-    window.GLOBAL_DATA = res; // Guardamos usuarios, ubicaciones, etc. globalmente
-    setLoading(false);
-  })
-  .obtenerMegaDataInicial();
-
-// vista inicial
-useEffect(() => {
-  // Carga inicial por defecto
-  seleccionarVista('FormularioTraspasos', 'FormularioTraspasos');
-}, []);
 
 // ==========================================
 // 🔘 CONFIGURACIÓN UNIFICADA DE TOASTS (UX FITO)
@@ -236,104 +211,166 @@ const ToastOscuro = Swal.mixin({
   timerProgressBar: true,
   background: '#1c1d1f',      // Fondo oscuro de alto contraste
   color: '#ffffff',          // Texto blanco
-  iconColor: '#d93025',       // Iconos en rojo institucional
+  iconColor: '#d93025',       // Iconos en rojo institucional por defecto
   showClass: {
     popup: 'animate-toast-in'  // Clase de animación de entrada
   },
   hideClass: {
     popup: 'animate-toast-out' // Clase de animación de salida
-  },
-  didOpen: (toast) => {
-    toast.addEventListener('mouseenter', Swal.stopTimer);
-    toast.addEventListener('mouseleave', Swal.resumeTimer);
-    
-    // Forzar que la barra de progreso use el rojo de tu paleta
-    const progress = toast.querySelector('.swal2-timer-progress-bar');
-    if (progress) progress.style.backgroundColor = '#d93025';
   }
 });
 
 /**
  * Función global de notificaciones accesibles desde cualquier sub-vista
- * @param {string} mensaje - Texto principal a mostrar
- * @param {string} tipo - 'success', 'error', 'warning', 'info'
- * @param {number} [customTimer] - Duración en milisegundos (opcional)
  */
 window.notificar = (mensaje, tipo = 'info', customTimer) => {
-  // Configuración de colores dinámicos de icono según la gravedad
-  let iconColor = '#d93025'; // Rojo por defecto para advertencias/errores
-  if (tipo === 'success') iconColor = '#10b981'; // Verde esmeralda para éxitos
-  if (tipo === 'info') iconColor = '#3b82f6';    // Azul para información neutral
+  let colorTema = '#d93025'; // Rojo por defecto para advertencias/errores
+  if (tipo === 'success') colorTema = '#10b981'; // Verde para éxitos
+  if (tipo === 'info') colorTema = '#ffffff';    // Blanco para información neutral
 
   ToastOscuro.fire({
     icon: tipo,
     title: mensaje,
-    iconColor: iconColor,
-    timer: customTimer !== undefined ? customTimer : 3000
+    iconColor: colorTema,
+    timer: customTimer !== undefined ? customTimer : 3000,
+    didOpen: (toast) => {
+      toast.addEventListener('mouseenter', Swal.stopTimer);
+      toast.addEventListener('mouseleave', Swal.resumeTimer);
+      
+      const progress = toast.querySelector('.swal2-timer-progress-bar');
+      if (progress) progress.style.backgroundColor = colorTema;
+    }
   });
 };
 
 
-// ⚡ Motor de encendido de scripts (Versión Optimizada)
-useEffect(() => {
-  if (!containerRef.current || !viewContent) return;
-
-  const scripts = containerRef.current.querySelectorAll('script');
-  
-  scripts.forEach(oldScript => {
-    const newScript = document.createElement('script');
-    
-    Array.from(oldScript.attributes).forEach(attr => {
-      if (attr.name !== 'type') newScript.setAttribute(attr.name, attr.value);
-    });
-    
-    let codeToExecute = oldScript.innerHTML;
-
-    if (oldScript.getAttribute('type') === 'text/babel') {
-      try {
-        codeToExecute = Babel.transform(codeToExecute, { 
-          presets: ['react'],
-          filename: 'vista_dinamica.js' // Ayuda a debuguear en consola
-        }).code;
-      } catch (babelError) {
-        console.error("🚨 Error Babel:", babelError);
-        return;
-      }
-    }
-    
-    newScript.appendChild(document.createTextNode(`{ ${codeToExecute} }`));
-    // Inyectamos dentro del contenedor de la vista para mantener coherencia
-    containerRef.current.appendChild(newScript);
-  });
-
-  // 🚀 DISPARADOR MANUAL CON DOBLE FRAME
-  // Esto asegura que el div "render-gestor-excedentes" YA EXISTE en el DOM
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      const nombreFuncion = "cargar_" + activeTool;
-      if (typeof window[nombreFuncion] === "function") {
-        console.log("🔥 Ejecutando: " + nombreFuncion);
-        window[nombreFuncion]();
-      } else {
-        console.warn("⚠️ Función no lista: " + nombreFuncion + ". Reintentando en 200ms...");
-        // Reintento de emergencia
-        setTimeout(() => {
-          if (typeof window[nombreFuncion] === "function") window[nombreFuncion]();
-        }, 200);
-      }
-    });
-  });
-
-}, [viewContent, activeTool]);
-
-const toolsByCategory = TOOLS.reduce((acc, tool) => {
-  if (!acc[tool.category]) acc[tool.category] = [];
-  acc[tool.category].push(tool);
-  return acc;
-}, {});
 
 
+    const App = () => {
+      const [activeTool, setActiveTool] = useState('FormularioTraspasos');
+      const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+      const [viewContent, setViewContent] = useState(""); 
+      const [loading, setLoading] = useState(false); 
+      const containerRef = useRef(null);
 
+      // Función única de carga para evitar descargas múltiples
+      window.inicializarMegaData = () => {
+        if (window.DATA_ALMACEN_CACHE) {
+          console.log("⚡ [MegaData] Datos leídos desde la memoria local. No se consulta al servidor.");
+          return Promise.resolve(window.DATA_ALMACEN_CACHE);
+        }
+
+        return new Promise((resolve, reject) => {
+          window.notificar("Sincronizando base de datos...", "info", 4000);
+          
+          google.script.run
+            .withSuccessHandler((megaData) => {
+              window.DATA_ALMACEN_CACHE = megaData;
+              
+              // Poblamos las globales del navegador
+              window.usuariosGlobal = megaData.usuarios || [];
+              window.bodegasGlobal = megaData.bodegas || [];
+              window.mapaUbicacionesGlobal = megaData.mapaUbicaciones || [];
+              window.catalogoGlobal = megaData.catalogo || [];
+              
+              window.notificar("Catálogo sincronizado exitosamente", "success");
+              console.log("📦 [MegaData Cache] Datos sincronizados por primera vez:", megaData);
+              resolve(megaData);
+            })
+            .withFailureHandler((error) => {
+              window.notificar("Error al descargar el catálogo", "error");
+              console.error("🚨 Fallo de MegaData:", error);
+              reject(error);
+            })
+            .obtenerMegaDataInicial();
+        });
+      };
+
+      const seleccionarVista = (id, fileName) => {
+        setViewContent(""); 
+        setActiveTool(id);
+        setLoading(true);
+        
+        google.script.run
+          .withSuccessHandler((html) => {
+            setViewContent(html);
+            setLoading(false);
+          })
+          .obtenerContenidoVista(fileName);
+      };
+
+      // 🔄 Carga de inicio garantizada de una sola vía
+      useEffect(() => {
+        window.inicializarMegaData()
+          .then(() => {
+            seleccionarVista('FormularioTraspasos', 'FormularioTraspasos');
+          })
+          .catch(() => {
+            // Si algo falla, cargamos de todos modos para que no se quede la pantalla congelada
+            seleccionarVista('FormularioTraspasos', 'FormularioTraspasos');
+          });
+      }, []);
+
+      // ⚡ Motor de encendido de scripts dinámicos (Protegido contra caracteres '<')
+      useEffect(() => {
+        if (!containerRef.current || !viewContent) return;
+
+        const scripts = containerRef.current.querySelectorAll('script');
+        
+        scripts.forEach(oldScript => {
+          const newScript = document.createElement('script');
+          
+          Array.from(oldScript.attributes).forEach(attr => {
+            if (attr.name !== 'type') newScript.setAttribute(attr.name, attr.value);
+          });
+          
+          let codeToExecute = oldScript.innerHTML;
+
+          if (oldScript.getAttribute('type') === 'text/babel') {
+            try {
+              codeToExecute = Babel.transform(codeToExecute, { 
+                presets: ['react'],
+                filename: 'vista_dinamica.js' 
+              }).code;
+            } catch (babelError) {
+              console.error("🚨 Error Babel:", babelError);
+              return;
+            }
+          }
+          
+          // Corrección definitiva al Uncaught SyntaxError del token '<'
+          try {
+            newScript.text = `{ ${codeToExecute} }`;
+          } catch(e) {
+            newScript.textContent = `{ ${codeToExecute} }`;
+          }
+
+          containerRef.current.appendChild(newScript);
+        });
+
+        // 🚀 DISPARADOR MANUAL EN DOBLE FRAME
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const nombreFuncion = "cargar_" + activeTool;
+            if (typeof window[nombreFuncion] === "function") {
+              console.log("🔥 Ejecutando inicializador de vista: " + nombreFuncion);
+              window[nombreFuncion]();
+            } else {
+              console.warn("⚠️ Función no lista: " + nombreFuncion + ". Reintentando en 200ms...");
+              setTimeout(() => {
+                if (typeof window[nombreFuncion] === "function") window[nombreFuncion]();
+              }, 200);
+            }
+          });
+        });
+
+      }, [viewContent, activeTool]);
+
+      const toolsByCategory = TOOLS.reduce((acc, tool) => {
+        if (!acc[tool.category]) acc[tool.category] = [];
+        acc[tool.category].push(tool);
+        return acc;
+      }, {});
 
       return (
         <div className="flex h-screen w-full overflow-hidden">
