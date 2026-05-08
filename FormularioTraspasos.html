@@ -1,4 +1,4 @@
-      <div class="container">
+ <div class="container">
 
         <div class="campo">
           <label for="tipoMovimientoInput">Tipo de movimiento</label>
@@ -138,97 +138,57 @@ var colaDeTraspasos = colaDeTraspasos || [];
   
   const DEFAULT_VALUE = "1 - Almacen Birlos";
 
+// 1. Declarar la función en el objeto window
 window.cargar_FormularioTraspasos = function() {
-  console.log("🔄 Inicializando: Formulario de Traspasos");
+  console.log("🔄 Ejecutando carga: Formulario de Traspasos");
   
+  // Limpieza visual inmediata (opcional)
   const dlSolicitantes = document.getElementById('listaSolicitantes');
   if (dlSolicitantes) dlSolicitantes.innerHTML = "";
 
-  // Auxiliar para procesar y renderizar los datos de forma segura en el DOM
-  const procesarYRenderizarDatos = () => {
-    // 🧹 Garantizamos el uso de las globales del contenedor principal (window)
-    const usuarios = window.usuariosGlobal || [];
-    const bodegas = window.bodegasGlobal || [];
-    const codigos = window.catalogoGlobal || []; // Sincronizado con catalogoGlobal de APPALMACEN
+  lanzarNotificacion("Descargando catálogo...", "info");
 
-    // --- LLENAR DATALISTS ---
-    // Usuarios / Solicitantes
-    if (dlSolicitantes && usuarios.length > 0) {
-      dlSolicitantes.innerHTML = usuarios
-        .map(u => `<option value="${u.nombre || u}">`) // Tolerante a objetos o strings planos
-        .join('');
-    }
-    
-    // Bodegas
-    if (bodegas.length > 0) {
-      const opcionesBodegas = bodegas.map(b => `<option value="${b.nombre || b}">`).join('');
+  google.script.run
+    .withSuccessHandler(function(datos) {
+      if (!datos) {
+        console.error("No se recibieron datos del servidor");
+        return;
+      }
+      console.log("✅ Datos de traspasos recibidos:", datos);
+      
+      // GUARDAR EN GLOBALES
+      usuariosGlobal = datos.usuarios || [];
+      bodegasGlobal = datos.bodegas || [];
+      todosLosCodigosGlobal = datos.codigos || [];
+      mapaUbicacionesGlobal = datos.mapaUbicaciones || [];
+
+      // --- LLENAR DATALISTS ---
+      
+      // Usuarios / Solicitantes
+      if (dlSolicitantes) {
+        dlSolicitantes.innerHTML = usuariosGlobal
+          .map(u => `<option value="${u.nombre}">`)
+          .join('');
+      }
+      
+      // Bodegas
+      const opcionesBodegas = bodegasGlobal.map(b => `<option value="${b}">`).join('');
       document.querySelectorAll('#listaBodega').forEach(el => {
         el.innerHTML = opcionesBodegas;
       });
-    }
-    
-    // Actualizar Datalist de productos (si existe la función en la vista)
-    if (typeof window.actualizarDatalist === "function") {
-      window.actualizarDatalist(codigos);
-    } else if (typeof actualizarDatalist === "function") {
-      actualizarDatalist(codigos);
-    }
-  };
-
-  // --- CONTROL DE SINCRONIZACIÓN DE MEGADATA (UX FITO) ---
-  // Si la caché global de APPALMACEN ya está lista, renderizamos inmediatamente
-  if (window.DATA_ALMACEN_CACHE) {
-    console.log("⚡ [FormularioTraspasos] Renderizando desde caché de MegaData.");
-    procesarYRenderizarDatos();
-  } else {
-    // Si no está lista, mostramos un aviso y esperamos a que el inicializador termine
-    console.warn("⚠️ [FormularioTraspasos] MegaData no lista. Esperando sincronización...");
-    
-    if (typeof window.inicializarMegaData === 'function') {
-      window.inicializarMegaData()
-        .then(() => {
-          procesarYRenderizarDatos();
-        })
-        .catch(err => {
-          if (typeof window.lanzarNotificacion === 'function') {
-            window.lanzarNotificacion("Error al sincronizar formulario", "error");
-          }
-          console.error("Fallo al inicializar datos del formulario:", err);
-        });
-    } else {
-      // Fallback extremo si se corre fuera de APPALMACEN (Modo Desarrollo/Sandbox)
-      console.error("🚨 No se encontró el motor de inicialización unificado.");
-    }
-  }
-};
-
-  // 🧠 CONDICIONANTE INTELIGENTE: ¿Ya existen datos precargados en el contenedor padre?
-  const cacheDisponible = window.DATA_ALMACEN_CACHE || window.GLOBAL_DATA;
-
-  if (cacheDisponible) {
-    console.log("⚡ [FormularioTraspasos] Datos cargados instantáneamente desde la caché de APPALMACEN.");
-    procesarYRenderizarDatos(cacheDisponible);
-    // Nota: No lanzamos notificación aquí porque el usuario ya vio el éxito al iniciar la app.
-  } else {
-    // 🛟 FALLBACK: Si se ejecuta de forma independiente (Sandbox)
-    console.log("🌐 [FormularioTraspasos] Ejecución independiente. Solicitando datos al servidor...");
-    lanzarNotificacion("Descargando catálogo...", "info");
-
-    google.script.run
-      .withSuccessHandler(function(datos) {
-        if (!datos) {
-          console.error("No se recibieron datos del servidor");
-          return;
-        }
-        procesarYRenderizarDatos(datos);
-        lanzarNotificacion("Catálogo sincronizado", "success");
-      })
-      .withFailureHandler(err => {
-        console.error("❌ Error al cargar megadata de forma aislada:", err);
-        lanzarNotificacion("Error: " + err.message, "error");
-      })
-      .obtenerMegaDataInicial(); 
-  }
+      
+      // Actualizar Datalist de productos (si la función existe)
+      if (typeof actualizarDatalist === "function") {
+        actualizarDatalist(todosLosCodigosGlobal);
+      }
+      
+      lanzarNotificacion("Catálogo sincronizado", "success");
+    })
+    .withFailureHandler(err => {
+      console.error("❌ Error al cargar megadata:", err);
+      lanzarNotificacion("Error: " + err.message, "error");
+    })
+    .obtenerMegaDataInicial(); 
 };
 
 // 2. Disparar automáticamente la primera vez que se carga el script
@@ -491,38 +451,13 @@ function generar() {
     .procesarTraspasos(colaDeTraspasos);
 }
 
-// ==========================================
-// 🔘 SISTEMA DE NOTIFICACIONES (ESTILO OSCURO UX FITO)
-// ==========================================
-function lanzarNotificacion(mensaje, tipo = "info") {
-  // 1. Intentar usar el sistema unificado del contenedor principal (APPALMACEN)
-  if (typeof window.notificar === 'function') {
-    window.notificar(mensaje, tipo);
-  } else {
-    // 2. Fallback local usando SweetAlert2 oscuro si se ejecuta de forma independiente
-    const ToastOscuroLocal = Swal.mixin({
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 3000,
-      timerProgressBar: true,
-      background: '#1c1d1f',
-      color: '#ffffff',
-      iconColor: tipo === 'success' ? '#10b981' : (tipo === 'info' ? '#ffffff' : '#d93025'),
-      didOpen: (toast) => {
-        toast.addEventListener('mouseenter', Swal.stopTimer);
-        toast.addEventListener('mouseleave', Swal.resumeTimer);
-        const progress = toast.querySelector('.swal2-timer-progress-bar');
-        if (progress) progress.style.backgroundColor = '#d93025';
-      }
-    });
-
-    ToastOscuroLocal.fire({
-      icon: tipo,
-      title: mensaje
-    });
+  function lanzarNotificacion(m, t) {
+    const x = document.getElementById("snackbar");
+    clearTimeout(snackbarTimeout);
+    x.innerText = m;
+    x.className = `show ${t || ''}`;
+    snackbarTimeout = setTimeout(() => { x.className = x.className.replace("show", ""); }, 3000);
   }
-}
 
   // Salto: Solicitante -> Bodega Salida
 document.getElementById('solicitanteInput').addEventListener('change', function() {
@@ -612,9 +547,5 @@ document.getElementById('ubiEntradaInput').addEventListener('change', function()
     .map(item => item.ubi);
   validarValorEnLista('ubiEntradaInput', ubicacionesPermitidas, "ubicación");
 });
-
-window.cargar_FormularioTraspasos = function() {
-  console.log("🚀 Formulario de traspasos cargado correctamente.");
-  };
 
 </script>

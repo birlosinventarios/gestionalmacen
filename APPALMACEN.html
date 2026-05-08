@@ -203,12 +203,13 @@ const TOOLS = [
 // ==========================================
 // 🔘 CONFIGURACIÓN UNIFICADA DE TOASTS (UX FITO)
 // ==========================================
-const ToastOscuro = Swal.mixin({
+const Toast = Swal.mixin({
   toast: true,
   position: 'top-end',
   showConfirmButton: false,
   timerProgressBar: true,
-  background: 'rgba(28, 29, 31, 0.95)',
+  background: 'rgba(28, 29, 31, 0.95)', // Tu color de fondo oscuro --text-main con opacidad
+  color: '#ffffff', // 🌟 ESTO ASEGURA QUE TODO EL TEXTO DEL TOAST SEA BLANCO
   customClass: {
     popup: 'swal2-toast'
   }
@@ -225,9 +226,10 @@ window.notificar = (mensaje, tipo = 'info', customTimer = 3000) => {
 
   const colorTema = colores[tipo] || colores.info;
 
-  ToastOscuro.fire({
+  Toast.fire({
     icon: tipo,
-    title: mensaje,
+    // 🧠 Si deseas asegurar el color del texto a nivel de HTML para que nada lo sobrescriba:
+    html: `<span style="color: #ffffff; font-weight: 500;">${mensaje}</span>`,
     iconColor: colorTema,
     timer: customTimer,
     didOpen: (toast) => {
@@ -236,7 +238,8 @@ window.notificar = (mensaje, tipo = 'info', customTimer = 3000) => {
       
       const progress = toast.querySelector('.swal2-timer-progress-bar');
       if (progress) {
-        progress.style.backgroundColor = tipo === 'success' ? '#10b981' : '#d93025';
+        // Usa el color del tema dinámico para la barra de progreso
+        progress.style.backgroundColor = colorTema; 
       }
     }
   });
