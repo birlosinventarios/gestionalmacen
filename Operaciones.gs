@@ -5,7 +5,7 @@
 const COL_BITACORA = {
   FECHA: 1, HORA: 2, TIPO: 3, SERIE: 4, B_SALIDA: 5, U_SALIDA: 6,
   B_ENTRADA: 7, U_ENTRADA: 8, SOLICITANTE: 9, CODIGO: 10, 
-  DESC: 11, CANT: 12, FOLIO: 13, RESP: 14, IDUNICO: 15
+  DESC: 11, CANT: 12, FOLIO: 13, RESP: 14
 };
 
 function procesarTraspasos(lote) {
@@ -302,6 +302,8 @@ function obtenerBalanceVirtualExcedentes() {
 
 /**
  * Calcula el balance consolidado de inventario agrupado estrictamente por IDUNICO.
+ * Toma las entradas (Acomodo, Devolución, etc.) y resta las salidas (Traspaso, Surtido, etc.)
+ * @return {Array<Object>} Arreglo con los saldos activos e históricos por IDUNICO.
  */
 function calcularBalancePorIDUnico() {
   try {
@@ -318,20 +320,13 @@ function calcularBalancePorIDUnico() {
     
     const mapaBalances = {};
     
-    // Helper para obtener el índice correcto (ajustando el 1-based de tu config a 0-based de array)
-    const getCol = (key) => COL_BITACORA[key] - 1;
-
     valores.forEach(fila => {
-      // --- CORRECCIÓN CLAVE: Acceder por índices [n] ---
-      const tipoMovimiento = String(fila[getCol('TIPO')] || "").trim().toUpperCase();
-      const codigo = String(fila[getCol('CODIGO')] || "").trim();
-      const descripcion = String(fila[getCol('DESC')] || "").trim();
-      const cantidad = Number(fila[getCol('CANT')]) || 0; // Verifica si tu constante es CANT o CANTIDAD
-      const idUnico = String(fila[getCol('IDUNICO')] || "").trim();
+      const tipoMovimiento = String(fila || "").trim().toUpperCase();
+      const codigo = String(fila || "").trim();
+      const descripcion = String(fila || "").trim();
+      const cantidad = Number(fila) || 0;
+      const idUnico = String(fila || "").trim();
       
-      const bEntrada = String(fila[getCol('B_ENTRADA')] || "").trim();
-      const uEntrada = String(fila[getCol('U_ENTRADA')] || "").trim();
-
       // Saltamos registros sin ID Único asignado
       if (!idUnico) return;
       
@@ -341,8 +336,8 @@ function calcularBalancePorIDUnico() {
           idUnico: idUnico,
           codigo: codigo,
           descripcion: descripcion,
-          bodegaActual: bEntrada, 
-          ubicacionActual: uEntrada,
+          bodegaActual: String(fila || fila || "").trim(), // Prioriza donde entró, si no, dónde salió
+          ubicacionActual: String(fila || fila || "").trim(), // Prioriza ubicación entrada (casillero)
           totalEntradas: 0,
           totalSalidas: 0,
           saldoDisponible: 0,
@@ -350,15 +345,15 @@ function calcularBalancePorIDUnico() {
         };
       }
       
-      // Lógica de ENTRADAS (Suman)
+      // Determinamos si el movimiento suma o resta al casillero de excedentes
+      // Tipos de ENTRADA comunes: ACOMODO, INGRESO, DEVOLUCION
       if (tipoMovimiento.includes("ACOMODO") || tipoMovimiento.includes("ENTRADA") || tipoMovimiento.includes("INGRESO")) {
         mapaBalances[idUnico].totalEntradas += cantidad;
-        
-        // Actualizar ubicación a la última donde se acomodó
-        if (bEntrada) mapaBalances[idUnico].bodegaActual = bEntrada;
-        if (uEntrada) mapaBalances[idUnico].ubicacionActual = uEntrada;
+        // Al ser acomodo, actualizamos la ubicación final del excedente donde reside
+        if(fila) mapaBalances[idUnico].bodegaActual = String(fila).trim();
+        if(fila) mapaBalances[idUnico].ubicacionActual = String(fila).trim();
       } 
-      // Lógica de SALIDAS (Restan)
+      // Tipos de SALIDA comunes: TRASPASO, SURTIDO, SALIDA
       else if (tipoMovimiento.includes("TRASPASO") || tipoMovimiento.includes("SALIDA") || tipoMovimiento.includes("SURTIDO")) {
         mapaBalances[idUnico].totalSalidas += cantidad;
       }
@@ -366,57 +361,19 @@ function calcularBalancePorIDUnico() {
       mapaBalances[idUnico].historialMovimientos += 1;
     });
     
-    // Convertir el mapa a un arreglo plano y calcular saldos finales
+    // Convertir el mapa a un arreglo plano y calcular saldos finales matemáticos
     const resultadoFinal = Object.values(mapaBalances).map(item => {
       item.saldoDisponible = item.totalEntradas - item.totalSalidas;
+      // AGREGA ESTA LÍNEA TEMPORALMENTE:
+      console.log("ID: " + item.idUnico + " | Saldo: " + item.saldoDisponible);
       return item;
     });
     
-    // Solo enviamos los que tienen stock para no saturar el Gestor de Excedentes
-    return resultadoFinal
-      .filter(i => i.saldoDisponible > 0)
-      .sort((a, b) => b.saldoDisponible - a.saldoDisponible);
+    // Devolvemos ordenados para que los que tengan más saldo disponible salgan arriba
+    return resultadoFinal.sort((a, b) => b.saldoDisponible - a.saldoDisponible);
     
   } catch (error) {
-    console.error("Error en calcularBalancePorIDUnico: " + error.message);
+    Logger.log("Error en calcularBalancePorIDUnico: " + error.toString());
     return [];
   }
-}
-
-function obtenerBalancesExcedentes() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName('Bitacora-TRASPASOS') || ss.getSheetByName('Bitacora-Traspasos');
-  if (!hoja) return [];
-
-  const data = hoja.getDataRange().getValues();
-  const mapaBalances = {};
-  const getCol = (key) => COL_BITACORA[key] - 1;
-
-  data.slice(1).forEach(fila => {
-    const codigo = String(fila[getCol('CODIGO')]).trim();
-    const serie = String(fila[getCol('SERIE')]).trim();
-    let idUnico = String(fila[getCol('IDUNICO')]).trim();
-    
-    if (!idUnico) idUnico = `${codigo} | ${serie}`;
-    if (!codigo) return;
-
-    const tipo = String(fila[getCol('TIPO')]).toUpperCase();
-    const cant = Number(fila[getCol('CANT')]) || 0;
-
-    if (!mapaBalances[idUnico]) {
-      mapaBalances[idUnico] = { idUnico, totalEntradas: 0, totalSalidas: 0, ubicacionActual: "" };
-    }
-
-    if (/ACOMODO|ENTRADA|INGRESO/.test(tipo)) {
-      mapaBalances[idUnico].totalEntradas += cant;
-      mapaBalances[idUnico].ubicacionActual = String(fila[getCol('U_ENTRADA')] || "");
-    } else if (/TRASPASO|SALIDA|SURTIDO/.test(tipo)) {
-      mapaBalances[idUnico].totalSalidas += cant;
-    }
-  });
-
-  return Object.values(mapaBalances).map(item => {
-    item.saldoDisponible = item.totalEntradas - item.totalSalidas;
-    return item;
-  });
 }

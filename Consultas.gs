@@ -2,62 +2,89 @@ function obtenerMegaDataInicial() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // 1. Obtener Balances Calculados
-    const balances = obtenerBalancesExcedentes(); 
-    const mapaSaldos = {};
-    balances.forEach(b => {
-      mapaSaldos[b.idUnico] = { saldo: b.saldoDisponible, ubicacion: b.ubicacionActual };
+    // 1. USUARIOS (Filtrado por ROL: RESPONSABLE)
+    const hojaUsuarios = ss.getSheetByName('USUARIOS');
+    // Leemos Col B (Nombre) y Col C (Rol)
+    const dataUsuarios = hojaUsuarios.getRange(2, 1, hojaUsuarios.getLastRow() - 1, 3).getValues();
+
+    const usuariosProcesados = dataUsuarios
+      .map(f => ({
+        nombre: String(f[1]).trim(),
+        rol: String(f[2]).trim().toUpperCase()
+      }))
+      .filter(u => u.nombre !== "")
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+      
+    // 2. MAPA DE UBICACIONES (Hoja 'UBICACIONES')
+    const datosUbi = ss.getSheetByName('UBICACIONES').getDataRange().getValues().slice(1);
+    const bodegas = [...new Set(datosUbi.map(f => f[1]))].filter(Boolean).sort();
+    const mapaUbicaciones = datosUbi.map(f => ({
+      bodega: String(f[1]).trim().toUpperCase(),
+      ubi: String(f[2]).trim()
+    })).filter(f => f.bodega && f.ubi);
+
+    // 3. CATALOGO DE PRODUCTOS (Hoja 'CATALOGO')
+    // Traemos A (ID), B (Código) y C (Descripción)
+    const hojaCat = ss.getSheetByName('CATALOGO');
+    const dataCat = hojaCat.getRange(2, 1, hojaCat.getLastRow() - 1, 3).getValues();
+    
+    let mapaProductos = {};
+    let todosLosCodigos = [];
+    
+    dataCat.forEach(f => {
+      const codigo = String(f[1]).trim().toUpperCase();
+      if (codigo) {
+        mapaProductos[codigo] = {
+          id: f[0],         // Columna A
+          descripcion: f[2] // Columna C
+        };
+        todosLosCodigos.push(codigo);
+      }
     });
 
-    // 2. Usuarios (Col B: Nombre, Col C: Rol)
-    const hojaUsuarios = ss.getSheetByName('USUARIOS');
-    const dataUsuarios = hojaUsuarios.getRange(2, 1, hojaUsuarios.getLastRow() - 1, 3).getValues();
-    const usuariosProcesados = dataUsuarios.map(f => ({
-      nombre: String(f).trim(),
-      rol: String(f).trim().toUpperCase()
-    })).filter(u => u.nombre !== "");
+    // 4. CONFIGURACIÓN DE ETIQUETAS (Hoja 'CONFIG_ETIQUETAS')
+    // Estructura sugerida: Col A: Nombre, Col B: Alto, Col C: Ancho
+    const hojaConfig = ss.getSheetByName('ETIQUETAS');
+    let mapaMedidas = {};
+    if (hojaConfig) {
+      const dataMedidas = hojaConfig.getDataRange().getValues().slice(1);
+      dataMedidas.forEach(f => {
+        mapaMedidas[f[0]] = { alto: f[1], ancho: f[2] };
+      });
+    }
 
-    // 3. Bodegas (Separar el string 'ID,Nombre,Ubi')
-    const datosUbi = ss.getSheetByName('UBICACIONES').getDataRange().getValues().slice(1);
-    const bodegasUnicas = [...new Set(datosUbi.map(f => String(f).trim()))] // f es el nombre de la bodega
-      .filter(Boolean)
-      .sort();
-
-    // 4. Catálogo y Cruce de Saldos
-    const hojaCat = ss.getSheetByName('CATALOGO');
-    const dataCat = hojaCat.getDataRange().getValues().slice(1); 
-    
-    const productosFinales = dataCat.map(f => {
-      const codigo = String(f).trim(); // Col A
-      const serie = String(f).trim();  // Col B
-      const desc = String(f).trim();   // Col C
-      const idUnico = `${codigo} | ${serie}`;
-      
-      const infoStock = mapaSaldos[idUnico];
-      
-      return {
-        idUnico: idUnico,
-        codigo: codigo,
-        serie: serie,
-        descripcion: desc,
-        saldo: infoStock ? infoStock.saldo : 0,
-        ubicacion: infoStock ? infoStock.ubicacion : "SIN STOCK"
-      };
-    }).filter(p => p.saldo > 0); // IMPORTANTE: Solo enviar lo que tiene stock
-
-    console.log("Enviando " + productosFinales.length + " productos con stock al Gestor.");
-
+    // RETORNO MAESTRO
     return { 
       usuarios: usuariosProcesados, 
-      bodegas: bodegasUnicas, 
-      productos: productosFinales,
-      nombresEtiquetas: [] 
+      bodegas: bodegas, 
+      mapaUbicaciones: mapaUbicaciones,
+      codigos: todosLosCodigos.sort(),
+      mapaProductos: mapaProductos,
+      mapaMedidas: mapaMedidas,
+      nombresEtiquetas: Object.keys(mapaMedidas)
     }; 
     
   } catch (e) {
-    return { error: e.message, productos: [], bodegas: [] };
+    console.error("Error en MegaData Unificado: " + e.message);
+    return { usuarios: [], bodegas: [], mapaUbicaciones: [], codigos: [], mapaProductos: {} 
+    };
   }
 }
+
+function buscarCodigosPorFiltro(termino) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName('CATALOGO'); // Ajusta al nombre de tu hoja
+  const datos = hoja.getRange(2, 1, hoja.getLastRow() - 1, 1).getValues().flat();
+  const filtro = termino.toUpperCase();
+
+  // Filtrado rápido y limitación de resultados
+  const resultados = datos
+    .filter(codigo => codigo && String(codigo).toUpperCase().includes(filtro))
+    .slice(0, 25); // No satures el DOM con más de 25 opciones
+
+  return resultados;
+}
+
 
 function buscarProductoPorCodigo(codigo) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
