@@ -1,4 +1,4 @@
- <div class="container">
+<div class="container">
 
         <div class="campo">
           <label for="tipoMovimientoInput">Tipo de movimiento</label>
@@ -128,19 +128,21 @@
         <?!= HtmlService.createHtmlOutputFromFile('FilaTraspasos').getContent(); ?>
 
       <script>
-  var colaDeTraspasos = colaDeTraspasos || [];
-  var snackbarTimeout;
-  var cacheCatalogo = {}; 
-  var todosLosCodigosGlobal = [];
-  var mapaUbicacionesGlobal = [];
-  var usuariosGlobal = []; 
-  var bodegasGlobal = [];
+var colaDeTraspasos = colaDeTraspasos || [];
+  let snackbarTimeout;
+  let cacheCatalogo = {}; 
+  let todosLosCodigosGlobal = []; // Se llenará al cargar
+  let mapaUbicacionesGlobal = [];
+  let usuariosGlobal = []; 
+  let bodegasGlobal = [];
   
   const DEFAULT_VALUE = "1 - Almacen Birlos";
 
+// 1. Declarar la función en el objeto window
 window.cargar_FormularioTraspasos = function() {
   console.log("🔄 Ejecutando carga: Formulario de Traspasos");
   
+  // Limpieza visual inmediata (opcional)
   const dlSolicitantes = document.getElementById('listaSolicitantes');
   if (dlSolicitantes) dlSolicitantes.innerHTML = "";
 
@@ -319,12 +321,12 @@ function agregarALista() {
   }
   
   // Capturamos valores actuales de los inputs
-  var vSalidaBod = getVal('bodegaSalidaInput');
-  var vSalidaUbi = getVal('ubiSalidaInput');
-  var vEntradaBod = getVal('bodegaEntradaInput');
-  var vEntradaUbi = getVal('ubiEntradaInput');
+  let vSalidaBod = getVal('bodegaSalidaInput');
+  let vSalidaUbi = getVal('ubiSalidaInput');
+  let vEntradaBod = getVal('bodegaEntradaInput');
+  let vEntradaUbi = getVal('ubiEntradaInput');
 
-  var bSalida, uSalida, bEntrada, uEntrada;
+  let bSalida, uSalida, bEntrada, uEntrada;
 
   if (tipo === "Surtido") {
     bSalida = vSalidaBod || DEFAULT_VALUE;
@@ -393,7 +395,7 @@ function agregarALista() {
   // Renderizar lista
   listaUL.innerHTML = colaDeTraspasos.map((item, i) => {
     const tipoCss = item.tipo.toLowerCase().replace(/\s+/g, '-');
-    var ubiHtml = (item.tipo === "Cambio de bodega") 
+    let ubiHtml = (item.tipo === "Cambio de bodega") 
       ? `<span class="ubi-badge">${item.ubiSalida}</span> ➔ <span class="ubi-badge">${item.ubiEntrada}</span>`
       : `<span class="ubi-badge">${item.tipo === "Acomodo" ? item.ubiEntrada : item.ubiSalida}</span>`;
 
@@ -449,13 +451,38 @@ function generar() {
     .procesarTraspasos(colaDeTraspasos);
 }
 
-  function lanzarNotificacion(m, t) {
-    const x = document.getElementById("snackbar");
-    clearTimeout(snackbarTimeout);
-    x.innerText = m;
-    x.className = `show ${t || ''}`;
-    snackbarTimeout = setTimeout(() => { x.className = x.className.replace("show", ""); }, 3000);
+// ==========================================
+// 🔘 SISTEMA DE NOTIFICACIONES (ESTILO OSCURO UX FITO)
+// ==========================================
+function lanzarNotificacion(mensaje, tipo = "info") {
+  // 1. Intentar usar el sistema unificado del contenedor principal (APPALMACEN)
+  if (typeof window.notificar === 'function') {
+    window.notificar(mensaje, tipo);
+  } else {
+    // 2. Fallback local usando SweetAlert2 oscuro si se ejecuta de forma independiente
+    const ToastOscuroLocal = Swal.mixin({
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1c1d1f',
+      color: '#ffffff',
+      iconColor: tipo === 'success' ? '#10b981' : (tipo === 'info' ? '#ffffff' : '#d93025'),
+      didOpen: (toast) => {
+        toast.addEventListener('mouseenter', Swal.stopTimer);
+        toast.addEventListener('mouseleave', Swal.resumeTimer);
+        const progress = toast.querySelector('.swal2-timer-progress-bar');
+        if (progress) progress.style.backgroundColor = '#d93025';
+      }
+    });
+
+    ToastOscuroLocal.fire({
+      icon: tipo,
+      title: mensaje
+    });
   }
+}
 
   // Salto: Solicitante -> Bodega Salida
 document.getElementById('solicitanteInput').addEventListener('change', function() {
