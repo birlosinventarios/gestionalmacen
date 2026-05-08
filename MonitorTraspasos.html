@@ -17,17 +17,25 @@
         // 1. GESTOR UNIFICADO DE NOTIFICACIONES (UX FITO)
         // ==========================================
         window.lanzarNotificacion = function(mensaje, tipo = "info") {
+          // Si el contenedor principal tiene activo el notificador unificado, lo priorizamos
           if (typeof window.notificar === 'function') {
-            window.notificar(mensaje, tipo);
-          } else if (typeof Swal !== 'undefined') {
-            // Paleta de colores para el Toast Oscuro de UX FITO
+            try {
+              window.notificar(mensaje, tipo);
+              return; // Salimos para evitar doble ejecución
+            } catch (e) {
+              console.warn("Error en el puente de notificaciones global, usando fallback local...", e);
+            }
+          }
+
+          // Fallback robusto local con SweetAlert2 si falla el puente
+          if (typeof Swal !== 'undefined') {
             const coloresIcono = {
               success: '#10b981',
               warning: '#f59e0b',
               error: '#d93025',
-              info: '#3b82f6'
+              info: '#ffffff' // Ajustado a blanco para mantener congruencia con tu UI global
             };
-            const colorSeleccionado = coloresIcono[tipo] || '#3b82f6';
+            const colorSeleccionado = coloresIcono[tipo] || '#ffffff';
 
             const ToastOscuroLocal = Swal.mixin({
               toast: true,
@@ -35,14 +43,17 @@
               showConfirmButton: false,
               timer: 3000,
               timerProgressBar: true,
-              background: '#1c1d1f',
+              background: '#1c1d1f', // Paleta UX FITO
               color: '#ffffff',
               iconColor: colorSeleccionado,
               didOpen: (toast) => {
                 toast.addEventListener('mouseenter', Swal.stopTimer);
                 toast.addEventListener('mouseleave', Swal.resumeTimer);
                 const progress = toast.querySelector('.swal2-timer-progress-bar');
-                if (progress) progress.style.backgroundColor = '#d93025'; // Acento rojo primary
+                if (progress) {
+                  // Si es éxito es verde, si es info/error usa el acento rojo de marca
+                  progress.style.backgroundColor = tipo === 'success' ? '#10b981' : '#d93025'; 
+                }
               }
             });
 
@@ -51,11 +62,10 @@
               title: mensaje
             });
           } else {
-            // Fallback clásico en snackbar si SweetAlert2 no está disponible
+            // Fallback clásico en snackbar si nada más está disponible
             const x = document.getElementById("snackbar");
             if (x) {
               x.innerText = mensaje;
-              // Aseguramos que se visualice si no hay CSS cargado para animaciones
               x.style.position = "fixed";
               x.style.bottom = "20px";
               x.style.left = "50%";

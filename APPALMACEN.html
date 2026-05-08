@@ -287,7 +287,29 @@ window.notificar = (mensaje, tipo = 'info', customTimer) => {
         });
       };
 
-      const seleccionarVista = (id, fileName) => {
+     const seleccionarVista = (id, fileName) => {
+        // --- 🧹 UX FITO: LIMPIEZA TOTAL EN EL CAMBIO DE VISTA ---
+        console.log("🧹 Cambiando de vista. Reseteando estados y limpiando memoria...");
+        
+        // 1. Matar temporizadores activos para que no dejen notificaciones "fantasma"
+        if (window.temporizadorActualizacion) {
+          clearInterval(window.temporizadorActualizacion);
+          window.temporizadorActualizacion = null;
+        }
+
+        // 2. Destruir referencias previas a lanzarNotificacion
+        if (window.lanzarNotificacion) {
+          window.lanzarNotificacion = null;
+        }
+
+        // 3. Cerrar alertas de SweetAlert residuales al vuelo
+        if (typeof Swal !== 'undefined' && Swal.isVisible()) {
+          Swal.close();
+        }
+
+        // 4. Liberar flags de escritura globales
+        window.escribiendo = false;
+
         setViewContent(""); 
         setActiveTool(id);
         setLoading(true);
@@ -296,6 +318,10 @@ window.notificar = (mensaje, tipo = 'info', customTimer) => {
           .withSuccessHandler((html) => {
             setViewContent(html);
             setLoading(false);
+          })
+          .withFailureHandler((err) => {
+            setLoading(false);
+            window.notificar("Error al cargar la vista", "error");
           })
           .obtenerContenidoVista(fileName);
       };
