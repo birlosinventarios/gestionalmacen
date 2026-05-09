@@ -141,7 +141,6 @@ var DEFAULT_VALUE = "1 - Almacen Birlos";
 var cargandoMegaData = false;
 
 // --- 2. FUNCIÓN DE MONTAJE Y RE-INICIALIZACIÓN ---
-// Esta función será invocada por APPALMACEN cada vez que la vista se dibuje en pantalla
 window.inicializarVistaTraspasos = function() {
   console.log("🛠️ Montando y re-vinculando componentes de Formulario de Traspasos...");
 
@@ -151,13 +150,23 @@ window.inicializarVistaTraspasos = function() {
   // Re-vincular los Event Listeners a los nuevos elementos del DOM
   vincularEventosDOM();
 
-  // Verificar si ya tenemos los datos en memoria
-  if (window.usuariosGlobal && window.usuariosGlobal.length > 0) {
-    console.log("⚡ [UX FITO] Reutilizando catálogo existente en memoria.");
+  // ⚡ COMPARTIMIENTO INTELIGENTE DE CACHÉ:
+  // Si la aplicación principal ya sincronizó la base de datos, usamos esa información al instante
+  if (window.DATA_ALMACEN_CACHE) {
+    console.log("⚡ [UX FITO] Cargando base de datos unificada desde APPALMACEN...");
+    window.usuariosGlobal = window.DATA_ALMACEN_CACHE.usuarios || [];
+    window.bodegasGlobal = window.DATA_ALMACEN_CACHE.bodegas || [];
+    window.todosLosCodigosGlobal = window.DATA_ALMACEN_CACHE.codigos || window.DATA_ALMACEN_CACHE.catalogo || [];
+    window.mapaUbicacionesGlobal = window.DATA_ALMACEN_CACHE.mapaUbicaciones || [];
+    
     inicializarDatalistsLocales();
-    actualizarVistaLista(); // Refrescar la cola por si se quedó algo pendiente
+    actualizarVistaLista();
+  } else if (window.usuariosGlobal && window.usuariosGlobal.length > 0) {
+    console.log("⚡ [UX FITO] Reutilizando catálogo existente en memoria local del formulario.");
+    inicializarDatalistsLocales();
+    actualizarVistaLista(); 
   } else {
-    // Si no hay datos, disparar la carga (independiente)
+    // Si por alguna razón no se ha sincronizado nada, hacemos la llamada al servidor
     window.cargar_FormularioTraspasos();
   }
 };
