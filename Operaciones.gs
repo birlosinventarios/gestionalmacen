@@ -304,7 +304,8 @@ function obtenerMovimientosBitacora() {
         descripcion: String(fila[COL_BITACORA.DESC - 1]).trim(),
         cantidad: Number(fila[COL_BITACORA.CANT - 1]) || 0,
         folio: String(fila[COL_BITACORA.FOLIO - 1]).trim(),
-        responsable: String(fila[COL_BITACORA.RESP - 1]).trim()
+        responsable: String(fila[COL_BITACORA.RESP - 1]).trim(),
+        idUnico: String(fila[COL_BITACORA.ID_UNICO - 1]).trim()
       };
     });
 

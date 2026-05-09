@@ -73,14 +73,13 @@ const refrescarDatos = useCallback(() => {
             const idUnico = `${sku} | ${serieUbicacion}`;
 
             if (!acumulador[idUnico]) {
-              acumulador[idUnico] = {
-                codigo: sku,
-                idUnico: idUnico,
-                // Si el movimiento no tiene descripción, la buscamos en el catálogo maestro
-                descripcion: mov.descripcion || catalogoGlobal[sku] || "SIN DESCRIPCIÓN",
-                saldo: 0,
-                serie: serieUbicacion,
-                bodegaActual: mov.bodegaEntrada || mov.bodegaSalida
+              acumulador[idUnicoReal] = {
+                idUnico: idUnicoReal,       // Llave maestra real (Columna O)
+                codigo: mov.codigo,         // SKU dependiente
+                descripcion: mov.descripcion || catalogoGlobal[mov.codigo] || "SIN DESCRIPCIÓN",
+                saldo: 0,                   // Comienza en cero para acumular algebraicamente
+                serie: mov.serie,           // Ubicación donde inicia el lote
+                bodegaActual: mov.bodegaEntrada || mov.bodegaSalida // Bodega asociada al movimiento
               };
             }
             
