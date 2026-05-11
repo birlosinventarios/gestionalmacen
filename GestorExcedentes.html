@@ -243,39 +243,58 @@ const datosFiltrados = useMemo(() => {
             </div>
           </div>
 
-          {/* 🔘 BOTONES FLOTANTES (UX FITO) */}
-          <div className="fixed bottom-10 right-10 flex flex-col items-end gap-4 z-">
-            {/* Buscador */}
+          {/* 🔘 BOTONES FLOTANTES: VERSIÓN ULTRA-PREMIUM */}
+          <div className="fixed bottom-10 right-10 flex flex-col items-end gap-5 z-50">
+            
+            {/* Buscador Expandible con Glassmorphism */}
             <div className="flex items-center gap-3">
               {isSearchExpanded && (
                 <input
                   ref={inputRef}
+                  autoFocus
                   type="text"
-                  placeholder="Buscar material..."
-                  className="w-72 bg-white border-2 border-[#d93025] rounded-2xl px-6 py-4 shadow-2xl outline-none font-bold text-sm animate-slide-left"
+                  placeholder="Escribe un codigo..."
+                  className="w-80 bg-white/90 backdrop-blur-md border-2 border-[#d93025] rounded-[1.25rem] px-6 py-4 shadow-[0_20px_50px_rgba(217,48,37,0.15)] outline-none font-bold text-sm text-[#1c1d1f] transition-all duration-300 placeholder-gray-400 focus:ring-4 focus:ring-[#d93025]/20 focus:border-[#d93025] animate-slide-left"
                   value={filtro}
                   onChange={(e) => setFiltro(e.target.value)}
                 />
               )}
+              
               <button 
-                onClick={() => setIsSearchExpanded(!isSearchExpanded)}
-                className={`w-16 h-16 rounded-2xl shadow-lg flex items-center justify-center text-white transition-all active:scale-95 ${isSearchExpanded ? 'bg-[#1c1d1f]' : 'bg-[#d93025]'}`}
+                onClick={() => {
+                  setIsSearchExpanded(!isSearchExpanded);
+                  if (!isSearchExpanded) {
+                    setTimeout(() => inputRef.current?.focus(), 120);
+                  } else {
+                    setFiltro(""); 
+                  }
+                }}
+                className={`w-16 h-16 rounded-[1.25rem] shadow-lg flex items-center justify-center text-white transition-all duration-500 transform active:scale-95 hover:scale-105 hover:shadow-[0_10px_25px_rgba(217,48,37,0.3)] ${
+                  isSearchExpanded 
+                    ? 'bg-[#1c1d1f] hover:bg-black ring-4 ring-black/10' 
+                    : 'bg-[#d93025] hover:bg-[#b02218] ring-4 ring-[#d93025]/10'
+                }`}
+                title={isSearchExpanded ? "Cerrar buscador" : "Buscar material"}
               >
-                <LocalIcon name={isSearchExpanded ? "x" : "search"} size={28} />
+                <LocalIcon name={isSearchExpanded ? "x" : "search"} size={26} />
               </button>
             </div>
 
-            {/* Actualizar (Sin efecto de giro en el botón completo) */}
+            {/* Botón de Actualización de Alto Contraste */}
             <button 
               onClick={refrescarDatos}
               disabled={loading}
-              className="w-16 h-16 bg-white border border-[#dadce0] rounded-2xl shadow-xl flex items-center justify-center text-[#5f6368] hover:text-[#d93025] transition-all active:scale-90"
+              className="w-16 h-16 bg-white/90 backdrop-blur-md border border-[#dadce0] rounded-[1.25rem] shadow-lg flex items-center justify-center text-[#5f6368] hover:text-[#d93025] hover:border-[#d93025]/40 transition-all duration-300 transform active:scale-95 hover:scale-105 hover:shadow-[0_10px_20px_rgba(0,0,0,0.05)] disabled:opacity-50 disabled:pointer-events-none"
               title="Actualizar tabla"
             >
               <LocalIcon 
                 name="refresh-cw" 
-                size={28} 
-                className={loading ? "animate-spin text-[#d93025]" : ""} 
+                size={26} 
+                className={`${
+                  loading 
+                    ? "animate-spin text-[#d93025]" 
+                    : "transition-transform duration-700 ease-out hover:rotate-180"
+                }`} 
               />
             </button>
           </div>
@@ -294,18 +313,17 @@ const datosFiltrados = useMemo(() => {
 
 <style>
   .animate-slide-left {
-    animation: slideL 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: slideL 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   @keyframes slideL {
     from {
       opacity: 0;
-      transform: translateX(20px);
+      transform: translateX(40px) scale(0.9);
     }
-
     to {
       opacity: 1;
-      transform: translateX(0);
+      transform: translateX(0) scale(1);
     }
   }
 </style>
