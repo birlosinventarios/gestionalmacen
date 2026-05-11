@@ -273,48 +273,41 @@ function obtenerMovimientosBitacora() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const hoja = ss.getSheetByName('Bitacora-TRASPASOS');
-    
-    if (!hoja) {
-      console.warn("⚠️ ERROR: No se encontró la pestaña 'Bitacora-TRASPASOS' en el Spreadsheet activo.");
-      return []; // Retorna un array vacío pacífico en lugar de romper la app
-    }
+    if (!hoja) return [];
 
     const rango = hoja.getDataRange();
     const valores = rango.getValues();
-    
-    if (valores.length <= 1) {
-      console.log("ℹ️ La hoja de bitácora está vacía o solo contiene la cabecera.");
-      return []; 
-    }
+    if (valores.length <= 1) return []; // Solo encabezados
 
-    // Filtramos filas que no tengan datos esenciales (como el código o la serie) para evitar basura
-    const filasDatos = valores.slice(1).filter(fila => fila[COL_BITACORA.CODIGO - 1] && fila[COL_BITACORA.SERIE - 1]);
+    // Descartamos los encabezados (fila 1)
+    const filasDatos = valores.slice(1);
 
+    // Mapeamos de forma segura cada columna por su índice real en la hoja
     const movimientos = filasDatos.map((fila, index) => {
       return {
-        idFila: index + 2, 
-        fecha: fila[COL_BITACORA.FECHA - 1] ? Utilities.formatDate(new Date(fila[COL_BITACORA.FECHA - 1]), "GMT-6", "yyyy-MM-dd") : "",
-        hora: fila[COL_BITACORA.HORA - 1] || "",
-        tipo: String(fila[COL_BITACORA.TIPO - 1]).toUpperCase().trim(),
-        serie: String(fila[COL_BITACORA.SERIE - 1]).trim(),
-        bodegaSalida: String(fila[COL_BITACORA.B_SALIDA - 1]).trim(),
-        ubiSalida: String(fila[COL_BITACORA.U_SALIDA - 1]).trim(),
-        bodegaEntrada: String(fila[COL_BITACORA.B_ENTRADA - 1]).trim(),
-        ubiEntrada: String(fila[COL_BITACORA.U_ENTRADA - 1]).trim(),
-        solicitante: String(fila[COL_BITACORA.SOLICITANTE - 1]).trim(),
-        codigo: String(fila[COL_BITACORA.CODIGO - 1]).trim(),
-        descripcion: String(fila[COL_BITACORA.DESC - 1]).trim(),
-        cantidad: Number(fila[COL_BITACORA.CANT - 1]) || 0,
-        folio: String(fila[COL_BITACORA.FOLIO - 1]).trim(),
-        responsable: String(fila[COL_BITACORA.RESP - 1]).trim(),
-        idUnico: String(fila[COL_BITACORA.IDUNICO - 1]).trim()
+        idFila: index + 2, // Fila real en la hoja de cálculo de Google
+        fecha: fila ? Utilities.formatDate(new Date(fila), "GMT-6", "yyyy-MM-dd") : "", // Col A (1)
+        hora: fila || "",                                    // Col B (2)
+        tipo: String(fila || "").toUpperCase().trim(),       // Col C (3)
+        serie: String(fila || "").trim(),                     // Col D (4)
+        bodegaSalida: String(fila || "").trim(),             // Col E (5)
+        ubiSalida: String(fila || "").trim(),                 // Col F (6)
+        bodegaEntrada: String(fila || "").trim(),            // Col G (7)
+        ubiEntrada: String(fila || "").trim(),                // Col H (8)
+        solicitante: String(fila || "").trim(),               // Col I (9)
+        codigo: String(fila || "").trim(),                   // Col J (10)
+        descripcion: String(fila || "").trim(),             // Col K (11)
+        cantidad: Number(fila || 0),                        // Col L (12)
+        folio: String(fila || "").trim(),                   // Col M (13)
+        responsable: String(fila || "").trim(),             // Col N (14)
+        idUnico: String(fila || "").trim()                  // Col O (15) (Se carga silenciosamente)
       };
     });
 
     return movimientos;
 
   } catch (error) {
-    console.error("❌ Error grave en obtenerMovimientosBitacora: " + error.toString());
-    return []; // Resguardo de seguridad
+    console.error("Error en obtenerMovimientosBitacora: " + error.message);
+    return [];
   }
 }

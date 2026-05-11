@@ -51,10 +51,10 @@ const refrescarDatos = useCallback(() => {
               const movimientosRaw = Array.isArray(res) ? res : [];
               
               console.log("📦 [BACKEND] Registros brutos recibidos de obtenerMovimientosBitacora:", res);
-              console.log(`📊 [CANTIDAD] Total de filas filtradas: ${movimientosRaw.length}`);
+              console.log(`📊 [CANTIDAD] Total de filas recibidas: ${movimientosRaw.length}`);
               
               if (movimientosRaw.length === 0) {
-                window.notificar("No hay movimientos registrados", "warning");
+                window.notificar("La bitácora está vacía o no se pudo leer", "warning");
                 setData([]);
                 setLoading(false);
                 console.groupEnd();
@@ -62,84 +62,118 @@ const refrescarDatos = useCallback(() => {
               }
 
               try {
-                const catalogoGlobal = window.GLOBAL_DATA?.mapaProductos || {};
-                const acumulador = [];
+                // --- ANALISIS Y SEGMENTACIÓN (Estilo obtenerMegaDataInicial) ---
+                const segmentacion = {
+                  totalFilas: movimientosRaw.length,
+                  porSku: {},
+                  porTipoMovimiento: { ACOMODO: [], SURTIDO: [], OTROS: [] },
+                  porUbicacion: {}
+                };
 
-                movimientosRaw.forEach((mov, index) => {
-                  const itemDepuracion = {
-                    idUnico: mov.idUnico ? mov.idUnico.trim() : `SIN_ID_UNICO_FILA_${mov.idFila || index + 2}`,
-                    codigo: mov.codigo ? mov.codigo.trim() : "SIN_CODIGO",
-                    descripcion: mov.descripcion ? mov.descripcion.trim() : (catalogoGlobal[mov.codigo] || "SIN DESCRIPCIÓN"),
-                    saldo: Number(mov.cantidad || 0),
-                    serie: mov.serie ? mov.serie.trim() : "SIN_SERIE",
+                const acumuladorLimpio = movimientosRaw.map((mov) => {
+                  const item = {
+                    idFila: mov.idFila,
+                    idUnico: mov.idUnico ? String(mov.idUnico).trim() : `FILA_${mov.idFila}`,
+                    fecha: mov.fecha || "",
+                    hora: mov.hora || "",
+                    tipo: String(mov.tipo || "").toUpperCase().trim(),
+                    serie: String(mov.serie || "SIN SERIE").toUpperCase().trim(),
+                    bodegaSalida: mov.bodegaSalida || "",
+                    ubiSalida: mov.ubiSalida || "",
+                    bodegaEntrada: mov.bodegaEntrada || "",
+                    ubiEntrada: mov.ubiEntrada || "",
+                    solicitante: mov.solicitante || "Sin Solicitante",
+                    codigo: String(mov.codigo || "S/C").toUpperCase().trim(),
+                    descripcion: String(mov.descripcion || "SIN DESCRIPCIÓN").toUpperCase().trim(),
+                    saldo: Number(mov.cantidad || 0), // Respetamos la cantidad directa registrada
+                    folio: mov.folio || "",
+                    responsable: mov.responsable || "",
                     bodegaActual: mov.bodegaEntrada || mov.bodegaSalida || "General"
                   };
 
-                  acumulador.push(itemDepuracion);
+                  // A. Agrupación por SKU (Código de Material)
+                  if (!segmentacion.porSku[item.codigo]) {
+                    segmentacion.porSku[item.codigo] = [];
+                  }
+                  segmentacion.porSku[item.codigo].push(item);
+
+                  // B. Agrupación por Tipo de Movimiento
+                  if (item.tipo.includes("ACOMODO") || item.tipo.includes("ENTRADA")) {
+                    segmentacion.porTipoMovimiento.ACOMODO.push(item);
+                  } else if (item.tipo.includes("SURTIDO") || item.tipo.includes("SALIDA")) {
+                    segmentacion.porTipoMovimiento.SURTIDO.push(item);
+                  } else {
+                    segmentacion.porTipoMovimiento.OTROS.push(item);
+                  }
+
+                  // C. Agrupación por Ubicación (Serie)
+                  if (!segmentacion.porUbicacion[item.serie]) {
+                    segmentacion.porUbicacion[item.serie] = [];
+                  }
+                  segmentacion.porUbicacion[item.serie].push(item);
+
+                  return item;
                 });
 
-                console.log("🚀 [FRONTEND] Datos procesados listos para inyectar en la vista:", acumulador);
+                // Imprimimos la estructura organizada en consola para tu análisis
+                console.group("📊 [ANÁLISIS DE SEGMENTACIÓN EN CONSOLA]");
+                console.log("🔍 Agrupados por SKU (Código):", segmentacion.porSku);
+                console.log("🔄 Agrupados por Tipo de Movimiento:", segmentacion.porTipoMovimiento);
+                console.log("📍 Agrupados por Ubicación (Serie):", segmentacion.porUbicacion);
+                console.groupEnd();
 
-                setData(acumulador);
-                window.notificar("Datos cargados correctamente", "success");
-                
+                // Guardamos los datos mapeados en el estado
+                setData(acumuladorLimpio);
+                window.notificar("Datos de la bitácora sincronizados", "success");
+
               } catch (err) {
-                console.error("❌ Error durante el procesamiento en frontend:", err);
-                window.notificar("Error al estructurar datos de depuración", "error");
+                console.error("❌ Error procesando los datos en Frontend:", err);
+                window.notificar("Error de formato de datos", "error");
               }
-              
+
               setLoading(false);
               console.groupEnd();
             })
             .withFailureHandler((err) => {
-              console.error("❌ Error crítico en obtenerMovimientosBitacora:", err);
-              window.notificar("Error de red", "error");
+              console.error("❌ Error de comunicación con Google Apps Script:", err);
+              window.notificar("Error de red al conectar al servidor", "error");
               setLoading(false);
               console.groupEnd();
             })
             .obtenerMovimientosBitacora();
 
         } else {
-          // --- DATOS DE SIMULACIÓN (MODO LOCAL) ---
-          console.warn("⚠️ Ejecutando en entorno local (Fuera de Google Apps Script). Cargando datos de simulación.");
+          // Modo simulación local por si abres el HTML fuera de Google Sheets
+          console.warn("⚠️ Entorno local detectado. Cargando simulación de datos.");
           setTimeout(() => {
-            const simulacionCruda = [
-              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: 600, tipo: "ACOMODO", serie: "B1-01", bodegaEntrada: "Bodega 1", idUnico: "202603111000&B-200&#B1-01" },
-              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: -100, tipo: "SURTIDO", serie: "B1-01", bodegaSalida: "Bodega 1", idUnico: "202603111000&B-200&#B1-01" },
-              { codigo: "T-500", descripcion: "TORNILLO HEXAGONAL 1/2", cantidad: 1200, tipo: "ACOMODO", serie: "B2-05", bodegaEntrada: "Bodega 2", idUnico: "202603111230&T-500&#B2-05" }
+            const simulacion = [
+              { idFila: 2, codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: 600, tipo: "ACOMODO", serie: "B1-01", bodegaEntrada: "Bodega 1", idUnico: "ID-999" }
             ];
-
-            console.log("📦 [LOCAL] Cargando simulación cruda:", simulacionCruda);
-
-            const datosSimulados = simulacionCruda.map(mov => ({
-              idUnico: mov.idUnico,
-              codigo: mov.codigo,
-              descripcion: mov.descripcion,
-              saldo: mov.cantidad,
-              serie: mov.serie,
-              bodegaActual: mov.bodegaEntrada || mov.bodegaSalida
-            }));
-
-            console.log("🚀 [LOCAL] Simulación lista para inyectar:", datosSimulados);
-            setData(datosSimulados);
+            setData(simulacion);
             setLoading(false);
+            console.groupEnd();
           }, 800);
         }
       }, []);
 
-      useEffect(() => { refrescarDatos(); }, [refrescarDatos]);
-
+      // Disparador de carga inicial
       useEffect(() => {
-        if (isSearchExpanded && inputRef.current) inputRef.current.focus();
-      }, [isSearchExpanded]);
+        refrescarDatos();
+      }, [refrescarDatos]);
 
-      const filtered = useMemo(() => {
-        const q = filtro.toLowerCase().trim();
-        return q ? data.filter(d => 
-          (d.codigo || "").toLowerCase().includes(q) || 
-          (d.descripcion || "").toLowerCase().includes(q) ||
-          (d.idUnico || "").toLowerCase().includes(q)
-        ) : data;
+
+      // ==========================================
+      // 2. FILTRADO SEGURO (Previene "filtered is not defined")
+      // ==========================================
+      const filteredData = useMemo(() => {
+        if (!filtro) return data;
+        const f = filtro.toLowerCase().trim();
+        return data.filter(item => 
+          item.codigo.toLowerCase().includes(f) ||
+          item.descripcion.toLowerCase().includes(f) ||
+          item.serie.toLowerCase().includes(f) ||
+          item.idUnico.toLowerCase().includes(f)
+        );
       }, [data, filtro]);
 
       return (
@@ -190,7 +224,7 @@ const refrescarDatos = useCallback(() => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f3f4] bg-white">
-                  {filtered.map((item, i) => (
+                  {filteredData.map((item, idx) => (
                     <tr key={item.idUnico || i} className="group hover:bg-[#fcfcfc] transition-colors">
                       
                       {/* SKU: Alineado a la izquierda con ID en formato Label de alto contraste */}
