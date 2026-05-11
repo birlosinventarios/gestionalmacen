@@ -56,34 +56,37 @@ const refrescarDatos = () => {
 
       // Agrupamos por eidUnico para obtener el saldo neto real en excedentes
       const mapaSaldos = movimientosCrudos.reduce((acc, mov) => {
-        const id = mov.eidUnico;
-        if (!id) return acc; // Ignoramos movimientos sin identificador único
+          const id = mov.eidUnico;
+          if (!id) return acc; // Ignoramos movimientos sin identificador único
 
-        if (!acc[id]) {
-          // Copiamos las propiedades del movimiento inicial
-          acc[id] = { ...mov, saldoCalculado: 0 };
-        }
+          if (!acc[id]) {
+            // Copiamos las propiedades del movimiento inicial
+            // Inicializamos 'esaldo' en 0 para mantener consistencia con el diseño de tu tabla
+            acc[id] = { ...mov, esaldo: 0 };
+          }
 
-        // Sumamos (Acomodo aumenta saldo (+), Surtido disminuye saldo (-))
-        acc[id].saldoCalculado += Number(mov.ecantidad || 0);
-        return acc;
-      }, {});
+          // Sumamos (Acomodo aumenta saldo (+), Surtido disminuye saldo (-))
+          // Nota: Asegúrate de que en la bitácora las salidas/surtidos ya vengan con valor negativo en ecantidad,
+          // o que apliques lógica de tipo de movimiento si es necesario.
+          acc[id].esaldo += Number(mov.ecantidad || 0);
+          return acc;
+        }, {});
 
       // Filtramos para mostrar únicamente lo que tiene saldo en existencia actualmente (> 0)
       const excedentesReales = Object.values(mapaSaldos).filter(
-        (item) => item.saldoCalculado > 0
-      );
+          (item) => item.esaldo > 0
+        );
 
-      setDatos(excedentesReales); // Guarda el array en el estado 'datos'
-      setLoading(false);
-    })
-    .withFailureHandler((err) => {
-      console.error("Error cargando excedentes:", err);
-      Swal.fire("Error", "No se pudieron recuperar los movimientos de la bitácora", "error");
-      setLoading(false);
-    })
-    .obtenerMovimientosBitacora();
-};
+        setDatos(excedentesReales); // Guarda el array en el estado 'data'
+        setLoading(false);
+      })
+      .withFailureHandler((err) => {
+        console.error("Error cargando excedentes:", err);
+        Swal.fire("Error", "No se pudieron recuperar los movimientos de la bitácora", "error");
+        setLoading(false);
+      })
+      .obtenerMovimientosBitacora();
+  };
 
 const procesarSaldos = (movimientos) => {
   // 1. Agrupamos por IDUNICO para sumar cantidades
@@ -105,14 +108,14 @@ const procesarSaldos = (movimientos) => {
 };
 
 const datosFiltrados = useMemo(() => {
-        if (!filtro.trim()) return data;
-        const f = filtro.toLowerCase().trim();
-        return data.filter(item => 
-          (item.ecodigo && item.ecodigo.toLowerCase().includes(f)) ||
-          (item.eidUnico && item.eidUnico.toLowerCase().includes(f)) ||
-          (item.edescripcion && item.edescripcion.toLowerCase().includes(f))
-        );
-      }, [data, filtro]);
+    if (!filtro.trim()) return data;
+    const f = filtro.toLowerCase().trim();
+    return data.filter(item => 
+      (item.ecodigo && item.ecodigo.toLowerCase().includes(f)) ||
+      (item.eidUnico && item.eidUnico.toLowerCase().includes(f)) ||
+      (item.edescripcion && item.edescripcion.toLowerCase().includes(f))
+    );
+  }, [data, filtro]);
 
 
 

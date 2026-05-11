@@ -282,7 +282,8 @@ function obtenerMovimientosBitacora() {
     return valores.slice(1)
       .filter(fila => fila[COL_BITACORA.CODIGO - 1]) 
       .map((fila, index) => {
-        // Validación de fecha para evitar errores de sistema
+        
+        // 1. VALIDACIÓN Y FORMATEO DE FECHA (Aquí sí sirve)
         let fechaProcesada = "";
         try {
           if (fila[COL_BITACORA.FECHA - 1] instanceof Date) {
@@ -290,25 +291,24 @@ function obtenerMovimientosBitacora() {
           } else if (fila[COL_BITACORA.FECHA - 1]) {
             fechaProcesada = String(fila[COL_BITACORA.FECHA - 1]);
           }
-        } catch(e) { fechaProcesada = ""; }
+        } catch(e) { 
+          fechaProcesada = ""; 
+        }
 
+        // 2. RETORNO CORREGIDO (Sin doble return y usando 'fechaProcesada')
         return {
-          idFila: index + 2,
-          fecha: fechaProcesada,                                     // Col A
-          hora: fila[COL_BITACORA.HORA - 1] || "",                   // Col B
-          tipo: String(fila[COL_BITACORA.TIPO - 1]).toUpperCase().trim(), // Col C
-          serie: String(fila[COL_BITACORA.SERIE - 1]).trim(),        // Col D
-          bodegaSalida: String(fila[COL_BITACORA.B_SALIDA - 1]).trim(),// Col E
-          ubiSalida: String(fila[COL_BITACORA.U_SALIDA - 1]).trim(),    // Col F
-          bodegaEntrada: String(fila[COL_BITACORA.B_ENTRADA - 1]).trim(),// Col G
-          ubiEntrada: String(fila[COL_BITACORA.U_ENTRADA - 1]).trim(),   // Col H
-          solicitante: String(fila[COL_BITACORA.SOLICITANTE - 1]).trim(),// Col I
-          codigo: String(fila[COL_BITACORA.CODIGO - 1]).trim(),       // Col J
-          descripcion: String(fila[COL_BITACORA.DESC - 1]).trim(),     // Col K
-          cantidad: Number(fila[COL_BITACORA.CANT - 1] || 0),        // Col L
-          folio: String(fila[COL_BITACORA.FOLIO - 1]).trim(),        // Col M
-          responsable: String(fila[COL_BITACORA.RESP - 1]).trim(),   // Col N
-          idUnico: String(fila[COL_BITACORA.IDUNICO - 1]).trim()     // Col O
+          eidFila: index + 2,
+          efecha: fechaProcesada, // <--- CAMBIO CLAVE: Ahora sí usamos la fecha limpia y formateada
+          etipo: String(fila[COL_BITACORA.TIPO - 1]).toUpperCase().trim(),
+          eserie: String(fila[COL_BITACORA.SERIE - 1]).trim(),
+          ebodegaEntrada: String(fila[COL_BITACORA.B_ENTRADA - 1]).trim(),
+          ebodegaSalida: String(fila[COL_BITACORA.B_SALIDA - 1]).trim(),
+          ecodigo: String(fila[COL_BITACORA.CODIGO - 1]).trim(),
+          edescripcion: String(fila[COL_BITACORA.DESC - 1]).trim(),
+          ecantidad: Number(fila[COL_BITACORA.CANT - 1] || 0),
+          efolio: String(fila[COL_BITACORA.FOLIO - 1]).trim(),
+          eresponsable: String(fila[COL_BITACORA.RESP - 1]).trim(),
+          eidUnico: String(fila[COL_BITACORA.IDUNICO - 1]).trim()
         };
       });
   } catch (error) {
