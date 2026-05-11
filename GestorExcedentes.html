@@ -41,159 +41,88 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
 
       // --- CARGA DE DATOS ---
 const refrescarDatos = useCallback(() => {
-        setLoading(true);
-        
-        console.group("🔌 [CONEXIÓN] Sincronizando Bitácora - Depuración Cruda");
-        
-        if (typeof google !== 'undefined' && google.script && google.script.run) {
-          google.script.run
+    setLoading(true);
+    
+    console.group("🔌 [CONEXIÓN] Sincronizando Gestor de Excedentes");
+    
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
             .withSuccessHandler((res) => {
-              const movimientosRaw = Array.isArray(res) ? res : [];
-              
-              console.log("📦 [BACKEND] Registros brutos recibidos de obtenerMovimientosBitacora:", res);
-              console.log(`📊 [CANTIDAD] Total de filas recibidas: ${movimientosRaw.length}`);
-              
-              if (movimientosRaw.length === 0) {
-                window.notificar("No hay movimientos registrados", "warning");
-                setData([]);
+                const movimientosRaw = Array.isArray(res) ? res : [];
+                
+                if (movimientosRaw.length === 0) {
+                    window.notificar("No hay movimientos para procesar", "warning");
+                    setData([]);
+                    setLoading(false);
+                    console.groupEnd();
+                    return;
+                }
+
+                try {
+                    const catalogoGlobal = window.DATOS_INICIALES?.catalogo || window.GLOBAL_DATA?.mapaProductos || {};
+                    
+                    // --- MAPEADO CON PREFIJO "E" (EXCEDENTES) ---
+                    const acumuladorE = movimientosRaw.map((mov, index) => {
+                        const codigoLimpio = mov.codigo ? String(mov.codigo).trim() : "SIN_CODIGO";
+                        
+                        // Buscamos descripción en el catálogo usando el código de la bitácora
+                        let descMaestra = "SIN DESCRIPCIÓN";
+                        if (mov.descripcion) {
+                            descMaestra = String(mov.descripcion).trim();
+                        } else if (catalogoGlobal[codigoLimpio]) {
+                            descMaestra = typeof catalogoGlobal[codigoLimpio] === 'object' 
+                                ? (catalogoGlobal[codigoLimpio].descripcion || "SIN DESC")
+                                : String(catalogoGlobal[codigoLimpio]);
+                        }
+
+                        return {
+                            eidFila: mov.idFila || (index + 2),
+                            eidUnico: mov.idUnico ? String(mov.idUnico).trim() : `E-${index}`,
+                            ecodigo: codigoLimpio,
+                            edescripcion: descMaestra.toUpperCase(),
+                            ecantidad: Number(mov.cantidad || 0),
+                            eserie: mov.serie ? String(mov.serie).trim().toUpperCase() : "S/S",
+                            etipo: mov.tipo ? String(mov.tipo).trim().toUpperCase() : "OTROS",
+                            ebodegaActual: mov.bodegaEntrada || mov.bodegaSalida || "GENERAL"
+                        };
+                    });
+
+                    // --- VISUALIZACIÓN DETALLADA EN CONSOLA ---
+                    console.log("✅ Datos Mapeados con Prefijo 'E':");
+                    console.table(acumuladorE.slice(0, 10)); // Muestra los primeros 10 para no saturar, pero en formato tabla
+                    console.log("📦 Total registros cargados:", acumuladorE.length);
+
+                    setData(acumuladorE);
+                    window.notificar("Bitácora E sincronizada", "success");
+                    
+                } catch (err) {
+                    console.error("❌ Error en mapeo frontend:", err);
+                }
+                
                 setLoading(false);
                 console.groupEnd();
-                return;
-              }
-
-              try {
-                // Buscamos catálogo en DATOS_INICIALES o en GLOBAL_DATA de forma segura
-                const catalogoGlobal = window.DATOS_INICIALES?.catalogo || window.GLOBAL_DATA?.mapaProductos || {};
-                const acumulador = [];
-
-                // --- SEGMENTACIÓN PARA LA CONSOLA (Estilo obtenerMegaDataInicial) ---
-                const segmentacionBitacora = {
-                  totalRegistros: movimientosRaw.length,
-                  porSku: {},
-                  porUbicacion: {},
-                  porTipo: { ACOMODO: [], SURTIDO: [], OTROS: [] }
-                };
-
-                movimientosRaw.forEach((mov, index) => {
-                  // Conversiones seguras a String para evitar que .trim() rompa números
-                  const codigoStr = mov.codigo ? String(mov.codigo).trim() : "SIN_CODIGO";
-                  const idUnicoStr = mov.idUnico ? String(mov.idUnico).trim() : `FILA_${mov.idFila || index + 2}`;
-                  const serieStr = mov.serie ? String(mov.serie).trim().toUpperCase() : "SIN_SERIE";
-                  const tipoStr = mov.tipo ? String(mov.tipo).trim().toUpperCase() : "OTROS";
-
-                  // Búsqueda de descripción segura
-                  let descripcionStr = "SIN DESCRIPCIÓN";
-                  if (mov.descripcion) {
-                    descripcionStr = String(mov.descripcion).trim();
-                  } else if (catalogoGlobal[codigoStr]) {
-                    // Si el catálogo es un arreglo, buscamos el objeto; si es un mapa llave-valor, accedemos directo
-                    descripcionStr = typeof catalogoGlobal[codigoStr] === 'object' 
-                      ? (catalogoGlobal[codigoStr].descripcion || catalogoGlobal[codigoStr].desc || "SIN DESCRIPCIÓN")
-                      : String(catalogoGlobal[codigoStr]);
-                  }
-
-                  const itemDepuracion = {
-                    idFila: mov.idFila || (index + 2),
-                    idUnico: idUnicoStr,
-                    codigo: codigoStr,
-                    descripcion: descripcionStr.toUpperCase(),
-                    saldo: Number(mov.cantidad || 0),
-                    serie: serieStr,
-                    tipo: tipoStr,
-                    bodegaActual: mov.bodegaEntrada || mov.bodegaSalida || "General"
-                  };
-
-                  acumulador.push(itemDepuracion);
-
-                  // --- Agrupaciones para la consola ---
-                  if (!segmentacionBitacora.porSku[codigoStr]) segmentacionBitacora.porSku[codigoStr] = [];
-                  segmentacionBitacora.porSku[codigoStr].push(itemDepuracion);
-
-                  if (!segmentacionBitacora.porUbicacion[serieStr]) segmentacionBitacora.porUbicacion[serieStr] = [];
-                  segmentacionBitacora.porUbicacion[serieStr].push(itemDepuracion);
-
-                  if (tipoStr.includes("ACOMODO") || tipoStr.includes("ENTRADA")) {
-                    segmentacionBitacora.porTipo.ACOMODO.push(itemDepuracion);
-                  } else if (tipoStr.includes("SURTIDO") || tipoStr.includes("SALIDA")) {
-                    segmentacionBitacora.porTipo.SURTIDO.push(itemDepuracion);
-                  } else {
-                    segmentacionBitacora.porTipo.OTROS.push(itemDepuracion);
-                  }
-                });
-
-                // Imprimimos la segmentación súper limpia en tu consola:
-                console.group("📊 [SEGMENTACIÓN DE BITÁCORA-TRASPASOS]");
-                console.log("🔍 Agrupados por Código (SKU):", segmentacionBitacora.porSku);
-                console.log("🔄 Agrupados por Tipo de Movimiento:", segmentacionBitacora.porTipo);
-                console.log("📍 Agrupados por Ubicación (Serie):", segmentacionBitacora.porUbicacion);
-                console.log("📋 Lista Estructurada Completa:", acumulador);
-                console.groupEnd();
-
-                setData(acumulador);
-                window.notificar("Datos cargados correctamente", "success");
-                
-              } catch (err) {
-                console.error("❌ Error durante el procesamiento en frontend:", err);
-                window.notificar("Error al estructurar datos de depuración", "error");
-              }
-              
-              setLoading(false);
-              console.groupEnd();
             })
             .withFailureHandler((err) => {
-              console.error("❌ Error crítico en obtenerMovimientosBitacora:", err);
-              window.notificar("Error de red", "error");
-              setLoading(false);
-              console.groupEnd();
+                console.error("❌ Error crítico:", err);
+                setLoading(false);
+                console.groupEnd();
             })
             .obtenerMovimientosBitacora();
+    }
+}, []);
 
-        } else {
-          // --- MODO SIMULACIÓN ---
-          console.warn("⚠️ Ejecutando en entorno local (Fuera de Google Apps Script). Cargando datos de simulación.");
-          setTimeout(() => {
-            const simulacionCruda = [
-              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: 600, tipo: "ACOMODO", serie: "B1-01", bodegaEntrada: "Bodega 1", idUnico: "202603111000&B-200&#B1-01" },
-              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: -100, tipo: "SURTIDO", serie: "B1-01", bodegaSalida: "Bodega 1", idUnico: "202603111000&B-200&#B1-01" },
-              { codigo: "T-500", descripcion: "TORNILLO HEXAGONAL 1/2", cantidad: 1200, tipo: "ACOMODO", serie: "B2-05", bodegaEntrada: "Bodega 2", idUnico: "202603111230&T-500&#B2-05" }
-            ];
-
-            const datosSimulados = simulacionCruda.map(mov => ({
-              idUnico: mov.idUnico,
-              codigo: mov.codigo,
-              descripcion: mov.descripcion,
-              saldo: mov.cantidad,
-              serie: mov.serie,
-              bodegaActual: mov.bodegaEntrada || mov.bodegaSalida
-            }));
-
-            setData(datosSimulados);
-            setLoading(false);
-          }, 800);
-        }
-      }, []);
-
-      const filtered = useMemo(() => {
-        // Si el estado 'data' no es un arreglo o está vacío, regresamos un arreglo vacío seguro
-        if (!Array.isArray(data)) return [];
-        
-        // Si no hay término de búsqueda en tu input de filtro, mostramos todos los datos
-        if (!filtro) return data;
-        
-        const f = filtro.toLowerCase().trim();
-        
-        return data.filter(item => {
-          const codigo = item.codigo ? String(item.codigo).toLowerCase() : "";
-          const descripcion = item.descripcion ? String(item.descripcion).toLowerCase() : "";
-          const serie = item.serie ? String(item.serie).toLowerCase() : "";
-          const idUnico = item.idUnico ? String(item.idUnico).toLowerCase() : "";
-          
-          return codigo.includes(f) || 
-                 descripcion.includes(f) || 
-                 serie.includes(f) || 
-                 idUnico.includes(f);
-        });
-      }, [data, filtro]);
+// --- FILTRADO ACTUALIZADO ---
+const filteredData = useMemo(() => {
+    if (!Array.isArray(data)) return [];
+    if (!filtro) return data;
+    
+    const f = filtro.toLowerCase().trim();
+    return data.filter(item => 
+        item.ecodigo.toLowerCase().includes(f) || 
+        item.edescripcion.toLowerCase().includes(f) ||
+        item.eserie.toLowerCase().includes(f)
+    );
+}, [data, filtro]);
 
       return (
         <div className="h-full w-full flex flex-col relative bg-[#f8f9fa]">
@@ -209,14 +138,14 @@ const refrescarDatos = useCallback(() => {
             
             <SummaryCard 
               label="Stock Total Excedente" 
-              value={data.reduce((acc, item) => acc + (Number(item.saldo) || 0), 0)} 
+              value={data.reduce((acc, item) => acc + (Number(item.esaldo) || 0), 0)} 
               iconName="package-check" 
               colorClass="bg-emerald-50 text-emerald-600 border-emerald-100" 
             />
             
             <SummaryCard 
               label="Resultados Búsqueda" 
-              value={filtered.length} 
+              value={filteredData.length} 
               iconName="search" 
               colorClass="bg-[#fffafa] text-[#d93025] border-[#fdecea]" 
             />
@@ -243,20 +172,20 @@ const refrescarDatos = useCallback(() => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f3f4] bg-white">
-                  {filtered.map((item, idx) => (
-                    <tr key={item.idUnico || i} className="group hover:bg-[#fcfcfc] transition-colors">
+                  {filteredData.map((item, idx) => (
+                    <tr key={item.eidUnico || i} className="group hover:bg-[#fcfcfc] transition-colors">
                       
                       {/* SKU: Alineado a la izquierda con ID en formato Label de alto contraste */}
                       <td className="px-6 py-4 text-left">
                         <div className="flex flex-col items-start gap-1.5">
                             {/* Código con contraste por grosor y tamaño */}
                           <span className="text-[18px] font-black text-[#1c1d1f] leading-none ml-0.5">
-                            {item.codigo}
+                            {item.ecodigo}
                           </span>
 
                           {/* ID UNICO como Label/Badge de alto contraste */}
                           <span className="inline-block px-3 py-1 rounded-md bg-[#d93025]/15 border border-[#d93025]/30 text-[#d93025] font-mono text-[20px] font-bold tracking-wider shadow-sm backdrop-blur-sm">
-                            {item.idUnico}
+                            {item.eidUnico}
                           </span>                    
                         </div>
                       </td>    
@@ -264,7 +193,7 @@ const refrescarDatos = useCallback(() => {
                       {/* DESCRIPCIÓN: Alineado a la derecha */}
                       <td className="px-6 py-4 text-center">
                         <span className="text-[20px] font-medium text-[#3c4043] leading-tight block">
-                          {item.descripcion}
+                          {item.edescripcion}
                         </span>
                       </td>
 
@@ -273,7 +202,7 @@ const refrescarDatos = useCallback(() => {
                         <div className="inline-flex flex-col items-end">
                           {/* Texto ahora en negro sólido */}
                           <span className="text-[20px] font-black text-[#1c1d1f]">
-                            {item.saldo || 0}
+                            {item.esaldo || 0}
                           </span>
                           <span className="text-[15px] font-bold uppercase text-[#9aa0a6] tracking-tighter">
                             Unidades Disp.
@@ -286,13 +215,13 @@ const refrescarDatos = useCallback(() => {
                         <div className="flex flex-col items-center">
                           {/* Serie con estilo destacado utilizando la propiedad ya depurada */}
                           <span className="text-[20px] text-[#5f6368] font-medium bg-gray-100 px-3 py-0.5 rounded-lg mb-1">
-                            {item.serie || 'Sin Serie'}
+                            {item.eserie || 'Sin Serie'}
                           </span>
 
                           {/* Lógica Condicional para el nombre de la Bodega */}
                           <span className="text-[20px] font-bold text-[#1c1d1f]">
                             {(() => {
-                              const serie = (item.serie || "").toUpperCase();
+                              const serie = (item.eserie || "").toUpperCase();
                               if (serie.startsWith("B1")) return "Bodega 1";
                               if (serie.startsWith("B2")) return "Bodega 2";
                               if (serie.startsWith("B3")) return "Bodega 3";
@@ -300,7 +229,7 @@ const refrescarDatos = useCallback(() => {
                               if (serie.startsWith("CB1")) return "Casa Blanca 1";
                               if (serie.startsWith("CB2")) return "Casa Blanca 2";
                               
-                              return item.bodegaActual || 'Almacén Central';
+                              return item.ebodegaActual || 'Almacén Central';
                             })()}
                           </span>
                         </div>
