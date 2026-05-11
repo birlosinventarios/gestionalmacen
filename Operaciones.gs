@@ -5,7 +5,8 @@
 const COL_BITACORA = {
   FECHA: 1, HORA: 2, TIPO: 3, SERIE: 4, B_SALIDA: 5, U_SALIDA: 6,
   B_ENTRADA: 7, U_ENTRADA: 8, SOLICITANTE: 9, CODIGO: 10, 
-  DESC: 11, CANT: 12, FOLIO: 13, RESP: 14
+  DESC: 11, CANT: 12, FOLIO: 13, RESP: 14,
+  IDUNICO: 15
 };
 
 function procesarTraspasos(lote) {
@@ -47,7 +48,7 @@ function procesarTraspasos(lote) {
         cantidadConSigno = -cantidadAbsoluta; // Negativo
       }
 
-      const fila = new Array(14).fill("");
+      const fila = new Array(15).fill("");
       fila[COL_BITACORA.FECHA - 1] = config.fecha;
       fila[COL_BITACORA.HORA - 1] = config.hora;
       fila[COL_BITACORA.TIPO - 1] = item.tipo;
@@ -61,13 +62,14 @@ function procesarTraspasos(lote) {
       fila[COL_BITACORA.DESC - 1] = item.descripcion.toUpperCase();
       fila[COL_BITACORA.CANT - 1] = cantidadConSigno; // <-- Aquí inyectamos el valor con signo calculado
       fila[COL_BITACORA.FOLIO - 1] = ""; 
-      fila[COL_BITACORA.RESP - 1] = ""; 
+      fila[COL_BITACORA.RESP - 1] = "";
+      fila[COL_BITACORA.IDUNICO - 1] = "";  
       
       return fila;
     });
 
     const startRow = hoja.getLastRow() + 1;
-    hoja.getRange(startRow, 1, filasParaInsertar.length, 14).setValues(filasParaInsertar);
+    hoja.getRange(startRow, 1, filasParaInsertar.length, 15).setValues(filasParaInsertar);
     
     // Forzamos el guardado inmediato
     SpreadsheetApp.flush(); 
@@ -305,7 +307,7 @@ function obtenerMovimientosBitacora() {
         cantidad: Number(fila[COL_BITACORA.CANT - 1]) || 0,
         folio: String(fila[COL_BITACORA.FOLIO - 1]).trim(),
         responsable: String(fila[COL_BITACORA.RESP - 1]).trim(),
-        idUnico: String(fila[COL_BITACORA.ID_UNICO - 1]).trim()
+        idUnico: String(fila[COL_BITACORA.IDUNICO - 1]).trim()
       };
     });
 

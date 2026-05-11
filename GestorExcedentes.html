@@ -39,101 +39,88 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
       const [isSearchExpanded, setIsSearchExpanded] = useState(false);
       const inputRef = useRef(null);
 
-      // --- CARGA DE DATOS OPTIMIZADA ---
+      // --- CARGA DE DATOS ---
 const refrescarDatos = useCallback(() => {
-  setLoading(true);
-  
-  console.group("🔌 [CONEXIÓN] Sincronizando Bitácora");
-  
-  if (typeof google !== 'undefined' && google.script && google.script.run) {
-    google.script.run
-      .withSuccessHandler((res) => {
-        // 1. Ahora 'res' es estrictamente un Array de movimientos (más ligero)
-        const movimientosRaw = Array.isArray(res) ? res : [];
+        setLoading(true);
         
-        if (movimientosRaw.length === 0) {
-          window.notificar("No hay movimientos registrados", "warning");
-          setData([]);
-          setLoading(false);
-          return;
-        }
+        console.group("🔌 [CONEXIÓN] Sincronizando Bitácora - Depuración Cruda");
+        
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler((res) => {
+              const movimientosRaw = Array.isArray(res) ? res : [];
+              
+              console.log("📦 [BACKEND] Registros brutos recibidos de obtenerMovimientosBitacora:", res);
+              console.log(`📊 [CANTIDAD] Total de filas filtradas: ${movimientosRaw.length}`);
+              
+              if (movimientosRaw.length === 0) {
+                window.notificar("No hay movimientos registrados", "warning");
+                setData([]);
+                setLoading(false);
+                console.groupEnd();
+                return;
+              }
 
-        try {
-          // 2. Usamos el catálogo global que cargó APPALMACEN para cruzar datos si es necesario
-          // Aunque los movimientos ya traen descripción, esto asegura consistencia.
-          const catalogoGlobal = window.GLOBAL_DATA?.mapaProductos || {};
+              try {
+                const catalogoGlobal = window.GLOBAL_DATA?.mapaProductos || {};
+                const acumulador = [];
 
-          const acumulador = {};
-          
-          movimientosRaw.forEach((mov) => {
-            if (!mov.codigo || !mov.serie) return;
+                movimientosRaw.forEach((mov, index) => {
+                  const itemDepuracion = {
+                    idUnico: mov.idUnico ? mov.idUnico.trim() : `SIN_ID_UNICO_FILA_${mov.idFila || index + 2}`,
+                    codigo: mov.codigo ? mov.codigo.trim() : "SIN_CODIGO",
+                    descripcion: mov.descripcion ? mov.descripcion.trim() : (catalogoGlobal[mov.codigo] || "SIN DESCRIPCIÓN"),
+                    saldo: Number(mov.cantidad || 0),
+                    serie: mov.serie ? mov.serie.trim() : "SIN_SERIE",
+                    bodegaActual: mov.bodegaEntrada || mov.bodegaSalida || "General"
+                  };
 
-            const sku = mov.codigo.toUpperCase().trim();
-            const serieUbicacion = mov.serie.toUpperCase().trim();
-            const idUnico = `${sku} | ${serieUbicacion}`;
+                  acumulador.push(itemDepuracion);
+                });
 
-            if (!acumulador[idUnico]) {
-              acumulador[idUnicoReal] = {
-                idUnico: idUnicoReal,       // Llave maestra real (Columna O)
-                codigo: mov.codigo,         // SKU dependiente
-                descripcion: mov.descripcion || catalogoGlobal[mov.codigo] || "SIN DESCRIPCIÓN",
-                saldo: 0,                   // Comienza en cero para acumular algebraicamente
-                serie: mov.serie,           // Ubicación donde inicia el lote
-                bodegaActual: mov.bodegaEntrada || mov.bodegaSalida // Bodega asociada al movimiento
-              };
-            }
-            
-            // Sumamos la cantidad al balance del ID Único
-            acumulador[idUnico].saldo += Number(mov.cantidad || 0);
-          });
+                console.log("🚀 [FRONTEND] Datos procesados listos para inyectar en la vista:", acumulador);
 
-          // 3. Actualizamos el estado solo con los datos procesados
-          setData(Object.values(acumulador));
-          window.notificar("Vista actualizada", "success");
-          
-        } catch (err) {
-          console.error("Error en procesamiento:", err);
-          window.notificar("Error al procesar el balance", "error");
-        }
-        setLoading(false);
-        console.groupEnd();
-      })
-      .withFailureHandler((err) => {
-        window.notificar("Error de red", "error");
-        setLoading(false);
-        console.groupEnd();
-      })
-      .obtenerMovimientosBitacora(); // Esta función en el .gs ya no debe devolver usuarios ni bodegas
+                setData(acumulador);
+                window.notificar("Datos cargados correctamente", "success");
+                
+              } catch (err) {
+                console.error("❌ Error durante el procesamiento en frontend:", err);
+                window.notificar("Error al estructurar datos de depuración", "error");
+              }
+              
+              setLoading(false);
+              console.groupEnd();
+            })
+            .withFailureHandler((err) => {
+              console.error("❌ Error crítico en obtenerMovimientosBitacora:", err);
+              window.notificar("Error de red", "error");
+              setLoading(false);
+              console.groupEnd();
+            })
+            .obtenerMovimientosBitacora();
 
-  } else {
+        } else {
           // --- DATOS DE SIMULACIÓN (MODO LOCAL) ---
           console.warn("⚠️ Ejecutando en entorno local (Fuera de Google Apps Script). Cargando datos de simulación.");
           setTimeout(() => {
             const simulacionCruda = [
-              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: 600, tipo: "ACOMODO", serie: "B1-01", bodegaEntrada: "Bodega 1" },
-              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: -100, tipo: "SURTIDO", serie: "B1-01", bodegaSalida: "Bodega 1" },
-              { codigo: "T-500", descripcion: "TORNILLO HEXAGONAL 1/2", cantidad: 1200, tipo: "ACOMODO", serie: "B2-05", bodegaEntrada: "Bodega 2" }
+              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: 600, tipo: "ACOMODO", serie: "B1-01", bodegaEntrada: "Bodega 1", idUnico: "202603111000&B-200&#B1-01" },
+              { codigo: "B-200", descripcion: "BIRLO DE ACERO 5/8", cantidad: -100, tipo: "SURTIDO", serie: "B1-01", bodegaSalida: "Bodega 1", idUnico: "202603111000&B-200&#B1-01" },
+              { codigo: "T-500", descripcion: "TORNILLO HEXAGONAL 1/2", cantidad: 1200, tipo: "ACOMODO", serie: "B2-05", bodegaEntrada: "Bodega 2", idUnico: "202603111230&T-500&#B2-05" }
             ];
 
-            // Aplicamos la misma ecuación a la simulación para que se comporte igual
-            const acumulador = {};
-            simulacionCruda.forEach(mov => {
-              const idUnico = `${mov.codigo} | ${mov.serie}`;
-              if (!acumulador[idUnico]) {
-                acumulador[idUnico] = {
-                  codigo: mov.codigo,
-                  idUnico: idUnico,
-                  descripcion: mov.descripcion,
-                  saldo: 0,
-                  serie: mov.serie,
-                  bodegaActual: mov.bodegaEntrada
-                };
-              }
-              acumulador[idUnico].saldo += mov.cantidad;
-            });
+            console.log("📦 [LOCAL] Cargando simulación cruda:", simulacionCruda);
 
-            const datosSimulados = Object.values(acumulador);
-            console.log("Simulando datos procesados:", datosSimulados);
+            const datosSimulados = simulacionCruda.map(mov => ({
+              idUnico: mov.idUnico,
+              codigo: mov.codigo,
+              descripcion: mov.descripcion,
+              saldo: mov.cantidad,
+              serie: mov.serie,
+              bodegaActual: mov.bodegaEntrada || mov.bodegaSalida
+            }));
+
+            console.log("🚀 [LOCAL] Simulación lista para inyectar:", datosSimulados);
             setData(datosSimulados);
             setLoading(false);
           }, 800);
@@ -150,7 +137,8 @@ const refrescarDatos = useCallback(() => {
         const q = filtro.toLowerCase().trim();
         return q ? data.filter(d => 
           (d.codigo || "").toLowerCase().includes(q) || 
-          (d.descripcion || "").toLowerCase().includes(q)
+          (d.descripcion || "").toLowerCase().includes(q) ||
+          (d.idUnico || "").toLowerCase().includes(q)
         ) : data;
       }, [data, filtro]);
 
