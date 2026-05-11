@@ -276,27 +276,43 @@ function obtenerMovimientosBitacora() {
     if (!hoja) return []; 
 
     const valores = hoja.getDataRange().getValues();
-    if (valores.length <= 1) return []; // Solo encabezados o vacía
+    if (valores.length <= 1) return []; // Solo encabezados
 
-    // Filtramos filas que al menos tengan un código para evitar basura
+    // Filtramos filas que tengan código (Col J) para evitar basura
     return valores.slice(1)
       .filter(fila => fila[COL_BITACORA.CODIGO - 1]) 
       .map((fila, index) => {
+        // Validación de fecha para evitar errores de sistema
+        let fechaProcesada = "";
+        try {
+          if (fila[COL_BITACORA.FECHA - 1] instanceof Date) {
+            fechaProcesada = Utilities.formatDate(fila[COL_BITACORA.FECHA - 1], "GMT-6", "yyyy-MM-dd");
+          } else if (fila[COL_BITACORA.FECHA - 1]) {
+            fechaProcesada = String(fila[COL_BITACORA.FECHA - 1]);
+          }
+        } catch(e) { fechaProcesada = ""; }
+
         return {
-          eidFila: index + 2,
-          efecha: fila[COL_BITACORA.FECHA - 1], 
-          etipo: String(fila[COL_BITACORA.TIPO - 1]).toUpperCase().trim(),
-          eserie: String(fila[COL_BITACORA.SERIE - 1]).trim(),
-          ebodegaEntrada: String(fila[COL_BITACORA.B_ENTRADA - 1]).trim(),
-          ebodegaSalida: String(fila[COL_BITACORA.B_SALIDA - 1]).trim(),
-          ecodigo: String(fila[COL_BITACORA.CODIGO - 1]).trim(),
-          edescripcion: String(fila[COL_BITACORA.DESC - 1]).toUpperCase().trim(),
-          ecantidad: Number(fila[COL_BITACORA.CANT - 1] || 0),
-          eidUnico: String(fila[COL_BITACORA.IDUNICO - 1] || "").trim()
+          idFila: index + 2,
+          fecha: fechaProcesada,                                     // Col A
+          hora: fila[COL_BITACORA.HORA - 1] || "",                   // Col B
+          tipo: String(fila[COL_BITACORA.TIPO - 1]).toUpperCase().trim(), // Col C
+          serie: String(fila[COL_BITACORA.SERIE - 1]).trim(),        // Col D
+          bodegaSalida: String(fila[COL_BITACORA.B_SALIDA - 1]).trim(),// Col E
+          ubiSalida: String(fila[COL_BITACORA.U_SALIDA - 1]).trim(),    // Col F
+          bodegaEntrada: String(fila[COL_BITACORA.B_ENTRADA - 1]).trim(),// Col G
+          ubiEntrada: String(fila[COL_BITACORA.U_ENTRADA - 1]).trim(),   // Col H
+          solicitante: String(fila[COL_BITACORA.SOLICITANTE - 1]).trim(),// Col I
+          codigo: String(fila[COL_BITACORA.CODIGO - 1]).trim(),       // Col J
+          descripcion: String(fila[COL_BITACORA.DESC - 1]).trim(),     // Col K
+          cantidad: Number(fila[COL_BITACORA.CANT - 1] || 0),        // Col L
+          folio: String(fila[COL_BITACORA.FOLIO - 1]).trim(),        // Col M
+          responsable: String(fila[COL_BITACORA.RESP - 1]).trim(),   // Col N
+          idUnico: String(fila[COL_BITACORA.IDUNICO - 1]).trim()     // Col O
         };
       });
-  } catch (e) {
-    Logger.log("Error en obtenerMovimientosBitacora: " + e.message);
+  } catch (error) {
+    console.error("Error en obtenerMovimientosBitacora: " + error.message);
     return [];
   }
 }

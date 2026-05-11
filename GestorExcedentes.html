@@ -33,61 +33,87 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
 );
 
     const VistaGestorExcedentes = () => {
-      const [data, setData] = useState([]);
+      const [data, setDatos] = useState([]);
       const [loading, setLoading] = useState(true);
       const [filtro, setFiltro] = useState("");
       const [isSearchExpanded, setIsSearchExpanded] = useState(false);
       const inputRef = useRef(null);
 
       // --- CARGA DE DATOS ---
-const refrescarDatos = useCallback(() => {
-        setLoading(true);
-        console.group("🔍 [DEBUG GESTOR] Iniciando carga...");
-        
-        if (typeof google !== 'undefined' && google.script && google.script.run) {
-          google.script.run
-            .withSuccessHandler((res) => {
-              if (!res || res.length === 0) {
-                setData([]);
-              } else {
-                const datosMapeados = res.map((mov, i) => ({
-                  eidFila: mov.idFila || (i + 2),
-                  ecodigo: String(mov.codigo || "").trim(),
-                  edescripcion: String(mov.descripcion || "SIN DESC").toUpperCase(),
-                  ecantidad: Number(mov.cantidad || 0),
-                  esaldo: Number(mov.saldo || mov.cantidad || 0), // IMPORTANTE: Agregué esaldo para tus métricas
-                  eserie: String(mov.serie || "S/S").toUpperCase(),
-                  etipo: String(mov.tipo || ""),
-                  ebodegaActual: mov.bodegaEntrada || mov.bodegaSalida || "GENERAL",
-                  eidUnico: mov.idUnico || `E-${i}`
-                }));
-                setData(datosMapeados);
-              }
-              setLoading(false);
-              console.groupEnd();
-            })
-            .withFailureHandler((err) => {
-              console.error("❌ ERROR:", err);
-              setLoading(false);
-              console.groupEnd();
-            })
-            .obtenerMovimientosBitacora();
+useEffect(() => {
+  refrescarDatos();
+}, []);
+
+const refrescarDatos = () => {
+  setLoading(true);
+  google.script.run
+    .withSuccessHandler((movimientosCrudos) => {
+      if (!movimientosCrudos || movimientosCrudos.length === 0) {
+        setDatos([]);
+        setLoading(false);
+        return;
+      }
+
+      // Agrupamos por eidUnico para obtener el saldo neto real en excedentes
+      const mapaSaldos = movimientosCrudos.reduce((acc, mov) => {
+        const id = mov.eidUnico;
+        if (!id) return acc; // Ignoramos movimientos sin identificador único
+
+        if (!acc[id]) {
+          // Copiamos las propiedades del movimiento inicial
+          acc[id] = { ...mov, saldoCalculado: 0 };
         }
-      }, []);
 
-      useEffect(() => { refrescarDatos(); }, [refrescarDatos]);
+        // Sumamos (Acomodo aumenta saldo (+), Surtido disminuye saldo (-))
+        acc[id].saldoCalculado += Number(mov.ecantidad || 0);
+        return acc;
+      }, {});
 
-      // --- FILTRADO (Tu función adaptada anteriormente) ---
-      const filteredData = useMemo(() => {
-        if (!Array.isArray(data)) return [];
-        if (!filtro) return data;
+      // Filtramos para mostrar únicamente lo que tiene saldo en existencia actualmente (> 0)
+      const excedentesReales = Object.values(mapaSaldos).filter(
+        (item) => item.saldoCalculado > 0
+      );
+
+      setDatos(excedentesReales); // Guarda el array en el estado 'datos'
+      setLoading(false);
+    })
+    .withFailureHandler((err) => {
+      console.error("Error cargando excedentes:", err);
+      Swal.fire("Error", "No se pudieron recuperar los movimientos de la bitácora", "error");
+      setLoading(false);
+    })
+    .obtenerMovimientosBitacora();
+};
+
+const procesarSaldos = (movimientos) => {
+  // 1. Agrupamos por IDUNICO para sumar cantidades
+  const mapaSaldos = movimientos.reduce((acc, mov) => {
+    const id = mov.idUnico;
+    if (!acc[id]) {
+      // Si es la primera vez que vemos este ID, creamos la base
+      acc[id] = { ...mov, saldoActual: 0 };
+    }
+    // Sumamos la cantidad (Acomodo + / Surtido -)
+    acc[id].saldoActual += Number(mov.cantidad);
+    return acc;
+  }, {});
+
+  // 2. Convertimos el mapa a un array y filtramos solo lo que tenga saldo > 0
+  const soloExcedentes = Object.values(mapaSaldos).filter(item => item.saldoActual > 0);
+  
+  setDatos(soloExcedentes); // Guardamos en el estado de React
+};
+
+const datosFiltrados = useMemo(() => {
+        if (!filtro.trim()) return data;
         const f = filtro.toLowerCase().trim();
         return data.filter(item => 
-          item.ecodigo.toLowerCase().includes(f) || 
-          item.edescripcion.toLowerCase().includes(f) ||
-          item.eserie.toLowerCase().includes(f)
+          (item.ecodigo && item.ecodigo.toLowerCase().includes(f)) ||
+          (item.eidUnico && item.eidUnico.toLowerCase().includes(f)) ||
+          (item.edescripcion && item.edescripcion.toLowerCase().includes(f))
         );
       }, [data, filtro]);
+
 
 
       return (
@@ -111,7 +137,7 @@ const refrescarDatos = useCallback(() => {
             
             <SummaryCard 
               label="Resultados Búsqueda" 
-              value={filteredData.length} 
+              value={datosFiltrados.length} 
               iconName="search" 
               colorClass="bg-[#fffafa] text-[#d93025] border-[#fdecea]" 
             />
@@ -138,7 +164,7 @@ const refrescarDatos = useCallback(() => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f3f4] bg-white">
-                  {filteredData.map((item, idx) => (
+                  {datosFiltrados.map((item, idx) => (
                     <tr key={item.eidUnico || i} className="group hover:bg-[#fcfcfc] transition-colors">
                       
                       {/* SKU: Alineado a la izquierda con ID en formato Label de alto contraste */}
