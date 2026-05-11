@@ -32,10 +32,23 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
   </div>
 );
 
+
+const obtenerNombreBodega = (item) => {
+      const serie = (item.eserie || "").toUpperCase();
+      if (serie.startsWith("B1")) return "Bodega 1";
+      if (serie.startsWith("B2")) return "Bodega 2";
+      if (serie.startsWith("B3")) return "Bodega 3";
+      if (serie.startsWith("BM")) return "Bodega Mostrador";
+      if (serie.startsWith("CB1")) return "Casa Blanca 1";
+      if (serie.startsWith("CB2")) return "Casa Blanca 2";
+      return item.ebodegaActual || 'Almacén Central';
+    };
+
     const VistaGestorExcedentes = () => {
       const [data, setDatos] = useState([]);
       const [loading, setLoading] = useState(true);
       const [filtro, setFiltro] = useState("");
+      const [bodegaSeleccionada, setBodegaSeleccionada] = useState("Todos");
       const [isSearchExpanded, setIsSearchExpanded] = useState(false);
       const inputRef = useRef(null);
 
@@ -46,6 +59,7 @@ useEffect(() => {
 
 const refrescarDatos = () => {
   setLoading(true);
+  
   google.script.run
     .withSuccessHandler((movimientosCrudos) => {
       if (!movimientosCrudos || movimientosCrudos.length === 0) {
@@ -108,14 +122,33 @@ const procesarSaldos = (movimientos) => {
 };
 
 const datosFiltrados = useMemo(() => {
-    if (!filtro.trim()) return data;
-    const f = filtro.toLowerCase().trim();
-    return data.filter(item => 
-      (item.ecodigo && item.ecodigo.toLowerCase().includes(f)) ||
-      (item.eidUnico && item.eidUnico.toLowerCase().includes(f)) ||
-      (item.edescripcion && item.edescripcion.toLowerCase().includes(f))
-    );
-  }, [data, filtro]);
+        let filtrados = data;
+
+        // 1. Filtrado por botón de Bodega
+        if (bodegaSeleccionada !== "Todos") {
+          filtrados = filtrados.filter(item => obtenerNombreBodega(item) === bodegaSeleccionada);
+        }
+
+        // 2. Filtrado por input de búsqueda de texto libre
+        if (!filtro.trim()) return filtrados;
+        const f = filtro.toLowerCase().trim();
+        return filtrados.filter(item => 
+          (item.ecodigo && item.ecodigo.toLowerCase().includes(f)) ||
+          (item.eidUnico && item.eidUnico.toLowerCase().includes(f)) ||
+          (item.edescripcion && item.edescripcion.toLowerCase().includes(f))
+        );
+      }, [data, filtro, bodegaSeleccionada]);
+
+      // Array de segmentos requeridos
+      const opcionBodegas = [
+        "Todos", 
+        "Bodega 1", 
+        "Bodega 2", 
+        "Bodega 3", 
+        "Bodega Mostrador", 
+        "Casa Blanca 1", 
+        "Casa Blanca 2"
+      ];
 
 
 
@@ -144,6 +177,26 @@ const datosFiltrados = useMemo(() => {
               iconName="search" 
               colorClass="bg-[#fffafa] text-[#d93025] border-[#fdecea]" 
             />
+          </div>
+
+          {/* 🔘 Segmentación por Bodega */}
+          <div className="px-8 pb-5 flex flex-wrap gap-2 shrink-0">
+            {opcionBodegas.map((bodega) => {
+              const esActivo = bodegaSeleccionada === bodega;
+              return (
+                <button
+                  key={bodega}
+                  onClick={() => setBodegaSeleccionada(bodega)}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-black tracking-tight border transition-all duration-200 active:scale-95 shadow-sm ${
+                    esActivo 
+                      ? "bg-[#1c1d1f] text-white border-[#1c1d1f] shadow-md" 
+                      : "bg-white text-[#5f6368] border-[#dadce0] hover:bg-gray-50 hover:text-[#1c1d1f]"
+                  }`}
+                >
+                  {bodega}
+                </button>
+              );
+            })}
           </div>
 
           {/* Tabla */}
@@ -282,21 +335,17 @@ const datosFiltrados = useMemo(() => {
 
             {/* Botón de Actualización de Alto Contraste */}
             <button 
-              onClick={refrescarDatos}
-              disabled={loading}
-              className="w-16 h-16 bg-white/90 backdrop-blur-md border border-[#dadce0] rounded-[1.25rem] shadow-lg flex items-center justify-center text-[#5f6368] hover:text-[#d93025] hover:border-[#d93025]/40 transition-all duration-300 transform active:scale-95 hover:scale-105 hover:shadow-[0_10px_20px_rgba(0,0,0,0.05)] disabled:opacity-50 disabled:pointer-events-none"
-              title="Actualizar tabla"
-            >
-              <LocalIcon 
-                name="refresh-cw" 
-                size={26} 
-                className={`${
-                  loading 
-                    ? "animate-spin text-[#d93025]" 
-                    : "transition-transform duration-700 ease-out hover:rotate-180"
-                }`} 
-              />
-            </button>
+                onClick={refrescarDatos}
+                disabled={loading}
+                className="w-16 h-16 bg-white/90 backdrop-blur-md border border-[#dadce0] rounded-[1.25rem] shadow-lg flex items-center justify-center text-[#5f6368] hover:text-[#d93025] hover:border-[#d93025]/40 transition-all duration-300 transform active:scale-95 hover:scale-105 hover:shadow-[0_10px_20px_rgba(0,0,0,0.05)] disabled:opacity-50 disabled:pointer-events-none"
+                title="Actualizar tabla"
+              >
+                <LocalIcon 
+                  name="refresh-cw" 
+                  size={26} 
+                  className={loading ? "text-[#d93025]" : ""} // Se eliminó "animate-spin" y la transición "hover:rotate-180"
+                />
+              </button>
           </div>
         </div>
       );
