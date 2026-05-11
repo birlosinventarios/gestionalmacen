@@ -41,88 +41,54 @@ const SummaryCard = ({ label, value, iconName, colorClass }) => (
 
       // --- CARGA DE DATOS ---
 const refrescarDatos = useCallback(() => {
-    setLoading(true);
-    
-    console.group("🔌 [CONEXIÓN] Sincronizando Gestor de Excedentes");
-    
-    if (typeof google !== 'undefined' && google.script && google.script.run) {
-        google.script.run
+        setLoading(true);
+        console.group("🔍 [DEBUG GESTOR] Iniciando carga...");
+        
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
             .withSuccessHandler((res) => {
-                const movimientosRaw = Array.isArray(res) ? res : [];
-                
-                if (movimientosRaw.length === 0) {
-                    window.notificar("No hay movimientos para procesar", "warning");
-                    setData([]);
-                    setLoading(false);
-                    console.groupEnd();
-                    return;
-                }
-
-                try {
-                    const catalogoGlobal = window.DATOS_INICIALES?.catalogo || window.GLOBAL_DATA?.mapaProductos || {};
-                    
-                    // --- MAPEADO CON PREFIJO "E" (EXCEDENTES) ---
-                    const acumuladorE = movimientosRaw.map((mov, index) => {
-                        const codigoLimpio = mov.codigo ? String(mov.codigo).trim() : "SIN_CODIGO";
-                        
-                        // Buscamos descripción en el catálogo usando el código de la bitácora
-                        let descMaestra = "SIN DESCRIPCIÓN";
-                        if (mov.descripcion) {
-                            descMaestra = String(mov.descripcion).trim();
-                        } else if (catalogoGlobal[codigoLimpio]) {
-                            descMaestra = typeof catalogoGlobal[codigoLimpio] === 'object' 
-                                ? (catalogoGlobal[codigoLimpio].descripcion || "SIN DESC")
-                                : String(catalogoGlobal[codigoLimpio]);
-                        }
-
-                        return {
-                            eidFila: mov.idFila || (index + 2),
-                            eidUnico: mov.idUnico ? String(mov.idUnico).trim() : `E-${index}`,
-                            ecodigo: codigoLimpio,
-                            edescripcion: descMaestra.toUpperCase(),
-                            ecantidad: Number(mov.cantidad || 0),
-                            eserie: mov.serie ? String(mov.serie).trim().toUpperCase() : "S/S",
-                            etipo: mov.tipo ? String(mov.tipo).trim().toUpperCase() : "OTROS",
-                            ebodegaActual: mov.bodegaEntrada || mov.bodegaSalida || "GENERAL"
-                        };
-                    });
-
-                    // --- VISUALIZACIÓN DETALLADA EN CONSOLA ---
-                    console.log("✅ Datos Mapeados con Prefijo 'E':");
-                    console.table(acumuladorE.slice(0, 10)); // Muestra los primeros 10 para no saturar, pero en formato tabla
-                    console.log("📦 Total registros cargados:", acumuladorE.length);
-
-                    setData(acumuladorE);
-                    window.notificar("Bitácora E sincronizada", "success");
-                    
-                } catch (err) {
-                    console.error("❌ Error en mapeo frontend:", err);
-                }
-                
-                setLoading(false);
-                console.groupEnd();
+              if (!res || res.length === 0) {
+                setData([]);
+              } else {
+                const datosMapeados = res.map((mov, i) => ({
+                  eidFila: mov.idFila || (i + 2),
+                  ecodigo: String(mov.codigo || "").trim(),
+                  edescripcion: String(mov.descripcion || "SIN DESC").toUpperCase(),
+                  ecantidad: Number(mov.cantidad || 0),
+                  esaldo: Number(mov.saldo || mov.cantidad || 0), // IMPORTANTE: Agregué esaldo para tus métricas
+                  eserie: String(mov.serie || "S/S").toUpperCase(),
+                  etipo: String(mov.tipo || ""),
+                  ebodegaActual: mov.bodegaEntrada || mov.bodegaSalida || "GENERAL",
+                  eidUnico: mov.idUnico || `E-${i}`
+                }));
+                setData(datosMapeados);
+              }
+              setLoading(false);
+              console.groupEnd();
             })
             .withFailureHandler((err) => {
-                console.error("❌ Error crítico:", err);
-                setLoading(false);
-                console.groupEnd();
+              console.error("❌ ERROR:", err);
+              setLoading(false);
+              console.groupEnd();
             })
             .obtenerMovimientosBitacora();
-    }
-}, []);
+        }
+      }, []);
 
-// --- FILTRADO ACTUALIZADO ---
-const filteredData = useMemo(() => {
-    if (!Array.isArray(data)) return [];
-    if (!filtro) return data;
-    
-    const f = filtro.toLowerCase().trim();
-    return data.filter(item => 
-        item.ecodigo.toLowerCase().includes(f) || 
-        item.edescripcion.toLowerCase().includes(f) ||
-        item.eserie.toLowerCase().includes(f)
-    );
-}, [data, filtro]);
+      useEffect(() => { refrescarDatos(); }, [refrescarDatos]);
+
+      // --- FILTRADO (Tu función adaptada anteriormente) ---
+      const filteredData = useMemo(() => {
+        if (!Array.isArray(data)) return [];
+        if (!filtro) return data;
+        const f = filtro.toLowerCase().trim();
+        return data.filter(item => 
+          item.ecodigo.toLowerCase().includes(f) || 
+          item.edescripcion.toLowerCase().includes(f) ||
+          item.eserie.toLowerCase().includes(f)
+        );
+      }, [data, filtro]);
+
 
       return (
         <div className="h-full w-full flex flex-col relative bg-[#f8f9fa]">
