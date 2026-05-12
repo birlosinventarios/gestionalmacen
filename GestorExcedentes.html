@@ -121,6 +121,25 @@ const procesarSaldos = (movimientos) => {
   setDatos(soloExcedentes); // Guardamos en el estado de React
 };
 
+// --- 🎯 DETECCIÓN DE BODEGAS CON STOCK SEGÚN LA BÚSQUEDA ---
+      const bodegasConExistenciaBuscada = useMemo(() => {
+        const resultado = new Set();
+        const f = filtro.toLowerCase().trim();
+        if (!f) return resultado; // Si no hay búsqueda, retorna Set vacío.
+
+        data.forEach(item => {
+          const coincide = 
+            (item.ecodigo && item.ecodigo.toLowerCase().includes(f)) ||
+            (item.eidUnico && item.eidUnico.toLowerCase().includes(f)) ||
+            (item.edescripcion && item.edescripcion.toLowerCase().includes(f));
+          
+          if (coincide && Number(item.esaldo) > 0) {
+            resultado.add(obtenerNombreBodega(item));
+          }
+        });
+        return resultado;
+      }, [data, filtro]);
+
 const datosFiltrados = useMemo(() => {
         let filtrados = data;
 
@@ -179,19 +198,27 @@ const datosFiltrados = useMemo(() => {
             />
           </div>
 
-          {/* 🔘 Segmentación por Bodega */}
+          {/* 🔘 Segmentación por Bodega con Resaltado Dinámico */}
           <div className="px-8 pb-5 flex flex-wrap gap-2 shrink-0">
             {opcionBodegas.map((bodega) => {
               const esActivo = bodegaSeleccionada === bodega;
+              const tieneStockBuscado = bodegasConExistenciaBuscada.has(bodega);
+              
+              let clasesBordeYFondo = "";
+              if (esActivo) {
+                clasesBordeYFondo = "bg-[#1c1d1f] text-white border-[#1c1d1f] shadow-md";
+              } else if (tieneStockBuscado) {
+                // 🌟 Asignamos ÚNICAMENTE nuestra clase CSS pura para evitar conflictos de Tailwind
+                clasesBordeYFondo = "bodega-pulso-rojo shadow-md";
+              } else {
+                clasesBordeYFondo = "bg-white text-[#5f6368] border-[#dadce0] hover:bg-gray-50 hover:text-[#1c1d1f]";
+              }
+
               return (
                 <button
                   key={bodega}
                   onClick={() => setBodegaSeleccionada(bodega)}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-black tracking-tight border transition-all duration-200 active:scale-95 shadow-sm ${
-                    esActivo 
-                      ? "bg-[#1c1d1f] text-white border-[#1c1d1f] shadow-md" 
-                      : "bg-white text-[#5f6368] border-[#dadce0] hover:bg-gray-50 hover:text-[#1c1d1f]"
-                  }`}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-black tracking-tight border-2 transition-all duration-300 active:scale-95 ${clasesBordeYFondo}`}
                 >
                   {bodega}
                 </button>
@@ -373,6 +400,28 @@ const datosFiltrados = useMemo(() => {
     to {
       opacity: 1;
       transform: translateX(0) scale(1);
+    }
+  }
+
+  /* 🌟 CLASE DEFINITIVA DE GLOW Y PULSO ROJO INTERMITENTE */
+  .bodega-pulso-rojo {
+    color: #d93025 !important;
+    border-color: #d93025 !important;
+    /* Bloqueamos el shadow de tailwind para inyectar el nuestro */
+    --tw-shadow: 0 0 #0000 !important;
+    animation: resplandorRojoFuerte 1.2s infinite alternate ease-in-out !important;
+  }
+
+  @keyframes resplandorRojoFuerte {
+    0% {
+      box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.4);
+      background-color: #ffffff;
+    }
+    100% {
+      /* Sombreado rojo intenso difuminado hacia afuera */
+      box-shadow: 0 0 16px 4px rgba(217, 48, 37, 0.6);
+      /* Ligero tintado rojo de fondo para el interior del botón */
+      background-color: rgba(217, 48, 37, 0.05);
     }
   }
 </style>
