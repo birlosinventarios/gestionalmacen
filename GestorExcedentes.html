@@ -61,8 +61,40 @@ const refrescarDatos = () => {
   setLoading(true);
   
   google.script.run
-    .withSuccessHandler((movimientosCrudos) => {
-      if (!movimientosCrudos || movimientosCrudos.length === 0) {
+    .withSuccessHandler((resultadoMaestro) => {
+      // ========================================================
+      // 🔓 TRASPARENCIA TEMPORAL - AUDITORÍA DE DATOS EN NAVEGADOR
+      // ========================================================
+      console.log("======================================================");
+      console.log("📦 [AUDITORÍA DE BACKEND] Objeto Maestro Recibido:");
+      console.log(resultadoMaestro);
+      
+      if (resultadoMaestro) {
+        console.log(`📊 Filas en Bitacora-TRASPASOS: ${resultadoMaestro.movimientosBitacora?.length || 0}`);
+        console.log(`📊 Filas en BD-EXCEDENTES: ${resultadoMaestro.baseExcedentes?.length || 0}`);
+        
+        // Muestra los primeros 5 registros de cada una en una tabla interactiva en la consola
+        if (resultadoMaestro.movimientosBitacora?.length > 0) {
+          console.log("🔍 Muestra - Movimientos Bitácora:");
+          console.table(resultadoMaestro.movimientosBitacora.slice(0, 5));
+        }
+        if (resultadoMaestro.baseExcedentes?.length > 0) {
+          console.log("🔍 Muestra - Base de Excedentes Consolidados:");
+          console.table(resultadoMaestro.baseExcedentes.slice(0, 5));
+        }
+      } else {
+        console.error("🚨 El backend devolvió un objeto NULL o UNDEFINED.");
+      }
+      console.log("======================================================");
+      // ========================================================
+
+      // Desempaque seguro
+      const movimientosCrudos = (resultadoMaestro && resultadoMaestro.movimientosBitacora) || [];
+
+      // OPCIONAL: Si deseas guardar el estado plano de BD-EXCEDENTES en un hook state, aquí lo tienes:
+      // if (resultadoMaestro && resultadoMaestro.baseExcedentes) setBaseExcedentes(resultadoMaestro.baseExcedentes);
+
+      if (movimientosCrudos.length === 0) {
         setDatos([]);
         setLoading(false);
         return;
@@ -70,37 +102,37 @@ const refrescarDatos = () => {
 
       // Agrupamos por eidUnico para obtener el saldo neto real en excedentes
       const mapaSaldos = movimientosCrudos.reduce((acc, mov) => {
-          const id = mov.eidUnico;
-          if (!id) return acc; // Ignoramos movimientos sin identificador único
+        const id = mov.eidUnico;
+        if (!id) return acc; // Ignoramos movimientos sin identificador único
 
-          if (!acc[id]) {
-            // Copiamos las propiedades del movimiento inicial
-            // Inicializamos 'esaldo' en 0 para mantener consistencia con el diseño de tu tabla
-            acc[id] = { ...mov, esaldo: 0 };
-          }
+        if (!acc[id]) {
+          // Copiamos las propiedades del movimiento inicial
+          // Inicializamos 'esaldo' en 0 para mantener consistencia con el diseño de tu tabla
+          acc[id] = { ...mov, esaldo: 0 };
+        }
 
-          // Sumamos (Acomodo aumenta saldo (+), Surtido disminuye saldo (-))
-          // Nota: Asegúrate de que en la bitácora las salidas/surtidos ya vengan con valor negativo en ecantidad,
-          // o que apliques lógica de tipo de movimiento si es necesario.
-          acc[id].esaldo += Number(mov.ecantidad || 0);
-          return acc;
-        }, {});
+        // Sumamos (Acomodo aumenta saldo (+), Surtido disminuye saldo (-))
+        // Nota: Asegúrate de que en la bitácora las salidas/surtidos ya vengan con valor negativo en ecantidad,
+        // o que apliques lógica de tipo de movimiento si es necesario.
+        acc[id].esaldo += Number(mov.ecantidad || 0);
+        return acc;
+      }, {});
 
       // Filtramos para mostrar únicamente lo que tiene saldo en existencia actualmente (> 0)
       const excedentesReales = Object.values(mapaSaldos).filter(
-          (item) => item.esaldo > 0
-        );
+        (item) => item.esaldo > 0
+      );
 
-        setDatos(excedentesReales); // Guarda el array en el estado 'data'
-        setLoading(false);
-      })
-      .withFailureHandler((err) => {
-        console.error("Error cargando excedentes:", err);
-        Swal.fire("Error", "No se pudieron recuperar los movimientos de la bitácora", "error");
-        setLoading(false);
-      })
-      .obtenerMovimientosBitacora();
-  };
+      setDatos(excedentesReales); // Guarda el array en el estado 'data'
+      setLoading(false);
+    })
+    .withFailureHandler((err) => {
+      console.error("Error cargando excedentes:", err);
+      Swal.fire("Error", "No se pudieron recuperar los movimientos de la bitácora", "error");
+      setLoading(false);
+    })
+    .obtenerInformacionExcedentes(); // Llamada a tu función purgada
+};
 
 const procesarSaldos = (movimientos) => {
   // 1. Agrupamos por IDUNICO para sumar cantidades
@@ -140,7 +172,7 @@ const procesarSaldos = (movimientos) => {
         return resultado;
       }, [data, filtro]);
 
-const datosFiltrados = useMemo(() => {
+      const datosFiltrados = useMemo(() => {
         let filtrados = data;
 
         // 1. Filtrado por botón de Bodega

@@ -2,11 +2,12 @@
  * OPERACIONES.GS - VERSIÓN GOLD (OPTIMIZADA PARA 16K SKU)
  */
 
-const COL_BITACORA = {
-  FECHA: 1, HORA: 2, TIPO: 3, SERIE: 4, B_SALIDA: 5, U_SALIDA: 6,
-  B_ENTRADA: 7, U_ENTRADA: 8, SOLICITANTE: 9, CODIGO: 10, 
-  DESC: 11, CANT: 12, FOLIO: 13, RESP: 14,
-  IDUNICO: 15
+const COL_BT = {
+  FECHA: 1, HORA: 2, TIPO: 3, SERIE: 4, B_SALIDA: 5, U_SALIDA: 6, B_ENTRADA: 7, U_ENTRADA: 8, SOLICITANTE: 9, CODIGO: 10, DESC: 11, CANT: 12, FOLIO: 13, RESP: 14,IDUNICO: 15
+};
+
+const COL_BDEXCED = {
+  IDUNICO: 1, FECHA: 2,	HORA: 3, IDPRODUCTO: 4, CODIGO: 5, DESCRIPCION: 6, CANTIDAD: 7, STATUS: 8
 };
 
 function procesarTraspasos(lote) {
@@ -49,21 +50,21 @@ function procesarTraspasos(lote) {
       }
 
       const fila = new Array(15).fill("");
-      fila[COL_BITACORA.FECHA - 1] = config.fecha;
-      fila[COL_BITACORA.HORA - 1] = config.hora;
-      fila[COL_BITACORA.TIPO - 1] = item.tipo;
-      fila[COL_BITACORA.SERIE - 1] = (serie || "").toString().toUpperCase();
-      fila[COL_BITACORA.B_SALIDA - 1] = bSalida;
-      fila[COL_BITACORA.U_SALIDA - 1] = uSalida;
-      fila[COL_BITACORA.B_ENTRADA - 1] = bEntrada;
-      fila[COL_BITACORA.U_ENTRADA - 1] = uEntrada;
-      fila[COL_BITACORA.SOLICITANTE - 1] = item.solicitante;
-      fila[COL_BITACORA.CODIGO - 1] = item.codigo.toUpperCase();
-      fila[COL_BITACORA.DESC - 1] = item.descripcion.toUpperCase();
-      fila[COL_BITACORA.CANT - 1] = cantidadConSigno; // <-- Aquí inyectamos el valor con signo calculado
-      fila[COL_BITACORA.FOLIO - 1] = ""; 
-      fila[COL_BITACORA.RESP - 1] = "";
-      fila[COL_BITACORA.IDUNICO - 1] = "";  
+      fila[COL_BT.FECHA - 1] = config.fecha;
+      fila[COL_BT.HORA - 1] = config.hora;
+      fila[COL_BT.TIPO - 1] = item.tipo;
+      fila[COL_BT.SERIE - 1] = (serie || "").toString().toUpperCase();
+      fila[COL_BT.B_SALIDA - 1] = bSalida;
+      fila[COL_BT.U_SALIDA - 1] = uSalida;
+      fila[COL_BT.B_ENTRADA - 1] = bEntrada;
+      fila[COL_BT.U_ENTRADA - 1] = uEntrada;
+      fila[COL_BT.SOLICITANTE - 1] = item.solicitante;
+      fila[COL_BT.CODIGO - 1] = item.codigo.toUpperCase();
+      fila[COL_BT.DESC - 1] = item.descripcion.toUpperCase();
+      fila[COL_BT.CANT - 1] = cantidadConSigno; // <-- Aquí inyectamos el valor con signo calculado
+      fila[COL_BT.FOLIO - 1] = ""; 
+      fila[COL_BT.RESP - 1] = "";
+      fila[COL_BT.IDUNICO - 1] = "";  
       
       return fila;
     });
@@ -243,7 +244,7 @@ function actualizarRegistroDesdeHistorialCompleto(numFila, datos) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const hoja = ss.getSheetByName('Bitacora-TRASPASOS');
     
-    // Mapeo según COL_BITACORA del motor GOLD
+    // Mapeo según COL_BT del motor GOLD
     // datos viene del frontend con: folio, responsable, origen, destino, cantidad, serie
     
     const rango = hoja.getRange(numFila, 1, 1, 14);
@@ -266,53 +267,129 @@ function actualizarRegistroDesdeHistorialCompleto(numFila, datos) {
 }
 
 /**
- * Obtiene TODOS los movimientos de la hoja 'Bitacora-TRASPASOS' sin filtros ni agrupaciones.
- * @return {Array<Object>} Lista de movimientos crudos
+ * Obtiene de forma paralela la información de Bitacora-TRASPASOS y BD-EXCEDENTES.
+ * Imprime un mapa analítico en consola y entrega los datos estructurados.
+ * @return {Object} Contenedor con listas 'movimientosBitacora' y 'baseExcedentes'
  */
-function obtenerMovimientosBitacora() {
+function obtenerInformacionExcedentes() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const respuestaMaestra = {
+    movimientosBitacora: [],
+    baseExcedentes: []
+  };
+
+  // --- BLOQUE 1: PROCESAMIENTO DE BITÁCORA TRASPASOS ---
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const hoja = ss.getSheetByName('Bitacora-TRASPASOS');
-    if (!hoja) return []; 
+    const hojaBT = ss.getSheetByName('Bitacora-TRASPASOS');
+    if (hojaBT) {
+      const valoresBT = hojaBT.getDataRange().getValues();
+      if (valoresBT.length > 1) {
+        respuestaMaestra.movimientosBitacora = valoresBT.slice(1)
+          .filter(fila => fila[COL_BT.CODIGO - 1])
+          .map((fila, index) => {
+            let fechaProcesada = "";
+            try {
+              if (fila[COL_BT.FECHA - 1] instanceof Date) {
+                fechaProcesada = Utilities.formatDate(fila[COL_BT.FECHA - 1], "GMT-6", "yyyy-MM-dd");
+              } else if (fila[COL_BT.FECHA - 1]) {
+                fechaProcesada = String(fila[COL_BT.FECHA - 1]);
+              }
+            } catch(e) { fechaProcesada = ""; }
 
-    const valores = hoja.getDataRange().getValues();
-    if (valores.length <= 1) return []; // Solo encabezados
-
-    // Filtramos filas que tengan código (Col J) para evitar basura
-    return valores.slice(1)
-      .filter(fila => fila[COL_BITACORA.CODIGO - 1]) 
-      .map((fila, index) => {
-        
-        // 1. VALIDACIÓN Y FORMATEO DE FECHA (Aquí sí sirve)
-        let fechaProcesada = "";
-        try {
-          if (fila[COL_BITACORA.FECHA - 1] instanceof Date) {
-            fechaProcesada = Utilities.formatDate(fila[COL_BITACORA.FECHA - 1], "GMT-6", "yyyy-MM-dd");
-          } else if (fila[COL_BITACORA.FECHA - 1]) {
-            fechaProcesada = String(fila[COL_BITACORA.FECHA - 1]);
-          }
-        } catch(e) { 
-          fechaProcesada = ""; 
-        }
-
-        // 2. RETORNO CORREGIDO (Sin doble return y usando 'fechaProcesada')
-        return {
-          eidFila: index + 2,
-          efecha: fechaProcesada, // <--- CAMBIO CLAVE: Ahora sí usamos la fecha limpia y formateada
-          etipo: String(fila[COL_BITACORA.TIPO - 1]).toUpperCase().trim(),
-          eserie: String(fila[COL_BITACORA.SERIE - 1]).trim(),
-          ebodegaEntrada: String(fila[COL_BITACORA.B_ENTRADA - 1]).trim(),
-          ebodegaSalida: String(fila[COL_BITACORA.B_SALIDA - 1]).trim(),
-          ecodigo: String(fila[COL_BITACORA.CODIGO - 1]).trim(),
-          edescripcion: String(fila[COL_BITACORA.DESC - 1]).trim(),
-          ecantidad: Number(fila[COL_BITACORA.CANT - 1] || 0),
-          efolio: String(fila[COL_BITACORA.FOLIO - 1]).trim(),
-          eresponsable: String(fila[COL_BITACORA.RESP - 1]).trim(),
-          eidUnico: String(fila[COL_BITACORA.IDUNICO - 1]).trim()
-        };
-      });
-  } catch (error) {
-    console.error("Error en obtenerMovimientosBitacora: " + error.message);
-    return [];
+            return {
+              eidFila: index + 2,
+              efecha: fechaProcesada,
+              etipo: String(fila[COL_BT.TIPO - 1]).toUpperCase().trim(),
+              eserie: String(fila[COL_BT.SERIE - 1]).trim(),
+              ebodegaEntrada: String(fila[COL_BT.B_ENTRADA - 1]).trim(),
+              ebodegaSalida: String(fila[COL_BT.B_SALIDA - 1]).trim(),
+              ecodigo: String(fila[COL_BT.CODIGO - 1]).trim(),
+              edescripcion: String(fila[COL_BT.DESC - 1]).trim(),
+              ecantidad: Number(fila[COL_BT.CANT - 1] || 0),
+              efolio: String(fila[COL_BT.FOLIO - 1]).trim(),
+              eresponsable: String(fila[COL_BT.RESP - 1]).trim(),
+              eidUnico: String(fila[COL_BT.IDUNICO - 1]).trim()
+            };
+          });
+      }
+    }
+  } catch (err) {
+    console.error("❌ Fallo crítico leyendo Bitacora-TRASPASOS: " + err.message);
   }
+
+  // --- BLOQUE 2: PROCESAMIENTO DE BD-EXCEDENTES ---
+  try {
+    const hojaBD = ss.getSheetByName('BD-EXCEDENTES');
+    if (hojaBD) {
+      const valoresBD = hojaBD.getDataRange().getValues();
+      if (valoresBD.length > 1) {
+        respuestaMaestra.baseExcedentes = valoresBD.slice(1)
+          .filter(fila => fila[COL_BDEXCED.IDUNICO - 1]) // Asegurar que tenga ID único para evitar filas muertas
+          .map((fila, index) => {
+            let fechaProcesada = "";
+            try {
+              if (fila[COL_BDEXCED.FECHA - 1] instanceof Date) {
+                fechaProcesada = Utilities.formatDate(fila[COL_BDEXCED.FECHA - 1], "GMT-6", "yyyy-MM-dd");
+              } else if (fila[COL_BDEXCED.FECHA - 1]) {
+                fechaProcesada = String(fila[COL_BDEXCED.FECHA - 1]);
+              }
+            } catch(e) { fechaProcesada = ""; }
+
+            return {
+              eidFila: index + 2,
+              eidUnico: String(fila[COL_BDEXCED.IDUNICO - 1]).trim(),
+              efecha: fechaProcesada,
+              ehora: String(fila[COL_BDEXCED.HORA - 1]).trim(),
+              eidProducto: String(fila[COL_BDEXCED.IDPRODUCTO - 1]).trim(),
+              ecodigo: String(fila[COL_BDEXCED.CODIGO - 1]).trim(),
+              edescripcion: String(fila[COL_BDEXCED.DESCRIPCION - 1]).trim(),
+              ecantidad: Number(fila[COL_BDEXCED.CANTIDAD - 1] || 0),
+              eubicacion: String(fila[COL_BDEXCED.STATUS - 1]).trim()
+            };
+          });
+      }
+    }
+  } catch (err) {
+    console.error("❌ Fallo crítico leyendo BD-EXCEDENTES: " + err.message);
+  }
+
+  // --- BLOQUE 3: MAPEO ANALÍTICO POR CONSOLA (DIAGNÓSTICO PREMIUM) ---
+  ejecutarMapeoConsola(respuestaMaestra);
+
+  return respuestaMaestra;
+}
+
+/**
+ * Genera un reporte pulcro y formateado en la consola del servidor con métricas de la carga.
+ * @param {Object} datos 
+ */
+function ejecutarMapeoConsola(datos) {
+  const totalBitacora = datos.movimientosBitacora.length;
+  const totalExcedentesBase = datos.baseExcedentes.length;
+  
+  console.log("======================================================");
+  console.log("📊 REPORTE DE EXTRACCIÓN Y CONSOLIDACIÓN DE DATOS");
+  console.log("======================================================");
+  console.log(`⏱️ Timestamp Ejecución: ${Utilities.formatDate(new Date(), "GMT-6", "yyyy-MM-dd HH:mm:ss")}`);
+  console.log(`📥 Registros procesados en Bitacora-TRASPASOS: ${totalBitacora}`);
+  console.log(`📥 Registros consolidados en BD-EXCEDENTES: ${totalExcedentesBase}`);
+  console.log("------------------------------------------------------");
+  
+  if (totalExcedentesBase > 0) {
+    console.log("🔍 Muestra del mapeo estructural (Primer Registro de BD-EXCEDENTES):");
+    console.log(JSON.stringify(datos.baseExcedentes, null, 2));
+    
+    // Auditoría de integridad básica en caliente
+    const sinCodigo = datos.baseExcedentes.filter(e => !e.ecodigo).length;
+    const cantidadCero = datos.baseExcedentes.filter(e => e.ecantidad <= 0).length;
+    
+    if (sinCodigo > 0 || cantidadCero > 0) {
+      console.warn(`🚨 Advertencia de Consistencia: Se detectaron ${sinCodigo} registros sin SKU y ${cantidadCero} con stock <= 0.`);
+    } else {
+      console.log("✅ Verificación de integridad: Estructura de BD-EXCEDENTES sin anomalías.");
+    }
+  } else {
+    console.warn("⚠️ Advertencia: La hoja 'BD-EXCEDENTES' devolvió 0 registros activos.");
+  }
+  console.log("======================================================");
 }
