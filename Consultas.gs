@@ -249,25 +249,10 @@ function procesarLoteEtiquetasExcedentes(lote) {
   }
 }
 
-function procesarReimpresionExcedentes(lista) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const config = _obtenerContextoTemporal(ss);
-  const tmpl = HtmlService.createTemplateFromFile('EtiquetaExcedentesImpresa');
-  
-  // Re-mapeamos la lista para que coincida con tu HTML actual
-  tmpl.lote = lista.map(item => {
-    return {
-      codigo: item.codigo,
-      descripcion: item.descripcion,
-      cantidad: item.cantidad,
-      ubicacion: item.ubicacion,
-      id: item.idUnico,      // <--- Tu HTML busca item.id para el QR
-      idUnico: item.idUnico  // <--- Tu HTML busca item.idUnico para el Footer
-    };
-  });
-  
-  tmpl.fechaHora = config.fecha + " " + config.hora;
-  return tmpl.evaluate().getContent();
+function procesarReimpresionExcedentes(lote) {
+  const template = HtmlService.createTemplateFromFile('EtiquetaExcedentesImpresa');
+  template.lote = lote;
+  return template.evaluate().getContent();
 }
 
 function obtenerTodosLosCodigos() {
@@ -347,49 +332,28 @@ function buscarProductoPorCodigo(codigo) {
 function obtenerTodaLaBaseExcedentes() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    // Validamos ambos nombres posibles de la hoja
-    const hoja = ss.getSheetByName('Bitacora-TRASPASOS') || ss.getSheetByName('Bitacora-Traspasos');
+    const hoja = ss.getSheetByName('BD-EXCEDENTES');
     
-    if (!hoja) throw new Error("No se encontró la hoja de 'Bitacora-TRASPASOS'");
+    if (!hoja) {
+      console.error("No se encontró la hoja: BD-EXCEDENTES");
+      return [];
+    }
 
     const valores = hoja.getDataRange().getValues();
-    if (valores.length <= 1) return [];
+    if (valores.length <= 1) return []; // Solo encabezados
 
-    // Eliminamos encabezados
-    valores.shift();
+    // Mapeamos los datos según el orden de tus columnas
+    return valores.slice(1).map(fila => {
+      return {
+        idUnico:      String(fila || "").trim(), // Columna A
+        ecodigo:      String(fila || "").trim(), // Columna E
+        edescripcion: String(fila || "").trim(), // Columna F
+        ecantidad:    fila || 0                  // Columna G
+      };
+    }).filter(item => item.idUnico !== ""); // Seguridad: Ignorar filas sin ID
 
-    const zonaHoraria = ss.getSpreadsheetTimeZone();
-
-    // Filtramos y mapeamos en un solo paso para mayor eficiencia
-    return valores
-      .filter(fila => {
-        // La columna 14 corresponde al IDUNICO (Columna O)
-        const idUnico = String(fila[14] || "").trim();
-        return idUnico !== ""; // DESPRECIAR VACÍOS: Solo pasan los que tienen IDUNICO
-      })
-      .map((fila, index) => {
-        return {
-          idFila: index + 2, 
-          fecha: fila instanceof Date ? Utilities.formatDate(fila, zonaHoraria, "dd/MM/yyyy") : String(fila || ""),
-          hora: fila[1] instanceof Date ? Utilities.formatDate(fila[1], zonaHoraria, "HH:mm:ss") : String(fila[1] || ""),
-          tipoMovimiento: String(fila[2] || "").trim(),
-          serie: String(fila[3] || "").trim(),
-          bodegaSalida: String(fila[4] || "").trim(),
-          ubiExcedenteSalida: String(fila[5] || "").trim(),
-          bodegaEntrada: String(fila[6] || "").trim(),
-          ubiExcedenteEntrada: String(fila[7] || "").trim(),
-          solicitante: String(fila[8] || "").trim(),
-          codigo: String(fila[9] || "").trim(),
-          descripcion: String(fila[10] || "").trim(),
-          cantidad: Number(fila[11]) || 0,
-          folio: String(fila[12] || "").trim(),
-          responsable: String(fila[13] || "").trim(),
-          idUnico: String(fila[14] || "").trim() 
-        };
-      })
-      .reverse(); // Los más recientes primero
-  } catch (error) {
-    Logger.log("Error en obtenerTodaLaBaseExcedentes: " + error.toString());
+  } catch (e) {
+    console.error("Error en obtenerTodaLaBaseExcedentes: " + e.message);
     return [];
   }
 }

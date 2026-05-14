@@ -86,34 +86,32 @@ window.bloqueadoPorLlenado = false;
  * FUNCIÓN DE ENTRADA OBLIGATORIA
  */
 function cargar_FormularioEtiquetasExcedentesReimpresion() {
-  console.log("🚀 Iniciando Módulo de Reimpresión de Excedentes...");
+  console.log("🚀 Solicitando datos al servidor...");
 
-  // 1. LIMPIEZA DE INTERVALOS PREVIOS (Evita múltiples hilos corriendo)
-  if (window.intervaloReimpresion) {
-    clearInterval(window.intervaloReimpresion);
-  }
-
-  // 2. CARGA INICIAL DESDE MEGADATA
-  if (window.megaData && window.megaData.baseExcedentes) {
-    window.baseDatosExcedentes = window.megaData.baseExcedentes;
-    window.hashExcedentes = JSON.stringify(window.baseDatosExcedentes);
-    actualizarDataListsManual(window.baseDatosExcedentes);
-    console.log("✅ Datalists inicializados con MegaData.");
-  }
-
-  // 3. ACTIVAR CICLO DE SINCRONIZACIÓN
-  sincronizarBaseDeDatos(); 
-
-  window.intervaloReimpresion = setInterval(function() {
-    // Si el input principal ya no existe, el usuario cambió de vista
-    const vistaActiva = document.getElementById('busquedaID'); 
-    if (!vistaActiva) {
-      clearInterval(window.intervaloReimpresion);
-      console.log("🧹 Ciclo de reimpresión detenido y limpiado.");
-      return;
-    }
-    sincronizarBaseDeDatos();
-  }, 3000);
+  google.script.run
+    .withSuccessHandler(function(datos) {
+      // Si el servidor devuelve null o undefined, convertimos a array vacío
+      const base = datos || [];
+      
+      if (base.length === 0) {
+        console.warn("⚠️ El servidor no devolvió registros.");
+        // Opcional: lanzar una notificación visual al usuario
+        lanzarNotificacion("No se encontraron datos en BD-EXCEDENTES", "error");
+        return;
+      }
+      
+      window.baseDatosExcedentes = base;
+      window.hashExcedentes = JSON.stringify(base);
+      
+      // Actualizamos los datalists
+      actualizarDataListsManual(base);
+      console.log("✅ Conexión exitosa. Registros cargados: " + base.length);
+    })
+    .withFailureHandler(function(err) {
+      console.error("❌ Error de red/servidor:", err);
+      lanzarNotificacion("Error al conectar con la base de datos", "error");
+    })
+    .obtenerTodaLaBaseExcedentes();
 }
 
 // --- SINCRONIZACIÓN ---
@@ -185,23 +183,15 @@ function aplicarFiltrosCruzados() {
 
 // --- UTILIDADES ---
 function actualizarDataListsManual(datos) {
-  const ids = [...new Set(datos.map(i => i.idUnico || i.IDUNICO).filter(Boolean))];
-  const codigos = [...new Set(datos.map(i => i.ecodigo || i.CODIGO).filter(Boolean))];
+  if (!datos || !Array.isArray(datos)) return;
+
+  // Extraemos los valores para los datalists
+  const ids = datos.map(i => i.idUnico).filter(Boolean);
+  const codigos = datos.map(i => i.ecodigo).filter(Boolean);
   
+  // Llenamos los datalists sin límites (o con un límite alto como 2000)
   llenarDatalist("listaIDs", ids);
   llenarDatalist("listaCodigos", codigos);
-}
-
-function llenarDatalist(id, array) {
-  const dl = document.getElementById(id);
-  if (!dl) return;
-  dl.innerHTML = ''; 
-  // Aumentamos a 500 para que veas más opciones en el desplegable
-  array.sort().slice(0, 500).forEach(v => { 
-    let opt = document.createElement('option');
-    opt.value = v;
-    dl.appendChild(opt);
-  });
 }
 
 function llenarFormulario(d) {
@@ -271,6 +261,23 @@ function actualizarVistaReimpresion() {
 function quitarDeListaReimpresion(index) {
   window.listaParaImprimirReimpresion.splice(index, 1);
   actualizarVistaReimpresion();
+}
+
+function llenarDatalist(id, array) {
+  const dl = document.getElementById(id);
+  if (!dl) return;
+  
+  dl.innerHTML = ''; 
+  // Eliminamos duplicados y ordenamos para que sea fácil buscar
+  const unicos = [...new Set(array)].sort();
+  
+  unicos.forEach(v => {
+    if (v) {
+      let opt = document.createElement('option');
+      opt.value = v;
+      dl.appendChild(opt);
+    }
+  });
 }
 
 function limpiarFormularioBusqueda() {
