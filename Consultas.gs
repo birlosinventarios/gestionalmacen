@@ -435,3 +435,35 @@ function forzarEjecucionScripts(contenedor) {
         oldScript.parentNode.replaceChild(newScript, oldScript);
     });
 }
+
+function obtenerEstadoFolios() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = ss.getSheetByName('BD-EXCEDENTES');
+  
+  if (!hoja) {
+    Logger.log("Error: No se encontró la hoja BD-EXCEDENTES");
+    return [];
+  }
+
+  try {
+    const data = hoja.getDataRange().getValues();
+    if (data.length <= 1) return []; // Solo encabezados o vacía
+
+    // Quitamos los encabezados y mapeamos los datos
+    // Usamos la estructura definida en COL_BDEXCED de Operaciones.gs
+    return data.slice(1).map(fila => {
+      return {
+        idUnico: String(fila).trim(),       // Columna A (IDUNICO)
+        fecha: fila,                        // Columna B
+        sku: String(fila).trim(),           // Columna E (CODIGO)
+        descripcion: String(fila).trim(),   // Columna F (DESCRIPCION)
+        balance: Number(fila) || 0,         // Columna G (CANTIDAD)
+        ubicacionActual: "EXCEDENTE"           // Valor fijo o mapear si tienes columna de ubi
+      };
+    }).filter(item => item.idUnico !== "" && item.balance > 0); // Solo IDs válidos con stock
+
+  } catch (e) {
+    Logger.log("Error en obtenerEstadoFolios: " + e.message);
+    return [];
+  }
+}
