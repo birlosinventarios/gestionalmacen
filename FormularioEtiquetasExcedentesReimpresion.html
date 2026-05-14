@@ -70,270 +70,346 @@
 
     <?!= HtmlService.createHtmlOutputFromFile('FilaExcedentesReimpresion').getContent(); ?>
 
-<script>
-/**
- * BLINDAJE DE VARIABLES GLOBALES
- * Usamos el objeto 'window' para verificar si la variable ya existe.
- * Si ya existe, la reutilizamos; si no, la inicializamos.
- */
-window.baseDatosExcedentes = window.baseDatosExcedentes || [];
-window.hashExcedentes = window.hashExcedentes || "";
-window.listaParaImprimirReimpresion = window.listaParaImprimirReimpresion || []; // Nombre único para esta vista
-window.snackbarTimeoutReimpresion = window.snackbarTimeoutReimpresion || null;
-window.bloqueadoPorLlenado = false;
+    <script>
+  let baseDatosExcedentes = []; 
+  let hashExcedentes = ""; 
+  let listaParaImprimir = [];
+  let snackbarTimeout; // Declaración necesaria para evitar errores
+  let bloqueadoPorLlenado = false;
 
-/**
- * FUNCIÓN DE ENTRADA OBLIGATORIA
- */
-function cargar_FormularioEtiquetasExcedentesReimpresion() {
-  console.log("🚀 Solicitando datos al servidor...");
+// --- CARGA INICIAL Y MONITOREO (ESTILO SPA) ---
+(function() {
+  console.log("Iniciando Módulo de Reimpresión de Excedentes...");
 
+  // 1. LIMPIEZA DE SEGURIDAD
+  // Si ya existía un intervalo de una visita anterior, lo detenemos
+  if (window.intervaloReimpresion) {
+    clearInterval(window.intervaloReimpresion);
+    console.log("Intervalo de reimpresión previo limpiado.");
+  }
+
+  // 2. CARGA DE METADATA INICIAL
   google.script.run
-    .withSuccessHandler(function(datos) {
-      // Si el servidor devuelve null o undefined, convertimos a array vacío
-      const base = datos || [];
-      
-      if (base.length === 0) {
-        console.warn("⚠️ El servidor no devolvió registros.");
-        // Opcional: lanzar una notificación visual al usuario
-        lanzarNotificacion("No se encontraron datos en BD-EXCEDENTES", "error");
-        return;
-      }
-      
-      window.baseDatosExcedentes = base;
-      window.hashExcedentes = JSON.stringify(base);
-      
-      // Actualizamos los datalists
-      actualizarDataListsManual(base);
-      console.log("✅ Conexión exitosa. Registros cargados: " + base.length);
+    .withSuccessHandler(function() { 
+      console.log("Metadata de reimpresión lista"); 
     })
     .withFailureHandler(function(err) {
-      console.error("❌ Error de red/servidor:", err);
-      lanzarNotificacion("Error al conectar con la base de datos", "error");
+      console.error("Error al cargar metadata:", err);
     })
-    .obtenerTodaLaBaseExcedentes();
-}
+    .obtenerMegaDataInicial();
 
-// --- SINCRONIZACIÓN ---
+  // 3. PRIMERA SINCRONIZACIÓN
+  sincronizarBaseDeDatos(); 
+
+  // 4. CONFIGURAR EL CICLO DE ACTUALIZACIÓN (Cada 3 segundos)
+  window.intervaloReimpresion = setInterval(function() {
+    // Verificamos si el contenedor de reimpresión aún existe en el DOM
+    // Cambia 'contenedorReimpresion' por el ID real de tu div principal en este archivo
+    const vistaActiva = document.getElementById('contenedorReimpresion'); 
+    
+    if (!vistaActiva) {
+      clearInterval(window.intervaloReimpresion);
+      console.log("Ciclo de reimpresión detenido por cambio de vista.");
+      return;
+    }
+
+    sincronizarBaseDeDatos();
+  }, 3000);
+
+})();
+
+  // 2. SINCRONIZACIÓN Y NOTIFICACIÓN
 function sincronizarBaseDeDatos() {
-  const inputBusqueda = document.getElementById("busquedaID");
-  if (!inputBusqueda) return;
-
-  const valID = inputBusqueda.value;
+  const activo = document.activeElement.id;
+  // Capturamos valores actuales para saber si el usuario está filtrando
+  const valID = document.getElementById("busquedaID").value;
   const valCod = document.getElementById("resCodigo").value;
-  const estaFiltrando = valID || valCod;
+  const valUbi = document.getElementById("resUbi").value;
+
+  const estaFiltrando = valID || valCod || valUbi;
 
   google.script.run
     .withSuccessHandler(function(datos) {
       if (!datos) return;
       const nuevoHash = JSON.stringify(datos);
-      if (nuevoHash === window.hashExcedentes) return; 
+      if (nuevoHash === hashExcedentes) return; 
       
-      window.baseDatosExcedentes = datos;
-      window.hashExcedentes = nuevoHash;
+      const esPrimeraCarga = (baseDatosExcedentes.length === 0);
+      baseDatosExcedentes = datos;
+      hashExcedentes = nuevoHash;
       
-      if (!estaFiltrando && !window.bloqueadoPorLlenado) {
-          actualizarDataListsManual(window.baseDatosExcedentes);
+      // Si el usuario NO está escribiendo y NO hay filtros aplicados, actualizamos listas
+      if (!estaFiltrando && !bloqueadoPorLlenado) {
+          actualizarDataListsManual(baseDatosExcedentes);
+      }
+
+      if (esPrimeraCarga) {
+        lanzarNotificacion("✅ Base de Excedentes conectada", "success");
       }
     })
     .obtenerTodaLaBaseExcedentes();
 }
 
-// --- FILTROS CRUZADOS ---
+  // 3. FUNCIÓN PARA NOTIFICACIONES (Estilo Toast)
+function lanzarNotificacion(m, t) {
+    const x = document.getElementById("snackbar");
+    if (!x) return; // Seguridad por si no existe el div
+
+    clearTimeout(snackbarTimeout);
+    x.innerText = m;
+    
+    // Aplicamos la clase 'show' y el tipo (ej: success, error, warning)
+    x.className = `show ${t || ''}`;
+    
+    snackbarTimeout = setTimeout(() => { 
+      x.className = x.className.replace("show", ""); 
+    }, 3000);
+  }
+
+// 4. FILTROS CRUZADOS DINÁMICOS
+/**
+ * Motor de filtrado N-Way (Cruzado). 
+ * Filtra la base de datos basándose en los 3 criterios simultáneamente.
+ */
 function aplicarFiltrosCruzados() {
-  if (window.bloqueadoPorLlenado) return;
+if (bloqueadoPorLlenado) return;
 
-  const valID = document.getElementById("busquedaID").value.trim().toUpperCase();
-  const valCod = document.getElementById("resCodigo").value.trim().toUpperCase();
+  // Capturamos el valor ORIGINAL (sin toUpperCase aquí)
+  const valID = document.getElementById("busquedaID").value.trim();
+  const valCod = document.getElementById("resCodigo").value.trim();
+  const valUbi = document.getElementById("resUbi").value.trim();
 
-  // Si está vacío, resetear
-  if (!valID && !valCod) {
+  // Para la búsqueda interna, sí usamos una versión en mayúsculas
+  const searchID = valID.toUpperCase();
+  const searchCod = valCod.toUpperCase();
+  const searchUbi = valUbi.toUpperCase();
+
+  if (!valID && !valCod && !valUbi) {
     limpiarCamposDetalle();
-    actualizarDataListsManual(window.baseDatosExcedentes);
+    actualizarDataListsManual(baseDatosExcedentes);
     return;
   }
 
-  // Filtrado robusto
-  const filtrados = window.baseDatosExcedentes.filter(item => {
-    const idItem = String(item.idUnico || "").trim().toUpperCase();
-    const codItem = String(item.ecodigo || "").trim().toUpperCase();
-    
-    const coincidenciaID = !valID || idItem.includes(valID);
-    const coincidenciaCod = !valCod || codItem.includes(valCod);
-    
-    return coincidenciaID && coincidenciaCod;
+  const filtrados = baseDatosExcedentes.filter(item => {
+    const matchID = !valID || String(item.IDUNICO).toUpperCase().includes(searchID);
+    const matchCod = !valCod || String(item.CODIGO).toUpperCase().includes(searchCod);
+    const matchUbi = !valUbi || String(item.UBICACION).toUpperCase().includes(searchUbi);
+    return matchID && matchCod && matchUbi;
   });
 
   actualizarDataListsManual(filtrados);
 
-  // Intentar autocompletar si hay una coincidencia clara
-  const coincidenciaExacta = filtrados.find(i => String(i.idUnico).trim().toUpperCase() === valID);
-
-  if (coincidenciaExacta) {
-    window.bloqueadoPorLlenado = true;
-    llenarFormulario(coincidenciaExacta); // Pasar el OBJETO
-    setTimeout(() => { window.bloqueadoPorLlenado = false; }, 200);
-  } 
-  else if (filtrados.length === 1 && (valID.length > 3 || valCod.length > 3)) { 
-    window.bloqueadoPorLlenado = true;
-    llenarFormulario(filtrados); // <--- CORRECCIÓN: Usar el índice 0
-    setTimeout(() => { window.bloqueadoPorLlenado = false; }, 200);
-  } 
-  else {
-    limpiarCamposDetalle();
+  if (filtrados.length === 1) {
+    bloqueadoPorLlenado = true;
+    llenarFormulario(filtrados); // <--- Corregido filtrados
+    setTimeout(() => { bloqueadoPorLlenado = false; }, 200);
+  } else {
+    // Comparación de coincidencia exacta (Case-Insensitive para mayor comodidad)
+    const itemExacto = filtrados.find(i => String(i.IDUNICO).trim().toUpperCase() === searchID);
+    if (itemExacto) {
+      bloqueadoPorLlenado = true;
+      llenarFormulario(itemExacto);
+      setTimeout(() => { bloqueadoPorLlenado = false; }, 200);
+    } else {
+      document.getElementById('resDesc').value = "";
+      document.getElementById('resCant').value = "";
+      document.getElementById('busquedaID').dataset.actualId = "";
+    }
   }
 }
 
-// --- UTILIDADES ---
+// 5. UTILIDADES
 function actualizarDataListsManual(datos) {
-  if (!datos || !Array.isArray(datos)) return;
+// Sacamos valores únicos de los datos que ya pasaron el filtro
+  const ids = [...new Set(datos.map(i => i.IDUNICO).filter(Boolean))];
+  const codigos = [...new Set(datos.map(i => i.CODIGO).filter(Boolean))];
+  const ubis = [...new Set(datos.map(i => i.UBICACION).filter(Boolean))];
 
-  // Extraemos solo el ID para el listado de sugerencias
-  const ids = datos.map(i => i.idUnico).filter(Boolean);
-  const codigos = datos.map(i => i.ecodigo).filter(Boolean);
-  
   llenarDatalist("listaIDs", ids);
   llenarDatalist("listaCodigos", codigos);
+  llenarDatalist("listaUbicaciones", ubis);
 }
 
-function llenarFormulario(d) {
-  if (!d || typeof d !== 'object') return; 
-
-  // Usamos los nombres de propiedades que definimos en Consultas.gs
-  document.getElementById('resCodigo').value = d.ecodigo || "";
-  document.getElementById('resDesc').value = d.edescripcion || "";
-  document.getElementById('resCant').value = d.ecantidad || "";
-  
-  const inputUbi = document.getElementById('resUbi');
-  if (inputUbi) {
-    inputUbi.value = d.estatus || ""; 
-  }
-  
-  // Guardamos el ID real en el dataset para validar al "Añadir a la lista"
-  document.getElementById('busquedaID').dataset.actualId = d.idUnico || "";
-  
-  // Si el valor del input es distinto al ID (porque vino de búsqueda de código), lo actualizamos
-  if (document.getElementById('busquedaID').value !== d.idUnico) {
-     document.getElementById('busquedaID').value = d.idUnico;
-  }
-}
-
-function limpiarCamposDetalle() {
-  document.getElementById('resDesc').value = "";
-  document.getElementById('resCant').value = "";
-  document.getElementById('busquedaID').dataset.actualId = "";
-}
-
-function agregarAListaReimpresion() {
-  const inputID = document.getElementById('busquedaID');
-  const valorId = inputID.dataset.actualId;
-  
-  if (!valorId || inputID.value !== valorId) { 
-    lanzarNotificacion("⚠️ Selecciona un ID válido", "warning"); 
-    return; 
-  }
-
-  if (window.listaParaImprimirReimpresion.some(item => item.idUnico === valorId)) {
-    lanzarNotificacion("❌ Ya está en la lista", "error");
-    return;
-  }
-
-  window.listaParaImprimirReimpresion.push({
-    idUnico: valorId,
-    codigo: document.getElementById('resCodigo').value,
-    descripcion: document.getElementById('resDesc').value,
-    cantidad: document.getElementById('resCant').value,
-    ubicacion: "REIMPRESIÓN" 
-  });
-
-  actualizarVistaReimpresion();
-  limpiarFormularioBusqueda();
-  lanzarNotificacion("➕ Añadido", "success");
-}
-
-function actualizarVistaReimpresion() {
-  const listaUI = document.getElementById('listaReimpresion');
-  const btnPrint = document.getElementById('btnImprimirTodo');
-  const textoBoton = document.getElementById('textoBoton');
-  const plantilla = document.getElementById('plantillaExcedenteReimpresion').innerHTML;
-  
-  listaUI.innerHTML = "";
-  window.listaParaImprimirReimpresion.forEach((item, index) => {
-    let html = plantilla
-      .replace(/{{idUnico}}/g, item.idUnico)
-      .replace(/{{codigo}}/g, item.codigo)
-      .replace(/{{descripcion}}/g, item.descripcion)
-      .replace(/{{cantidad}}/g, item.cantidad)
-      .replace(/{{ubicacion}}/g, item.ubicacion)
-      .replace(/{{index}}/g, index);
-    listaUI.insertAdjacentHTML('beforeend', html);
-  });
-
-  btnPrint.style.display = window.listaParaImprimirReimpresion.length > 0 ? "block" : "none";
-  textoBoton.innerText = `Imprimir (${window.listaParaImprimirReimpresion.length})`;
-}
-
-function quitarDeListaReimpresion(index) {
-  window.listaParaImprimirReimpresion.splice(index, 1);
-  actualizarVistaReimpresion();
-}
-
-function llenarDatalist(id, array) {
-  const dl = document.getElementById(id);
+  function llenarDatalist(id, array) {
+const dl = document.getElementById(id);
   if (!dl) return;
+  dl.innerHTML = ''; // Limpiamos opciones anteriores
   
-  dl.innerHTML = ''; 
-  // Eliminamos duplicados
-  const unicos = [...new Set(array)];
-  
-  unicos.forEach(v => {
+  // Ordenar y quitar duplicados/nulos ya viene del paso anterior
+  array.sort().forEach(v => {
     if (v) {
       let opt = document.createElement('option');
-      opt.value = v; // Aquí solo debe ir el ID, no el objeto
+      opt.value = v;
       dl.appendChild(opt);
     }
   });
 }
 
+function llenarFormulario(d) {
+if (!d || Array.isArray(d)) return; 
+  
+  const elID = document.getElementById('busquedaID');
+  const elCod = document.getElementById('resCodigo');
+  const elUbi = document.getElementById('resUbi');
+
+  // Comparamos los valores tal cual vienen, sin forzar mayúsculas
+  if (elID.value !== String(d.IDUNICO)) elID.value = d.IDUNICO || "";
+  if (elCod.value !== String(d.CODIGO)) elCod.value = d.CODIGO || "";
+  if (elUbi.value !== String(d.UBICACION)) elUbi.value = d.UBICACION || "";
+
+  document.getElementById('resDesc').value = d.DESCRIPCION || "";
+  document.getElementById('resCant').value = d.CANTIDAD || "";
+  
+  elID.dataset.actualId = d.IDUNICO || "";
+}
+
+  function restablecerFiltros() {
+limpiarCamposDetalle();
+  actualizarDataListsManual(baseDatosExcedentes);
+}
+
+  function limpiarCamposDetalle() {
+    document.getElementById('resDesc').value = "";
+    document.getElementById('resCant').value = "";
+    document.getElementById('busquedaID').dataset.actualId = "";
+  }
+
+
+// 6. GESTIÓN DE LISTA E IMPRESIÓN
+function agregarAListaReimpresion() {
+const inputID = document.getElementById('busquedaID');
+  const valorId = inputID.dataset.actualId;
+  
+  // Validación extra: Que el valor del input coincida con el ID guardado
+  if (!valorId || inputID.value !== valorId) { 
+    lanzarNotificacion("⚠️ Por favor, selecciona un ID válido de la lista", "warning"); 
+    return; 
+  }
+
+  if (listaParaImprimir.some(item => item.idUnico === valorId)) {
+    lanzarNotificacion("❌ Este ID ya está en la lista", "error");
+    return;
+  }
+
+  listaParaImprimir.push({
+    idUnico: valorId,
+    codigo: document.getElementById('resCodigo').value,
+    descripcion: document.getElementById('resDesc').value,
+    cantidad: document.getElementById('resCant').value,
+    ubicacion: document.getElementById('resUbi').value
+  });
+
+  actualizarVistaReimpresion();
+  limpiarFormularioBusqueda(); // Esta función ahora resetea todo
+  lanzarNotificacion("➕ Añadido a la lista", "success");
+}
+
+function actualizarVistaReimpresion() {
+    const listaUI = document.getElementById('listaReimpresion');
+    const btnPrint = document.getElementById('btnImprimirTodo');
+    const textoBoton = document.getElementById('textoBoton');
+    const plantilla = document.getElementById('plantillaExcedenteReimpresion').innerHTML;
+    
+    listaUI.innerHTML = "";
+    listaParaImprimir.forEach((item, index) => {
+      let html = plantilla
+        .replace(/{{idUnico}}/g, item.idUnico)
+        .replace(/{{codigo}}/g, item.codigo)
+        .replace(/{{descripcion}}/g, item.descripcion)
+        .replace(/{{cantidad}}/g, item.cantidad)
+        .replace(/{{ubicacion}}/g, item.ubicacion)
+        .replace(/{{index}}/g, index);
+      listaUI.insertAdjacentHTML('beforeend', html);
+    });
+
+    btnPrint.style.display = listaParaImprimir.length > 0 ? "block" : "none";
+    textoBoton.innerText = `Imprimir (${listaParaImprimir.length})`;
+  }
+
+  function quitarDeListaReimpresion(index) {
+    listaParaImprimir.splice(index, 1);
+    actualizarVistaReimpresion();
+  }
+
 function limpiarFormularioBusqueda() {
-  window.bloqueadoPorLlenado = true;
-  ["busquedaID", "resCodigo", "resDesc", "resCant"].forEach(id => {
+bloqueadoPorLlenado = true; // Evita que oninput se dispare mientras limpiamos
+  
+  const ids = ["busquedaID", "resCodigo", "resDesc", "resCant", "resUbi"];
+  ids.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
+  
   document.getElementById('busquedaID').dataset.actualId = ""; 
-  actualizarDataListsManual(window.baseDatosExcedentes); 
-  window.bloqueadoPorLlenado = false;
+  
+  // RESTAURACIÓN TOTAL: Esto permite que al volver a escribir aparezcan todos los valores
+  actualizarDataListsManual(baseDatosExcedentes); 
+  
+  bloqueadoPorLlenado = false;
+  document.getElementById('busquedaID').focus();
 }
 
-function lanzarNotificacion(m, t) {
-  const x = document.getElementById("snackbar");
-  if (!x) return;
-  clearTimeout(window.snackbarTimeoutReimpresion);
-  x.innerText = m;
-  x.className = `show ${t || ''}`;
-  window.snackbarTimeoutReimpresion = setTimeout(() => { x.className = x.className.replace("show", ""); }, 3000);
-}
-
+      // 7. IMPRESIÓN FINAL
 function generarReimpresion() {
-  if (window.listaParaImprimirReimpresion.length === 0) return;
-  const btn = document.getElementById('btnImprimirTodo');
-  btn.disabled = true;
-  document.getElementById('textoBoton').innerText = "⏳ Generando...";
+    if (listaParaImprimir.length === 0) return;
+    const btn = document.getElementById('btnImprimirTodo');
+    btn.disabled = true;
+    document.getElementById('textoBoton').innerText = "⏳ Generando...";
 
-  const win = window.open("", "_blank");
-  win.document.write("<html><body><h3>Generando etiquetas...</h3></body></html>");
+    const win = window.open("", "_blank");
+         win.document.write(`
+                          <html>
+                            <head>
+                              <title>Generando Etiquetas...</title>
+                              <style>
+                                body { 
+                                  font-family: 'Google Sans', Roboto, Arial, sans-serif; 
+                                  display: flex; 
+                                  flex-direction: column; 
+                                  align-items: center; 
+                                  justify-content: center; 
+                                  height: 100vh; 
+                                  margin: 0; 
+                                  color: #5f6368; 
+                                  background-color: #f8f9fa;
+                                }
+                                .spinner {
+                                  width: 50px;
+                                  height: 50px;
+                                  border: 5px solid #f3f3f3;
+                                  border-top: 5px solid #d93025; /* Color rojo de tu interfaz */
+                                  border-radius: 50%;
+                                  animation: spin 1s linear infinite;
+                                  margin-bottom: 20px;
+                                }
+                                @keyframes spin {
+                                  0% { transform: rotate(0deg); }
+                                  100% { transform: rotate(360deg); }
+                                }
+                                h3 { font-weight: 400; }
+                              </style>
+                            </head>
+                            <body>
+                              <div class="spinner"></div>
+                              <h3>Preparando tus etiquetas...</h3>
+                              <p>Esto tomará solo unos segundos.</p>
+                            </body>
+                          </html>
+                        `);
+                        win.document.close();
 
-  google.script.run
-    .withSuccessHandler(function(html) {
-      win.document.open();
-      win.document.write(html);
-      win.document.close();
-      window.listaParaImprimirReimpresion = [];
-      actualizarVistaReimpresion();
-      btn.disabled = false;
-      document.getElementById('textoBoton').innerText = "Imprimir";
-    })
-    .procesarReimpresionExcedentes(window.listaParaImprimirReimpresion); 
-}
-</script>
+google.script.run
+      .withSuccessHandler(function(html) {
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+        
+        listaParaImprimir = [];
+        actualizarVistaReimpresion();
+        btn.disabled = false;
+        document.getElementById('textoBoton').innerText = "Imprimir";
+        lanzarNotificacion("🖨️ Enviado a impresión", "success");
+      })
+      .procesarReimpresionExcedentes(listaParaImprimir); 
+  }
+    </script>

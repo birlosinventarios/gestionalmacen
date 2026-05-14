@@ -276,34 +276,17 @@
 
       useEffect(() => {
         if (typeof google !== 'undefined') {
-          try {
-            google.script.run
-              .withSuccessHandler(data => {
-                if (!data) return; // Protección extra
-                const dataLimpia = data.map(item => ({
-                  ...item,
-                  idUnico: String(item.idUnico).split(/[ ,]+/).trim() 
-                }));
-                setBaseExcedentes(dataLimpia);
-              })
-              .withFailureHandler(error => {
-                console.error("❌ Error del backend:", error);
-                Toast.fire({
-                  icon: 'error',
-                  title: 'Fallo de Sincronización',
-                  text: 'No se pudo cargar la base de folios.'
-                });
-              })
-              .obtenerEstadoFolios(); // Aquí estaba el punto de fallo
-          } catch (error) {
-             // Esto captura el "is not a function" antes de que mate a React
-             console.error("❌ Error de ejecución local. ¿La función existe en el .gs?", error);
-             Toast.fire({
-                icon: 'error',
-                title: 'Error Crítico',
-                text: 'Falta la función obtenerEstadoFolios en el backend.'
-             });
-          }
+          google.script.run
+            .withSuccessHandler(data => {
+              // Sanitización profunda de datos antes de entrar al estado de React
+              const dataLimpia = data.map(item => ({
+                ...item,
+                // Aseguramos que el ID sea un string puro para la comparación del datalist
+                idUnico: String(item.idUnico).split(/[ ,]+/)[0].trim() 
+              }));
+              setBaseExcedentes(dataLimpia);
+            })
+            .obtenerEstadoFolios(); // Función que ya definimos en el .gs
         }
       }, []);
 
@@ -611,24 +594,11 @@ const handleInputChange = (e) => {
       );
     };
 
-
-const montarReact = () => {
-      const rootDiv = document.getElementById('render-prototipo-traspasos');
-      if (rootDiv) {
-        // Limpiamos cualquier rastro previo para evitar fugas de memoria
-        if (window.rootTraspasos) {
-          window.rootTraspasos.unmount();
-        }
-        const root = ReactDOM.createRoot(rootDiv);
-        window.rootTraspasos = root; 
-        root.render(<VistaPrototipo />);
-        console.log("🚀 PrototipoTraspasos: Renderizado exitoso.");
-      } else {
-        console.error("❌ Error: No se encontró el contenedor 'render-prototipo-traspasos'");
-      }
-    };
-
-    // Ejecución con delay controlado para asegurar que el DOM de Apps Script esté listo
-    setTimeout(montarReact, 150);
-  }; // Cierre de cargar_PrototipoTraspasos
+    // Renderizado en el contenedor específico de la vista
+    const rootDiv = document.getElementById('render-prototipo-traspasos');
+    if (rootDiv) {
+      const root = ReactDOM.createRoot(rootDiv);
+      root.render(<VistaPrototipo />);
+    }
+  };
 </script>

@@ -2,59 +2,54 @@ function obtenerMegaDataInicial() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // 1. USUARIOS
+    // 1. USUARIOS (Filtrado por ROL: RESPONSABLE)
     const hojaUsuarios = ss.getSheetByName('USUARIOS');
+    // Leemos Col B (Nombre) y Col C (Rol)
     const dataUsuarios = hojaUsuarios.getRange(2, 1, hojaUsuarios.getLastRow() - 1, 3).getValues();
+
     const usuariosProcesados = dataUsuarios
       .map(f => ({
-        nombre: String(f).trim(),
-        rol: String(f).trim().toUpperCase()
+        nombre: String(f[1]).trim(),
+        rol: String(f[2]).trim().toUpperCase()
       }))
       .filter(u => u.nombre !== "")
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
       
-    // 2. UBICACIONES
+    // 2. MAPA DE UBICACIONES (Hoja 'UBICACIONES')
     const datosUbi = ss.getSheetByName('UBICACIONES').getDataRange().getValues().slice(1);
-    const bodegas = [...new Set(datosUbi.map(f => f))].filter(Boolean).sort();
+    const bodegas = [...new Set(datosUbi.map(f => f[1]))].filter(Boolean).sort();
     const mapaUbicaciones = datosUbi.map(f => ({
-      bodega: String(f).trim().toUpperCase(),
-      ubi: String(f).trim()
+      bodega: String(f[1]).trim().toUpperCase(),
+      ubi: String(f[2]).trim()
     })).filter(f => f.bodega && f.ubi);
 
-    // 3. CATALOGO DE PRODUCTOS (Aquí es donde estaba el ajuste)
+    // 3. CATALOGO DE PRODUCTOS (Hoja 'CATALOGO')
+    // Traemos A (ID), B (Código) y C (Descripción)
     const hojaCat = ss.getSheetByName('CATALOGO');
     const dataCat = hojaCat.getRange(2, 1, hojaCat.getLastRow() - 1, 3).getValues();
     
-    let catalogoParaFrontend = []; // Este es el que espera el formulario
     let mapaProductos = {};
     let todosLosCodigos = [];
     
     dataCat.forEach(f => {
-      const id = String(f).trim();
-      const codigo = String(f).trim().toUpperCase();
-      const descripcion = String(f).trim();
-
+      const codigo = String(f[1]).trim().toUpperCase();
       if (codigo) {
-        // Creamos el objeto que el formulario de excedentes necesita
-        catalogoParaFrontend.push({
-          codigo: codigo,
-          desc: descripcion,
-          id: id
-        });
-
-        // Mantenemos estos por si otras vistas los usan
-        mapaProductos[codigo] = { id: id, descripcion: descripcion };
+        mapaProductos[codigo] = {
+          id: f[0],         // Columna A
+          descripcion: f[2] // Columna C
+        };
         todosLosCodigos.push(codigo);
       }
     });
 
-    // 4. CONFIGURACIÓN DE ETIQUETAS
+    // 4. CONFIGURACIÓN DE ETIQUETAS (Hoja 'CONFIG_ETIQUETAS')
+    // Estructura sugerida: Col A: Nombre, Col B: Alto, Col C: Ancho
     const hojaConfig = ss.getSheetByName('ETIQUETAS');
     let mapaMedidas = {};
     if (hojaConfig) {
       const dataMedidas = hojaConfig.getDataRange().getValues().slice(1);
       dataMedidas.forEach(f => {
-        if(f) mapaMedidas[f] = { alto: f, ancho: f };
+        mapaMedidas[f[0]] = { alto: f[1], ancho: f[2] };
       });
     }
 
@@ -66,13 +61,13 @@ function obtenerMegaDataInicial() {
       codigos: todosLosCodigos.sort(),
       mapaProductos: mapaProductos,
       mapaMedidas: mapaMedidas,
-      nombresEtiquetas: Object.keys(mapaMedidas),
-      catalogo: catalogoParaFrontend // <--- ¡ESTA ES LA PROPIEDAD QUE FALTABA!
+      nombresEtiquetas: Object.keys(mapaMedidas)
     }; 
     
   } catch (e) {
-    Logger.log("Error en MegaData Unificado: " + e.message);
-    return { usuarios: [], bodegas: [], catalogo: [], codigos: [] };
+    console.error("Error en MegaData Unificado: " + e.message);
+    return { usuarios: [], bodegas: [], mapaUbicaciones: [], codigos: [], mapaProductos: {} 
+    };
   }
 }
 
@@ -254,10 +249,25 @@ function procesarLoteEtiquetasExcedentes(lote) {
   }
 }
 
-function procesarReimpresionExcedentes(lote) {
-  const template = HtmlService.createTemplateFromFile('EtiquetaExcedentesImpresa');
-  template.lote = lote;
-  return template.evaluate().getContent();
+function procesarReimpresionExcedentes(lista) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const config = _obtenerContextoTemporal(ss);
+  const tmpl = HtmlService.createTemplateFromFile('EtiquetaExcedentesImpresa');
+  
+  // Re-mapeamos la lista para que coincida con tu HTML actual
+  tmpl.lote = lista.map(item => {
+    return {
+      codigo: item.codigo,
+      descripcion: item.descripcion,
+      cantidad: item.cantidad,
+      ubicacion: item.ubicacion,
+      id: item.idUnico,      // <--- Tu HTML busca item.id para el QR
+      idUnico: item.idUnico  // <--- Tu HTML busca item.idUnico para el Footer
+    };
+  });
+  
+  tmpl.fechaHora = config.fecha + " " + config.hora;
+  return tmpl.evaluate().getContent();
 }
 
 function obtenerTodosLosCodigos() {
@@ -335,46 +345,51 @@ function buscarProductoPorCodigo(codigo) {
 }
 
 function obtenerTodaLaBaseExcedentes() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const nombreHoja = 'BD-EXCEDENTES';
-  
   try {
-    const hoja = ss.getSheetByName(nombreHoja);
-    if (!hoja) return [];
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    // Validamos ambos nombres posibles de la hoja
+    const hoja = ss.getSheetByName('Bitacora-TRASPASOS') || ss.getSheetByName('Bitacora-Traspasos');
+    
+    if (!hoja) throw new Error("No se encontró la hoja de 'Bitacora-TRASPASOS'");
 
-    const valores = hoja.getDataRange().getValues(); 
+    const valores = hoja.getDataRange().getValues();
     if (valores.length <= 1) return [];
 
-    // Saltamos la cabecera con slice(1)
-    return valores.slice(1)
-      .filter(fila => fila && String(fila).trim() !== "") // Filtramos si la Columna A (IDUNICO) está vacía
-      .map((fila, index) => {
-        
-        // --- Procesamiento de Fecha (Columna B -> índice 1) ---
-        let fechaProcesada = "";
-        try {
-          if (fila instanceof Date) {
-            fechaProcesada = Utilities.formatDate(fila, "GMT-6", "yyyy-MM-dd");
-          } else {
-            fechaProcesada = String(fila || "");
-          }
-        } catch(e) { fechaProcesada = ""; }
+    // Eliminamos encabezados
+    valores.shift();
 
-        // --- Retorno del objeto con índices de columna correctos ---
+    const zonaHoraria = ss.getSpreadsheetTimeZone();
+
+    // Filtramos y mapeamos en un solo paso para mayor eficiencia
+    return valores
+      .filter(fila => {
+        // La columna 14 corresponde al IDUNICO (Columna O)
+        const idUnico = String(fila[14] || "").trim();
+        return idUnico !== ""; // DESPRECIAR VACÍOS: Solo pasan los que tienen IDUNICO
+      })
+      .map((fila, index) => {
         return {
-          eidFila:      index + 2,
-          idUnico:      String(fila || "").trim(),      // Col A (Índice 0)
-          efecha:       fechaProcesada,                    // Col B (Índice 1)
-          ehora:        String(fila || "").trim(),      // Col C (Índice 2)
-          eidProducto:  String(fila || "").trim(),      // Col D (Índice 3)
-          ecodigo:      String(fila || "").trim(),      // Col E (Índice 4)
-          edescripcion: String(fila || "").trim(),      // Col F (Índice 5)
-          ecantidad:    Number(fila || 0),              // Col G (Índice 6)
-          estatus:      String(fila || "").trim()       // Col H (Índice 7)
+          idFila: index + 2, 
+          fecha: fila instanceof Date ? Utilities.formatDate(fila, zonaHoraria, "dd/MM/yyyy") : String(fila || ""),
+          hora: fila[1] instanceof Date ? Utilities.formatDate(fila[1], zonaHoraria, "HH:mm:ss") : String(fila[1] || ""),
+          tipoMovimiento: String(fila[2] || "").trim(),
+          serie: String(fila[3] || "").trim(),
+          bodegaSalida: String(fila[4] || "").trim(),
+          ubiExcedenteSalida: String(fila[5] || "").trim(),
+          bodegaEntrada: String(fila[6] || "").trim(),
+          ubiExcedenteEntrada: String(fila[7] || "").trim(),
+          solicitante: String(fila[8] || "").trim(),
+          codigo: String(fila[9] || "").trim(),
+          descripcion: String(fila[10] || "").trim(),
+          cantidad: Number(fila[11]) || 0,
+          folio: String(fila[12] || "").trim(),
+          responsable: String(fila[13] || "").trim(),
+          idUnico: String(fila[14] || "").trim() 
         };
-      });
-  } catch (err) {
-    console.error("Error en obtenerTodaLaBaseExcedentes: " + err.message);
+      })
+      .reverse(); // Los más recientes primero
+  } catch (error) {
+    Logger.log("Error en obtenerTodaLaBaseExcedentes: " + error.toString());
     return [];
   }
 }
@@ -439,36 +454,4 @@ function forzarEjecucionScripts(contenedor) {
         newScript.appendChild(document.createTextNode(oldScript.innerHTML));
         oldScript.parentNode.replaceChild(newScript, oldScript);
     });
-}
-
-function obtenerEstadoFolios() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName('BD-EXCEDENTES');
-  
-  if (!hoja) {
-    Logger.log("Error: No se encontró la hoja BD-EXCEDENTES");
-    return [];
-  }
-
-  try {
-    const data = hoja.getDataRange().getValues();
-    if (data.length <= 1) return []; // Solo encabezados o vacía
-
-    // Quitamos los encabezados y mapeamos los datos
-    // Usamos la estructura definida en COL_BDEXCED de Operaciones.gs
-    return data.slice(1).map(fila => {
-      return {
-        idUnico: String(fila).trim(),       // Columna A (IDUNICO)
-        fecha: fila,                        // Columna B
-        sku: String(fila).trim(),           // Columna E (CODIGO)
-        descripcion: String(fila).trim(),   // Columna F (DESCRIPCION)
-        balance: Number(fila) || 0,         // Columna G (CANTIDAD)
-        ubicacionActual: "EXCEDENTE"           // Valor fijo o mapear si tienes columna de ubi
-      };
-    }).filter(item => item.idUnico !== "" && item.balance > 0); // Solo IDs válidos con stock
-
-  } catch (e) {
-    Logger.log("Error en obtenerEstadoFolios: " + e.message);
-    return [];
-  }
 }
