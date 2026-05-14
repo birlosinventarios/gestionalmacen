@@ -330,43 +330,46 @@ function buscarProductoPorCodigo(codigo) {
 }
 
 function obtenerTodaLaBaseExcedentes() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const nombreHoja = 'BD-EXCEDENTES';
+  
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const nombreHoja = 'BD-EXCEDENTES';
     const hoja = ss.getSheetByName(nombreHoja);
-    
-    if (!hoja) {
-      console.error(`❌ ERROR: No se encontró la hoja llamada '${nombreHoja}'. Revisa espacios o mayúsculas.`);
-      return [];
-    }
+    if (!hoja) return [];
 
-    // getDisplayValues() es más seguro que getValues() porque trae el texto tal como se ve en la celda
-    const valores = hoja.getDataRange().getDisplayValues(); 
-    console.log(`📊 INFO: Filas totales detectadas en la hoja: ${valores.length}`);
+    const valores = hoja.getDataRange().getValues(); 
+    if (valores.length <= 1) return [];
 
-    if (valores.length <= 1) {
-       console.warn("⚠️ INFO: La hoja existe, pero solo tiene la fila de encabezados o está vacía.");
-       return [];
-    }
+    // Saltamos la cabecera con slice(1)
+    return valores.slice(1)
+      .filter(fila => fila && String(fila).trim() !== "") // Filtramos si la Columna A (IDUNICO) está vacía
+      .map((fila, index) => {
+        
+        // --- Procesamiento de Fecha (Columna B -> índice 1) ---
+        let fechaProcesada = "";
+        try {
+          if (fila instanceof Date) {
+            fechaProcesada = Utilities.formatDate(fila, "GMT-6", "yyyy-MM-dd");
+          } else {
+            fechaProcesada = String(fila || "");
+          }
+        } catch(e) { fechaProcesada = ""; }
 
-    // Mapeo
-    const datosProcesados = valores.slice(1).map((fila, index) => {
-      return {
-        idUnico:      String(fila || "").trim(), // Col A (Índice 0)
-        ecodigo:      String(fila || "").trim(), // Col E (Índice 4)
-        edescripcion: String(fila || "").trim(), // Col F (Índice 5)
-        ecantidad:    fila || 0                  // Col G (Índice 6)
-      };
-    });
-
-    const datosFiltrados = datosProcesados.filter(item => item.idUnico !== "");
-    
-    console.log(`✅ ÉXITO: Se procesaron ${datosProcesados.length} filas. Se devolverán ${datosFiltrados.length} registros válidos (con ID).`);
-
-    return datosFiltrados;
-
-  } catch (e) {
-    console.error("❌ ERROR CRÍTICO en el servidor: " + e.stack);
+        // --- Retorno del objeto con índices de columna correctos ---
+        return {
+          eidFila:      index + 2,
+          idUnico:      String(fila || "").trim(),      // Col A (Índice 0)
+          efecha:       fechaProcesada,                    // Col B (Índice 1)
+          ehora:        String(fila || "").trim(),      // Col C (Índice 2)
+          eidProducto:  String(fila || "").trim(),      // Col D (Índice 3)
+          ecodigo:      String(fila || "").trim(),      // Col E (Índice 4)
+          edescripcion: String(fila || "").trim(),      // Col F (Índice 5)
+          ecantidad:    Number(fila || 0),              // Col G (Índice 6)
+          estatus:      String(fila || "").trim()       // Col H (Índice 7)
+        };
+      });
+  } catch (err) {
+    console.error("Error en obtenerTodaLaBaseExcedentes: " + err.message);
     return [];
   }
 }

@@ -146,38 +146,41 @@ function aplicarFiltrosCruzados() {
   const valID = document.getElementById("busquedaID").value.trim().toUpperCase();
   const valCod = document.getElementById("resCodigo").value.trim().toUpperCase();
 
-  // Si no hay búsqueda, mostramos la base completa (limitada por el slice del datalist)
+  // Si está vacío, resetear
   if (!valID && !valCod) {
     limpiarCamposDetalle();
     actualizarDataListsManual(window.baseDatosExcedentes);
     return;
   }
 
-  // Filtrar en la memoria completa del navegador
+  // Filtrado robusto
   const filtrados = window.baseDatosExcedentes.filter(item => {
-    const idItem = String(item.idUnico || item.IDUNICO || "").toUpperCase();
-    const codItem = String(item.ecodigo || item.CODIGO || "").toUpperCase();
-    return (!valID || idItem.includes(valID)) && (!valCod || codItem.includes(valCod));
+    const idItem = String(item.idUnico || "").trim().toUpperCase();
+    const codItem = String(item.ecodigo || "").trim().toUpperCase();
+    
+    const coincidenciaID = !valID || idItem.includes(valID);
+    const coincidenciaCod = !valCod || codItem.includes(valCod);
+    
+    return coincidenciaID && coincidenciaCod;
   });
 
-  // Actualizar los datalists con los resultados que coinciden
   actualizarDataListsManual(filtrados);
 
-  // Si solo queda uno, lo cargamos automáticamente
-  if (filtrados.length === 1) {
+  // Intentar autocompletar si hay una coincidencia clara
+  const coincidenciaExacta = filtrados.find(i => String(i.idUnico).trim().toUpperCase() === valID);
+
+  if (coincidenciaExacta) {
     window.bloqueadoPorLlenado = true;
-    llenarFormulario(filtrados); // Antes pasaba 'filtrados' (error), ahora filtrados
+    llenarFormulario(coincidenciaExacta); // Pasar el OBJETO
     setTimeout(() => { window.bloqueadoPorLlenado = false; }, 200);
-  } else {
-    // Búsqueda por coincidencia exacta
-    const itemExacto = filtrados.find(i => String(i.idUnico || i.IDUNICO).toUpperCase() === valID);
-    if (itemExacto) {
-      window.bloqueadoPorLlenado = true;
-      llenarFormulario(itemExacto);
-      setTimeout(() => { window.bloqueadoPorLlenado = false; }, 200);
-    } else {
-      limpiarCamposDetalle();
-    }
+  } 
+  else if (filtrados.length === 1 && (valID.length > 3 || valCod.length > 3)) { 
+    window.bloqueadoPorLlenado = true;
+    llenarFormulario(filtrados); // <--- CORRECCIÓN: Usar el índice 0
+    setTimeout(() => { window.bloqueadoPorLlenado = false; }, 200);
+  } 
+  else {
+    limpiarCamposDetalle();
   }
 }
 
@@ -185,22 +188,34 @@ function aplicarFiltrosCruzados() {
 function actualizarDataListsManual(datos) {
   if (!datos || !Array.isArray(datos)) return;
 
-  // Extraemos los valores para los datalists
+  // Extraemos solo el ID para el listado de sugerencias
   const ids = datos.map(i => i.idUnico).filter(Boolean);
   const codigos = datos.map(i => i.ecodigo).filter(Boolean);
   
-  // Llenamos los datalists sin límites (o con un límite alto como 2000)
   llenarDatalist("listaIDs", ids);
   llenarDatalist("listaCodigos", codigos);
 }
 
 function llenarFormulario(d) {
-  if (!d) return; 
-  document.getElementById('busquedaID').value = d.idUnico || d.IDUNICO || "";
-  document.getElementById('resCodigo').value = d.ecodigo || d.CODIGO || "";
-  document.getElementById('resDesc').value = d.edescripcion || d.DESCRIPCION || "";
-  document.getElementById('resCant').value = d.ecantidad || d.CANTIDAD || "";
-  document.getElementById('busquedaID').dataset.actualId = d.idUnico || d.IDUNICO || "";
+  if (!d || typeof d !== 'object') return; 
+
+  // Usamos los nombres de propiedades que definimos en Consultas.gs
+  document.getElementById('resCodigo').value = d.ecodigo || "";
+  document.getElementById('resDesc').value = d.edescripcion || "";
+  document.getElementById('resCant').value = d.ecantidad || "";
+  
+  const inputUbi = document.getElementById('resUbi');
+  if (inputUbi) {
+    inputUbi.value = d.estatus || ""; 
+  }
+  
+  // Guardamos el ID real en el dataset para validar al "Añadir a la lista"
+  document.getElementById('busquedaID').dataset.actualId = d.idUnico || "";
+  
+  // Si el valor del input es distinto al ID (porque vino de búsqueda de código), lo actualizamos
+  if (document.getElementById('busquedaID').value !== d.idUnico) {
+     document.getElementById('busquedaID').value = d.idUnico;
+  }
 }
 
 function limpiarCamposDetalle() {
@@ -268,13 +283,13 @@ function llenarDatalist(id, array) {
   if (!dl) return;
   
   dl.innerHTML = ''; 
-  // Eliminamos duplicados y ordenamos para que sea fácil buscar
-  const unicos = [...new Set(array)].sort();
+  // Eliminamos duplicados
+  const unicos = [...new Set(array)];
   
   unicos.forEach(v => {
     if (v) {
       let opt = document.createElement('option');
-      opt.value = v;
+      opt.value = v; // Aquí solo debe ir el ID, no el objeto
       dl.appendChild(opt);
     }
   });
