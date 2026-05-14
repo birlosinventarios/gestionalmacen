@@ -2,54 +2,59 @@ function obtenerMegaDataInicial() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // 1. USUARIOS (Filtrado por ROL: RESPONSABLE)
+    // 1. USUARIOS
     const hojaUsuarios = ss.getSheetByName('USUARIOS');
-    // Leemos Col B (Nombre) y Col C (Rol)
     const dataUsuarios = hojaUsuarios.getRange(2, 1, hojaUsuarios.getLastRow() - 1, 3).getValues();
-
     const usuariosProcesados = dataUsuarios
       .map(f => ({
-        nombre: String(f[1]).trim(),
-        rol: String(f[2]).trim().toUpperCase()
+        nombre: String(f).trim(),
+        rol: String(f).trim().toUpperCase()
       }))
       .filter(u => u.nombre !== "")
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
       
-    // 2. MAPA DE UBICACIONES (Hoja 'UBICACIONES')
+    // 2. UBICACIONES
     const datosUbi = ss.getSheetByName('UBICACIONES').getDataRange().getValues().slice(1);
-    const bodegas = [...new Set(datosUbi.map(f => f[1]))].filter(Boolean).sort();
+    const bodegas = [...new Set(datosUbi.map(f => f))].filter(Boolean).sort();
     const mapaUbicaciones = datosUbi.map(f => ({
-      bodega: String(f[1]).trim().toUpperCase(),
-      ubi: String(f[2]).trim()
+      bodega: String(f).trim().toUpperCase(),
+      ubi: String(f).trim()
     })).filter(f => f.bodega && f.ubi);
 
-    // 3. CATALOGO DE PRODUCTOS (Hoja 'CATALOGO')
-    // Traemos A (ID), B (Código) y C (Descripción)
+    // 3. CATALOGO DE PRODUCTOS (Aquí es donde estaba el ajuste)
     const hojaCat = ss.getSheetByName('CATALOGO');
     const dataCat = hojaCat.getRange(2, 1, hojaCat.getLastRow() - 1, 3).getValues();
     
+    let catalogoParaFrontend = []; // Este es el que espera el formulario
     let mapaProductos = {};
     let todosLosCodigos = [];
     
     dataCat.forEach(f => {
-      const codigo = String(f[1]).trim().toUpperCase();
+      const id = String(f).trim();
+      const codigo = String(f).trim().toUpperCase();
+      const descripcion = String(f).trim();
+
       if (codigo) {
-        mapaProductos[codigo] = {
-          id: f[0],         // Columna A
-          descripcion: f[2] // Columna C
-        };
+        // Creamos el objeto que el formulario de excedentes necesita
+        catalogoParaFrontend.push({
+          codigo: codigo,
+          desc: descripcion,
+          id: id
+        });
+
+        // Mantenemos estos por si otras vistas los usan
+        mapaProductos[codigo] = { id: id, descripcion: descripcion };
         todosLosCodigos.push(codigo);
       }
     });
 
-    // 4. CONFIGURACIÓN DE ETIQUETAS (Hoja 'CONFIG_ETIQUETAS')
-    // Estructura sugerida: Col A: Nombre, Col B: Alto, Col C: Ancho
+    // 4. CONFIGURACIÓN DE ETIQUETAS
     const hojaConfig = ss.getSheetByName('ETIQUETAS');
     let mapaMedidas = {};
     if (hojaConfig) {
       const dataMedidas = hojaConfig.getDataRange().getValues().slice(1);
       dataMedidas.forEach(f => {
-        mapaMedidas[f[0]] = { alto: f[1], ancho: f[2] };
+        if(f) mapaMedidas[f] = { alto: f, ancho: f };
       });
     }
 
@@ -61,13 +66,13 @@ function obtenerMegaDataInicial() {
       codigos: todosLosCodigos.sort(),
       mapaProductos: mapaProductos,
       mapaMedidas: mapaMedidas,
-      nombresEtiquetas: Object.keys(mapaMedidas)
+      nombresEtiquetas: Object.keys(mapaMedidas),
+      catalogo: catalogoParaFrontend // <--- ¡ESTA ES LA PROPIEDAD QUE FALTABA!
     }; 
     
   } catch (e) {
-    console.error("Error en MegaData Unificado: " + e.message);
-    return { usuarios: [], bodegas: [], mapaUbicaciones: [], codigos: [], mapaProductos: {} 
-    };
+    Logger.log("Error en MegaData Unificado: " + e.message);
+    return { usuarios: [], bodegas: [], catalogo: [], codigos: [] };
   }
 }
 
