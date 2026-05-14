@@ -332,28 +332,41 @@ function buscarProductoPorCodigo(codigo) {
 function obtenerTodaLaBaseExcedentes() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const hoja = ss.getSheetByName('BD-EXCEDENTES');
+    const nombreHoja = 'BD-EXCEDENTES';
+    const hoja = ss.getSheetByName(nombreHoja);
     
     if (!hoja) {
-      console.error("No se encontró la hoja: BD-EXCEDENTES");
+      console.error(`❌ ERROR: No se encontró la hoja llamada '${nombreHoja}'. Revisa espacios o mayúsculas.`);
       return [];
     }
 
-    const valores = hoja.getDataRange().getValues();
-    if (valores.length <= 1) return []; // Solo encabezados
+    // getDisplayValues() es más seguro que getValues() porque trae el texto tal como se ve en la celda
+    const valores = hoja.getDataRange().getDisplayValues(); 
+    console.log(`📊 INFO: Filas totales detectadas en la hoja: ${valores.length}`);
 
-    // Mapeamos los datos según el orden de tus columnas
-    return valores.slice(1).map(fila => {
+    if (valores.length <= 1) {
+       console.warn("⚠️ INFO: La hoja existe, pero solo tiene la fila de encabezados o está vacía.");
+       return [];
+    }
+
+    // Mapeo
+    const datosProcesados = valores.slice(1).map((fila, index) => {
       return {
-        idUnico:      String(fila || "").trim(), // Columna A
-        ecodigo:      String(fila || "").trim(), // Columna E
-        edescripcion: String(fila || "").trim(), // Columna F
-        ecantidad:    fila || 0                  // Columna G
+        idUnico:      String(fila || "").trim(), // Col A (Índice 0)
+        ecodigo:      String(fila || "").trim(), // Col E (Índice 4)
+        edescripcion: String(fila || "").trim(), // Col F (Índice 5)
+        ecantidad:    fila || 0                  // Col G (Índice 6)
       };
-    }).filter(item => item.idUnico !== ""); // Seguridad: Ignorar filas sin ID
+    });
+
+    const datosFiltrados = datosProcesados.filter(item => item.idUnico !== "");
+    
+    console.log(`✅ ÉXITO: Se procesaron ${datosProcesados.length} filas. Se devolverán ${datosFiltrados.length} registros válidos (con ID).`);
+
+    return datosFiltrados;
 
   } catch (e) {
-    console.error("Error en obtenerTodaLaBaseExcedentes: " + e.message);
+    console.error("❌ ERROR CRÍTICO en el servidor: " + e.stack);
     return [];
   }
 }
