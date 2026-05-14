@@ -594,11 +594,24 @@ const handleInputChange = (e) => {
       );
     };
 
-    // Renderizado en el contenedor específico de la vista
-    const rootDiv = document.getElementById('render-prototipo-traspasos');
-    if (rootDiv) {
-      const root = ReactDOM.createRoot(rootDiv);
-      root.render(<VistaPrototipo />);
-    }
-  };
+
+const montarReact = () => {
+      const rootDiv = document.getElementById('render-prototipo-traspasos');
+      if (rootDiv) {
+        // Limpiamos cualquier rastro previo para evitar fugas de memoria
+        if (window.rootTraspasos) {
+          window.rootTraspasos.unmount();
+        }
+        const root = ReactDOM.createRoot(rootDiv);
+        window.rootTraspasos = root; 
+        root.render(<VistaPrototipo />);
+        console.log("🚀 PrototipoTraspasos: Renderizado exitoso.");
+      } else {
+        console.error("❌ Error: No se encontró el contenedor 'render-prototipo-traspasos'");
+      }
+    };
+
+    // Ejecución con delay controlado para asegurar que el DOM de Apps Script esté listo
+    setTimeout(montarReact, 150);
+  }; // Cierre de cargar_PrototipoTraspasos
 </script>
