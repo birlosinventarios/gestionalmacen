@@ -196,7 +196,7 @@
 
             <div class="qr-seccion">
                 <div class="qr-container">
-                    <img src="https://quickchart.io/qr?text=<?= encodeURIComponent(item.id) ?>&size=200&margin=1"
+                    <img src="https://quickchart.io/qr?text=<?= encodeURIComponent(item.idUnico) ?>&size=200&margin=1"
                          onload="verificarCarga()"
                          onerror="this.src='https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=<?= encodeURIComponent(item.idUnico) ?>'">
                 </div>
