@@ -175,3 +175,57 @@ function debugHoja_(sheetName, mapFn, label) {
 
   console.log(`==================================================`);
 } 
+
+
+/**
+ * Plantilla genérica de Debug para Services
+ * - label: nombre de la operación
+ * - input: objeto o valor de entrada (solo para log)
+ * - executor: función que ejecuta el service
+ * - options.limit: cuántos elementos mostrar si el resultado es array
+ */
+function debugServiceCall_(label, input, executor, options = {}) {
+  const limit = options.limit || 5;
+
+  console.log("==================================================");
+  console.log(`[SERVICE] ${label}`);
+
+  if (input !== undefined) {
+    console.log(`[${label}] input:`, JSON.stringify(input, null, 2));
+  }
+
+  try {
+    const result = executor();
+
+    // Si regresa array
+    if (Array.isArray(result)) {
+      console.log(`[${label}] tipo: array`);
+      console.log(`[${label}] total:`, result.length);
+      console.log(`[${label}] muestra:`, JSON.stringify(result.slice(0, limit), null, 2));
+    }
+
+    // Si regresa objeto
+    else if (result && typeof result === "object") {
+      console.log(`[${label}] tipo: object`);
+      console.log(`[${label}] keys:`, Object.keys(result));
+      console.log(`[${label}] valor:`, JSON.stringify(result, null, 2));
+    }
+
+    // Si regresa valor simple
+    else {
+      console.log(`[${label}] tipo:`, typeof result);
+      console.log(`[${label}] valor:`, result);
+    }
+
+    console.log("==================================================");
+    return result;
+
+  } catch (error) {
+    console.error(`[${label}] ERROR:`, error.message);
+    if (error.stack) {
+      console.error(error.stack);
+    }
+    console.log("==================================================");
+    return null;
+  }
+}
