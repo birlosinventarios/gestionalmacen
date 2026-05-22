@@ -1,122 +1,126 @@
 /**
- * UsuariosRepository.gs
- * Lectura de hoja USUARIOS
+ * UbicacionesExcedentesRepository.gs
+ * Lectura de hoja UBICACIONES
  */
+
 const UbicacionesExcedentesRepository = (() => {
 
-  function _sheet() {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const hoja = ss.getSheetByName(SHEETS.UBICACIONES_EXCEDENTES);
-    if (!hoja) throw new Error(`No se encontró la hoja: ${SHEETS.UBICACIONES_EXCEDENTES}`);
-    return hoja;
+  function readSource_() {
+    return getRows_(SHEETS.UBICACIONES_EXCEDENTES);
   }
 
-  function _leerUbicacionesExcedentes() {
-    const values = _sheet().getDataRange().getValues();
-    if (values.length < 2) return []; // sin datos
-    return values.slice(1); // quitamos encabezado
-  }
-
-  function _normalizarfila(fila) {
+  function normalize_(fila) {
     return {
-      id: fila[COL.UBICACIONES_EXCEDENTES.ID],
-      bodega: String(fila[COL.UBICACIONES_EXCEDENTES.BODEGA] || "").trim().toUpperCase(), // Todo a mayusculas
-      ubicacion: String(fila[COL.UBICACIONES_EXCEDENTES.UBICACION] || "").trim().toUpperCase()  // Todo a mayusculas
+      idubicacionesexcedentes: toNum_(fila[COL.UBICACIONES_EXCEDENTES.IDUBICACIONES_EXCEDENTES] || ""),
+      bodega: toStrUpper_(fila[COL.UBICACIONES_EXCEDENTES.BODEGA] || ""),
+      ubicacion: toStrUpper_(fila[COL.UBICACIONES_EXCEDENTES.UBICACION] || "")
     };
+  }
+
+  function getField_(field) {
+    return getData_().map(x => x[field]);
+  }
+
+  // Lectura de todo el origen de datos una sola vez
+  let cache_ = null;
+
+  function getData_() {
+    if (cache_ === null) {
+      cache_ = readSource_()
+        .map(normalize_)
+        .filter(x => x.ubicacion);
+      console.log("[CACHE] Ubicaciones de excedentes Cargadas");
+    }
+
+    return cache_;
   }
 
   return {
 
-    // Devuelve objetos completos
+    // Devuelve todas las ubicaciones    
     getAll: function() {
-      return _leerUbicacionesExcedentes()
-        .map(_normalizarfila)
-        .filter(u => u.ubicacion !== "")
+      return [...getData_()]
         .sort((a, b) => a.ubicacion.localeCompare(b.ubicacion));
     },
 
-        // Devuelve solo bodegas (todos)
-    getBodegasTodas: function() {
-      return this.getAll().map(u => u.ubicacion);
+    // Devuelve todos las ubicaciones de excedentes por bodega
+    getPorBodega: function(bodega) {
+      const filtro = toStrUpper_(bodega || "");
+      return getData_().filter(t => t.bodega === filtro);
     },
 
-    // Devuelve solo ubicaciones (todos)
-    getUbicacionesTodas: function() {
-      return this.getAll().map(u => u.ubicacion);
+    // Devuelve todos las ubicaciones de excedentes por ubicacion
+    getPorUbicacion: function(ubicacion) {
+      const filtro = toStrUpper_(ubicacion || "");
+      return getData_().filter(t => t.ubicacion === filtro);
     },
+
+    //  Devuelve todos las bodegas involucradas
+    getBodegas: function() {
+      return getField_("bodega");
+    },
+
+    //  Devuelve todos las bodegas con salida involucradas
+    getUbicaciones: function() {
+      return getField_("ubicacion");
+    },
+
+    clearCache: function() {
+      cache_ = null;
+      console.log("[CACHE] Ubicaciones de excedentes limpias");
+    }
+
   };
 
 })();
 
-
-/**
- * Plantilla genérica de Debug para hojas con encabezados en fila 1.
- * - sheetName: nombre de la hoja (SHEETS.X)
- * - mapFn: función que mapea fila(array) -> objeto
- * - label: etiqueta para logs
- */
-function debugSheetGeneric_(sheetName, mapFn, label) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(sheetName);
-
-  if (!hoja) {
-    console.error(`[${label}] No se encontró la hoja:`, sheetName);
-    return;
-  }
-
-  const values = hoja.getDataRange().getValues();
-
-  console.log(`==================================================`);
-  console.log(`[${label}] Hoja: ${sheetName}`);
-  console.log(`[${label}] Filas totales (incluye encabezado):`, values.length);
-
-  if (values.length === 0) {
-    console.warn(`[${label}] Hoja vacía.`);
-    return;
-  }
-
-  console.log(`[${label}] Encabezados (fila 1):`, values[0]);
-  console.log(`[${label}] Muestra RAW (primeras 5 filas):`, JSON.stringify(values.slice(0, 5), null, 2));
-
-  // Quitar encabezado
-  const rows = values.slice(1);
-
-  console.log(`[${label}] Filas de datos (sin encabezado):`, rows.length);
-  console.log(`[${label}] Muestra RAW datos (primeras 5):`, JSON.stringify(rows.slice(0, 5), null, 2));
-
-  // Mapear a objetos (si hay mapFn)
-  if (typeof mapFn === "function") {
-    const mapped = rows.map(mapFn);
-
-    console.log(`[${label}] Muestra MAPEADA (primeras 5):`, JSON.stringify(mapped.slice(0, 5), null, 2));
-
-    // Validaciones rápidas
-    const nulos = mapped.filter(o => !o).length;
-    console.log(`[${label}] Objetos nulos/undefined mapeados:`, nulos);
-  }
-
-  console.log(`==================================================`);
-} 
-
-
 function debugUbicacionesExcedentesRepository() {
-  // 1) Validar lectura directa (RAW) desde hoja
-  debugSheetGeneric_(
-    SHEETS.UBICACIONES_EXCEDENTES,
-    (fila) => ({
-      id: fila[COL.UBICACIONES_EXCEDENTES.ID],
-      bodega: String(fila[COL.UBICACIONES_EXCEDENTES.BODEGA] || "").trim(),
-      ubicacion: String(fila[COL.UBICACIONES_EXCEDENTES.UBICACION] || "").trim().toUpperCase()
-    }),
-    "UBICACIONES_EXCEDENTES"
-  );
 
-  // 2) Validar lo que regresa el repositorio (ya procesado)
+  // ===============================
+  //  VARIABLES DE PRUEBA
+  // ===============================
+
+  const BODEGA_PRUEBA = "Bodega 1";
+  const UBICACION_PRUEBA = "B1-19";
+ 
+  // ===============================
+  //  getAll
+  // ===============================
+
   const all = UbicacionesExcedentesRepository.getAll();
-  console.log("[UBICACIONES_EXCEDENTES][Repo] getAll() total:", all.length);
-  console.log("[UBICACIONES_EXCEDENTES][Repo] getAll() muestra:", JSON.stringify(all.slice(0, 5), null, 2));
+  console.log("[getAll] total:", all.length);
+  console.log("[getAll] muestra:", JSON.stringify(all.slice(0, 5), null, 3));
 
-  const todos = UbicacionesExcedentesRepository.getUbicacionesTodas();
-  console.log("[UBICACIONES_EXCEDENTES][Repo] getUbicacionesTodas() total:", todos.length);
-  console.log("[UBICACIONES_EXCEDENTESc][Repo] getUbicacionesTodas() muestra:", JSON.stringify(todos.slice(0, 5), null, 2));
+  // ===============================
+  //  getPorBodega
+  // ===============================
+
+  const porbodega = UbicacionesExcedentesRepository.getPorBodega(BODEGA_PRUEBA);
+  console.log(`[getPorBodega(${BODEGA_PRUEBA})] total:`, porbodega.length);
+  console.log("[getPorBodega] muestra:", JSON.stringify(porbodega.slice(0, 5), null, 3));
+
+  // ===============================
+  //  getPorUbicacion
+  // ===============================
+
+  const porubicacion = UbicacionesExcedentesRepository.getPorUbicacion(UBICACION_PRUEBA);
+  console.log(`[getPorUbicacion(${UBICACION_PRUEBA})] total:`, porubicacion.length);
+  console.log("[getPorUbicacion] muestra:", JSON.stringify(porubicacion.slice(0, 5), null, 3));
+
+  // ===============================
+  //  getBodegas
+  // ===============================
+
+  const bodegas = UbicacionesExcedentesRepository.getBodegas();
+  console.log("[getBodegas] total:", bodegas.length);
+  console.log("[getBodegas] muestra:", JSON.stringify(bodegas.slice(0, 5), null, 3));
+
+  // ===============================
+  //  getUbicaciones
+  // ===============================
+
+  const ubicaciones = UbicacionesExcedentesRepository.getUbicaciones();
+  console.log("[getUbicaciones] total:", ubicaciones.length);
+  console.log("[getUbicaciones] muestra:", JSON.stringify(ubicaciones.slice(0, 5), null, 3));
+
 }

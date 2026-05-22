@@ -14,30 +14,41 @@ const SHEETS = {
 const COL = {
 
   CATALOGO: {
-    ID: 0,          
+    IDPRODUCTO: 0,          
     CODIGO: 1,     
     DESCRIPCION: 2   
   },
 
   USUARIOS:{
-    ID: 0,
+    IDUSUARIOS: 0,
     NOMBRE: 1,
     ROL: 2
   },
 
   ETIQUETAS:{
-    ID: 0,
+    IDETIQUETAS: 0,
     NOMBRE: 1,
     ANCHO: 2,
     ALTO: 3
   },
 
   UBICACIONES_EXCEDENTES:{
-    ID: 0,
+    IDUBICACIONES_EXCEDENTES: 0,
     BODEGA: 1,
     UBICACION: 2
   },
 
+  UBICACIONES_SURTIDO:{
+    IDUBICACION: 0,
+    CODIGO: 1,
+    BODEGA: 2,
+    PASILLO: 3,
+    ANAQUEL: 4,
+    REPISA: 5,
+    IDPRODUCTO: 6,
+    UBICACION:7
+  },
+    
   EXCEDENTES:{
     IDUNICO: 0,
     FECHA: 1,

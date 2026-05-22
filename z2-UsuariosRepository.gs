@@ -2,49 +2,83 @@
  * UsuariosRepository.gs
  * Lectura de hoja USUARIOS
  */
+
 const UsuariosRepository = (() => {
 
-  function _sheet() {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const hoja = ss.getSheetByName(SHEETS.USUARIOS);
-    if (!hoja) throw new Error(`No se encontró la hoja: ${SHEETS.USUARIOS}`);
-    return hoja;
+  function readSource_() {
+    return getRows_(SHEETS.USUARIOS);
   }
 
-  function _leerUsuarios() {
-    const values = _sheet().getDataRange().getValues();
-    if (values.length < 2) return []; // sin datos
-    return values.slice(1); // quitamos encabezado
-  }
-
-  function _normalizarfila(fila) {
+  function normalize_(fila) {
     return {
-      id: fila[COL.USUARIOS.ID],
-      nombre: String(fila[COL.USUARIOS.NOMBRE] || "").trim().toUpperCase(), // Todo a mayusculas
-      rol: String(fila[COL.USUARIOS.ROL] || "").trim().toUpperCase()  // Todo a mayusculas
+      idusuario: toNum_(fila[COL.USUARIOS.IDUSUARIOS] || ""),
+      nombre: toStrUpper_(fila[COL.USUARIOS.NOMBRE] || ""),
+      rol: toStrUpper_(fila[COL.USUARIOS.ROL] || "")
     };
+  }
+
+  function getField_(field) {
+    return getData_().map(x => x[field]);
+  }
+
+  // Lectura de todo el origen de datos una sola vez
+  let cache_ = null;
+
+  function getData_() {
+    if (cache_ === null) {
+      cache_ = readSource_()
+        .map(normalize_)
+        .filter(x => x.nombre);
+      console.log("[CACHE] Usuarios cargados");
+    }
+
+    return cache_;
   }
 
   return {
 
-    // Devuelve objetos completos
+    // Devuelve todas las usuarios  
     getAll: function() {
-      return _leerUsuarios()
-        .map(_normalizarfila)
-        .filter(u => u.nombre !== "")
+      return [...getData_()]
         .sort((a, b) => a.nombre.localeCompare(b.nombre));
     },
 
-    // Devuelve solo nombres (todos)
-    getNombresTodos: function() {
-      return this.getAll().map(u => u.nombre);
+    // Devuelve todos los datos del usuario por id
+    getPorId: function(idusuario) {
+      const filtro = toNum_(idusuario || "");
+      return getData_().filter(t => t.idusuario === filtro);
     },
 
-    // Devuelve solo nombres de responsables (incluye ADMIN si así lo defines)
-    getNombresResponsables: function() {
-      return this.getAll()
-        .filter(u => u.rol === "RESPONSABLE" )
-        .map(u => u.nombre);
+    // Devuelve todos los datos del usuario por nombre
+    getPorNombre: function(nombre) {
+      const filtro = toStrUpper_(nombre || "");
+      return getData_().filter(t => t.nombre === filtro);
+    },
+
+    // Devuelve todos los datos del usuario por rol
+    getPorRol: function(rol) {
+      const filtro = toStrUpper_(rol || "");
+      return getData_().filter(t => t.rol === filtro);
+    },
+
+    //  Devuelve todos las ids involucradas
+    getIds: function() {
+      return getField_("idusuario");
+    },
+
+    //  Devuelve todos los nombres involucrados
+    getNombres: function() {
+      return getField_("nombre");
+    },
+
+    //  Devuelve todos las roles involucrados
+    getRoles: function() {
+      return getField_("rol");
+    },
+
+    clearCache: function() {
+      cache_ = null;
+      console.log("[CACHE] Usuarios limpios");
     }
 
   };
@@ -52,79 +86,71 @@ const UsuariosRepository = (() => {
 })();
 
 
-/**
- * Plantilla genérica de Debug para hojas con encabezados en fila 1.
- * - sheetName: nombre de la hoja (SHEETS.X)
- * - mapFn: función que mapea fila(array) -> objeto
- * - label: etiqueta para logs
- */
-function debugSheetGeneric_(sheetName, mapFn, label) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(sheetName);
-
-  if (!hoja) {
-    console.error(`[${label}] No se encontró la hoja:`, sheetName);
-    return;
-  }
-
-  const values = hoja.getDataRange().getValues();
-
-  console.log(`==================================================`);
-  console.log(`[${label}] Hoja: ${sheetName}`);
-  console.log(`[${label}] Filas totales (incluye encabezado):`, values.length);
-
-  if (values.length === 0) {
-    console.warn(`[${label}] Hoja vacía.`);
-    return;
-  }
-
-  console.log(`[${label}] Encabezados (fila 1):`, values[0]);
-  console.log(`[${label}] Muestra RAW (primeras 5 filas):`, JSON.stringify(values.slice(0, 5), null, 2));
-
-  // Quitar encabezado
-  const rows = values.slice(1);
-
-  console.log(`[${label}] Filas de datos (sin encabezado):`, rows.length);
-  console.log(`[${label}] Muestra RAW datos (primeras 5):`, JSON.stringify(rows.slice(0, 5), null, 2));
-
-  // Mapear a objetos (si hay mapFn)
-  if (typeof mapFn === "function") {
-    const mapped = rows.map(mapFn);
-
-    console.log(`[${label}] Muestra MAPEADA (primeras 5):`, JSON.stringify(mapped.slice(0, 5), null, 2));
-
-    // Validaciones rápidas
-    const nulos = mapped.filter(o => !o).length;
-    console.log(`[${label}] Objetos nulos/undefined mapeados:`, nulos);
-  }
-
-  console.log(`==================================================`);
-} 
-
 
 function debugUsuariosRepository() {
-  // 1) Validar lectura directa (RAW) desde hoja
-  debugSheetGeneric_(
-    SHEETS.USUARIOS,
-    (fila) => ({
-      id: fila[COL.USUARIOS.ID],
-      nombre: String(fila[COL.USUARIOS.NOMBRE] || "").trim(),
-      rol: String(fila[COL.USUARIOS.ROL] || "").trim().toUpperCase()
-    }),
-    "USUARIOS"
-  );
 
-  // 2) Validar lo que regresa el repositorio (ya procesado)
+  // ===============================
+  //  VARIABLES DE PRUEBA
+  // ===============================
+
+  const ID_PRUEBA = "16";
+  const NOMBRE_PRUEBA = "Sigifredo De la cruz";
+  const ROL_PRUEBA = "Solicitante";  
+ 
+  // ===============================
+  //  getAll
+  // ===============================
+
   const all = UsuariosRepository.getAll();
-  console.log("[USUARIOS][Repo] getAll() total:", all.length);
-  console.log("[USUARIOS][Repo] getAll() muestra:", JSON.stringify(all.slice(0, 5), null, 2));
+  console.log("[getAll] total:", all.length);
+  console.log("[getAll] muestra:", JSON.stringify(all.slice(0, 5), null, 3));
 
-  const todos = UsuariosRepository.getNombresTodos();
-  console.log("[USUARIOS][Repo] getNombresTodos() total:", todos.length);
-  console.log("[USUARIOS][Repo] getNombresTodos() muestra:", JSON.stringify(todos.slice(0, 5), null, 2));
+  // ===============================
+  //  getPorId
+  // ===============================
 
-  const resp = UsuariosRepository.getNombresResponsables();
-  console.log("[USUARIOS][Repo] getNombresResponsables() total:", resp.length);
-  console.log("[USUARIOS][Repo] getNombresResponsables() muestra:", JSON.stringify(resp.slice(0, 5), null, 2));
+  const porid = UsuariosRepository.getPorId(ID_PRUEBA);
+  console.log(`[getPorId(${ID_PRUEBA})] total:`, porid.length);
+  console.log("[getPorId] muestra:", JSON.stringify(porid.slice(0, 5), null, 3));
+
+  // ===============================
+  //  getPorNombre
+  // ===============================
+
+  const pornombre = UsuariosRepository.getPorNombre(NOMBRE_PRUEBA);
+  console.log(`[getPorNombre(${NOMBRE_PRUEBA})] total:`, pornombre.length);
+  console.log("[getPorNombre] muestra:", JSON.stringify(pornombre.slice(0, 5), null, 3));
+
+  // ===============================
+  //  getPorRol
+  // ===============================
+
+  const porrol = UsuariosRepository.getPorRol(ROL_PRUEBA);
+  console.log(`[getPorRol(${ROL_PRUEBA})] total:`, porrol.length);
+  console.log("[getPorRol] muestra:", JSON.stringify(porrol.slice(0, 5), null, 3));
+
+  // ===============================
+  //  getIds
+  // ===============================
+
+  const ids = UsuariosRepository.getIds();
+  console.log("[getIds] total:", ids.length);
+  console.log("[getIds] muestra:", JSON.stringify(ids.slice(0, 5), null, 3));
+
+  // ===============================
+  //  getNombres
+  // ===============================
+
+  const nombres = UsuariosRepository.getNombres();
+  console.log("[getNombres] total:", nombres.length);
+  console.log("[getNombres] muestra:", JSON.stringify(nombres.slice(0, 5), null, 3));
+
+    // ===============================
+  //  getRoles
+  // ===============================
+
+  const roles = UsuariosRepository.getRoles();
+  console.log("[getRoles] total:", roles.length);
+  console.log("[getRoles] muestra:", JSON.stringify(roles.slice(0, 5), null, 3));
+
 }
-
