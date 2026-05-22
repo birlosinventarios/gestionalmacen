@@ -83,6 +83,8 @@ const ExcedentesService = (() => {
 
 
 
+})();
+
 
 function debugExcedentesService() {
 
@@ -133,10 +135,3 @@ function debugExcedentesService() {
     () => ExcedentesService.estaUsado(IDUNICO_PRUEBA)
   );
 }
-
-
-
-
-
-
-})();
