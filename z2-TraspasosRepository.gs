@@ -23,9 +23,9 @@ const TraspasosRepository = (() => {
       codigo: toStrUpper_(fila[COL.TRASPASOS.CODIGO] || ""),
       descripcion: toStrUpper_(fila[COL.TRASPASOS.DESCRIPCION] || ""),
       cantidad: toNum_(fila[COL.TRASPASOS.CANTIDAD] || ""),
-      folio: toNum_(fila[COL.TRASPASOS.FOLIO] || ""),
+      folio: toStr_(fila[COL.TRASPASOS.FOLIO] || ""),
       responsable: toStrUpper_(fila[COL.TRASPASOS.RESPONSABLE] || ""),
-      idunico: toNum_(fila[COL.TRASPASOS.IDUNICO] || "")
+      idunico: toStr_(fila[COL.TRASPASOS.IDUNICO] || "")
     };
   }
 
@@ -139,9 +139,10 @@ const TraspasosRepository = (() => {
 
     // Devuelve todos los traspasos por idunico   
     getPorIdUnico: function(idunico) {
-      const filtro = toNum_(idunico || "");
+      const filtro = toStr_(idunico || "");
       return getData_().filter(t => t.idunico === filtro);
     },
+
 
     //  Devuelve todos las series involucradas
     getSeries: function() {

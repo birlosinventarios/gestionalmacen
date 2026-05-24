@@ -11,7 +11,7 @@ const CatalogoRepository = (() => {
 
   function normalize_(fila) {
     return {
-      idProducto: toStr_(fila[COL.CATALOGO.IDPRODUCTO]),
+      idproducto: toStr_(fila[COL.CATALOGO.IDPRODUCTO]),
       codigo: toStrUpper_(fila[COL.CATALOGO.CODIGO]),
       descripcion: toStrUpper_(fila[COL.CATALOGO.DESCRIPCION])
     };
@@ -56,7 +56,7 @@ function getData_() {
 
     //  Devuelve todos los idproductos
     getIdProductos: function() {
-      return getField_("idProducto");
+      return getField_("idproducto");
     },        
 
     //  Devuelve toda la informacion por Codigo
@@ -66,9 +66,9 @@ function getData_() {
     },
 
     //  Devuelve toda la informacion por IdProductos
-    getPorIdProducto: function(idProducto) {
-      const filtro = toStr_(idProducto);
-      return getData_().filter(t => t.idProducto === filtro);
+    getPorIdProducto: function(idproducto) {
+      const filtro = toStr_(idproducto);
+      return getData_().filter(t => t.idproducto === filtro);
     },
 
     //  Devuelve un codigo, usar para busqueda por descripcion
