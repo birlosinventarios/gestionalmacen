@@ -15,7 +15,7 @@ const UbicacionesExcedentesService = (() => {
 
       return UbicacionesExcedentesRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.bodega).includes(texto)
+          (x.bodega).includes(texto)
         );
     },
 
@@ -27,7 +27,7 @@ const UbicacionesExcedentesService = (() => {
 
       return UbicacionesExcedentesRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.ubicacion).includes(texto)
+          (x.ubicacion).includes(texto)
         );
     },
 
@@ -39,7 +39,7 @@ const UbicacionesExcedentesService = (() => {
 
       return UbicacionesExcedentesRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.idubicacionesexcedentes).startsWith(texto)
+          (x.idubicacionesexcedentes).startsWith(texto)
         );
     },
 

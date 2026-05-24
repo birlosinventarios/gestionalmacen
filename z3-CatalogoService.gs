@@ -15,7 +15,7 @@ const CatalogoService = (() => {
 
       return CatalogoRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.codigo).startsWith(texto)
+          (x.codigo).startsWith(texto)
         );
     },
 
@@ -27,7 +27,7 @@ const CatalogoService = (() => {
 
       return CatalogoRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.descripcion).includes(texto)
+          (x.descripcion).includes(texto)
         );
     },
 
@@ -39,7 +39,7 @@ const CatalogoService = (() => {
 
       return CatalogoRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.idproducto).startsWith(texto)
+          (x.idproducto).startsWith(texto)
         );
     },
 

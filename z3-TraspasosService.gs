@@ -50,7 +50,7 @@ const TraspasosService = (() => {
 
       return TraspasosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.tipomovimiento).includes(texto)
+          (x.tipomovimiento).includes(texto)
         );
     },
 
@@ -62,7 +62,7 @@ const TraspasosService = (() => {
 
       return TraspasosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.serie).startsWith(texto)
+          (x.serie).startsWith(texto)
         );
     },
 
@@ -74,7 +74,7 @@ const TraspasosService = (() => {
 
       return TraspasosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.bodegasalida).includes(texto)
+          (x.bodegasalida).includes(texto)
         );
     },
     /**
@@ -85,7 +85,7 @@ const TraspasosService = (() => {
 
       return TraspasosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.ubicacionsalida).includes(texto)
+          (x.ubicacionsalida).includes(texto)
         );
     },
 
@@ -97,7 +97,7 @@ const TraspasosService = (() => {
 
       return TraspasosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.bodegaentrada).includes(texto)
+          (x.bodegaentrada).includes(texto)
         );
     },
 
@@ -109,7 +109,7 @@ const TraspasosService = (() => {
 
       return TraspasosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.ubicacionentrada).includes(texto)
+          (x.ubicacionentrada).includes(texto)
         );
     },
 
@@ -121,7 +121,7 @@ const TraspasosService = (() => {
 
       return TraspasosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.solicitante).includes(texto)
+          (x.solicitante).includes(texto)
         );
     },
 
@@ -133,7 +133,7 @@ const TraspasosService = (() => {
 
       return TraspasosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.codigo).includes(texto)
+          (x.codigo).includes(texto)
         );
     },
 
@@ -145,7 +145,7 @@ const TraspasosService = (() => {
 
       return TraspasosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.descripcion).includes(texto)
+          (x.descripcion).includes(texto)
         );
     },
 
@@ -157,7 +157,7 @@ const TraspasosService = (() => {
 
       return TraspasosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.folio).includes(texto)
+          (x.folio).includes(texto)
         );
     },
     
@@ -169,7 +169,7 @@ const TraspasosService = (() => {
 
       return TraspasosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.responsable).includes(texto)
+          (x.responsable).includes(texto)
         );
     },
 
@@ -181,7 +181,7 @@ const TraspasosService = (() => {
 
       return TraspasosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.idunico).includes(texto)
+          (x.idunico).includes(texto)
         );
     },
 

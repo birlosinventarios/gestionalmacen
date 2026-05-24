@@ -29,7 +29,7 @@ const UsuariosService = (() => {
 
       return UsuariosRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.nombre).includes(texto)
+          (x.nombre).includes(texto)
         );
     },
 

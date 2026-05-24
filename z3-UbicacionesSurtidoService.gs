@@ -15,7 +15,7 @@ const UbicacionesSurtidoService = (() => {
 
       return UbicacionesSurtidoRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.codigo).includes(texto)
+          (x.codigo).includes(texto)
         );
     },
 
@@ -27,7 +27,7 @@ const UbicacionesSurtidoService = (() => {
 
       return UbicacionesSurtidoRepository.getAll()
         .filter(x =>
-          toStrUpper_(x.bodega).includes(texto)
+          (x.bodega).includes(texto)
         );
     },
 
@@ -39,7 +39,7 @@ const UbicacionesSurtidoService = (() => {
 
       return UbicacionesSurtidoRepository.getAll()
               .filter(x =>
-                toStrUpper_(x.pasillo).includes(texto)
+                (x.pasillo).includes(texto)
               );
           },
 
@@ -51,7 +51,7 @@ const UbicacionesSurtidoService = (() => {
 
       return UbicacionesSurtidoRepository.getAll()
               .filter(x =>
-                toStrUpper_(x.anaquel).includes(texto)
+                (x.anaquel).includes(texto)
               );
           },
           
@@ -63,7 +63,7 @@ const UbicacionesSurtidoService = (() => {
 
       return UbicacionesSurtidoRepository.getAll()
               .filter(x =>
-                toStrUpper_(x.repisa).includes(texto)
+                (x.repisa).includes(texto)
               );
           },
 
@@ -75,7 +75,7 @@ const UbicacionesSurtidoService = (() => {
 
       return UbicacionesSurtidoRepository.getAll()
               .filter(x =>
-                toStrUpper_(x.idproducto).startsWith(texto)
+                (x.idproducto).startsWith(texto)
               );
           },
 
@@ -87,7 +87,7 @@ const UbicacionesSurtidoService = (() => {
 
       return UbicacionesSurtidoRepository.getAll()
               .filter(x =>
-                toStrUpper_(x.ubicacion).includes(texto)
+                (x.ubicacion).includes(texto)
               );
           },
   };

@@ -40,7 +40,7 @@ const ExcedentesService = (() => {
 
       return this.getRegistrosDisponibles()
         .filter(x =>
-          toStrUpper_(x.codigo).includes(texto)
+          (x.codigo).includes(texto)
         );
     },
 
@@ -52,7 +52,7 @@ const ExcedentesService = (() => {
 
       return this.getRegistrosDisponibles()
         .filter(x =>
-          toStrUpper_(x.descripcion).includes(texto)
+          (x.descripcion).includes(texto)
         );
     },
 
@@ -64,7 +64,7 @@ const ExcedentesService = (() => {
 
       return this.getRegistrosDisponibles()
         .filter(x =>
-          toStrUpper_(x.idunico).includes(texto)
+          (x.idunico).includes(texto)
         );
     },
 
