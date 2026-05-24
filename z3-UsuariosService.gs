@@ -36,16 +36,16 @@ const UsuariosService = (() => {
     /**
      * Valida si el usuario encontrado por nombre es RESPONSABLE
      */
-    esResponsable: function(rol) {
-      return this.getRegistrosPorNombre(rol)
+    esResponsable: function(nombre) {
+      return this.getRegistrosPorNombre(nombre)
         .some(x => x.rol === "RESPONSABLE");
     },
 
     /**
      * Valida si el usuario encontrado por nombre es SOLICITANTE
      */
-    esSolicitante: function(rol) {
-      return this.getRegistrosPorNombre(rol)
+    esSolicitante: function(nombre) {
+      return this.getRegistrosPorNombre(nombre)
         .some(x => x.rol === "SOLICITANTE");
     }
 
