@@ -26,10 +26,9 @@ const COL = {
   },
 
   ETIQUETAS:{
-    IDETIQUETAS: 0,
-    NOMBRE: 1,
-    ANCHO: 2,
-    ALTO: 3
+    NOMBRE: 0,
+    ANCHO: 1,
+    ALTO: 2
   },
 
   UBICACIONES_EXCEDENTES:{
