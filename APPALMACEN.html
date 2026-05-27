@@ -187,7 +187,7 @@ const TOOLS = [
   { id: 'MonitorTraspasos', name: 'Traspasos Pendientes', icon: 'clipboard-list', category: 'Procesos' },
   
   // CATEGORÍA: ETIQUETADO
-  { id: 'FormularioEtiquetas', name: 'Etiquetas Identificadoras', icon: 'tag', category: 'Etiquetado' },
+  { id: 'FormularioEtiquetasIdentificadoras', name: 'Etiquetas Identificadoras', icon: 'tag', category: 'Etiquetado' },
   { id: 'FormularioEtiquetasExcedentes', name: 'Etiquetas Excedentes', icon: 'tag', category: 'Etiquetado' },
   { id: 'FormularioEtiquetasExcedentesReimpresion', name: 'Reimpresión Excedentes', icon: 'printer', category: 'Etiquetado' },
   
@@ -325,38 +325,119 @@ window.lanzarNotificacion = window.notificar;
           .obtenerContenidoVista(fileName);
       };
 
-      // 🔄 Carga de inicio garantizada de una sola vía
+      
+      // 🔄 Carga inicial garantizada de una sola vía
       useEffect(() => {
         window.inicializarMegaData()
           .then(() => {
+            console.log("✅ [Shell] MegaData lista. Cargando vista inicial...");
             seleccionarVista('FormularioTraspasos', 'FormularioTraspasos');
           })
-          .catch(() => {
-            // Si algo falla, cargamos de todos modos para que no se quede la pantalla congelada
-            seleccionarVista('FormularioTraspasos', 'FormularioTraspasos');
+          .catch((error) => {
+            console.error("🚨 [Shell] No se pudo inicializar MegaData:", error);
+            window.notificar("Error al sincronizar base de datos. Reintenta.", "error");
+            setLoading(false);
           });
       }, []);
 
-      // ⚡ Motor de encendido de scripts dinámicos (Protección anti-duplicados y re-renders - UX FITO)
-         
+
+        
+      // ⚡ Motor de encendido de scripts dinámicos
       useEffect(() => {
-        if (!viewContent) return;
+        if (!containerRef.current || !viewContent) return;
 
         console.log("📄 [Shell] viewContent cargado para:", activeTool);
-        console.log("🧪 [Shell] typeof window.initVista ANTES del timeout:", typeof window.initVista);
+        console.log("🧪 [Shell] typeof window.initVista ANTES de ejecutar scripts:", typeof window.initVista);
+
+        const scripts = containerRef.current.querySelectorAll("script");
+
+        scripts.forEach((oldScript) => {
+          const originalType = (oldScript.getAttribute("type") || "").toLowerCase().trim();
+          const scriptContent = oldScript.textContent || "";
+
+          // ✅ 1) IGNORAR scripts que son plantillas o datos
+          if (
+            originalType === "text/template" ||
+            originalType === "text/x-template" ||
+            originalType === "application/json" ||
+            originalType === "application/ld+json"
+          ) {
+            console.log("⏭️ [Shell] Script omitido por ser plantilla/datos:", originalType);
+            return;
+          }
+
+          // ✅ 2) Scripts externos
+          if (oldScript.src) {
+            const externalScript = document.createElement("script");
+            Array.from(oldScript.attributes).forEach(attr => {
+              externalScript.setAttribute(attr.name, attr.value);
+            });
+            document.body.appendChild(externalScript);
+            console.log("✅ [Shell] Script externo agregado:", oldScript.src);
+            return;
+          }
+
+          // ✅ 3) Scripts con JSX/Babel
+          if (originalType === "text/babel" || originalType === "text/jsx") {
+            try {
+              const transpiled = Babel.transform(scriptContent, {
+                presets: ["react"]
+              }).code;
+
+              const runtimeScript = document.createElement("script");
+              runtimeScript.type = "text/javascript";
+              runtimeScript.text = transpiled;
+
+              document.body.appendChild(runtimeScript);
+              document.body.removeChild(runtimeScript);
+
+              console.log("✅ [Shell] Script Babel transpildado y ejecutado");
+            } catch (err) {
+              console.error("❌ [Shell] Error transpiling Babel script:", err);
+            }
+            return;
+          }
+
+          // ✅ 4) Scripts JS normales inline
+          if (
+            originalType === "" ||
+            originalType === "text/javascript" ||
+            originalType === "application/javascript" ||
+            originalType === "module"
+          ) {
+            try {
+              const newScript = document.createElement("script");
+              newScript.type = originalType || "text/javascript";
+              newScript.text = scriptContent;
+
+              document.body.appendChild(newScript);
+              document.body.removeChild(newScript);
+
+              console.log("✅ [Shell] Script JS ejecutado");
+            } catch (err) {
+              console.error("❌ [Shell] Error ejecutando script JS:", err);
+            }
+            return;
+          }
+
+          console.warn("⚠️ [Shell] Tipo de script no manejado, se omite:", originalType);
+        });
 
         setTimeout(() => {
-          console.log("🧪 [Shell] typeof window.initVista DENTRO del timeout:", typeof window.initVista);
+          console.log("🧪 [Shell] typeof window.initVista DESPUÉS de ejecutar scripts:", typeof window.initVista);
 
-          if (typeof window.initVista === 'function') {
+          if (typeof window.initVista === "function") {
             console.log("🚀 [Shell] Ejecutando initVista:", window.initVista.name || "(anónima)");
             window.initVista();
           } else {
             console.warn("⚠️ [Shell] No existe window.initVista para la vista actual");
           }
-        }, 50);
+        }, 80);
 
       }, [viewContent, activeTool]);
+
+
+
 
 
       const toolsByCategory = TOOLS.reduce((acc, tool) => {

@@ -456,3 +456,17 @@ function forzarEjecucionScripts(contenedor) {
         oldScript.parentNode.replaceChild(newScript, oldScript);
     });
 }
+
+
+function obtenerEstadoFolios() {
+  const maestro = obtenerInformacionExcedentes();
+  const base = (maestro && maestro.baseExcedentes) || [];
+
+  return base.map(item => ({
+    idUnico: item.idUnico || item.eidUnico || "",
+    sku: item.sku || item.ecodigo || "",
+    descripcion: item.descripcion || item.edescripcion || "",
+    ubicacionActual: item.ubicacionActual || item.eserie || "",
+    balance: Number(item.balance != null ? item.balance : item.esaldo || 0)
+  }));
+}

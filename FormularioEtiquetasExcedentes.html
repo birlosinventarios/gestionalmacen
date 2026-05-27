@@ -74,44 +74,71 @@
         <?!= HtmlService.createHtmlOutputFromFile('FilaEtiquetasExcedentes').getContent(); ?>
 
     <script>
-      let colaDeImpresion = [];
-      let listaCodigosGlobal = [];
+      window.colaDeImpresionExcedentes = window.colaDeImpresionExcedentes || [];
+      let listaCodigosGlobalExcedentes = [];
       const MEDIDAS_FIJAS = { alto: 8, ancho: 12.5 }; // Definidas aquí directamente
 
 // --- CARGA INICIAL (EJECUCIÓN INMEDIATA PARA SPA) ---
-(function() {
-  console.log("Iniciando Formulario de Etiquetas Excedentes...");
-  lanzarNotificacion("Cargando base de datos...", "info");
-  
-  google.script.run
-    .withSuccessHandler(function(res) {
-      const dl = document.getElementById('listaCodigos');
-      if (!dl || !res) return;
-      
-      // 1. GUARDAR PARA VALIDACIÓN
-      // Asegúrate de que 'listaCodigosGlobal' esté declarada al inicio del script
-      listaCodigosGlobal = res; 
 
-      // 2. RENDERIZADO ULTRA-RÁPIDO
-      // Usar innerHTML con join es mucho más eficiente que crear elementos uno por uno
-      dl.innerHTML = res.map(c => `<option value="${c}">`).join('');
+window.inicializarVistaEtiquetasExcedentes = function() {
+  console.log("📦 [Excedentes] Inicializando vista...");
+  console.log("📦 [Excedentes] DATA_ALMACEN_CACHE:", window.DATA_ALMACEN_CACHE);
 
-      console.log("Datalist de excedentes cargado.");
-      lanzarNotificacion("Sistema Listo", "success");
-    })
-    .withFailureHandler(function(err) {
-      console.error("Fallo al cargar datalist de excedentes: ", err);
-      lanzarNotificacion("Error al cargar catálogo", "error");
-    })
-    .obtenerTodosLosCodigos(); 
-})();
+  if (window.DATA_ALMACEN_CACHE?.codigos?.length) {
+    console.log("⚡ [Excedentes] Cargando códigos desde DATA_ALMACEN_CACHE...");
+
+    listaCodigosGlobalExcedentes = window.DATA_ALMACEN_CACHE.codigos || [];
+    poblarDatalistExcedentes_();
+
+    lanzarNotificacion("Sistema listo", "success");
+    return;
+  }
+
+  if (listaCodigosGlobalExcedentes.length > 0) {
+    console.log("⚡ [Excedentes] Reutilizando códigos ya cargados en memoria local...");
+    poblarDatalistExcedentes_();
+    lanzarNotificacion("Sistema listo", "success");
+    return;
+  }
+
+  console.warn("⚠️ [Excedentes] No hay datos iniciales en memoria");
+  lanzarNotificacion("⚠️ No hay datos iniciales en memoria", "warning");
+};
+
+
+window.initVista = window.inicializarVistaEtiquetasExcedentes;
+console.log("🧩 [Excedentes] initVista definida:", typeof window.initVista);
+
+function poblarDatalistExcedentes_() {
+  console.log("🧾 [Excedentes] poblarDatalistExcedentes_()");
+  console.log("🧾 [Excedentes] listaCodigosGlobalExcedentes total:", listaCodigosGlobalExcedentes.length);
+
+  const dlCodigos = document.getElementById('listaCodigos');
+  if (!dlCodigos) {
+    console.warn("⚠️ [Excedentes] No se encontró el datalist #listaCodigos");
+    return;
+  }
+
+  dlCodigos.innerHTML = listaCodigosGlobalExcedentes
+    .map(c => `<option value="${c}">`)
+    .join('');
+
+  console.log("✅ [Excedentes] Datalist de códigos poblado correctamente");
+
+  // Si ya había cola en memoria, la volvemos a pintar
+  if (window.colaDeImpresionExcedentes && window.colaDeImpresionExcedentes.length > 0) {
+    actualizarVista();
+  }
+}
+
+
 
       function buscarPorCodigo() {
 const cod = document.getElementById('codigoInput').value.trim().toUpperCase();
   if (!cod) return;
 
   // Validación local rápida
-  if (!listaCodigosGlobal.includes(cod)) {
+  if (!listaCodigosGlobalExcedentes.includes(cod)) {
     // La notificación ya la lanza el EventListener del paso anterior
     return;
   }
@@ -141,7 +168,7 @@ function agregarALista() {
 
   // 1. VALIDACIÓN ESTRICTA DE CATÁLOGO Y ESTADO
   // Verificamos que el código esté en nuestra lista global cargada al inicio
-  if (!listaCodigosGlobal.includes(cod)) {
+  if (!listaCodigosGlobalExcedentes.includes(cod)) {
     lanzarNotificacion("⚠️ El código no es válido o no ha sido seleccionado de la lista", "error");
     document.getElementById('codigoInput').focus();
     return;
@@ -171,7 +198,7 @@ function agregarALista() {
     // El folio único ahora es seguro porque garantizamos que idProducto es real
     const folioGenerado = `${marcaTiempoBase}${idProducto}${i}`;
 
-    colaDeImpresion.push({ 
+    window.colaDeImpresionExcedentes.push({ 
       codigo: cod, 
       descripcion: desc, 
       cantidad: cant,
@@ -198,7 +225,7 @@ function agregarALista() {
           const contadorBadge = document.getElementById('contador'); 
           const plantilla = document.getElementById('plantillaExcedente').innerHTML;
           
-          const cantidadItems = colaDeImpresion.length;
+          const cantidadItems = window.colaDeImpresionExcedentes.length;
 
           // Actualizar contador
           if (contadorBadge) {
@@ -209,7 +236,7 @@ function agregarALista() {
           // Limpiar y renderizar
           listaUI.innerHTML = "";
           
-          colaDeImpresion.forEach((item, index) => {
+          window.colaDeImpresionExcedentes.forEach((item, index) => {
             let htmlFila = plantilla
               .replace(/{{INDEX}}/g, index)
               .replace("{{CODIGO}}", item.codigo)
@@ -233,7 +260,7 @@ function agregarALista() {
         }
 
       function quitar(index) {
-        colaDeImpresion.splice(index, 1);
+        window.colaDeImpresionExcedentes.splice(index, 1);
         actualizarVista();
       }
 
@@ -259,7 +286,7 @@ function agregarALista() {
       }
 
       function generar() {
-  if (colaDeImpresion.length === 0) {
+  if (window.colaDeImpresionExcedentes.length === 0) {
     lanzarNotificacion("⚠️ La fila está vacía", "error");
     return;
   }
@@ -309,7 +336,7 @@ function agregarALista() {
       win.document.close();
 
       // Reset de la interfaz local
-      colaDeImpresion = [];
+      window.colaDeImpresionExcedentes = [];
       actualizarVista();
       resetearFormularioCompleto();
       btn.disabled = false;
@@ -322,7 +349,7 @@ function agregarALista() {
       btn.disabled = false;
       textoBoton.innerText = "Imprimir";
     })
-    .procesarLoteEtiquetasExcedentes(colaDeImpresion);
+    .procesarLoteEtiquetasExcedentes(window.colaDeImpresionExcedentes);
 }
 
 /**
@@ -334,7 +361,7 @@ function validarCodigoEstricto() {
 
   if (valor === "") return false;
 
-  const existe = listaCodigosGlobal.some(item => item.toUpperCase() === valor);
+  const existe = listaCodigosGlobalExcedentes.some(item => item.toUpperCase() === valor);
 
   if (!existe) {
     lanzarNotificacion(`⚠️ El código "${valor}" no es válido.`, "error");
@@ -348,4 +375,23 @@ function validarCodigoEstricto() {
 document.getElementById('codigoInput').addEventListener('change', function() {
   validarCodigoEstricto();
 });
+
+
+function bloquearScrollNumerico(idInput) {
+  const input = document.getElementById(idInput);
+  if (!input) return;
+
+  input.addEventListener('wheel', function(e) {
+    e.preventDefault();
+  }, { passive: false });
+}
+
+// ✅ Evita cambios accidentales con la rueda del mouse
+bloquearScrollNumerico('cajasInput');
+bloquearScrollNumerico('cantidadInput');
+
+
+
+
+
     </script>

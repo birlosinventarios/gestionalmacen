@@ -181,6 +181,11 @@ window.inicializarVistaTraspasos = function() {
       lanzarNotificacion("⚠️ No hay datos iniciales en memoria. Abre la vista desde APPALMACEN.", "warning");
     };
 
+
+window.initVista = window.inicializarVistaTraspasos;
+console.log("🧩 [Traspasos] initVista definida:", typeof window.initVista);
+
+
 function inicializarDatalistsLocales() {
   const dlSolicitantes = document.getElementById('listaSolicitantes');
   if (dlSolicitantes) {
@@ -258,13 +263,17 @@ function vincularEventosDOM() {
       if (this.value.trim()) codigoInput.focus();
     });
   }
-
+  
   if (cantidadInput) {
     cantidadInput.addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
         agregarALista(); 
       }
+    });
+
+    cantidadInput.addEventListener('wheel', function() {
+      this.blur();
     });
   }
 
@@ -553,10 +562,14 @@ function validarValorEnLista(idInput, listaPermitida, nombreCampo) {
   return true;
 }
 
-// Inicialización automática por retraso en caso de que se abra independiente
-setTimeout(() => {
-  if (typeof window.inicializarVistaTraspasos === 'function') {
-    window.inicializarVistaTraspasos();
-  }
-}, 100);
+
+// Solo fallback si la vista se abre fuera del shell principal
+if (!window.DATA_ALMACEN_CACHE) {
+  setTimeout(() => {
+    if (typeof window.inicializarVistaTraspasos === 'function') {
+      window.inicializarVistaTraspasos();
+    }
+  }, 100);
+}
+
 </script>

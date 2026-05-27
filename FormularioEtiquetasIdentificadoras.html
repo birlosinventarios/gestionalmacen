@@ -221,7 +221,7 @@ const tipo = document.getElementById('tipoetiquetaInput').value;
   const medidas = mapaMedidasGlobal[tipo];
 
   // Añadimos a la cola SIN esperar al servidor
-  colaDeImpresion.push({ 
+  window.colaDeImpresionEtiquetas.push({ 
     tipo: tipo, 
     codigo: cod, 
     descripcion: desc, 
@@ -247,16 +247,16 @@ const tipo = document.getElementById('tipoetiquetaInput').value;
             const plantilla = document.getElementById('plantillaEtiqueta').innerHTML;
 
             // Ordenar la cola por tipo y luego por código
-            colaDeImpresion.sort((a, b) => {
+            window.colaDeImpresionEtiquetas.sort((a, b) => {
                 let comparacionTipo = a.tipo.localeCompare(b.tipo);
                 if (comparacionTipo === 0) return a.codigo.localeCompare(b.codigo);
                 return comparacionTipo;
             });
 
             listaUL.innerHTML = ""; 
-            contador.innerText = colaDeImpresion.length;
+            contador.innerText = window.colaDeImpresionEtiquetas.length;
 
-            colaDeImpresion.forEach((item, index) => {
+            window.colaDeImpresionEtiquetas.forEach((item, index) => {
                 // Reemplazamos los marcadores {{...}} por los datos del objeto
                 let htmlFila = plantilla
                     .replace(/{{INDEX}}/g, index)
@@ -269,9 +269,9 @@ const tipo = document.getElementById('tipoetiquetaInput').value;
                 listaUL.insertAdjacentHTML('beforeend', htmlFila);
             });
 
-            if (colaDeImpresion.length > 0) {
+            if (window.colaDeImpresionEtiquetas.length > 0) {
                 btnPrint.classList.add('visible');
-                textoBoton.innerText = `Imprimir Lote (${colaDeImpresion.length})`;
+                textoBoton.innerText = `Imprimir Lote (${window.colaDeImpresionEtiquetas.length})`;
             } else {
                 btnPrint.classList.remove('visible');
             }
@@ -282,99 +282,111 @@ const tipo = document.getElementById('tipoetiquetaInput').value;
 
         // Borra una etiqueta si te equivocaste
         function quitarDeLista(index) {
-              colaDeImpresion.splice(index, 1);
+              window.colaDeImpresionEtiquetas.splice(index, 1);
               actualizarVistaLista();
             }
 
 
-        function generar() {
-          if (colaDeImpresion.length === 0) {
-            alert("Agrega etiquetas a la lista primero.");
-            return;
-          }
+        
+            function generar() {
+              if (window.colaDeImpresionEtiquetas.length === 0) {
+                lanzarNotificacion("⚠️ Agrega etiquetas a la lista primero.", "error");
+                return;
+              }
 
-          // --- NUEVO: Ordenar la cola por tipo de etiqueta ---
-          colaDeImpresion.sort((a, b) => {
-            if (a.tipo < b.tipo) return -1;
-            if (a.tipo > b.tipo) return 1;
-            return 0;
-          });
+              window.colaDeImpresionEtiquetas.sort((a, b) => {
+                if (a.tipo < b.tipo) return -1;
+                if (a.tipo > b.tipo) return 1;
+                return 0;
+              });
 
-          const btn = document.getElementById('btnImprimirTodo');
-          btn.innerText = "⏳ Generando...";
-          btn.disabled = true;
+              const btn = document.getElementById('btnImprimirTodo');
+              const textoBoton = document.getElementById('textoBoton');
 
-          var win = window.open("", "_blank");
+              if (!btn || !textoBoton) {
+                console.error("❌ No se encontró el botón de impresión o el span textoBoton");
+                return;
+              }
 
-          if (!win) {
-            lanzarNotificacion("⚠️ Ventana bloqueada. Por favor permite los pop-ups en la barra de direcciones.");
-            btn.disabled = false;
-            btn.innerText = "🖨️ Imprimir";
-            return;
+              textoBoton.innerText = "⏳ Generando...";
+              btn.disabled = true;
+
+              var win = window.open("", "_blank");
+
+              if (!win) {
+                lanzarNotificacion("⚠️ Ventana bloqueada. Por favor permite los pop-ups en la barra de direcciones.", "warning");
+                btn.disabled = false;
+                textoBoton.innerText = "Imprimir";
+                return;
+              }
+
+              win.document.write(`
+                <html>
+                  <head>
+                    <title>Generando Etiquetas...</title>
+                    <style>
+                      body { 
+                        font-family: 'Google Sans', Roboto, Arial, sans-serif; 
+                        display: flex; 
+                        flex-direction: column; 
+                        align-items: center; 
+                        justify-content: center; 
+                        height: 100vh; 
+                        margin: 0; 
+                        color: #5f6368; 
+                        background-color: #f8f9fa;
+                      }
+                      .spinner {
+                        width: 50px;
+                        height: 50px;
+                        border: 5px solid #f3f3f3;
+                        border-top: 5px solid #d93025;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                        margin-bottom: 20px;
+                      }
+                      @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                      }
+                      h3 { font-weight: 400; }
+                    </style>
+                  </head>
+                  <body>
+                    <div class="spinner"></div>
+                    <h3>Preparando tus etiquetas...</h3>
+                    <p>Esto tomará solo unos segundos.</p>
+                  </body>
+                </html>
+              `);
+              win.document.close();
+
+              google.script.run
+                .withSuccessHandler(function(htmlGenerado) {
+                  win.document.open();
+                  win.document.write(htmlGenerado);
+                  win.document.close();
+
+                  window.colaDeImpresionEtiquetas = [];
+                  actualizarVistaLista();
+
+                  btn.disabled = false;
+                  textoBoton.innerText = "Imprimir";
+
+                  lanzarNotificacion("✅ Etiquetas generadas con éxito", "success");
+                })
+                .withFailureHandler(function(err) {
+                  win.close();
+                  console.error("❌ Error al generar etiquetas:", err);
+
+                  btn.disabled = false;
+                  textoBoton.innerText = "Imprimir";
+
+                  lanzarNotificacion("❌ Error al generar etiquetas", "error");
+                })
+                .procesarLoteEtiquetas(window.colaDeImpresionEtiquetas);
             }
 
-                      win.document.write(`
-                          <html>
-                            <head>
-                              <title>Generando Etiquetas...</title>
-                              <style>
-                                body { 
-                                  font-family: 'Google Sans', Roboto, Arial, sans-serif; 
-                                  display: flex; 
-                                  flex-direction: column; 
-                                  align-items: center; 
-                                  justify-content: center; 
-                                  height: 100vh; 
-                                  margin: 0; 
-                                  color: #5f6368; 
-                                  background-color: #f8f9fa;
-                                }
-                                .spinner {
-                                  width: 50px;
-                                  height: 50px;
-                                  border: 5px solid #f3f3f3;
-                                  border-top: 5px solid #d93025; /* Color rojo de tu interfaz */
-                                  border-radius: 50%;
-                                  animation: spin 1s linear infinite;
-                                  margin-bottom: 20px;
-                                }
-                                @keyframes spin {
-                                  0% { transform: rotate(0deg); }
-                                  100% { transform: rotate(360deg); }
-                                }
-                                h3 { font-weight: 400; }
-                              </style>
-                            </head>
-                            <body>
-                              <div class="spinner"></div>
-                              <h3>Preparando tus etiquetas...</h3>
-                              <p>Esto tomará solo unos segundos.</p>
-                            </body>
-                          </html>
-                        `);
-                        win.document.close();
-
-              // --- PASO 2: Consultar medidas y procesar ---
-                  google.script.run
-                    .withSuccessHandler(function(htmlGenerado) {
-                      // --- PASO 3: Llenar la ventana que ya estaba abierta ---
-                      win.document.open();
-                      win.document.write(htmlGenerado);
-                      win.document.close();
-
-                      // Reset de la interfaz
-                      colaDeImpresion = [];
-                      actualizarVistaLista();
-                      btn.innerText = "🖨️ Imprimir";
-                      btn.disabled = false;
-                    })
-                    .withFailureHandler(function(err) {
-                  win.close();
-                  alert("Error: " + err);
-                  btn.disabled = false;
-                })
-                .procesarLoteEtiquetas(colaDeImpresion); // Quitamos los parámetros alto/ancho de aquí
-            }          
 
             function solicitarAccesoMantenimiento() {
                 const pass = prompt("Introduzca la contraseña para acceder a Mantenimiento:");

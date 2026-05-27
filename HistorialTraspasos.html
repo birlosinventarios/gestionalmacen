@@ -15,52 +15,15 @@
 
 
 
+
 <script>
-// VARIABLES GLOBALES
+(function() {
   let snackbarTimer = null;
-  let globalOpcionesSolicitante = '<option value="">Seleccionar...</option>'; // Para TODOS
-  let globalOpcionesResp = '<option value="">Seleccionar...</option>';        // Solo RESPONSABLES
+  let globalOpcionesSolicitante = '<option value="">Seleccionar...</option>';
+  let globalOpcionesResp = '<option value="">Seleccionar...</option>';
   let globalOpcionesBodegas = '<option value="">Seleccionar...</option>';
   let globalOpcionesUbicaciones = '<option value="">Seleccionar...</option>';
   let datosOriginales = [];
-
-  // INICIALIZACIÓN
-async function inicializarApp() {
-    const contenedor = document.getElementById('listaHistorial');
-    try {
-      const megaData = await promesaScript("obtenerMegaDataInicial");
-
-      if (megaData.usuarios) {
-        // LISTA 1: Todos los usuarios (Para el Solicitante)
-        globalOpcionesSolicitante = '<option value="">Seleccionar...</option>' + 
-          megaData.usuarios.map(u => `<option value="${u.nombre}">${u.nombre}</option>`).join('');
-
-        // LISTA 2: Solo Responsables y Admins (Para el Responsable de sistema)
-        globalOpcionesResp = '<option value="">Seleccionar...</option>' + 
-          megaData.usuarios
-            .filter(u => u.rol === "RESPONSABLE" || u.rol === "ADMIN")
-            .map(u => `<option value="${u.nombre}">${u.nombre}</option>`).join('');
-      }
-      
-      // ... (El resto de bodegas y ubicaciones se queda igual)
-      if (megaData.bodegas) {
-        let todas = [...new Set(["1 - Almacen Birlos", ...megaData.bodegas])].sort();
-        globalOpcionesBodegas = '<option value="">Seleccionar...</option>' + 
-          todas.map(b => `<option value="${b}">${b}</option>`).join('');
-      }
-
-      if (megaData.mapaUbicaciones) {
-        const ubiUnicas = [...new Set(megaData.mapaUbicaciones.map(m => m.ubi))].sort();
-        globalOpcionesUbicaciones = '<option value="">Seleccionar...</option>' + 
-          ubiUnicas.map(u => `<option value="${u}">${u}</option>`).join('');
-      }
-
-      cargarHistorial();
-    } catch (error) {
-      console.error("Error al inicializar:", error);
-      contenedor.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
-    }
-  }
 
   function promesaScript(nombreFuncion, ...args) {
     return new Promise((resolve, reject) => {
@@ -70,44 +33,98 @@ async function inicializarApp() {
     });
   }
 
-  // CARGA DE DATOS - Conectado a la Bitacora-TRASPASOS
-function cargarHistorial() {
-    const contenedor = document.getElementById('listaHistorial'); 
+  async function inicializarApp() {
+    const contenedor = document.getElementById('listaHistorial');
+
+    try {
+      const megaData = window.DATA_ALMACEN_CACHE;
+
+      if (!megaData) {
+        throw new Error("No existe DATA_ALMACEN_CACHE en memoria");
+      }
+
+      if (megaData.usuarios) {
+        globalOpcionesSolicitante =
+          '<option value="">Seleccionar...</option>' +
+          megaData.usuarios
+            .map(u => `<option value="${u.nombre}">${u.nombre}</option>`)
+            .join('');
+
+        globalOpcionesResp =
+          '<option value="">Seleccionar...</option>' +
+          megaData.usuarios
+            .filter(u => u.rol === "RESPONSABLE" || u.rol === "ADMIN")
+            .map(u => `<option value="${u.nombre}">${u.nombre}</option>`)
+            .join('');
+      }
+
+      if (megaData.bodegas) {
+        const todas = [...new Set(["1 - Almacen Birlos", ...megaData.bodegas])].sort();
+        globalOpcionesBodegas =
+          '<option value="">Seleccionar...</option>' +
+          todas.map(b => `<option value="${b}">${b}</option>`).join('');
+      }
+
+      if (megaData.mapaUbicaciones) {
+        const ubiUnicas = [...new Set(megaData.mapaUbicaciones.map(m => m.ubi))].sort();
+        globalOpcionesUbicaciones =
+          '<option value="">Seleccionar...</option>' +
+          ubiUnicas.map(u => `<option value="${u}">${u}</option>`).join('');
+      }
+
+      cargarHistorial();
+    } catch (error) {
+      console.error("Error al inicializar historial:", error);
+      contenedor.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+  }
+
+  function cargarHistorial() {
+    const contenedor = document.getElementById('listaHistorial');
+    if (!contenedor) return;
+
     google.script.run
       .withSuccessHandler(function(datos) {
-        console.log("Datos recibidos del servidor:", datos); // <--- AGREGA ESTO
+        console.log("Datos recibidos del servidor:", datos);
+
         if (!datos || datos.length === 0) {
-           contenedor.innerHTML = '<div class="alert alert-warning text-center">La hoja está vacía o no se pudo leer.</div>';
-           return;
+          contenedor.innerHTML = '<div class="alert alert-warning text-center">No hay registros disponibles.</div>';
+          return;
         }
+
         datosOriginales = datos;
         renderizarHistorial(datos);
         actualizarDatalists(datos);
       })
       .withFailureHandler(err => {
-        console.error("Error de Google Script:", err);
+        console.error("Error al cargar historial:", err);
         contenedor.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
       })
-      .obtenerTodosLosRegistros(); 
+      .obtenerTodosLosRegistros();
   }
 
   function lanzarNotificacion(mensaje, tipo = 'success') {
     const el = document.getElementById("snackbar");
     if (!el) return;
+
     clearTimeout(snackbarTimer);
     el.innerText = mensaje;
-    el.className = `show ${tipo}`; 
+    el.className = `show ${tipo}`;
+
     const cerrar = () => {
-        el.classList.remove("show");
-        snackbarTimer = setTimeout(() => { el.className = ""; }, 400); 
+      el.classList.remove("show");
+      snackbarTimer = setTimeout(() => {
+        el.className = "";
+      }, 400);
     };
+
     snackbarTimer = setTimeout(cerrar, 3000);
     el.onclick = cerrar;
   }
 
-  // FILTROS (DATALISTS)
   function actualizarDatalists(datos) {
     if (!datos || !datos.length) return;
+
     const mapeoFiltros = {
       'listaTipos': 'tipo',
       'listaCodigos': 'codigo',
@@ -127,158 +144,158 @@ function cargarHistorial() {
       ...datos.map(item => item.destino),
       "1 - Almacen Birlos"
     ])];
+
     renderizarOpcionesDatalist('listaAlmacenes', almacenes);
   }
 
   function renderizarOpcionesDatalist(idElemento, valores) {
     const lista = document.getElementById(idElemento);
     if (!lista) return;
+
     const fragmento = document.createDocumentFragment();
+
     valores
       .filter(v => v && v !== '---' && v !== '')
-      .sort((a, b) => String(a).localeCompare(undefined, {numeric: true, sensitivity: 'base'}))
+      .sort((a, b) => String(a).localeCompare(String(b), 'es', { numeric: true, sensitivity: 'base' }))
       .forEach(val => {
         const opt = document.createElement('option');
         opt.value = val;
         fragmento.appendChild(opt);
       });
+
     lista.innerHTML = "";
     lista.appendChild(fragmento);
   }
 
-  // RENDERIZADO DE TARJETAS
-function renderizarHistorial(registros) {
+  function renderizarHistorial(registros) {
     const contenedor = document.getElementById('listaHistorial');
     if (!contenedor) return;
-    
+
     if (!registros || registros.length === 0) {
-        contenedor.innerHTML = '<div class="alert alert-warning text-center">No hay registros que coincidan con los filtros.</div>';
-        return;
+      contenedor.innerHTML = '<div class="alert alert-warning text-center">No hay registros que coincidan con los filtros.</div>';
+      return;
     }
 
-    // --- LÓGICA DE ORDENAMIENTO PROFESIONAL ---
     const registrosOrdenados = [...registros].sort((a, b) => {
-        // 2. Segunda Prioridad: Fecha (Descendente - Más reciente primero)
-        const [dA, mA, yA] = (a.fecha || "01/01/2000").split('/');
-        const [dB, mB, yB] = (b.fecha || "01/01/2000").split('/');
-        const fechaA = new Date(yA, mA - 1, dA);
-        const fechaB = new Date(yB, mB - 1, dB);
-        if (fechaA > fechaB) return -1;
-        if (fechaA < fechaB) return 1;
+      const [dA, mA, yA] = (a.fecha || "01/01/2000").split('/');
+      const [dB, mB, yB] = (b.fecha || "01/01/2000").split('/');
+      const fechaA = new Date(yA, mA - 1, dA);
+      const fechaB = new Date(yB, mB - 1, dB);
 
-        // 3. Tercera Prioridad: Hora (Descendente - Más reciente primero)
-        const horaA = a.hora || "00:00";
-        const horaB = b.hora || "00:00";
-        return horaB.localeCompare(horaA);
+      if (fechaA > fechaB) return -1;
+      if (fechaA < fechaB) return 1;
+
+      const horaA = a.hora || "00:00";
+      const horaB = b.hora || "00:00";
+      return horaB.localeCompare(horaA);
     });
 
     const fragmento = document.createDocumentFragment();
     let ultimaBodegaHeader = "";
 
     registrosOrdenados.forEach(item => {
-        // Determinamos la bodega del registro actual
-        const bodegaReferencia = item.tipo === "Acomodo" ? item.destino : (item.origen || "GENERAL");
-        
-        if (bodegaReferencia !== ultimaBodegaHeader) {
-            ultimaBodegaHeader = bodegaReferencia;
-            const sep = document.createElement('div');
-            sep.className = 'separador-bodega-segmentada';
-            // Estilos corregidos para mejor visibilidad
-            sep.style = "background-color: #e9ecef;padding: 12px; margin: 25px 0 10px 0; border-left: 6px solid #d93025; font-weight: bold; display: flex; align-items: center; gap: 10px; border-radius: 4px; position: sticky; top: 0; z-index: 10; color: #333;";
-            sep.innerHTML = `<span class="material-icons">warehouse</span> ${bodegaReferencia.toUpperCase()}`;
-            fragmento.appendChild(sep);
-        }
+      const bodegaReferencia = item.tipo === "Acomodo"
+        ? item.destino
+        : (item.origen || "GENERAL");
 
-        // 3. GENERACIÓN DE LA TARJETA (Tu estructura original mantenida)
-        const opcionesOrigen  = inyectarSeleccion(globalOpcionesBodegas, item.origen);
-        const opcionesDestino = inyectarSeleccion(globalOpcionesBodegas, item.destino);
-        const opcionesResp    = inyectarSeleccion(globalOpcionesResp, item.responsable); // Solo responsables
-        const opcionesSerie   = inyectarSeleccion(globalOpcionesUbicaciones, item.serie);
-        const opcionesSol     = inyectarSeleccion(globalOpcionesSolicitante, item.solicitante); // Todos los usuarios
+      if (bodegaReferencia !== ultimaBodegaHeader) {
+        ultimaBodegaHeader = bodegaReferencia;
+        const sep = document.createElement('div');
+        sep.className = 'separador-bodega-segmentada';
+        sep.style = "background-color: #e9ecef;padding: 12px; margin: 25px 0 10px 0; border-left: 6px solid #d93025; font-weight: bold; display: flex; align-items: center; gap: 10px; border-radius: 4px; position: sticky; top: 0; z-index: 10; color: #333;";
+        sep.innerHTML = `<span class="material-icons">warehouse</span> ${bodegaReferencia.toUpperCase()}`;
+        fragmento.appendChild(sep);
+      }
+
+      const opcionesOrigen = inyectarSeleccion(globalOpcionesBodegas, item.origen);
+      const opcionesDestino = inyectarSeleccion(globalOpcionesBodegas, item.destino);
+      const opcionesResp = inyectarSeleccion(globalOpcionesResp, item.responsable);
+      const opcionesSerie = inyectarSeleccion(globalOpcionesUbicaciones, item.serie);
+      const opcionesSol = inyectarSeleccion(globalOpcionesSolicitante, item.solicitante);
 
       const card = document.createElement('div');
-      card.className = 'historial-card-pendiente'; 
+      card.className = 'historial-card-pendiente';
       card.innerHTML = `
         <div class="columnatiposerie">
-            <div class="titulotiposerietraspaso">Tipo</div>
-            <div class="itemtipotraspaso">${item.tipo}</div>
-            <div class="titulotiposerietraspaso">Serie</div>
-            <div class="itemserietraspaso">
-                <span id="serie_texto_${item.fila}"><span class="material-icons">label</span>${item.serie || '---'}</span>
-                <select id="serie_input_${item.fila}" style="display:none; width:90%;" class="form-select form-select-sm">${opcionesSerie}</select>
-            </div>
+          <div class="titulotiposerietraspaso">Tipo</div>
+          <div class="itemtipotraspaso">${item.tipo}</div>
+          <div class="titulotiposerietraspaso">Serie</div>
+          <div class="itemserietraspaso">
+            <span id="serie_texto_${item.fila}"><span class="material-icons">label</span>${item.serie || '---'}</span>
+            <select id="serie_input_${item.fila}" style="display:none; width:90%;" class="form-select form-select-sm">${opcionesSerie}</select>
+          </div>
         </div>
+
         <div class="columnacodigodescripcion">
-            <div class="itemcodigotraspaso">${item.codigo}</div>
-            <div class="itemdescripciontraspaso">${item.descripcion}</div>
+          <div class="itemcodigotraspaso">${item.codigo}</div>
+          <div class="itemdescripciontraspaso">${item.descripcion}</div>
         </div>
+
         <div class="cuadrodatostraspaso">
-            <div class="cuadrantecuadrodatostraspaso">
-                <div class="tituloscuadrodatostraspaso">Salida:</div>
-                <div class="itemcuadrodatostraspaso">
-                    <span id="origen_texto_${item.fila}">${item.origen}</span>
-                    <select id="origen_input_${item.fila}" style="display:none;" class="form-select form-select-sm">${opcionesOrigen}</select>
-                </div>
+          <div class="cuadrantecuadrodatostraspaso">
+            <div class="tituloscuadrodatostraspaso">Salida:</div>
+            <div class="itemcuadrodatostraspaso">
+              <span id="origen_texto_${item.fila}">${item.origen}</span>
+              <select id="origen_input_${item.fila}" style="display:none;" class="form-select form-select-sm">${opcionesOrigen}</select>
             </div>
-            <div class="cuadrantecuadrodatostraspaso">
-                <div class="tituloscuadrodatostraspaso">Entrada:</div>
-                <div class="itemcuadrodatostraspaso">
-                    <span id="destino_texto_${item.fila}">${item.destino}</span>
-                    <select id="destino_input_${item.fila}" style="display:none;" class="form-select form-select-sm">${opcionesDestino}</select>
-                </div>
+          </div>
+
+          <div class="cuadrantecuadrodatostraspaso">
+            <div class="tituloscuadrodatostraspaso">Entrada:</div>
+            <div class="itemcuadrodatostraspaso">
+              <span id="destino_texto_${item.fila}">${item.destino}</span>
+              <select id="destino_input_${item.fila}" style="display:none;" class="form-select form-select-sm">${opcionesDestino}</select>
             </div>
-            <div class="cuadrantecuadrodatostraspaso">
-                <div class="tituloscuadrodatostraspaso">Cant:</div>
-                <div class="itemcuadrocantidadtraspaso">
-                    <span id="cant_texto_${item.fila}">${Math.abs(Number(item.cantidad || 0))}</span>
-                    
-                    <input type="number" 
-                          id="cant_input_${item.fila}" 
-                          value="${Math.abs(Number(item.cantidad || 0))}" 
-                          style="display:none; width:60px;" 
-                          class="form-control form-control-sm">
-                </div>
+          </div>
+
+          <div class="cuadrantecuadrodatostraspaso">
+            <div class="tituloscuadrodatostraspaso">Cant:</div>
+            <div class="itemcuadrocantidadtraspaso">
+              <span id="cant_texto_${item.fila}">${Math.abs(Number(item.cantidad || 0))}</span>
+              <input type="number" id="cant_input_${item.fila}" value="${Math.abs(Number(item.cantidad || 0))}" style="display:none; width:60px;" class="form-control form-control-sm">
             </div>
-            <div class="cuadrantecuadrodatostraspaso">
-                <div class="tituloscuadrodatostraspaso">Solicita:</div>
-                <div class="itemcuadrocantidadtraspaso">
-                    <span id="solicitante_texto_${item.fila}">${item.solicitante}</span>
-                    <select id="solicitante_input_${item.fila}" style="display:none; width:100%;" class="form-select form-select-sm">${opcionesSol}</select>
-                </div>
+          </div>
+
+          <div class="cuadrantecuadrodatostraspaso">
+            <div class="tituloscuadrodatostraspaso">Solicita:</div>
+            <div class="itemcuadrocantidadtraspaso">
+              <span id="solicitante_texto_${item.fila}">${item.solicitante}</span>
+              <select id="solicitante_input_${item.fila}" style="display:none; width:100%;" class="form-select form-select-sm">${opcionesSol}</select>
             </div>
+          </div>
         </div>
-        
+
         <div class="columnafecharesponsablefolio">
           <div class="titulofecharesponsablefolio">Procesado por:</div>
-            <div class="itemfechahoraresponsablefolio">
-                <span class="material-icons" style="font-size:14px;">person</span>
-                <span id="resp_texto_${item.fila}">${item.responsable || 'Sin asignar'}</span>
-                <select id="resp_input_${item.fila}" style="display:none; width:100%;" class="form-select form-select-sm">${opcionesResp}</select>
-            </div>
-          <div class="titulofecharesponsablefolio">Folio sistema:</div>  
-            <div class="itemfecharesponsablefolio">
-                <span class="material-icons" style="font-size:14px;">tag</span>
-                <span id="folio_texto_${item.fila}">${item.folio || ''}</span>
-                <input type="text" id="folio_input_${item.fila}" value="${item.folio || ''}" style="display:none; width:80px;" class="input-edicion-historial">
-            </div>
-            <div class="titulofecharesponsablefolio">Fecha:</div>  
-            <div class="itemfecharesponsablefolio">
-                <span class="material-icons" style="font-size:14px;">calendar_today</span>
-                <span id="fecha_texto_${item.fila}">${item.fecha || '---'}</span>
-                </div>
+          <div class="itemfechahoraresponsablefolio">
+            <span class="material-icons" style="font-size:14px;">person</span>
+            <span id="resp_texto_${item.fila}">${item.responsable || 'Sin asignar'}</span>
+            <select id="resp_input_${item.fila}" style="display:none; width:100%;" class="form-select form-select-sm">${opcionesResp}</select>
+          </div>
 
-            <div class="titulofecharesponsablefolio">Hora:</div>  
-            <div class="itemfecharesponsablefolio">
-                <span class="material-icons" style="font-size:14px;">schedule</span>
-                <span id="hora_texto_${item.fila}">${item.hora || '---'}</span>
-            </div>
+          <div class="titulofecharesponsablefolio">Folio sistema:</div>
+          <div class="itemfecharesponsablefolio">
+            <span class="material-icons" style="font-size:14px;">tag</span>
+            <span id="folio_texto_${item.fila}">${item.folio || ''}</span>
+            <input type="text" id="folio_input_${item.fila}" value="${item.folio || ''}" style="display:none; width:80px;" class="input-edicion-historial">
+          </div>
+
+          <div class="titulofecharesponsablefolio">Fecha:</div>
+          <div class="itemfecharesponsablefolio">
+            <span class="material-icons" style="font-size:14px;">calendar_today</span>
+            <span id="fecha_texto_${item.fila}">${item.fecha || '---'}</span>
+          </div>
+
+          <div class="titulofecharesponsablefolio">Hora:</div>
+          <div class="itemfecharesponsablefolio">
+            <span class="material-icons" style="font-size:14px;">schedule</span>
+            <span id="hora_texto_${item.fila}">${item.hora || '---'}</span>
+          </div>
         </div>
 
-
-
         <div class="columna-acciones-historial">
-            <button type="button" onclick="activarEdicion(this, ${item.fila})" class="btn-icono-historial btn-editar"><span class="material-icons">edit</span></button>
-            <button type="button" id="btn_guardar_${item.fila}" onclick="guardarEdicion(this, ${item.fila})" class="btn-icono-historial btn-guardar" style="display:none;"><span class="material-icons">check_circle</span></button>
+          <button type="button" onclick="activarEdicion(this, ${item.fila})" class="btn-icono-historial btn-editar"><span class="material-icons">edit</span></button>
+          <button type="button" id="btn_guardar_${item.fila}" onclick="guardarEdicion(this, ${item.fila})" class="btn-icono-historial btn-guardar" style="display:none;"><span class="material-icons">check_circle</span></button>
         </div>
       `;
       fragmento.appendChild(card);
@@ -288,77 +305,79 @@ function renderizarHistorial(registros) {
     contenedor.appendChild(fragmento);
   }
 
-  // FUNCIONES DE SOPORTE
-function inyectarSeleccion(html, valor) {
+  function inyectarSeleccion(html, valor) {
     if (!valor) return html;
     const buscar = `value="${valor}"`;
     return html.replace(buscar, `${buscar} selected`);
   }
 
-  function activarEdicion(boton, numFila) {
-    const campos = ['folio', 'resp', 'origen', 'destino', 'cant', 'serie'];
+  window.activarEdicion = function(boton, numFila) {
+    const campos = ['folio', 'resp', 'origen', 'destino', 'cant', 'serie', 'solicitante'];
+
     campos.forEach(c => {
-        document.getElementById(`${c}_texto_${numFila}`).style.display = 'none';
-        document.getElementById(`${c}_input_${numFila}`).style.display = 'block';
+      document.getElementById(`${c}_texto_${numFila}`).style.display = 'none';
+      document.getElementById(`${c}_input_${numFila}`).style.display = 'block';
     });
+
     boton.style.display = 'none';
     document.getElementById(`btn_guardar_${numFila}`).style.display = 'block';
-    lanzarNotificacion("✏️ Modo edición activado", "info"); 
-  }
+    lanzarNotificacion("✏️ Modo edición activado", "info");
+  };
 
-function guardarEdicion(botonGuardar, numFila) {
+  window.guardarEdicion = function(botonGuardar, numFila) {
     const datos = {
-        folio: document.getElementById(`folio_input_${numFila}`).value,
-        responsable: document.getElementById(`resp_input_${numFila}`).value,
-        origen: document.getElementById(`origen_input_${numFila}`).value,
-        destino: document.getElementById(`destino_input_${numFila}`).value,
-        cantidad: document.getElementById(`cant_input_${numFila}`).value,
-        serie: document.getElementById(`serie_input_${numFila}`).value,
-        solicitante: document.getElementById(`solicitante_input_${numFila}`).value // Añadido
+      folio: document.getElementById(`folio_input_${numFila}`).value,
+      responsable: document.getElementById(`resp_input_${numFila}`).value,
+      origen: document.getElementById(`origen_input_${numFila}`).value,
+      destino: document.getElementById(`destino_input_${numFila}`).value,
+      cantidad: document.getElementById(`cant_input_${numFila}`).value,
+      serie: document.getElementById(`serie_input_${numFila}`).value,
+      solicitante: document.getElementById(`solicitante_input_${numFila}`).value
     };
 
     botonGuardar.disabled = true;
-    botonGuardar.innerHTML = '<span class="material-icons">sync</span>'; 
+    botonGuardar.innerHTML = '<span class="material-icons">sync</span>';
     lanzarNotificacion("⏳ Procesando cambios...", "info");
 
-    // 3. Ejecución en el servidor
-google.script.run
-        .withSuccessHandler(() => {
-            lanzarNotificacion("✅ Registro actualizado", "success");
-            actualizarInterfazTrasGuardar(numFila, datos, botonGuardar);
-        })
-        .withFailureHandler((err) => {
-            lanzarNotificacion(`❌ Error: ${err.message}`, "error");
-            botonGuardar.disabled = false;
-            botonGuardar.innerHTML = '<span class="material-icons">check_circle</span>';
-        })
-        .actualizarRegistroDesdeHistorialCompleto(numFila, datos); 
-  }
+    google.script.run
+      .withSuccessHandler(() => {
+        lanzarNotificacion("✅ Registro actualizado", "success");
+        actualizarInterfazTrasGuardar(numFila, datos, botonGuardar);
+      })
+      .withFailureHandler((err) => {
+        lanzarNotificacion(`❌ Error: ${err.message}`, "error");
+        botonGuardar.disabled = false;
+        botonGuardar.innerHTML = '<span class="material-icons">check_circle</span>';
+      })
+      .actualizarRegistroDesdeHistorialCompleto(numFila, datos);
+  };
 
- function actualizarInterfazTrasGuardar(numFila, datos, botonGuardar) {
+  function actualizarInterfazTrasGuardar(numFila, datos, botonGuardar) {
     const idx = datosOriginales.findIndex(i => i.fila == numFila);
-    if(idx !== -1) datosOriginales[idx] = {...datosOriginales[idx], ...datos};
-    
+    if (idx !== -1) datosOriginales[idx] = { ...datosOriginales[idx], ...datos };
+
     document.getElementById(`folio_texto_${numFila}`).innerText = datos.folio;
     document.getElementById(`resp_texto_${numFila}`).innerText = datos.responsable;
     document.getElementById(`origen_texto_${numFila}`).innerText = datos.origen;
     document.getElementById(`destino_texto_${numFila}`).innerText = datos.destino;
     document.getElementById(`cant_texto_${numFila}`).innerText = datos.cantidad;
     document.getElementById(`serie_texto_${numFila}`).innerHTML = `<span class="material-icons">label</span>${datos.serie}`;
+    document.getElementById(`solicitante_texto_${numFila}`).innerText = datos.solicitante;
 
-    const campos = ['folio', 'resp', 'origen', 'destino', 'cant', 'serie'];
+    const campos = ['folio', 'resp', 'origen', 'destino', 'cant', 'serie', 'solicitante'];
     campos.forEach(c => {
       document.getElementById(`${c}_texto_${numFila}`).style.display = 'inline';
       document.getElementById(`${c}_input_${numFila}`).style.display = 'none';
     });
+
     botonGuardar.style.display = 'none';
     botonGuardar.disabled = false;
     botonGuardar.innerHTML = '<span class="material-icons">check_circle</span>';
     botonGuardar.parentElement.querySelector('.btn-editar').style.display = 'block';
   }
 
-  function aplicarFiltros() {
-    const fFecha = document.getElementById('filterFecha').value; // Formato yyyy-mm-dd
+  window.aplicarFiltros = function() {
+    const fFecha = document.getElementById('filterFecha').value;
     const fTipo = document.getElementById('filterTipo').value.toUpperCase();
     const fCodigo = document.getElementById('filterCodigo').value.toUpperCase();
     const fAlmacen = document.getElementById('filterAlmacen').value.toUpperCase();
@@ -367,40 +386,48 @@ google.script.run
     const fFolio = document.getElementById('filterFolio').value.toUpperCase();
 
     const resultados = datosOriginales.filter(item => {
-        // Convertimos fecha del item (dd/mm/yyyy) a (yyyy-mm-dd) para comparar
-        let fechaItemComp = "";
-        if (item.fecha && item.fecha.includes('/')) {
-            const partes = item.fecha.split('/');
-            fechaItemComp = `${partes[2]}-${partes[1]}-${partes[0]}`;
-        }
+      let fechaItemComp = "";
+      if (item.fecha && item.fecha.includes('/')) {
+        const partes = item.fecha.split('/');
+        fechaItemComp = `${partes[2]}-${partes[1]}-${partes[0]}`;
+      }
 
-        return (
-            (!fFecha || fechaItemComp === fFecha) &&
-            (!fTipo || item.tipo.toUpperCase().includes(fTipo)) &&
-            (!fCodigo || item.codigo.toUpperCase().includes(fCodigo)) &&
-            (!fSolicitante || item.solicitante.toUpperCase().includes(fSolicitante)) &&
-            (!fResponsable || item.responsable.toUpperCase().includes(fResponsable)) &&
-            (!fFolio || item.folio.toUpperCase().includes(fFolio)) &&
-            (!fAlmacen || item.origen.toUpperCase().includes(fAlmacen) || item.destino.toUpperCase().includes(fAlmacen))
-        );
+      return (
+        (!fFecha || fechaItemComp === fFecha) &&
+        (!fTipo || item.tipo.toUpperCase().includes(fTipo)) &&
+        (!fCodigo || item.codigo.toUpperCase().includes(fCodigo)) &&
+        (!fSolicitante || item.solicitante.toUpperCase().includes(fSolicitante)) &&
+        (!fResponsable || item.responsable.toUpperCase().includes(fResponsable)) &&
+        (!fFolio || item.folio.toUpperCase().includes(fFolio)) &&
+        (!fAlmacen || item.origen.toUpperCase().includes(fAlmacen) || item.destino.toUpperCase().includes(fAlmacen))
+      );
     });
 
     renderizarHistorial(resultados);
-}
+  };
 
-function limpiarFiltros() {
+  window.limpiarFiltros = function() {
     const ids = ['filterFecha', 'filterTipo', 'filterCodigo', 'filterAlmacen', 'filterSolicitante', 'filterResponsable', 'filterFolio'];
-    ids.forEach(id => document.getElementById(id).value = "");
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+
     renderizarHistorial(datosOriginales);
     lanzarNotificacion("🧹 Filtros limpiados", "info");
-}
+  };
 
-(function() {
-    console.log("Inyectando Historial de Traspasos...");
-    // Ejecutamos la inicialización inmediatamente
+
+  window.inicializarVistaHistorialTraspasos = function() {
+    console.log("📚 [Historial] Inicializando vista...");
     inicializarApp();
-})();
+  };
 
+  window.initVista = window.inicializarVistaHistorialTraspasos;
+  console.log("🧩 [Historial] initVista definida:", typeof window.initVista);
+
+
+})();
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

@@ -95,37 +95,56 @@
         codigo: '',
         cantidad: '',
         ubicacion: '',
-        caja: '01'
+        caja: '01',
+        idSeleccionado: null
       });
 
+
       // Cargar usuarios al iniciar la vista
-        useEffect(() => {
-          if (typeof google !== 'undefined') {
-            // 1. Notificación de espera (puedes poner un timer largo o false)
+        
+      useEffect(() => {
+        const cargarUsuarios = async () => {
+          try {
             Toast.fire({
               icon: 'info',
               title: 'Sincronizando catálogo...',
-              timer: 15000, // 15 segundos max de espera visual
+              timer: 15000,
             });
 
-            google.script.run
-              .withSuccessHandler(datos => {
-                if (datos && datos.usuarios) {
-                  setUsuarios(datos.usuarios);
-                  setCargando(false);
-                 
-                  // 2. Notificación de ÉXITO (La barra se acaba en 3s)
-                  Toast.fire({
-                    icon: 'success',
-                    title: '¡Sistema Listo!',
-                    text: 'Conexión establecida corectamente',
-                    timer: 3000 // Aquí se define cuánto dura la barra
-                  });
-                }
-              })
-              .obtenerMegaDataInicial();
+            const megaData = window.DATA_ALMACEN_CACHE || await window.inicializarMegaData?.();
+
+            if (megaData && megaData.usuarios) {
+              setUsuarios(megaData.usuarios);
+              setCargando(false);
+
+              Toast.fire({
+                icon: 'success',
+                title: '¡Sistema Listo!',
+                text: 'Conexión establecida correctamente',
+                timer: 3000
+              });
+            } else {
+              Toast.fire({
+                icon: 'warning',
+                title: 'Sin datos',
+                text: 'No se encontraron usuarios en memoria.'
+              });
+              setCargando(false);
+            }
+          } catch (err) {
+            console.error("❌ [Prototipo] Error cargando usuarios:", err);
+            Toast.fire({
+              icon: 'error',
+              title: 'Error al sincronizar',
+              text: 'No se pudieron recuperar los usuarios.'
+            });
+            setCargando(false);
           }
-        }, []);
+        };
+
+        cargarUsuarios();
+      }, []);
+
 
      
       // Dentro de tu componente VistaPrototipo
@@ -595,10 +614,25 @@ const handleInputChange = (e) => {
     };
 
     // Renderizado en el contenedor específico de la vista
-    const rootDiv = document.getElementById('render-prototipo-traspasos');
-    if (rootDiv) {
-      const root = ReactDOM.createRoot(rootDiv);
-      root.render(<VistaPrototipo />);
-    }
+      const rootDiv = document.getElementById('render-prototipo-traspasos');
+      if (rootDiv) {
+        if (window.__PROTOTIPO_TRASPASOS_ROOT__) {
+          try {
+            window.__PROTOTIPO_TRASPASOS_ROOT__.unmount();
+          } catch (e) {
+            console.warn("⚠️ [Prototipo] No se pudo desmontar root previo:", e);
+          }
+          window.__PROTOTIPO_TRASPASOS_ROOT__ = null;
+        }
+
+        window.__PROTOTIPO_TRASPASOS_ROOT__ = ReactDOM.createRoot(rootDiv);
+        window.__PROTOTIPO_TRASPASOS_ROOT__.render(<VistaPrototipo />);
+      }
   };
+
+
+    
+  window.initVista = window.cargar_PrototipoTraspasos;
+  console.log("🧩 [PrototipoTraspasos] initVista definida:", typeof window.initVista);
+
 </script>

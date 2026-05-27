@@ -16,8 +16,6 @@
         let intervaloActual = 3000; // comienza rápido
         let maxIntervalo = 20000;   // límite superior
 
-        window.__MONITOR_ACTIVO__ = false;
-
         // ==========================================
         // 1. GESTOR UNIFICADO DE NOTIFICACIONES (UX FITO)
         // ==========================================
@@ -25,10 +23,11 @@
         window.cargar_MonitorTraspasos = function() {
           console.log("🔄 Inicializando: Monitor de Traspasos Pendientes");
 
-          if (window.temporizadorActualizacion) {
-            clearInterval(window.temporizadorActualizacion);
-            console.log("🧹 Temporizador previo limpiado.");
-          }
+            if (window.temporizadorActualizacion) {
+              clearTimeout(window.temporizadorActualizacion);
+              window.temporizadorActualizacion = null;
+              console.log("🧹 Temporizador previo limpiado.");
+            }
 
           const cacheDisponible = window.DATA_ALMACEN_CACHE || window.GLOBAL_DATA;
 
@@ -47,6 +46,11 @@
             window.lanzarNotificacion("⚠️ Esta vista requiere datos iniciales del sistema principal", "warning");
           }
         };
+
+        
+        window.initVista = window.cargar_MonitorTraspasos;
+        console.log("🧩 [Monitor] initVista definida:", typeof window.initVista);
+
 
 
         // ==========================================
@@ -72,20 +76,24 @@
         // 3. CICLO DE ACTUALIZACIÓN AUTOMÁTICA
         // ==========================================
         
-            function ejecutarCiclo() {
-              if (!document.getElementById('listaPendientes')) return;
+            
+        function ejecutarCiclo() {
+          if (!document.getElementById('listaPendientes')) return;
 
-              
-            if (!window.__MONITOR_ACTIVO__) {
-              window.__MONITOR_ACTIVO__ = true;
+          window.temporizadorActualizacion = setTimeout(() => {
+            cargarPendientes(false).then(huboCambios => {
+              if (huboCambios) {
+                intervaloActual = 3000;
+              } else {
+                intervaloActual = Math.min(intervaloActual + 3000, maxIntervalo);
+              }
 
-              setTimeout(() => {
-                if (typeof window.cargar_MonitorTraspasos === "function") {
-                  console.log("🔥 [Monitor] Inicializando SOLO UNA VEZ...");
-                  window.cargar_MonitorTraspasos();
-                }
-              }, 100);
-            }
+              console.log(`⏱️ Próxima consulta en ${intervaloActual / 1000}s`);
+              ejecutarCiclo();
+            });
+          }, intervaloActual);
+        }
+
 
 
         // ==========================================
@@ -365,37 +373,6 @@
         window.validarTexto = function(input) {
           escribiendo = input.value.trim() !== "";
         };
-        
-        
-        function ejecutarCiclo() {
-          if (!document.getElementById('listaPendientes')) return;
-
-          window.temporizadorActualizacion = setTimeout(() => {
-            cargarPendientes(false).then(huboCambios => {
-
-              if (huboCambios) {
-                intervaloActual = 3000;
-              } else {
-                intervaloActual = Math.min(intervaloActual + 3000, maxIntervalo);
-              }
-
-              console.log(`⏱️ Próxima consulta en ${intervaloActual / 1000}s`);
-
-              ejecutarCiclo(); // 🔁 loop normal
-            });
-          }, intervaloActual);
-        }
-
-
-        // ✅ Inicialización forzada (evita que la vista se quede en "Cargando...")
-        setTimeout(() => {
-          if (typeof window.cargar_MonitorTraspasos === "function") {
-            console.log("🔥 [Monitor] Forzando inicialización de vista...");
-            window.cargar_MonitorTraspasos();
-          } else {
-            console.warn("⚠️ [Monitor] Función cargar_MonitorTraspasos no disponible");
-          }
-        }, 100);
 
       })();
 </script>

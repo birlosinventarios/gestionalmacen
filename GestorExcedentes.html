@@ -280,7 +280,7 @@ const procesarSaldos = (movimientos) => {
                 </thead>
                 <tbody className="divide-y divide-[#f1f3f4] bg-white">
                   {datosFiltrados.map((item, idx) => (
-                    <tr key={item.eidUnico || i} className="group hover:bg-[#fcfcfc] transition-colors">
+                    <tr key={item.eidUnico || idx} className="group hover:bg-[#fcfcfc] transition-colors">
                       
                       {/* SKU: Alineado a la izquierda con ID en formato Label de alto contraste */}
                       <td className="px-6 py-4 text-left">
@@ -410,12 +410,32 @@ const procesarSaldos = (movimientos) => {
       );
     };
 
-    window.cargar_GestorExcedentes = () => {
-      const root = ReactDOM.createRoot(document.getElementById('vista-excedentes-root'));
-      root.render(<VistaGestorExcedentes />);
-    };
+    
+window.cargar_GestorExcedentes = () => {
+  const rootEl = document.getElementById('vista-excedentes-root');
+  if (!rootEl) {
+    console.warn("⚠️ [GestorExcedentes] No se encontró #vista-excedentes-root");
+    return;
+  }
 
-    if (document.getElementById('vista-excedentes-root')) window.cargar_GestorExcedentes();
+  // Si ya había un root previo, desmontarlo para evitar conflictos al volver a la vista
+  if (window.__GESTOR_EXCEDENTES_ROOT__) {
+    try {
+      window.__GESTOR_EXCEDENTES_ROOT__.unmount();
+    } catch (e) {
+      console.warn("⚠️ [GestorExcedentes] No se pudo desmontar root previo:", e);
+    }
+  }
+
+  window.__GESTOR_EXCEDENTES_ROOT__ = ReactDOM.createRoot(rootEl);
+  window.__GESTOR_EXCEDENTES_ROOT__.render(<VistaGestorExcedentes />);
+};
+
+// ✅ Contrato con el shell
+window.initVista = window.cargar_GestorExcedentes;
+console.log("🧩 [GestorExcedentes] initVista definida:", typeof window.initVista)
+
+
   })();
 </script>
 
