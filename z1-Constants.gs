@@ -40,12 +40,13 @@ const COL = {
   UBICACIONES_SURTIDO:{
     IDUBICACION: 0,
     CODIGO: 1,
-    BODEGA: 2,
-    PASILLO: 3,
-    ANAQUEL: 4,
-    REPISA: 5,
-    IDPRODUCTO: 6,
-    UBICACION:7
+    DESCRIPCION: 2,
+    BODEGA: 3,
+    PASILLO: 4,
+    ANAQUEL: 5,
+    REPISA: 6,
+    IDPRODUCTO: 7,
+    UBICACION:8
   },
     
   EXCEDENTES:{

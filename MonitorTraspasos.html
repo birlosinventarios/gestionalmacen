@@ -1,89 +1,53 @@
-    <div class="container">
-      
-      <div id="listaPendientes">
-        <p style="text-align:center; color: #666;">Cargando movimientos pendientes...</p>
-      </div>
-    </div>
+<div class="container">
 
-    <div id="snackbar"></div>
+  <div id="listaPendientes">
+    <p style="text-align:center; color: #666;">Cargando movimientos pendientes...</p>
+  </div>
+</div>
+
+<div id="snackbar"></div>
 
 <script>
-      (function() {
+  (function() {
         let escribiendo = false;
         let responsables = [];
         let procesando = false;
+        let ultimoSnapshot = null;
+        let intervaloActual = 3000; // comienza rápido
+        let maxIntervalo = 20000;   // límite superior
+
+        window.__MONITOR_ACTIVO__ = false;
 
         // ==========================================
         // 1. GESTOR UNIFICADO DE NOTIFICACIONES (UX FITO)
         // ==========================================
-        window.lanzarNotificacion = function(mensaje, tipo = "info") {
-          // Si el contenedor principal tiene activo el notificador unificado, lo priorizamos
-          if (typeof window.notificar === 'function') {
-            try {
-              window.notificar(mensaje, tipo);
-              return; // Salimos para evitar doble ejecución
-            } catch (e) {
-              console.warn("Error en el puente de notificaciones global, usando fallback local...", e);
-            }
+        
+        window.cargar_MonitorTraspasos = function() {
+          console.log("🔄 Inicializando: Monitor de Traspasos Pendientes");
+
+          if (window.temporizadorActualizacion) {
+            clearInterval(window.temporizadorActualizacion);
+            console.log("🧹 Temporizador previo limpiado.");
           }
 
-          // Fallback robusto local con SweetAlert2 si falla el puente
-          if (typeof Swal !== 'undefined') {
-            const coloresIcono = {
-              success: '#10b981',
-              warning: '#f59e0b',
-              error: '#d93025',
-              info: '#ffffff' // Ajustado a blanco para mantener congruencia con tu UI global
-            };
-            const colorSeleccionado = coloresIcono[tipo] || '#ffffff';
+          const cacheDisponible = window.DATA_ALMACEN_CACHE || window.GLOBAL_DATA;
 
-            const ToastOscuroLocal = Swal.mixin({
-              toast: true,
-              position: 'top-end',
-              showConfirmButton: false,
-              timer: 3000,
-              timerProgressBar: true,
-              background: '#1c1d1f', // Paleta UX FITO
-              color: '#ffffff',
-              iconColor: colorSeleccionado,
-              didOpen: (toast) => {
-                toast.addEventListener('mouseenter', Swal.stopTimer);
-                toast.addEventListener('mouseleave', Swal.resumeTimer);
-                const progress = toast.querySelector('.swal2-timer-progress-bar');
-                if (progress) {
-                  // Si es éxito es verde, si es info/error usa el acento rojo de marca
-                  progress.style.backgroundColor = tipo === 'success' ? '#10b981' : '#d93025'; 
-                }
-              }
-            });
+          if (cacheDisponible) {
+            console.log("⚡ Cargando responsables desde caché global...");
+            
+            responsables = (cacheDisponible.usuarios || [])
+              .filter(u => u.rol === "RESPONSABLE" || u.rol === "ADMIN")
+              .map(u => u.nombre);
 
-            ToastOscuroLocal.fire({
-              icon: tipo,
-              title: mensaje
-            });
+            cargarPendientes(true);
+            ejecutarCiclo();
+
           } else {
-            // Fallback clásico en snackbar si nada más está disponible
-            const x = document.getElementById("snackbar");
-            if (x) {
-              x.innerText = mensaje;
-              x.style.position = "fixed";
-              x.style.bottom = "20px";
-              x.style.left = "50%";
-              x.style.transform = "translateX(-50%)";
-              x.style.backgroundColor = tipo === 'error' ? '#d93025' : '#1c1d1f';
-              x.style.color = "#ffffff";
-              x.style.padding = "12px 24px";
-              x.style.borderRadius = "8px";
-              x.style.zIndex = "9999";
-              x.style.boxShadow = "0 10px 25px rgba(0,0,0,0.2)";
-              x.style.display = "block";
-              
-              setTimeout(() => { x.style.display = "none"; }, 3000);
-            } else {
-              console.log(`[${tipo.toUpperCase()}]: ${mensaje}`);
-            }
+            console.warn("⚠️ No hay cache disponible.");
+            window.lanzarNotificacion("⚠️ Esta vista requiere datos iniciales del sistema principal", "warning");
           }
         };
+
 
         // ==========================================
         // 2. CONTROL DE INTERACCIÓN DE ESCRITURA
@@ -105,94 +69,91 @@
         }
 
         // ==========================================
-        // 3. ENTRADA DE LA VISTA (Hereda caché o hace Fetch)
+        // 3. CICLO DE ACTUALIZACIÓN AUTOMÁTICA
         // ==========================================
-        window.cargar_MonitorTraspasos = function() {
-          console.log("🔄 Inicializando: Monitor de Traspasos Pendientes");
+        
+            function ejecutarCiclo() {
+              if (!document.getElementById('listaPendientes')) return;
 
-          if (window.temporizadorActualizacion) {
-            clearInterval(window.temporizadorActualizacion);
-            console.log("🧹 Temporizador previo limpiado.");
-          }
+              
+            if (!window.__MONITOR_ACTIVO__) {
+              window.__MONITOR_ACTIVO__ = true;
 
-          const cacheDisponible = window.DATA_ALMACEN_CACHE || window.GLOBAL_DATA;
-
-          if (cacheDisponible) {
-            console.log("⚡ Cargando responsables desde caché global...");
-            responsables = (cacheDisponible.usuarios || [])
-              .filter(u => u.rol === "RESPONSABLE" || u.rol === "ADMIN")
-              .map(u => u.nombre);
-            
-            cargarPendientes(true);
-            iniciarCicloActualizacion();
-          } else {
-            console.log("🌐 Modo Sandbox activo. Solicitando MegaData...");
-            window.lanzarNotificacion("Sincronizando base de datos...", "info");
-
-            google.script.run
-              .withSuccessHandler(function(megaData) {
-                responsables = (megaData.usuarios || [])
-                  .filter(u => u.rol === "RESPONSABLE" || u.rol === "ADMIN")
-                  .map(u => u.nombre);
-                
-                window.lanzarNotificacion("Configuración sincronizada", "success");
-                cargarPendientes(true);
-                iniciarCicloActualizacion();
-              })
-              .withFailureHandler(function(err) {
-                console.error("❌ Error al cargar MegaData:", err);
-                window.lanzarNotificacion("Error al conectar con la base de datos", "error");
-              })
-              .obtenerMegaDataInicial(); 
-          }
-        };
-
-        // ==========================================
-        // 4. CICLO DE ACTUALIZACIÓN AUTOMÁTICA
-        // ==========================================
-        function iniciarCicloActualizacion() {
-          window.temporizadorActualizacion = setInterval(function() {
-            if (!document.getElementById('listaPendientes')) { 
-              clearInterval(window.temporizadorActualizacion);
-              console.log("🛑 Ciclo de actualización detenido: Vista fuera del DOM.");
-              return;
+              setTimeout(() => {
+                if (typeof window.cargar_MonitorTraspasos === "function") {
+                  console.log("🔥 [Monitor] Inicializando SOLO UNA VEZ...");
+                  window.cargar_MonitorTraspasos();
+                }
+              }, 100);
             }
-            cargarPendientes(false);
-          }, 3000);
-        }
+
 
         // ==========================================
-        // 5. OBTENER Y CONFIGURAR PENDIENTES
+        // 4. OBTENER Y CONFIGURAR PENDIENTES
         // ==========================================
-        window.cargarPendientes = function(forzar = false) {
-          if (!forzar && (procesando || escribiendo)) return; 
-          
-          procesando = true;
-          console.log(forzar ? "⏳ Sincronización forzada..." : "⏳ Sincronizando...");
+        
+        
+            window.cargarPendientes = function(forzar = false) {
+              return new Promise((resolve) => {
 
-          google.script.run
-            .withSuccessHandler(function(pendientes) {
-              procesando = false; 
-              if (escribiendo && !forzar) return;
+                if (!forzar && (procesando || escribiendo)) {
+                  resolve(false);
+                  return;
+                }
 
-              if (pendientes && pendientes.length > 0) {
-                pendientes.sort((a, b) => {
-                  let bodegaA = a.tipo === "Acomodo" ? a.bodegaEntrada : a.bodegaSalida;
-                  let bodegaB = b.tipo === "Acomodo" ? b.bodegaEntrada : b.bodegaSalida;
-                  return (bodegaA || "").localeCompare(bodegaB || "");
-                });
-              }
-              renderizarCards(pendientes);
-            })
-            .withFailureHandler(function(err) {
-              procesando = false;
-              console.error("❌ Error al sincronizar pendientes: ", err);
-            })
-            .obtenerTraspasosPendientes();
-        };
+                procesando = true;
+
+                console.log("📡 [Monitor] Llamando obtenerTraspasosPendientes...");
+
+                google.script.run
+                    .withSuccessHandler(function(pendientes) {
+                      procesando = false;
+
+                      console.log("📥 [Monitor] pendientes:", pendientes);
+                      console.log("🧪 Array?:", Array.isArray(pendientes));
+                      console.log("📊 Total:", Array.isArray(pendientes) ? pendientes.length : "no-array");
+
+                      if (Array.isArray(pendientes) && pendientes.length > 0) {
+                        console.log("🔝 Primero:", pendientes[0]);
+                        console.log("🔚 Último:", pendientes[pendientes.length - 1]);
+                      }
+
+                      if (!Array.isArray(pendientes) || pendientes.length === 0) {
+                        renderizarCards([]);
+                        resolve(false);
+                        return;
+                      }
+
+                      const snapshotActual = JSON.stringify(pendientes);
+                      let huboCambios = false;
+
+                      if (ultimoSnapshot !== null && snapshotActual === ultimoSnapshot) {
+                        console.log("😴 [Monitor] Sin cambios");
+                        huboCambios = false;
+                      } else {
+                        console.log("🔄 [Monitor] Hubo cambios");
+                        ultimoSnapshot = snapshotActual;
+                        huboCambios = true;
+                        renderizarCards(pendientes);
+                      }
+
+                      resolve(huboCambios);
+
+                  })
+                  .withFailureHandler(function(err) {
+                    procesando = false;
+                    console.error("❌ Error:", err);
+                    resolve(false);
+                  })
+                  .obtenerTraspasosPendientes();
+
+              });
+            };
+
+
 
         // ==========================================
-        // 6. RENDERIZADO DE TARJETAS (CARDS)
+        // 5. RENDERIZADO DE TARJETAS (CARDS)
         // ==========================================
         window.renderizarCards = function(pendientes) {
           const contenedor = document.getElementById('listaPendientes');
@@ -218,7 +179,7 @@
           };
 
           pendientes.forEach(item => {
-            let base = item.tipo === "Acomodo" ? item.destino : (item.origen || "");
+            let base = item.tipomovimiento === "ACOMODO" ? item.bodegaentrada : (item.bodegasalida || "");
             let clave = base.toString().toUpperCase().trim();
             item.bodegaVisual = mapaAdmin[clave] || base;
           }); 
@@ -255,7 +216,7 @@
                   </div>
 
                   <div class="itemtipotraspaso">
-                  ${item.tipo}
+                  ${item.tipomovimiento}
                   </div>
 
                   <div class="titulotiposerietraspaso">Serie
@@ -283,13 +244,13 @@
                     <div class="cuadrantecuadrodatostraspaso">
                     <div class="tituloscuadrodatostraspaso">Almacen Salida:</div>
                       <div class="itemcuadrodatostraspaso">
-                      ${limpiarNombre(item.origen)}</div>
+                      ${limpiarNombre(item.bodegasalida)}</div>
                     </div>
 
                     <div class="cuadrantecuadrodatostraspaso">
                     <div class="tituloscuadrodatostraspaso">Almacen Entrada:</div>
                       <div class="itemcuadrodatostraspaso">
-                      ${limpiarNombre(item.destino)}</div>
+                      ${limpiarNombre(item.bodegaentrada)}</div>
                     </div>
 
                     <div class="cuadrantecuadrodatostraspaso">
@@ -343,7 +304,7 @@
 
 
         // ==========================================
-        // 7. AUXILIARES
+        // 6. AUXILIARES
         // ==========================================
         window.limpiarNombre = function(nombre) {
           if (!nombre || nombre === "---" || nombre === "") return "1 - Almacen Birlos";
@@ -362,7 +323,7 @@
         };
 
         // ==========================================
-        // 8. PROCESAR ACCIÓN DE GUARDADO
+        // 7. PROCESAR ACCIÓN DE GUARDADO
         // ==========================================
         window.procesarFila = function(numFila, boton) {
           const folio = document.getElementById('folio_' + numFila).value.trim();
@@ -404,10 +365,37 @@
         window.validarTexto = function(input) {
           escribiendo = input.value.trim() !== "";
         };
+        
+        
+        function ejecutarCiclo() {
+          if (!document.getElementById('listaPendientes')) return;
 
-        // Si se carga de manera independiente, autoiniciar
-        if (!window.DATA_ALMACEN_CACHE) {
-          window.cargar_MonitorTraspasos();
+          window.temporizadorActualizacion = setTimeout(() => {
+            cargarPendientes(false).then(huboCambios => {
+
+              if (huboCambios) {
+                intervaloActual = 3000;
+              } else {
+                intervaloActual = Math.min(intervaloActual + 3000, maxIntervalo);
+              }
+
+              console.log(`⏱️ Próxima consulta en ${intervaloActual / 1000}s`);
+
+              ejecutarCiclo(); // 🔁 loop normal
+            });
+          }, intervaloActual);
         }
+
+
+        // ✅ Inicialización forzada (evita que la vista se quede en "Cargando...")
+        setTimeout(() => {
+          if (typeof window.cargar_MonitorTraspasos === "function") {
+            console.log("🔥 [Monitor] Forzando inicialización de vista...");
+            window.cargar_MonitorTraspasos();
+          } else {
+            console.warn("⚠️ [Monitor] Función cargar_MonitorTraspasos no disponible");
+          }
+        }, 100);
+
       })();
-    </script>
+</script>

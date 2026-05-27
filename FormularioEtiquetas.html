@@ -64,7 +64,7 @@
         
         let mapaProductosGlobal = {}; // Memoria RAM para productos
         let mapaMedidasGlobal = {};   // Memoria RAM para medidas       
-        let colaDeImpresion = [];
+        window.colaDeImpresionEtiquetas = window.colaDeImpresionEtiquetas || [];
         let snackbarTimeout;
         let listaNombresEtiquetasGlobal = []; // Para validar el tipo de etiqueta
         let listaCodigosGlobal = [];          // Para validar el código
@@ -98,46 +98,80 @@
 
 
 
-// --- CARGA INICIAL (EJECUCIÓN INMEDIATA PARA REACT/SPA) ---
-(function() {
-  console.log("Iniciando Formulario de Etiquetas...");
-  lanzarNotificacion("Cargando base de datos...", "info");
+
+// --- INICIALIZACIÓN DE VISTA PARA SPA ---
+function poblarDatalistsEtiquetas_() {
+
   
-  google.script.run
-    .withSuccessHandler(function(datos) {
-      // 1. ASIGNACIÓN A VARIABLES GLOBALES
-      // Asegúrate de que estas variables estén declaradas con 'let' al inicio de tu <script>
-      mapaProductosGlobal = datos.mapaProductos || {};
-      mapaMedidasGlobal = datos.mapaMedidas || {};
-      listaCodigosGlobal = datos.codigos || [];
-      listaNombresEtiquetasGlobal = datos.nombresEtiquetas || [];
+console.log("🧾 [Etiquetas] poblarDatalistsEtiquetas_()");
+console.log("🧾 [Etiquetas] listaCodigosGlobal total:", listaCodigosGlobal.length);
+console.log("🧾 [Etiquetas] listaNombresEtiquetasGlobal total:", listaNombresEtiquetasGlobal.length);
 
-      // 2. LLENAR DATALIST DE CÓDIGOS
-      const dlCodigos = document.getElementById('listaCodigos');
-      if (dlCodigos) {
-        // Usamos join para mejorar el rendimiento con listas largas
-        dlCodigos.innerHTML = listaCodigosGlobal
-          .map(c => `<option value="${c}">`)
-          .join('');
-      }
+  const dlCodigos = document.getElementById('listaCodigos');
+  if (dlCodigos) {
+    dlCodigos.innerHTML = listaCodigosGlobal
+      .map(c => `<option value="${c}">`)
+      .join('');
+  }
 
-      // 3. LLENAR DATALIST DE TIPOS DE ETIQUETAS
-      const dlTipos = document.getElementById('listaTipos');
-      if (dlTipos) {
-        dlTipos.innerHTML = listaNombresEtiquetasGlobal
-          .map(n => `<option value="${n}">`)
-          .join('');
-      }
+  const dlTipos = document.getElementById('listaTipos');
+  if (dlTipos) {
+    dlTipos.innerHTML = listaNombresEtiquetasGlobal
+      .map(n => `<option value="${n}">`)
+      .join('');
+  }
+}
 
-      console.log("Catálogo de etiquetas cargado correctamente.");
-      lanzarNotificacion("Sistema Listo", "success");
-    })
-    .withFailureHandler(function(err) {
-      console.error("Error al cargar datos de etiquetas:", err);
-      lanzarNotificacion("Error al conectar con el servidor", "error");
-    })
-    .obtenerMegaDataInicial();
-})();
+
+console.log("🏷️ [Etiquetas] Script de la vista ejecutado");
+console.log("📦 [Etiquetas] DATA_ALMACEN_CACHE visible en vista:", window.DATA_ALMACEN_CACHE);
+
+
+window.inicializarVistaEtiquetas = function() {
+  
+console.log("🏷️ [Etiquetas] inicializarVistaEtiquetas() ejecutada");
+console.log("📦 [Etiquetas] Cache completo:", window.DATA_ALMACEN_CACHE);
+console.log("📊 [Etiquetas] mapaProductos:", window.DATA_ALMACEN_CACHE?.mapaProductos);
+console.log("📊 [Etiquetas] mapaMedidas:", window.DATA_ALMACEN_CACHE?.mapaMedidas);
+console.log("📊 [Etiquetas] codigos total:", window.DATA_ALMACEN_CACHE?.codigos?.length || 0);
+console.log("📊 [Etiquetas] nombresEtiquetas total:", window.DATA_ALMACEN_CACHE?.nombresEtiquetas?.length || 0);
+
+
+  // 1) Si APPALMACEN ya tiene la megadata en memoria, la reutilizamos
+  if (window.DATA_ALMACEN_CACHE) {
+    console.log("⚡ [Etiquetas] Cargando datos desde DATA_ALMACEN_CACHE...");
+
+    mapaProductosGlobal = window.DATA_ALMACEN_CACHE.mapaProductos || {};
+    mapaMedidasGlobal = window.DATA_ALMACEN_CACHE.mapaMedidas || {};
+    listaCodigosGlobal = window.DATA_ALMACEN_CACHE.codigos || [];
+    listaNombresEtiquetasGlobal = window.DATA_ALMACEN_CACHE.nombresEtiquetas || [];
+
+    poblarDatalistsEtiquetas_();
+    lanzarNotificacion("Sistema listo", "success");
+    return;
+  }
+
+  // 2) Si por alguna razón esta vista ya tenía datos en memoria local, reutilízalos
+  if (
+    Object.keys(mapaProductosGlobal).length > 0 ||
+    Object.keys(mapaMedidasGlobal).length > 0 ||
+    listaCodigosGlobal.length > 0 ||
+    listaNombresEtiquetasGlobal.length > 0
+  ) {
+    console.log("⚡ [Etiquetas] Reutilizando datos ya cargados en memoria local...");
+    poblarDatalistsEtiquetas_();
+    lanzarNotificacion("Sistema listo", "success");
+    return;
+  }
+
+  // 3) Ya no se hace llamada al backend desde esta vista
+  console.warn("⚠️ No se encontró DATA_ALMACEN_CACHE. Esta vista depende de la carga inicial realizada por APPALMACEN.");
+  lanzarNotificacion("⚠️ No hay datos iniciales en memoria. Abre la vista desde APPALMACEN.", "warning");
+};
+
+// Alias para el shell principal
+window.initVista = window.inicializarVistaEtiquetas;
+
 
 function buscarPorCodigo() {
   const input = document.getElementById('codigoInput');

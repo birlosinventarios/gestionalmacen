@@ -12,9 +12,11 @@ const TraspasosService = (() => {
      */
     getPendientes: function() {
       return TraspasosRepository.getAll()
-        .filter(x => !x.folio || x.folio === "");
+        .filter(x =>
+          (!x.folio || String(x.folio).trim() === "") ||
+          (!x.responsable || String(x.responsable).trim() === "")
+        );
     },
-
 
     /**
      * Traspasos con tipo de movimiento ACOMODO
@@ -206,6 +208,12 @@ const folio = "1111";
 const responsable = "acosta";
 const idunico = "2026051416054731671";
 
+    debugServiceCall_(
+      "getPendientes",
+      null,
+      () => TraspasosService.getPendientes(),
+      { limit: 3 }
+    );
 
     debugServiceCall_(
       "getAcomodos",

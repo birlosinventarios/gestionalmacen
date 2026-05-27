@@ -128,17 +128,18 @@
         <?!= HtmlService.createHtmlOutputFromFile('FilaTraspasos').getContent(); ?>
 
       <script>
+
+
 // --- 1. DECLARACIÓN DE VARIABLES EN ÁMBITO GLOBAL SEGURO ---
 // Usamos "window." para asegurar que persistan en el ciclo de vida de la página
 window.colaDeTraspasos = window.colaDeTraspasos || [];
-window.cacheCatalogo = window.cacheCatalogo || {}; 
-window.todosLosCodigosGlobal = window.todosLosCodigosGlobal || []; 
+window.cacheCatalogo = window.cacheCatalogo || {};
+window.todosLosCodigosGlobal = window.todosLosCodigosGlobal || [];
 window.mapaUbicacionesGlobal = window.mapaUbicacionesGlobal || [];
-window.usuariosGlobal = window.usuariosGlobal || []; 
+window.usuariosGlobal = window.usuariosGlobal || [];
 window.bodegasGlobal = window.bodegasGlobal || [];
 
 var DEFAULT_VALUE = "1 - Almacen Birlos";
-var cargandoMegaData = false;
 
 // --- 2. FUNCIÓN DE MONTAJE Y RE-INICIALIZACIÓN ---
 window.inicializarVistaTraspasos = function() {
@@ -154,48 +155,31 @@ window.inicializarVistaTraspasos = function() {
   // Si la aplicación principal ya sincronizó la base de datos, usamos esa información al instante
   if (window.DATA_ALMACEN_CACHE) {
     console.log("⚡ [UX FITO] Cargando base de datos unificada desde APPALMACEN...");
+
     window.usuariosGlobal = window.DATA_ALMACEN_CACHE.usuarios || [];
     window.bodegasGlobal = window.DATA_ALMACEN_CACHE.bodegas || [];
     window.todosLosCodigosGlobal = window.DATA_ALMACEN_CACHE.codigos || window.DATA_ALMACEN_CACHE.catalogo || [];
     window.mapaUbicacionesGlobal = window.DATA_ALMACEN_CACHE.mapaUbicaciones || [];
+  
     
     inicializarDatalistsLocales();
-    actualizarVistaLista();
-  } else if (window.usuariosGlobal && window.usuariosGlobal.length > 0) {
-    console.log("⚡ [UX FITO] Reutilizando catálogo existente en memoria local del formulario.");
-    inicializarDatalistsLocales();
-    actualizarVistaLista(); 
-  } else {
-    // Si por alguna razón no se ha sincronizado nada, hacemos la llamada al servidor
-    window.cargar_FormularioTraspasos();
-  }
-};
+        actualizarVistaLista();
+        return;
+      }
 
-window.cargar_FormularioTraspasos = function() {
-  if (cargandoMegaData) return;
-  cargandoMegaData = true;
-  
-  lanzarNotificacion("Descargando catálogo...", "info");
+      // ✅ FALLBACK SOLO A MEMORIA GLOBAL LOCAL SI YA EXISTE
+      if (window.usuariosGlobal && window.usuariosGlobal.length > 0) {
+        console.log("⚡ [UX FITO] Reutilizando datos ya cargados en memoria local.");
 
-  google.script.run
-    .withSuccessHandler(function(datos) {
-      cargandoMegaData = false;
-      if (!datos) return;
-      
-      window.usuariosGlobal = datos.usuarios || [];
-      window.bodegasGlobal = datos.bodegas || [];
-      window.todosLosCodigosGlobal = datos.codigos || [];
-      window.mapaUbicacionesGlobal = datos.mapaUbicaciones || [];
+        inicializarDatalistsLocales();
+        actualizarVistaLista();
+        return;
+      }
 
-      inicializarDatalistsLocales();
-      lanzarNotificacion("Catálogo sincronizado", "success");
-    })
-    .withFailureHandler(err => {
-      cargandoMegaData = false;
-      lanzarNotificacion("Error: " + err.message, "error");
-    })
-    .obtenerMegaDataInicial(); 
-};
+      // ❌ YA NO LLAMAMOS obtenerMegaDataInicial() DESDE ESTA VISTA
+      console.warn("⚠️ No se encontró DATA_ALMACEN_CACHE. Esta vista depende de la carga inicial realizada por APPALMACEN.");
+      lanzarNotificacion("⚠️ No hay datos iniciales en memoria. Abre la vista desde APPALMACEN.", "warning");
+    };
 
 function inicializarDatalistsLocales() {
   const dlSolicitantes = document.getElementById('listaSolicitantes');

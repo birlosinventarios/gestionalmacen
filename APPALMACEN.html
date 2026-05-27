@@ -286,12 +286,15 @@ window.lanzarNotificacion = window.notificar;
               console.error("🚨 Fallo de MegaData:", error);
               reject(error);
             })
-            .obtenerMegaDataInicial();
+            .getDataInicial();
         });
       };
 
      const seleccionarVista = (id, fileName) => {
-        console.log("🧹 Cambiando de vista. Reseteando estados y limpiando memoria...");
+        
+        window.initVista = null;
+        console.log("🧹 [Shell] initVista reiniciada antes de cargar vista:", fileName);
+
 
         if (window.temporizadorActualizacion) {
           clearInterval(window.temporizadorActualizacion);
@@ -335,76 +338,26 @@ window.lanzarNotificacion = window.notificar;
       }, []);
 
       // ⚡ Motor de encendido de scripts dinámicos (Protección anti-duplicados y re-renders - UX FITO)
+         
       useEffect(() => {
-        if (!containerRef.current || !viewContent) return;
+        if (!viewContent) return;
 
-        // Buscamos scripts que no hayan sido procesados aún
-        const scripts = containerRef.current.querySelectorAll('script:not([data-procesado="true"])');
-        
-        scripts.forEach(oldScript => {
-          const newScript = document.createElement('script');
-          
-          // Copiar atributos originales
-          Array.from(oldScript.attributes).forEach(attr => {
-            if (attr.name !== 'type') {
-              newScript.setAttribute(attr.name, attr.value);
-            }
-          });
-          
-          var codeToExecute = oldScript.innerHTML.trim();
-          if (!codeToExecute) return;
+        console.log("📄 [Shell] viewContent cargado para:", activeTool);
+        console.log("🧪 [Shell] typeof window.initVista ANTES del timeout:", typeof window.initVista);
 
-          const isBabel = oldScript.getAttribute('type') === 'text/babel';
+        setTimeout(() => {
+          console.log("🧪 [Shell] typeof window.initVista DENTRO del timeout:", typeof window.initVista);
 
-          if (isBabel) {
-            try {
-              codeToExecute = Babel.transform(codeToExecute, { 
-                presets: ['react'],
-                filename: 'vista_dinamica.js' 
-              }).code;
-            } catch (babelError) {
-              console.error("🚨 Error Babel en vista dinámica:", babelError);
-              return;
-            }
+          if (typeof window.initVista === 'function') {
+            console.log("🚀 [Shell] Ejecutando initVista:", window.initVista.name || "(anónima)");
+            window.initVista();
+          } else {
+            console.warn("⚠️ [Shell] No existe window.initVista para la vista actual");
           }
-
-          // Inyección limpia
-          try {
-            newScript.textContent = codeToExecute;
-          } catch (e) {
-            newScript.text = codeToExecute;
-          }
-
-          // 🌟 Marcamos el script para que nunca más se intente procesar o reemplazar
-          newScript.setAttribute('data-procesado', 'true');
-          
-          // Reemplazo seguro previniendo fallos si el nodo padre cambió en el DOM
-          if (oldScript.parentNode) {
-            oldScript.parentNode.replaceChild(newScript, oldScript);
-          }
-        });
-
-        // 🚀 DISPARADOR MANUAL EN DOBLE FRAME (Solo se ejecuta si la función no se ha corrido)
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const nombreFuncion = "cargar_" + activeTool;
-            if (typeof window[nombreFuncion] === "function") {
-              console.log("🔥 Ejecutando inicializador de vista: " + nombreFuncion);
-              window[nombreFuncion]();
-            } else {
-              console.warn("⚠️ Función no lista: " + nombreFuncion + ". Reintentando en 200ms...");
-              setTimeout(() => {
-                if (typeof window[nombreFuncion] === "function") {
-                  window[nombreFuncion]();
-                } else {
-                  console.error("🚨 Falló la inicialización. La función " + nombreFuncion + " no está definida globalmente.");
-                }
-              }, 200);
-            }
-          });
-        });
+        }, 50);
 
       }, [viewContent, activeTool]);
+
 
       const toolsByCategory = TOOLS.reduce((acc, tool) => {
         if (!acc[tool.category]) acc[tool.category] = [];

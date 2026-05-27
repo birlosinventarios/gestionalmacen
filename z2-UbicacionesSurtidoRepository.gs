@@ -14,6 +14,7 @@ const UbicacionesSurtidoRepository = (() => {
 
       idubicacion: toNum_(fila[COL.UBICACIONES_SURTIDO.IDUBICACION] || ""),
       codigo: toStrUpper_(fila[COL.UBICACIONES_SURTIDO.CODIGO]),
+      descripcion: toStrUpper_(fila[COL.UBICACIONES_SURTIDO.DESCRIPCION]),
       bodega: toNum_(fila[COL.UBICACIONES_SURTIDO.BODEGA]),
       pasillo: toNum_(fila[COL.UBICACIONES_SURTIDO.PASILLO]),
       anaquel: toNum_(fila[COL.UBICACIONES_SURTIDO.ANAQUEL]),
@@ -53,6 +54,12 @@ const UbicacionesSurtidoRepository = (() => {
     getPorCodigo: function(codigo) {
       const filtro = toStrUpper_(codigo || "");
       return getData_().filter(t => t.codigo === filtro);
+    },
+
+    // Devuelve todas las ubicaciones por descripcion    
+    getPorDescripcion: function(descripcion) {
+      const filtro = toStrUpper_(descripcion || "");
+      return getData_().filter(t => t.descripcion === filtro);
     },
 
     // Devuelve todas las ubicaciones por bodega

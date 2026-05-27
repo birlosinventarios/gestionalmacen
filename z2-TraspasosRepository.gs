@@ -9,8 +9,9 @@ const TraspasosRepository = (() => {
     return getRows_(SHEETS.TRASPASOS);
   }
 
-  function normalize_(fila) {
+  function normalize_(fila, filaReal) {
     return {
+      fila: filaReal,
       fechatraspaso: toDate_(fila[COL.TRASPASOS.FECHA] || ""),
       horatraspaso: toTime_(fila[COL.TRASPASOS.HORA] || ""),
       tipomovimiento: toStrUpper_(fila[COL.TRASPASOS.TIPOMOVIMIENTO] || ""),
@@ -38,9 +39,10 @@ const TraspasosRepository = (() => {
 
   function getData_() {
     if (cache_ === null) {
-      cache_ = readSource_()
-        .map(normalize_)
-        .filter(x => x.codigo);
+          cache_ = readSource_()
+            .map((fila, index) => normalize_(fila, index + 2))
+            .filter(x => x.codigo);
+
       console.log("[CACHE] Traspasos Cargados");
     }
 

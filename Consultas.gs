@@ -1,3 +1,4 @@
+
 function obtenerMegaDataInicial() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -69,7 +70,7 @@ function obtenerMegaDataInicial() {
     return { usuarios: [], bodegas: [], mapaUbicaciones: [], codigos: [], mapaProductos: {} 
     };
   }
-}
+} 
 
 function buscarCodigosPorFiltro(termino) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -160,7 +161,7 @@ function procesarLoteEtiquetas(lote) {
 
 /**
  * Obtiene las filas de la Bitácora que NO tienen Folio (Col M) o Responsable (Col N)
- */
+
 function obtenerTraspasosPendientes() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hoja = ss.getSheetByName('Bitacora-TRASPASOS');
@@ -194,7 +195,7 @@ function obtenerTraspasosPendientes() {
     return (!item.folio || String(item.folio).trim() === "") || 
            (!item.responsable || String(item.responsable).trim() === "");
   });
-}
+}  */
 
 /**
  * Obtiene la lista de usuarios con rol de responsable (Hoja USUARIOS)
