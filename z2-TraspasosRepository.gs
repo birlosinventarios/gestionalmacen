@@ -145,7 +145,6 @@ const TraspasosRepository = (() => {
       return getData_().filter(t => t.idunico === filtro);
     },
 
-
     //  Devuelve todos las series involucradas
     getSeries: function() {
       return getField_("serie");

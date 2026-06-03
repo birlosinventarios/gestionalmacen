@@ -130,16 +130,18 @@
       <script>
 
 
+
 // --- 1. DECLARACIÓN DE VARIABLES EN ÁMBITO GLOBAL SEGURO ---
-// Usamos "window." para asegurar que persistan en el ciclo de vida de la página
 window.colaDeTraspasos = window.colaDeTraspasos || [];
-window.cacheCatalogo = window.cacheCatalogo || {};
-window.todosLosCodigosGlobal = window.todosLosCodigosGlobal || [];
-window.mapaUbicacionesGlobal = window.mapaUbicacionesGlobal || [];
+window.codigosGlobal = window.codigosGlobal || [];
+window.mapaCatalogoGlobal = window.mapaCatalogoGlobal || {};
+window.mapaUbicacionesExcedentesGlobal = window.mapaUbicacionesExcedentesGlobal || [];
 window.usuariosGlobal = window.usuariosGlobal || [];
 window.bodegasGlobal = window.bodegasGlobal || [];
 
-var DEFAULT_VALUE = "1 - Almacen Birlos";
+var DEFAULT_VALUE = "1 - ALMACEN BIRLOS";
+
+
 
 // --- 2. FUNCIÓN DE MONTAJE Y RE-INICIALIZACIÓN ---
 window.inicializarVistaTraspasos = function() {
@@ -147,62 +149,74 @@ window.inicializarVistaTraspasos = function() {
 
   const cuerpoForm = document.getElementById('cuerpoFormulario');
   if (cuerpoForm) cuerpoForm.style.display = "none";
-  
+
   // Re-vincular los Event Listeners a los nuevos elementos del DOM
   vincularEventosDOM();
 
-  // ⚡ COMPARTIMIENTO INTELIGENTE DE CACHÉ:
-  // Si la aplicación principal ya sincronizó la base de datos, usamos esa información al instante
+  // Si APPALMACEN ya cargó el bootstrap, lo reutilizamos
   if (window.DATA_ALMACEN_CACHE) {
-    console.log("⚡ [UX FITO] Cargando base de datos unificada desde APPALMACEN...");
+    console.log("⚡ [UX FITO] Cargando catálogos desde DATA_ALMACEN_CACHE...");
+    console.log("📦 [Traspasos] Cache visible:", window.DATA_ALMACEN_CACHE);
 
     window.usuariosGlobal = window.DATA_ALMACEN_CACHE.usuarios || [];
     window.bodegasGlobal = window.DATA_ALMACEN_CACHE.bodegas || [];
-    window.todosLosCodigosGlobal = window.DATA_ALMACEN_CACHE.codigos || window.DATA_ALMACEN_CACHE.catalogo || [];
-    window.mapaUbicacionesGlobal = window.DATA_ALMACEN_CACHE.mapaUbicaciones || [];
-  
-    
+    window.codigosGlobal = window.DATA_ALMACEN_CACHE.codigos || [];
+    window.mapaCatalogoGlobal = window.DATA_ALMACEN_CACHE.mapaCatalogo || {};
+    window.mapaUbicacionesExcedentesGlobal = window.DATA_ALMACEN_CACHE.mapaUbicacionesExcedentes || [];
+
     inicializarDatalistsLocales();
-        actualizarVistaLista();
-        return;
-      }
+    actualizarVistaLista();
+    return;
+  }
 
-      // ✅ FALLBACK SOLO A MEMORIA GLOBAL LOCAL SI YA EXISTE
-      if (window.usuariosGlobal && window.usuariosGlobal.length > 0) {
-        console.log("⚡ [UX FITO] Reutilizando datos ya cargados en memoria local.");
+  // Fallback: reutilizar memoria local si ya había sido poblada antes
+  if (
+    window.usuariosGlobal.length > 0 ||
+    window.bodegasGlobal.length > 0 ||
+    window.codigosGlobal.length > 0 ||
+    Object.keys(window.mapaCatalogoGlobal).length > 0 ||
+    window.mapaUbicacionesExcedentesGlobal.length > 0
+  ) {
+    console.log("⚡ [UX FITO] Reutilizando datos ya cargados en memoria local.");
 
-        inicializarDatalistsLocales();
-        actualizarVistaLista();
-        return;
-      }
+    inicializarDatalistsLocales();
+    actualizarVistaLista();
+    return;
+  }
 
-      // ❌ YA NO LLAMAMOS obtenerMegaDataInicial() DESDE ESTA VISTA
-      console.warn("⚠️ No se encontró DATA_ALMACEN_CACHE. Esta vista depende de la carga inicial realizada por APPALMACEN.");
-      lanzarNotificacion("⚠️ No hay datos iniciales en memoria. Abre la vista desde APPALMACEN.", "warning");
-    };
-
+  // Ya no se hace llamada propia al backend desde esta vista
+  console.warn("⚠️ No se encontró DATA_ALMACEN_CACHE. Esta vista depende de la carga inicial realizada por APPALMACEN.");
+  lanzarNotificacion("⚠️ No hay datos iniciales en memoria. Abre la vista desde APPALMACEN.", "warning");
+};
 
 window.initVista = window.inicializarVistaTraspasos;
 console.log("🧩 [Traspasos] initVista definida:", typeof window.initVista);
 
 
+
+
 function inicializarDatalistsLocales() {
+  // Solicitantes
   const dlSolicitantes = document.getElementById('listaSolicitantes');
   if (dlSolicitantes) {
     dlSolicitantes.innerHTML = window.usuariosGlobal
       .map(u => `<option value="${u.nombre}">`)
       .join('');
   }
-  
-  const opcionesBodegas = window.bodegasGlobal.map(b => `<option value="${b}">`).join('');
+
+  // Bodegas (nota: tu HTML tiene dos datalist con el mismo id="listaBodega")
+  const opcionesBodegas = window.bodegasGlobal
+    .map(b => `<option value="${b}">`)
+    .join('');
+
   document.querySelectorAll('#listaBodega').forEach(el => {
     el.innerHTML = opcionesBodegas;
   });
-  
-  if (typeof actualizarDatalist === "function") {
-    actualizarDatalist(window.todosLosCodigosGlobal);
-  }
+
+  // Códigos
+  actualizarDatalist(window.codigosGlobal);
 }
+
 
 // Vinculación dinámica de eventos (evita que se pierdan al destruir el DOM)
 function vincularEventosDOM() {
@@ -237,7 +251,7 @@ function vincularEventosDOM() {
   if (ubiSalidaInput) {
     ubiSalidaInput.addEventListener('change', function() {
       const bodegaActual = bodegaSalidaInput.value.toUpperCase();
-      const ubicacionesPermitidas = window.mapaUbicacionesGlobal
+      const ubicacionesPermitidas = window.mapaUbicacionesExcedentesGlobal
         .filter(item => item.bodega === bodegaActual)
         .map(item => item.ubi);
       
@@ -255,7 +269,7 @@ function vincularEventosDOM() {
   if (ubiEntradaInput) {
     ubiEntradaInput.addEventListener('change', function() {
       const bodegaActual = bodegaEntradaInput.value.toUpperCase();
-      const ubicacionesPermitidas = window.mapaUbicacionesGlobal
+      const ubicacionesPermitidas = window.mapaUbicacionesExcedentesGlobal
         .filter(item => item.bodega === bodegaActual)
         .map(item => item.ubi);
       
@@ -322,7 +336,7 @@ function buscarPorCodigo() {
   const codigo = inputCodigo.value.trim().toUpperCase();
   if (!codigo) return;
 
-  if (!window.todosLosCodigosGlobal.includes(codigo)) {
+  if (!window.codigosGlobal.includes(codigo)) {
     lanzarNotificacion(`⚠️ El código "${codigo}" no existe en el catálogo.`, "error");
     inputCodigo.value = "";
     document.getElementById('descripcionInput').value = "";
@@ -358,7 +372,7 @@ function cargarUbicaciones(idInputBodega, idDatalist, idInputUbi) {
     return;
   }
 
-  const filtradas = window.mapaUbicacionesGlobal
+  const filtradas = window.mapaUbicacionesExcedentesGlobal
     .filter(item => item.bodega === bodegaSeleccionada)
     .map(item => item.ubi);
 
@@ -377,7 +391,7 @@ function agregarALista() {
   const getVal = (id) => document.getElementById(id).value.trim();
   const tipo = getVal('tipoMovimientoInput');
 
-  const codValido = window.todosLosCodigosGlobal.includes(getVal('codigoInput').toUpperCase());
+  const codValido = window.codigosGlobal.includes(getVal('codigoInput').toUpperCase());
   const solValido = window.usuariosGlobal.some(u => u.nombre.toUpperCase() === getVal('solicitanteInput').toUpperCase());
 
   if (!codValido || !solValido) {

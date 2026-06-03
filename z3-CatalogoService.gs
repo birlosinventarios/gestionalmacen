@@ -43,6 +43,18 @@ const CatalogoService = (() => {
         );
     },
 
+    /**
+     * Registros por status dinámico
+     */
+    getRegistrosPorStatus: function(status) {
+      const texto = toStrUpper_(status);
+
+      return CatalogoRepository.getAll()
+        .filter(x =>
+          (x.status).startsWith(texto)
+        );
+    },
+
   };
 
 })();
@@ -51,9 +63,10 @@ const CatalogoService = (() => {
 
 function debugCatalogoService() {
 
-const codigo= "ECO-";
+const codigo = "ECO-";
 const descripcion = "ANTICONGELANTE";
-const idproducto= "1024";
+const idproducto = "1024";
+const status = "inac";
 
 
     debugServiceCall_(
@@ -74,6 +87,13 @@ const idproducto= "1024";
       "getRegistrosPorIdProducto",
       { idproducto: idproducto },
       () => CatalogoService.getRegistrosPorIdProducto(idproducto),
+      { limit: 3 }
+    );
+
+    debugServiceCall_(
+      "getRegistrosPorStatus",
+      { status: status },
+      () => CatalogoService.getRegistrosPorStatus(status),
       { limit: 3 }
     );
 

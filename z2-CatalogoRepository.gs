@@ -13,7 +13,8 @@ const CatalogoRepository = (() => {
     return {
       idproducto: toStr_(fila[COL.CATALOGO.IDPRODUCTO]),
       codigo: toStrUpper_(fila[COL.CATALOGO.CODIGO]),
-      descripcion: toStrUpper_(fila[COL.CATALOGO.DESCRIPCION])
+      descripcion: toStrUpper_(fila[COL.CATALOGO.DESCRIPCION]),
+      status: toStrUpper_(fila[COL.CATALOGO.STATUS])
     };
   }
 
@@ -57,6 +58,11 @@ function getData_() {
     //  Devuelve todos los idproductos
     getIdProductos: function() {
       return getField_("idproducto");
+    }, 
+
+    //  Devuelve todos los status
+    getStatus: function() {
+      return getField_("status");
     },        
 
     //  Devuelve toda la informacion por Codigo
@@ -77,12 +83,19 @@ function getData_() {
       return getData_().filter(t => t.descripcion === filtro);
     },
 
+    //  Devuelve toda la informacion por status
+    getPorStatus: function(status) {
+      const filtro = toStr_(status);
+      return getData_().filter(t => t.status === filtro);
+    },
+
     clearCache: function() {
       cache_ = null;
       console.log("[CACHE] Catalogo limpio");
     }
+    };
 
-  };
+
 
 })();
 
@@ -95,7 +108,8 @@ function debugCatalogoRepository() {
 
   const CODIGO_PRUEBA = "PLP-10X3";     
   const DESCRIPCION_PRUEBA = "PIJA PARA LAMINA PHILLIPS CABEZA PLANA 10 X 3";
-  const IDPRODUCTO_PRUEBA = "13112";  
+  const IDPRODUCTO_PRUEBA = "13112"; 
+  const STATUS_PRUEBA = "ACTIVO"; 
 
   // ===============================
   //  getAll
@@ -152,5 +166,13 @@ function debugCatalogoRepository() {
   const porDescripcion = CatalogoRepository.getPorDescripcion(DESCRIPCION_PRUEBA);
   console.log(`[getPorDescripcion(${DESCRIPCION_PRUEBA})] total:`, porDescripcion.length);
   console.log("[getPorDescripcion] muestra:", JSON.stringify(porDescripcion.slice(0, 5), null, 3));
+
+  // ===============================
+  //  getPorStatus
+  // ===============================
+
+  const porStatus = CatalogoRepository.getPorStatus(STATUS_PRUEBA);
+  console.log(`[getPorStatus(${IDPRODUCTO_PRUEBA})] total:`, porStatus.length);
+  console.log("[getPorStatus] muestra:", JSON.stringify(porStatus.slice(0, 5), null, 3));
 }
 

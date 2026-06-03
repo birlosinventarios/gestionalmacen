@@ -16,7 +16,8 @@ const COL = {
   CATALOGO: {
     IDPRODUCTO: 0,          
     CODIGO: 1,     
-    DESCRIPCION: 2   
+    DESCRIPCION: 2,
+    STATUS: 3   
   },
 
   USUARIOS:{

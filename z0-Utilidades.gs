@@ -229,3 +229,38 @@ function debugServiceCall_(label, input, executor, options = {}) {
     return null;
   }
 }
+
+
+/**
+ * Debug de métodos públicos de un Repository
+ * - label: nombre del repository
+ * - repository: objeto repository a inspeccionar
+ */
+function debugRepositoryMethods_(label, repository) {
+  console.log("==================================================");
+  console.log(`[REPOSITORY] ${label} - Métodos públicos`);
+
+  try {
+    if (!repository || typeof repository !== "object") {
+      console.warn(`[${label}] No es un objeto válido de repository`);
+      console.log("==================================================");
+      return [];
+    }
+
+    const methods = Object.keys(repository)
+      .filter(key => typeof repository[key] === "function");
+
+    console.log(`[${label}] total métodos: ${methods.length}`);
+    console.log(`[${label}] métodos:`, JSON.stringify(methods, null, 2));
+    console.log("==================================================");
+
+    return methods;
+
+  } catch (error) {
+    console.error(`[${label}] ERROR:`, error.message);
+    if (error.stack) console.error(error.stack);
+    console.log("==================================================");
+    return [];
+  }
+}
+
