@@ -124,7 +124,7 @@ const BootstrapServices = (() => {
 
 /**
  * Debug de BootstrapServices.getInfoInicial()
- * Muestra conteos y primeras 5 muestras en el registro de ejecución
+ * Muestra conteos y primeras 5 muestras en el registro de ejecución  
  */
 function debugGetInfoInicial() {
   const resultado = BootstrapServices.getInfoInicial();
