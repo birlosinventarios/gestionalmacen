@@ -6,7 +6,7 @@
 const TraspasosRepository = (() => {
 
   function readSource_() {
-    return getRows_(SHEETS.TRASPASOS);
+    return getRowsByKey_("TRASPASOS");
   }
 
   function normalize_(fila, filaReal) {

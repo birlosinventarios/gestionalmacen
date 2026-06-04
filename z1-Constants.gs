@@ -1,16 +1,76 @@
-/* Nombres de las hojas, origenes de datos */
+
+/**
+ * CONSTANTS.gs
+ * Configuración central de archivos fuente, hojas y columnas
+ */
+
+/** EJEMPLO PARA IDENTIFICAR EL ID DEL ARCHIVO DESDE EL LINK, SECCION ENTRE COMILLAS.
+ * SIEMPRE ES LA LINEA DE CODIGO DESPUES DEL /d/ Y ANTES DEL /edit
+ * GESTION: https://docs.google.com/spreadsheets/d/1xPMnPg_-m7yQQoMq6ku1iwyXRlZC-RjypGpC_2gv4xE/edit?gid=0#gid=0
+ * PEDIDOS: https://docs.google.com/spreadsheets/d/1PJh2JaMH2FVDNOzZ7vTcKlFSJ48R5rYGjsF_HyjMWO0/edit?gid=177457208#gid=177457208
+ */
+
+/**
+ * IDs de archivos fuente
+ */
+const FILES = {
+  GESTION: "1xPMnPg_-m7yQQoMq6ku1iwyXRlZC-RjypGpC_2gv4xE",
+  PEDIDOS: "1PJh2JaMH2FVDNOzZ7vTcKlFSJ48R5rYGjsF_HyjMWO0"
+};
+
+/* Nombres de las hojas por archivo */
 const SHEETS = {
-  CATALOGO: "CATALOGO",
-  UBICACIONES_EXCEDENTES: "UBICACIONES",
-  UBICACIONES_SURTIDO: "UBICACIONES_SURTIDO", // si es otra hoja real
-  USUARIOS: "USUARIOS",
-  ETIQUETAS: "ETIQUETAS",
-  EXCEDENTES: "BD-EXCEDENTES",
-  TRASPASOS: "Bitacora-TRASPASOS"
+  
+  CATALOGO: {
+      file: "GESTION",
+      name: "CATALOGO"
+    },
+
+  ETIQUETAS: {
+      file: "GESTION",
+      name: "ETIQUETAS"
+    }, 
+
+  EXCEDENTES: {
+      file: "GESTION",
+      name: "BD-EXCEDENTES"
+    }, 
+
+  TRASPASOS: {
+      file: "GESTION",
+      name: "Bitacora-TRASPASOS"
+    },
+
+  UBICACIONES_EXCEDENTES: {
+      file: "GESTION",
+      name: "UBICACIONES"
+    },  
+
+  UBICACIONES_SURTIDO: {
+      file: "GESTION",
+      name: "UBICACIONES_SURTIDO"
+    },  
+
+  USUARIOS: {
+      file: "GESTION",
+      name: "USUARIOS"
+    },
+
+  EXISTENCIAS: {
+      file: "GESTION",
+      name: "EXISTENCIAS"
+    },
+
+  MAXMIN: {
+      file: "GESTION",
+      name: "MAXMIN"
+    }
 };
 
 
-/* # de la columa a la que pertenece el encabezado, el numero se toma en cuenta como columna A = 0 */
+/** Indices de columnas
+ * A = 0
+ */
 const COL = {
 
   CATALOGO: {
@@ -77,5 +137,17 @@ const COL = {
     FOLIO: 12,
     RESPONSABLE: 13,
     IDUNICO: 14
-  }
+  },
+
+  EXISTENCIAS:{
+    IDUBICACIONES_EXCEDENTES: 0,
+    BODEGA: 1,
+    UBICACION: 2
+  },
+
+  MAXMIN:{
+    IDUBICACIONES_EXCEDENTES: 0,
+    BODEGA: 1,
+    UBICACION: 2
+  },
 }; 

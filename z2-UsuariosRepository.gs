@@ -6,7 +6,7 @@
 const UsuariosRepository = (() => {
 
   function readSource_() {
-    return getRows_(SHEETS.USUARIOS);
+    return getRowsByKey_("USUARIOS");
   }
 
   function normalize_(fila) {

@@ -1,26 +1,47 @@
+
 /**
  * Lectores de datos
  */
 
+function getSpreadsheetByFileKey_(fileKey) {
+  const fileId = FILES[fileKey];
 
-function getSheet_(sheetName) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(sheetName);
+  if (!fileId) {
+    throw new Error(`No se encontró el fileKey en FILES: ${fileKey}`);
+  }
+
+  return SpreadsheetApp.openById(fileId);
+}
+
+function getSheetByKey_(sheetKey) {
+  const config = SHEETS[sheetKey];
+
+  if (!config) {
+    throw new Error(`No se encontró la configuración de hoja para: ${sheetKey}`);
+  }
+
+  const ss = getSpreadsheetByFileKey_(config.file);
+  const hoja = ss.getSheetByName(config.name);
 
   if (!hoja) {
-    throw new Error(`No se encontró la hoja: ${sheetName}`);
+    throw new Error(`No se encontró la hoja "${config.name}" en el archivo "${config.file}"`);
   }
 
   return hoja;
 }
 
-function getRows_(sheetName) {
-  const values = getSheet_(sheetName).getDataRange().getValues();
+function getRowsByKey_(sheetKey) {
+  const values = getSheetByKey_(sheetKey).getDataRange().getValues();
 
   if (values.length < 2) return [];
 
   return values.slice(1); // sin encabezado
 }
+
+function getValuesByKey_(sheetKey) {
+  return getSheetByKey_(sheetKey).getDataRange().getValues();
+}
+
 
 /**
  * Formateadores de datos
@@ -134,47 +155,49 @@ function sameTime_(a, b) {
 /**
  * Plantilla genérica de Debug para registro de ejecución
  */
-function debugHoja_(sheetName, mapFn, label) {
-  const hoja = getSheet_(sheetName);
+function debugHoja_(sheetKey, mapFn, label) {
+  const config = SHEETS[sheetKey];
 
-  if (!hoja) {
-    console.error(`[${label}] No se encontró la hoja:`, sheetName);
+  if (!config) {
+    console.error(`[${label}] No existe la clave SHEETS.${sheetKey}`);
     return;
   }
 
-  const values = getSheet_(sheetName).getDataRange().getValues();
+  const hoja = getSheetByKey_(sheetKey);
+  const values = hoja.getDataRange().getValues();
 
   console.log(`==================================================`);
-  console.log(`[${label}] Hoja: ${sheetName}`);
+  console.log(`[${label}] sheetKey: ${sheetKey}`);
+  console.log(`[${label}] file: ${config.file}`);
+  console.log(`[${label}] hoja: ${config.name}`);
   console.log(`[${label}] Filas totales (incluye encabezado):`, values.length);
 
   if (values.length === 0) {
     console.warn(`[${label}] Hoja vacía.`);
+    console.log(`==================================================`);
     return;
   }
 
-  console.log(`[${label}] Encabezados (fila 1):`, values[0]);
+  console.log(`[${label}] Encabezados (fila 1):`, JSON.stringify(values[0], null, 2));
   console.log(`[${label}] Muestra RAW (primeras 5 filas):`, JSON.stringify(values.slice(0, 5), null, 3));
 
-  // Quitar encabezado
   const rows = values.slice(1);
 
   console.log(`[${label}] Filas de datos (sin encabezado):`, rows.length);
   console.log(`[${label}] Muestra RAW datos (primeras 5):`, JSON.stringify(rows.slice(0, 5), null, 3));
 
-  // Mapear a objetos (si hay mapFn)
   if (typeof mapFn === "function") {
-    const mapped = rows.map(mapFn);
+    const mapped = rows.map((fila, index) => mapFn(fila, index + 2));
 
     console.log(`[${label}] Muestra MAPEADA (primeras 5):`, JSON.stringify(mapped.slice(0, 5), null, 3));
 
-    // Validaciones rápidas
     const nulos = mapped.filter(o => !o).length;
     console.log(`[${label}] Objetos nulos/undefined mapeados:`, nulos);
   }
 
   console.log(`==================================================`);
-} 
+}
+
 
 
 /**

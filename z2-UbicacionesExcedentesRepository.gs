@@ -6,7 +6,7 @@
 const UbicacionesExcedentesRepository = (() => {
 
   function readSource_() {
-    return getRows_(SHEETS.UBICACIONES_EXCEDENTES);
+    return getRowsByKey_("UBICACIONES_EXCEDENTES");
   }
 
   function normalize_(fila) {

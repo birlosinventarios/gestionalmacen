@@ -6,7 +6,7 @@
 const UbicacionesSurtidoRepository = (() => {
 
   function readSource_() {
-    return getRows_(SHEETS.UBICACIONES_SURTIDO);
+    return getRowsByKey_("UBICACIONES_SURTIDO");
   }
 
   function normalize_(fila) {

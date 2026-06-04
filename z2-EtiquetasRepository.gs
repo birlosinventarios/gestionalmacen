@@ -6,7 +6,7 @@
 const EtiquetasRepository = (() => {
 
   function readSource_() {
-    return getRows_(SHEETS.ETIQUETAS);
+    return getRowsByKey_("ETIQUETAS");
   }
 
   function normalize_(fila) {

@@ -6,7 +6,7 @@
 const CatalogoRepository = (() => {
 
   function readSource_() {
-    return getRows_(SHEETS.CATALOGO);
+    return getRowsByKey_("CATALOGO");
   }
 
   function normalize_(fila) {
@@ -22,7 +22,7 @@ const CatalogoRepository = (() => {
     return getData_().map(x => x[field]);
   }
 
-  // Lectura de todo el origen de datos una sola vez
+  // Lectura de todo el origen de datos una sola ve
 let cache_ = null;
 
 function getData_() {

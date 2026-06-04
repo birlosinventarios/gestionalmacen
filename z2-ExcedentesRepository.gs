@@ -6,7 +6,7 @@
 const ExcedentesRepository = (() => {
 
   function readSource_() {
-    return getRows_(SHEETS.EXCEDENTES);
+    return getRowsByKey_("EXCEDENTES");
   }
 
   function normalize_(fila) {
