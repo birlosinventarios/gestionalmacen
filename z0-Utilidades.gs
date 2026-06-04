@@ -3,6 +3,9 @@
  * Lectores de datos
  */
 
+
+const __spreadsheetCache = {};
+
 function getSpreadsheetByFileKey_(fileKey) {
   const fileId = FILES[fileKey];
 
@@ -10,7 +13,11 @@ function getSpreadsheetByFileKey_(fileKey) {
     throw new Error(`No se encontró el fileKey en FILES: ${fileKey}`);
   }
 
-  return SpreadsheetApp.openById(fileId);
+  if (!__spreadsheetCache[fileKey]) {
+    __spreadsheetCache[fileKey] = SpreadsheetApp.openById(fileId);
+  }
+
+  return __spreadsheetCache[fileKey];
 }
 
 function getSheetByKey_(sheetKey) {
@@ -55,13 +62,13 @@ function toStrUpper_(value) {
 }
 
 function toNum_(value) {
-  return Number(value || 0);
+  const n = Number(value);
+  return isNaN(n) ? 0 : n;
 }
 
 function isValidDate_(value) {
   return value instanceof Date && !isNaN(value.getTime());
 }
-
 
 function toDate_(value) {
   if (value === null || value === undefined || value === "") return null;
@@ -82,9 +89,18 @@ function toDate_(value) {
 
   const d = new Date(year, month, day);
 
-  return isNaN(d.getTime()) ? null : d;
-}
+  // Validación fuerte
+  if (
+    isNaN(d.getTime()) ||
+    d.getFullYear() !== year ||
+    d.getMonth() !== month ||
+    d.getDate() !== day
+  ) {
+    return null;
+  }
 
+  return d;
+}
 
 function formatDate_(date) {
   if (!(date instanceof Date) || isNaN(date.getTime())) return "";
@@ -147,10 +163,7 @@ function sameTime_(a, b) {
   );
 }
 
-
 // ----  ---- //
-
-
 
 /**
  * Plantilla genérica de Debug para registro de ejecución
@@ -198,7 +211,42 @@ function debugHoja_(sheetKey, mapFn, label) {
   console.log(`==================================================`);
 }
 
+function debugRepositoryCall_(label, input, executor, options = {}) {
+  const limit = options.limit || 5;
 
+  console.log("==================================================");
+  console.log(`[REPOSITORY] ${label}`);
+
+  if (input !== undefined) {
+    console.log(`[${label}] input:`, JSON.stringify(input, null, 2));
+  }
+
+  try {
+    const result = executor();
+
+    if (Array.isArray(result)) {
+      console.log(`[${label}] tipo: array`);
+      console.log(`[${label}] total:`, result.length);
+      console.log(`[${label}] muestra:`, JSON.stringify(result.slice(0, limit), null, 2));
+    } else if (result && typeof result === "object") {
+      console.log(`[${label}] tipo: object`);
+      console.log(`[${label}] keys:`, Object.keys(result));
+      console.log(`[${label}] valor:`, JSON.stringify(result, null, 2));
+    } else {
+      console.log(`[${label}] tipo:`, typeof result);
+      console.log(`[${label}] valor:`, result);
+    }
+
+    console.log("==================================================");
+    return result;
+
+  } catch (error) {
+    console.error(`[${label}] ERROR:`, error.message);
+    if (error.stack) console.error(error.stack);
+    console.log("==================================================");
+    return null;
+  }
+}
 
 /**
  * Plantilla genérica de Debug para Services
