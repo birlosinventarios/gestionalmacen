@@ -5,6 +5,37 @@ function getDataInicial() {
   return BootstrapServices.getInfoInicial();
 }
 
+
+/**
+ * Controller público para NegativosBirlos.html
+ */
+function obtenerNegativosBirlosCompleto() {
+  try {
+    const data = NegativosBirlosService.getVista();
+
+    console.log("=====================================");
+    console.log("📥 [Controller] obtenerNegativosBirlosCompleto()");
+    console.log("📦 Tipo:", typeof data);
+    console.log("📊 Negativos:", (data.negativos || []).length);
+    console.log("📍 Ubicaciones surtido:", (data.ubicacionesSurtido || []).length);
+    console.log("📄 Muestra negativos:", JSON.stringify((data.negativos || []).slice(0, 3), null, 2));
+    console.log("📄 Muestra ubicaciones:", JSON.stringify((data.ubicacionesSurtido || []).slice(0, 3), null, 2));
+    console.log("=====================================");
+
+    return data;
+
+  } catch (error) {
+    console.error("🚨 ERROR EN CONTROLLER obtenerNegativosBirlosCompleto():", error);
+    return {
+      negativos: [],
+      ubicacionesSurtido: []
+    };
+  }
+}
+
+
+
+
 /**
  * Carga de datos para TRASPASOS PENDIENTES - monitortraspasos.html
  */

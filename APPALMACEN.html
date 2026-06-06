@@ -194,6 +194,7 @@ const TOOLS = [
   // CATEGORÍA: CONSULTA / GESTIÓN
   { id: 'HistorialTraspasos', name: 'Historial Traspasos', icon: 'history', category: 'Consultas' },
   { id: 'GestorExcedentes', name: 'Control de excedentes', icon: 'settings', category: 'Consultas' },
+  { id: 'NegativosBirlos', name: 'Negativos en Almacen', icon: 'alert-triangle', category: 'Consultas' },
 
   // CATEGORÍA: Pruebas
   { id: 'PrototipoTraspasos', name: 'Prueba Traspasos', icon: 'cloud-alert', category: 'Pruebas' }
@@ -251,7 +252,7 @@ window.lanzarNotificacion = window.notificar;
 
 
     const App = () => {
-      const [activeTool, setActiveTool] = useState('FormularioTraspasos');
+      const [activeTool, setActiveTool] = useState('NegativosBirlos');
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
       const [viewContent, setViewContent] = useState(""); 
       const [loading, setLoading] = useState(false); 
@@ -331,7 +332,7 @@ window.lanzarNotificacion = window.notificar;
         window.inicializarMegaData()
           .then(() => {
             console.log("✅ [Shell] MegaData lista. Cargando vista inicial...");
-            seleccionarVista('FormularioTraspasos', 'FormularioTraspasos');
+            seleccionarVista('NegativosBirlos', 'NegativosBirlos');
           })
           .catch((error) => {
             console.error("🚨 [Shell] No se pudo inicializar MegaData:", error);

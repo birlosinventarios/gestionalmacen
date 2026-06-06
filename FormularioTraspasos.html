@@ -333,33 +333,35 @@ function actualizarDatalist(lista) {
 
 function buscarPorCodigo() {
   const inputCodigo = document.getElementById('codigoInput');
+  const descripcionInput = document.getElementById('descripcionInput');
+  const cantidadInput = document.getElementById('cantidadInput');
+
   const codigo = inputCodigo.value.trim().toUpperCase();
   if (!codigo) return;
 
+  // 1) Validar que el código exista
   if (!window.codigosGlobal.includes(codigo)) {
     lanzarNotificacion(`⚠️ El código "${codigo}" no existe en el catálogo.`, "error");
     inputCodigo.value = "";
-    document.getElementById('descripcionInput').value = "";
+    descripcionInput.value = "";
     inputCodigo.focus();
     return;
   }
 
-  if (window.cacheCatalogo[codigo]) {
-    document.getElementById('descripcionInput').value = window.cacheCatalogo[codigo];
-    document.getElementById('cantidadInput').focus();
+  // 2) Buscar directamente en el mapa cargado desde bootstrap
+  const producto = window.mapaCatalogoGlobal[codigo];
+
+  if (!producto) {
+    lanzarNotificacion(`⚠️ El código "${codigo}" no tiene descripción disponible en memoria.`, "warning");
+    descripcionInput.value = "";
     return;
   }
 
-  document.getElementById('descripcionInput').placeholder = "Buscando...";
-  google.script.run.withSuccessHandler(res => {
-      if (res.encontrado) {
-        document.getElementById('descripcionInput').value = res.descripcion;
-        window.cacheCatalogo[codigo] = res.descripcion;
-        document.getElementById('cantidadInput').focus(); 
-      }
-    })
-    .buscarProductoPorCodigo(codigo);
+  // 3) Llenar la descripción localmente
+  descripcionInput.value = producto.descripcion || "";
+  cantidadInput.focus();
 }
+
 
 function cargarUbicaciones(idInputBodega, idDatalist, idInputUbi) {
   const inputBodega = document.getElementById(idInputBodega);

@@ -1,0 +1,782 @@
+<style>
+  #render-negativos-birlos {
+    --local-primary: #d93025;
+    --local-primary-dark: #a50e0e;
+    --local-border: #dadce0;
+    --local-bg-light: #f8f9fa;
+    --local-text-main: #1c1d1f;
+    --local-text-sec: #5f6368;
+  }
+
+  #render-negativos-birlos .font-mono-premium {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Scrollbar premium encapsulado para la vista de negativos */
+  #render-negativos-birlos .custom-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  #render-negativos-birlos .custom-scroll::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.03);
+  }
+  #render-negativos-birlos .custom-scroll::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 99px;
+  }
+  #render-negativos-birlos .custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--local-primary);
+  }
+
+  /* Oculta la barra del scroll exterior pero mantiene el scroll funcional */
+  #render-negativos-birlos {
+    scrollbar-width: none;      /* Firefox */
+    -ms-overflow-style: none;   /* IE / Edge Legacy */
+  }
+
+  #render-negativos-birlos::-webkit-scrollbar {
+    display: none;              /* Chrome / Safari / Edge Chromium */
+  }
+
+
+  /* Animaciones aisladas por prefijo para evitar colisiones globales */
+  @keyframes nbSubtleRedPulse {
+    0% { box-shadow: 0 0 0 0px rgba(217, 48, 37, 0.25); }
+    70% { box-shadow: 0 0 0 8px rgba(217, 48, 37, 0); }
+    100% { box-shadow: 0 0 0 0px rgba(217, 48, 37, 0); }
+  }
+
+  #render-negativos-birlos .red-pulse-badge {
+    animation: nbSubtleRedPulse 2s infinite ease-in-out;
+  }
+
+  @keyframes nbSubtleGreenPulse {
+    0% { box-shadow: 0 0 0 0px rgba(16, 185, 129, 0.3); }
+    70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0px rgba(16, 185, 129, 0); }
+  }
+
+  #render-negativos-birlos .green-pulse-btn {
+    animation: nbSubtleGreenPulse 2.5s infinite ease-in-out;
+  }
+
+  @keyframes nbFadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  #render-negativos-birlos .fade-in-up {
+    animation: nbFadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+</style>
+
+<!-- Contenedor Raíz Único Inyectable -->
+<div id="render-negativos-birlos" class="h-full w-full flex flex-col bg-[#f8f9fa] overflow-y-auto p-4 md:p-8">
+  <!-- El componente de React montará dinámicamente su estructura aquí adentro -->
+</div>
+
+<script type="text/babel">
+  /**
+   * INTERFAZ MÓDULO: NEGATIVOS EN ALMACÉN BIRLOS
+   * Inicialización controlada para inyección dinámica dentro del ecosistema corporativo.
+   */
+  window.cargar_NegativosBirlos = () => {
+    const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+    // Configuración unificada de alertas tácticas en contraste oscuro corporativo
+    const Toast = Swal.mixin({
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3500,
+      timerProgressBar: true,
+      background: '#1c1d1f',
+      color: '#ffffff',
+      iconColor: '#d93025',
+      didOpen: (toast) => {
+        toast.addEventListener('mouseenter', Swal.stopTimer);
+        toast.addEventListener('mouseleave', Swal.resumeTimer);
+        const progress = toast.querySelector('.swal2-timer-progress-bar');
+        if (progress) progress.style.backgroundColor = '#d93025';
+      }
+    });
+
+    // Componente de Icono optimizado reutilizando la instancia global del motor Lucide
+    const LocalIcon = ({ name, size = 18, className = "" }) => {
+      const iconRef = useRef(null);
+      useEffect(() => {
+        if (window.lucide && iconRef.current) {
+          iconRef.current.innerHTML = '';
+          const i = document.createElement('i');
+          i.setAttribute('data-lucide', name.toLowerCase());
+          i.style.width = `${size}px`;
+          i.style.height = `${size}px`;
+          if (className) i.className = className;
+          iconRef.current.appendChild(i);
+          window.lucide.createIcons();
+        }
+      }, [name, size, className]);
+      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+    };
+
+    // Componente Interno KPI Block parametrizado
+    const KPIBlock = ({ title, value, unit, iconName, trend, indicatorColor }) => {
+      const colorMap = {
+        red: 'bg-red-50 text-red-600 border border-red-100',
+        amber: 'bg-amber-50 text-amber-600 border border-amber-100',
+        blue: 'bg-blue-50 text-blue-600 border border-blue-100',
+        emerald: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
+        black: 'bg-slate-100 text-slate-900 border border-slate-300',
+      };
+
+      const topBarColor =
+        indicatorColor === 'red'
+          ? 'bg-red-500'
+          : indicatorColor === 'amber'
+          ? 'bg-amber-500'
+          : indicatorColor === 'blue'
+          ? 'bg-blue-500'
+          : indicatorColor === 'black'
+          ? 'bg-slate-900'
+          : 'bg-emerald-500';
+
+      const trendColor =
+        trend?.type === 'negative'
+          ? 'bg-red-50 text-red-600'
+          : trend?.type === 'neutral'
+          ? 'bg-amber-50 text-amber-700'
+          : trend?.type === 'info'
+          ? 'bg-blue-50 text-blue-700'
+          : trend?.type === 'dark'
+          ? 'bg-slate-100 text-slate-900 border border-slate-300'
+          : 'bg-emerald-50 text-emerald-700';
+
+      return (
+        <div className="bg-white border border-[#dadce0] rounded-[1.5rem] p-6 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group min-h-[170px]">
+          
+          {/* Barra superior */}
+          <div className={`absolute top-0 left-0 right-0 h-1.5 ${topBarColor}`}></div>
+
+          {/* Estructura principal */}
+          <div className="h-full flex flex-col pt-2">
+            
+            {/* Título arriba */}
+            <div className="mb-1">
+              <p className="text-[18px] font-extrabold uppercase tracking-[0.14em] text-[#5f6368] leading-tight">
+                {title}
+              </p>
+            </div>
+
+            {/* Cuerpo dividido en 2 columnas */}
+            <div className="grid grid-cols-[1fr_auto] items-end h-full gap-4">
+              
+              {/* Columna izquierda */}
+              <div className="flex flex-col justify-between h-full min-w-0">
+                
+                {/* Value + unit */}
+                <div className="flex items-end gap-2 flex-wrap">
+                  <h3 className="text-5xl font-black tracking-tight text-[#1c1d1f] leading-none">
+                    {value}
+                  </h3>
+
+                  {unit && (
+                    <span className="text-[18px] font-bold text-[#5f6368] uppercase leading-none pb-1">
+                      {unit}
+                    </span>
+                  )}
+                </div>
+
+                {/* Trend abajo */}
+                {trend && (
+                  <div className="mt-4 flex items-center gap-2 flex-wrap">
+                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${trendColor}`}>
+                      {trend.text}
+                    </span>
+
+                    {trend.sub && (
+                      <span className="text-xs font-semibold text-[#5f6368]">
+                        {trend.sub}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Columna derecha: icono abajo y a la derecha */}
+              <div className="self-end justify-self-end">
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${colorMap[indicatorColor]}`}>
+                  <LocalIcon name={iconName} size={40} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+
+    // Componente Core del Dashboard de Negativos
+    const NegativosBirlosDashboard = () => {
+      const [negativos, setNegativos] = useState([]);
+      const [ubicacionesSurtido, setUbicacionesSurtido] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [searchQuery, setSearchQuery] = useState("");
+      const [filterStatus, setFilterStatus] = useState("ALL");
+      const [activeRow, setActiveRow] = useState(null);
+      const fetchDatabase = useCallback(() => {
+        const USAR_MOCK = false; // 👈 Cambia a false cuando ya exista el controller real
+
+        setLoading(true);
+
+        if (!USAR_MOCK && typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler((resultado) => {
+              setNegativos(resultado.negativos || []);
+              setUbicacionesSurtido(resultado.ubicacionesSurtido || []);
+              setLoading(false);
+
+              Toast.fire({
+                icon: 'success',
+                title: 'Sincronización Completada',
+                text: 'Existencias actualizadas desde el servidor central.'
+              });
+            })
+            .withFailureHandler((error) => {
+              console.error("🚨 Falló la comunicación con el servidor:", error);
+              setLoading(false);
+
+              Swal.fire({
+                icon: 'error',
+                title: 'Error de Comunicación',
+                text: 'Imposible extraer la matriz de existencias negativas.',
+                confirmButtonColor: '#d93025'
+              });
+            })
+            .obtenerNegativosBirlosCompleto();
+
+        } else {
+          // ✅ Modo mock forzado para desarrollo visual
+          setTimeout(() => {
+            const mockNegativos = [
+              {
+                idproducto: 158,
+                codigo: "T5S-1/4X31/2",
+                descripcion: "TORNILLO GRADO 5 CABEZA EXAGONAL 1/4 X 3 1/2",
+                almacenbirlos: -45,
+                excedentebodega: 150,
+                excedentecasablanca: 0
+              },
+              {
+                idproducto: 244,
+                codigo: "PLH-1/4X5",
+                descripcion: "PIJA PARA LAMINA CABEZA HEXAGONAL 1/4X5",
+                almacenbirlos: -120,
+                excedentebodega: 80,
+                excedentecasablanca: 50
+              },
+              {
+                idproducto: 1102,
+                codigo: "TCR-3/8X2",
+                descripcion: "TORNILLO CARROCERIA GRADO 2 3/8 X 2",
+                almacenbirlos: -8,
+                excedentebodega: 0,
+                excedentecasablanca: 0
+              },
+              {
+                idproducto: 5312,
+                codigo: "PLP-10X1",
+                descripcion: "PIJA PARA LAMINA PHILLIPS PLANA 10X1",
+                almacenbirlos: -310,
+                excedentebodega: 500,
+                excedentecasablanca: 250
+              },
+              {
+                idproducto: 840,
+                codigo: "RDA-5/16",
+                descripcion: "RONDANA DE PRESION GALVANIZADA 5/16",
+                almacenbirlos: -12,
+                excedentebodega: 0,
+                excedentecasablanca: 100
+              }
+            ];
+
+            const mockUbicacionesSurtido = [
+              { codigo: "T5S-1/4X31/2", ubicacion: "B1-P05-A2" },
+              { codigo: "PLH-1/4X5", ubicacion: "BM-P21-C1" },
+              { codigo: "TCR-3/8X2", ubicacion: "B1-P12-A1" },
+              { codigo: "PLP-10X1", ubicacion: "B2-P01-B3" },
+              { codigo: "RDA-5/16", ubicacion: "BM-P03-A4" }
+            ];
+
+            setNegativos(mockNegativos);
+            setUbicacionesSurtido(mockUbicacionesSurtido);
+            setLoading(false);
+
+            Toast.fire({
+              icon: 'info',
+              title: 'Modo mock activo',
+              text: 'Vista cargada con datos simulados.'
+            });
+          }, 1000);
+        }
+      }, []);
+
+
+      useEffect(() => {
+        fetchDatabase();
+      }, [fetchDatabase]);
+
+      const mapUbicacionesFloor = useMemo(() => {
+        return ubicacionesSurtido.reduce((acc, item) => {
+          if (item.codigo) {
+            acc[item.codigo.toUpperCase().trim()] = item.ubicacion;
+          }
+          return acc;
+        }, {});
+      }, [ubicacionesSurtido]);
+
+
+      const consolidadoNegativos = useMemo(() => {
+        return negativos.map(item => {
+          const sku = String(item.codigo).toUpperCase().trim();
+          const ubicacionPiso = mapUbicacionesFloor[sku] || "SIN ASIGNAR";
+          const sumaExcedente = Number(item.excedentebodega || 0) + Number(item.excedentecasablanca || 0);
+          const deficit = Math.abs(Number(item.almacenbirlos || 0));
+          const traspasoViable = sumaExcedente >= deficit;
+
+          let estatusTecnico = "";
+          if (sumaExcedente === 0) {
+            estatusTecnico = "Solicitar conteo";
+          } else {
+            estatusTecnico = "Revisar Excedentes";
+          }
+
+          return {
+            ...item,
+            ubicacionPiso,
+            sumaExcedente,
+            deficit,
+            traspasoViable,
+            estatusTecnico
+          };
+        });
+      }, [negativos, mapUbicacionesFloor]);
+
+
+
+      const metrics = useMemo(() => {
+        const negativosActivos = consolidadoNegativos.length;
+
+        const negativosSinExcedentes = consolidadoNegativos.filter(
+          item => item.estatusTecnico === "Solicitar conteo"
+        ).length;
+
+        const negativosConExcedentes = consolidadoNegativos.filter(
+          item => item.estatusTecnico === "Revisar Excedentes"
+        ).length;
+
+        return {
+          negativosActivos,
+          negativosSinExcedentes,
+          negativosConExcedentes
+        };
+      }, [consolidadoNegativos]);
+
+
+      const recordsFiltered = useMemo(() => {
+        return consolidadoNegativos.filter(item => {
+          const matchText = 
+            item.codigo.toLowerCase().includes(searchQuery.toLowerCase()) || 
+            item.descripcion.toLowerCase().includes(searchQuery.toLowerCase());
+
+          if (filterStatus === "READY") return matchText && item.traspasoViable;
+          if (filterStatus === "NO_STOCK") return matchText && !item.traspasoViable && item.sumaExcedente === 0;
+          return matchText;
+        });
+      }, [consolidadoNegativos, searchQuery, filterStatus]);
+
+      const getInfoExcedentes = (item) => {
+        Swal.fire({
+          title: 'Información de Excedentes',
+          html: `
+            <div class="text-left text-sm space-y-4 p-1 text-slate-700">
+              <p>Existencias resumidas en base a los acomodos y surtidos de <strong>${item.codigo}</strong> en los almacenes de excedentes.</p>
+              
+              <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                <div class="flex justify-between font-medium">
+                  <span>Negativo en Almacén Birlos:</span>
+                  <span class="text-red-600 font-extrabold font-mono-premium">-${item.deficit} PZAS</span>
+                </div>
+                <div class="flex justify-between text-xs text-slate-500">
+                  <span>Excedente en Bodega:</span>
+                  <span class="font-bold font-mono-premium text-slate-700">${item.excedentebodega} PZAS</span>
+                </div>
+                <div class="flex justify-between text-xs text-slate-500">
+                  <span>Excedente en Casa Blanca:</span>
+                  <span class="font-bold font-mono-premium text-slate-700">${item.excedentecasablanca} PZAS</span>
+                </div>
+              </div>
+            </div>
+          `,
+          background: '#ffffff',
+          showCancelButton: true,
+          confirmButtonColor: '#d93025',
+          confirmButtonText: 'Autorizar Operación',
+          cancelButtonText: 'Salir',
+          customClass: {
+            popup: 'rounded-[1.5rem]',
+            confirmButton: 'rounded-xl px-5 py-3 font-bold',
+            cancelButton: 'rounded-xl px-5 py-3'
+          },
+          preConfirm: () => {
+            const qty = document.getElementById('swal-nb-nb-input-qty')?.value || document.getElementById('swal-nb-input-qty')?.value;
+            if (!qty || parseFloat(qty) <= 0) {
+              Swal.showValidationMessage('Asigne un volumen de piezas válido superior a 0');
+            }
+            return qty;
+          }
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Aquí puedes integrar el canal de ejecución hacia tu backend de GAS
+            Toast.fire({
+              icon: 'success',
+              title: 'Movimiento Registrado',
+              text: `Enrutadas ${result.value} piezas del SKU ${item.codigo} para balance de inventario.`
+            });
+          }
+        });
+      };
+
+      return (
+        <div className="space-y-6 fade-in-up">
+          {/* Cabecera Técnica */}
+
+            <header className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 bg-white border border-[#dadce0] rounded-3xl p-6 shadow-sm">
+              
+              {/* BLOQUE IZQUIERDO: TÍTULO */}
+              <div className="space-y-1 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse"></span>
+                  <h1 className="text-3xl font-extrabold tracking-tight text-[#1c1d1f]">
+                    Negativos en Almacén Birlos
+                  </h1>
+                </div>
+
+                <p className="text-[#5f6368] text-sm font-medium">
+                  Monitoreo de discrepancias y conciliación de saldos contra existencias en excedentes.
+                </p>
+              </div>
+
+              {/* BLOQUE CENTRAL: BARRA DE BÚSQUEDA */}
+              <div className="relative flex-1 min-w-0 xl:max-w-2xl">
+                <LocalIcon
+                  name="search"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={18}
+                />
+                <input
+                  type="text"
+                  placeholder="Filtrar por código, SKU o descripción..."
+                  className="w-full bg-slate-50 border border-[#dadce0] focus:border-[#d93025] focus:bg-white rounded-2xl pl-12 pr-4 py-3 text-sm text-[#1c1d1f] font-semibold placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#d93025]/30 transition-all"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+
+              {/* BLOQUE DERECHO: BOTÓN */}
+              <div className="flex items-center gap-3 w-full xl:w-auto shrink-0">
+                <button 
+                  onClick={fetchDatabase}
+                  disabled={loading}
+                  className="w-full xl:w-auto flex items-center justify-center gap-2 px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                >
+                  <LocalIcon
+                    name="refresh-cw"
+                    className={loading ? "animate-spin" : ""}
+                    size={16}
+                  />
+                  {loading ? "Sincronizando..." : "Forzar Actualización"}
+                </button>
+              </div>
+            </header>
+
+          {/* Bloques de Métricos */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <KPIBlock 
+              title="Negativos sin excedentes" 
+              value={metrics.negativosSinExcedentes} 
+              unit="SKUs" 
+              iconName="alert-triangle" 
+              indicatorColor="red"
+              trend={{ text: "Conteo Requerido", type: "negative" }}
+            />
+
+            <KPIBlock 
+              title="Negativos con excedentes" 
+              value={metrics.negativosConExcedentes} 
+              unit="SKUs" 
+              iconName="box" 
+              indicatorColor="amber"
+              trend={{ text: "Revisar Excedentes", type: "neutral" }}
+            />
+
+            <KPIBlock 
+              title="Negativos Activos" 
+              value={metrics.negativosActivos} 
+              unit="SKUs" 
+              iconName="clipboard-list" 
+              indicatorColor="black"
+              trend={{ text: "En monitoreo", type: "dark" }}
+            />
+          </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { id: 'ALL', label: 'Negativos', count: consolidadoNegativos.length },
+                { id: 'READY', label: 'Con Excedente', count: consolidadoNegativos.filter(x => x.traspasoViable).length },
+                { id: 'NO_STOCK', label: 'Sin Excedente', count: consolidadoNegativos.filter(x => !x.traspasoViable && x.sumaExcedente === 0).length }
+              ].map(btn => (
+                <button
+                  key={btn.id}
+                  onClick={() => setFilterStatus(btn.id)}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                    filterStatus === btn.id 
+                      ? 'bg-[#d93025] text-white shadow-sm' 
+                      : 'bg-slate-50 text-slate-500 border border-[#dadce0] hover:bg-slate-100'
+                  }`}
+                >
+                  {btn.label} ({btn.count})
+                </button>
+              ))}
+            </div>          
+
+
+          {/* Tabla de Datos */}
+          <div className="bg-white border border-[#dadce0] rounded-[1.5rem] overflow-hidden shadow-sm">
+            <div className="overflow-auto custom-scroll max-h-[70vh]">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-[#f8f9fa] border-b border-[#dadce0] sticky top-0 z-10">
+                  <tr>
+                    <th
+                      style={{ fontSize: '20px' }}
+                      className="px-8 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[22%]"
+                    >
+                      Identificación SKU
+                    </th>
+
+                    <th
+                      style={{ fontSize: '20px' }}
+                      className="px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[18%]"
+                    >
+                      Ubicación Surtido
+                    </th>
+
+                    <th
+                      style={{ fontSize: '20px' }}
+                      className="px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[22%]"
+                    >
+                      Matriz de Excedentes
+                    </th>
+
+                    <th
+                      style={{ fontSize: '20px' }}
+                      className="px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[14%]"
+                    >
+                      Saldo piso de venta
+                    </th>
+
+                    <th
+                      style={{ fontSize: '20px' }}
+                      className="px-8 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[24%]"
+                    >
+                      Estatus
+                    </th>
+                  </tr>
+                </thead>
+                
+                <tbody className="divide-y divide-[#dadce0]">
+                  {recordsFiltered.map((item, idx) => (
+                    <tr
+                      key={item.idproducto || idx}
+                      onClick={() => setActiveRow(activeRow === idx ? null : idx)}
+                      className={`group hover:bg-slate-50/50 transition-colors cursor-pointer ${
+                        activeRow === idx ? 'bg-slate-50/80' : ''
+                      }`}
+                    >
+                      {/* Identificación SKU */}
+                      <td className="px-8 py-8 max-w-sm align-middle">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-slate-900 font-extrabold text-[24px] tracking-tight font-mono-premium group-hover:text-[#d93025] transition-colors">
+                              {item.codigo}
+                            </span>
+
+                            <span className="text-[12px] font-extrabold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                              ID: {item.idproducto}
+                            </span>
+                          </div>
+
+                          <p className="text-[#5f6368] text-[15px] font-semibold leading-snug uppercase group-hover:text-slate-800 transition-colors">
+                            {item.descripcion}
+                          </p>
+                        </div>
+                      </td>
+
+                      {/* Ubicación Surtido */}
+                      <td className="px-6 py-8 text-center align-middle">
+                        <div className="flex items-center justify-center h-full">
+                          <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-100 border border-slate-200/80 text-slate-700 text-[15px] font-bold font-mono-premium">
+                            <LocalIcon name="map-pin" size={18} className="text-[#d93025]" />
+                            {item.ubicacionPiso}
+                          </div>
+                        </div>
+                      </td>
+
+
+
+                      {/* Matriz de Excedentes */}
+                      <td className="px-6 py-8 text-center align-middle">
+                        <div className="flex items-center justify-center h-full">
+                          <div className="w-full max-w-[280px] space-y-2">
+                            
+                            {/* Línea superior: saldos */}
+                            <div className="flex items-center justify-between text-[15px] font-bold">
+                              <span className="text-[#d93025]">
+                                B: {item.excedentebodega}
+                              </span>
+
+                              <span className="text-slate-900">
+                                CB: {item.excedentecasablanca}
+                              </span>
+                            </div>
+
+                            {/* Barra de saldo */}
+                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                              <div
+                                style={{
+                                  width: `${
+                                    item.sumaExcedente > 0
+                                      ? Math.min((item.excedentebodega / item.sumaExcedente) * 100, 100)
+                                      : 0
+                                  }%`
+                                }}
+                                className="h-full bg-[#d93025] transition-all duration-500"
+                                title="Bodega"
+                              ></div>
+
+                              <div
+                                style={{
+                                  width: `${
+                                    item.sumaExcedente > 0
+                                      ? Math.min((item.excedentecasablanca / item.sumaExcedente) * 100, 100)
+                                      : 0
+                                  }%`
+                                }}
+                                className="h-full bg-slate-900 transition-all duration-500"
+                                title="Casa Blanca"
+                              ></div>
+                            </div>
+
+                            {/* Línea inferior: total */}
+                            <div className="text-center">
+                              <span className="text-[16px] font-extrabold text-slate-900">
+                                Total: {item.sumaExcedente}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+
+                      {/* Saldo piso de venta */}
+                      <td className="px-6 py-8 text-center align-middle">
+                        <div className="flex items-center justify-center h-full">
+                          <span className="inline-flex items-center justify-center min-w-[110px] bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-2xl font-black text-[24px] leading-none font-mono-premium red-pulse-badge">
+                            {item.almacenbirlos}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Estatus */}
+                      <td className="px-8 py-8 text-center align-middle">
+                        <div className="flex items-center justify-center h-full">
+                          {item.traspasoViable ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                getInfoExcedentes(item);
+                              }}
+                              className="inline-flex items-center gap-2 px-5 py-3 bg-[#d93025] hover:bg-[#a50e0e] text-white rounded-xl text-[13px] font-black uppercase tracking-[0.08em] transition-all duration-200 active:scale-95 shadow-sm shadow-red-200"
+                            >
+                              <LocalIcon name="shuffle" size={14} />
+                              Revisar Excedentes
+                            </button>
+                          ) : (
+                            <div className="inline-flex items-center gap-2 text-[13px] font-black uppercase tracking-[0.08em] text-slate-600 bg-slate-100 px-4 py-3 rounded-xl border border-slate-200">
+                              <LocalIcon name="info" size={14} className="text-slate-500" />
+                              Solicitar Conteo
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {recordsFiltered.length === 0 && !loading && (
+                <div className="p-20 text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                    <LocalIcon name="search-slash" size={28} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-slate-700 font-extrabold text-sm uppercase tracking-wider">
+                      Sin registros coincidentes
+                    </p>
+                    <p className="text-slate-400 text-xs">
+                      No se detectaron discrepancias para los criterios de filtrado seleccionados.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {loading && (
+                <div className="p-28 flex flex-col items-center justify-center gap-4">
+                  <div className="w-10 h-10 border-4 border-slate-100 border-t-[#d93025] rounded-full animate-spin"></div>
+                  <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                    Extrayendo registros de existencias...
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // Montaje defensivo y manejo del ciclo de vida de React 18
+    const targetElement = document.getElementById('render-negativos-birlos');
+    if (targetElement) {
+      if (window.__NEGATIVOS_BIRLOS_ROOT__) {
+        try {
+          window.__NEGATIVOS_BIRLOS_ROOT__.unmount();
+        } catch (e) {
+          console.warn("⚠️ Instancia previa retenida en memoria, liberando recursos:", e);
+        }
+        window.__NEGATIVOS_BIRLOS_ROOT__ = null;
+      }
+      window.__NEGATIVOS_BIRLOS_ROOT__ = ReactDOM.createRoot(targetElement);
+      window.__NEGATIVOS_BIRLOS_ROOT__.render(<NegativosBirlosDashboard />);
+    }
+  };
+
+  // Enlace obligatorio de ejecución para el router o disparador de vistas de la Shell
+  window.initVista = window.cargar_NegativosBirlos;
+  console.log("🧩 [NegativosBirlos] Vista inyectable inicializada y registrada.");
+</script>

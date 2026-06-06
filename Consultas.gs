@@ -1,163 +1,103 @@
 
 function obtenerMegaDataInicial() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    
-    // 1. USUARIOS (Filtrado por ROL: RESPONSABLE)
-    const hojaUsuarios = ss.getSheetByName('USUARIOS');
-    // Leemos Col B (Nombre) y Col C (Rol)
-    const dataUsuarios = hojaUsuarios.getRange(2, 1, hojaUsuarios.getLastRow() - 1, 3).getValues();
+    const base = BootstrapServices.getInfoInicial();
 
-    const usuariosProcesados = dataUsuarios
-      .map(f => ({
-        nombre: String(f[1]).trim(),
-        rol: String(f[2]).trim().toUpperCase()
-      }))
-      .filter(u => u.nombre !== "")
-      .sort((a, b) => a.nombre.localeCompare(b.nombre));
-      
-    // 2. MAPA DE UBICACIONES (Hoja 'UBICACIONES')
-    const datosUbi = ss.getSheetByName('UBICACIONES').getDataRange().getValues().slice(1);
-    const bodegas = [...new Set(datosUbi.map(f => f[1]))].filter(Boolean).sort();
-    const mapaUbicaciones = datosUbi.map(f => ({
-      bodega: String(f[1]).trim().toUpperCase(),
-      ubi: String(f[2]).trim()
-    })).filter(f => f.bodega && f.ubi);
+    const mapaProductos = Object.keys(base.mapaCatalogo || {}).reduce((acc, codigo) => {
+      const producto = base.mapaCatalogo[codigo] || {};
+      acc[codigo] = {
+        id: producto.idproducto || "",
+        descripcion: producto.descripcion || ""
+      };
+      return acc;
+    }, {});
 
-    // 3. CATALOGO DE PRODUCTOS (Hoja 'CATALOGO')
-    // Traemos A (ID), B (Código) y C (Descripción)
-    const hojaCat = ss.getSheetByName('CATALOGO');
-    const dataCat = hojaCat.getRange(2, 1, hojaCat.getLastRow() - 1, 3).getValues();
-    
-    let mapaProductos = {};
-    let todosLosCodigos = [];
-    
-    dataCat.forEach(f => {
-      const codigo = String(f[1]).trim().toUpperCase();
-      if (codigo) {
-        mapaProductos[codigo] = {
-          id: f[0],         // Columna A
-          descripcion: f[2] // Columna C
-        };
-        todosLosCodigos.push(codigo);
-      }
-    });
-
-    // 4. CONFIGURACIÓN DE ETIQUETAS (Hoja 'CONFIG_ETIQUETAS')
-    // Estructura sugerida: Col A: Nombre, Col B: Alto, Col C: Ancho
-    const hojaConfig = ss.getSheetByName('ETIQUETAS');
-    let mapaMedidas = {};
-    if (hojaConfig) {
-      const dataMedidas = hojaConfig.getDataRange().getValues().slice(1);
-      dataMedidas.forEach(f => {
-        mapaMedidas[f[0]] = { alto: f[1], ancho: f[2] };
-      });
-    }
-
-    // RETORNO MAESTRO
-    return { 
-      usuarios: usuariosProcesados, 
-      bodegas: bodegas, 
-      mapaUbicaciones: mapaUbicaciones,
-      codigos: todosLosCodigos.sort(),
+    return {
+      usuarios: base.usuarios || [],
+      bodegas: base.bodegas || [],
+      mapaUbicaciones: base.mapaUbicacionesExcedentes || [],
+      codigos: base.codigos || [],
       mapaProductos: mapaProductos,
-      mapaMedidas: mapaMedidas,
-      nombresEtiquetas: Object.keys(mapaMedidas)
-    }; 
-    
+      mapaMedidas: base.mapaMedidas || {},
+      nombresEtiquetas: base.nombresEtiquetas || []
+    };
+
   } catch (e) {
-    console.error("Error en MegaData Unificado: " + e.message);
-    return { usuarios: [], bodegas: [], mapaUbicaciones: [], codigos: [], mapaProductos: {} 
+    console.error("Error en obtenerMegaDataInicial(): " + e.message);
+    return {
+      usuarios: [],
+      bodegas: [],
+      mapaUbicaciones: [],
+      codigos: [],
+      mapaProductos: {},
+      mapaMedidas: {},
+      nombresEtiquetas: []
     };
   }
-} 
-
+}
+ 
 function buscarCodigosPorFiltro(termino) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName('CATALOGO'); // Ajusta al nombre de tu hoja
-  const datos = hoja.getRange(2, 1, hoja.getLastRow() - 1, 1).getValues().flat();
-  const filtro = termino.toUpperCase();
+  const filtro = toStrUpper_(termino);
 
-  // Filtrado rápido y limitación de resultados
-  const resultados = datos
-    .filter(codigo => codigo && String(codigo).toUpperCase().includes(filtro))
-    .slice(0, 25); // No satures el DOM con más de 25 opciones
-
-  return resultados;
+  return CatalogoRepository.getCodigos()
+    .filter(codigo => codigo && codigo.includes(filtro))
+    .slice(0, 25);
 }
 
-
 function buscarProductoPorCodigo(codigo) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName('CATALOGO');
-  const filtro = codigo.trim().toUpperCase();
-  
-  const ultimaFila = hoja.getLastRow();
-  if (ultimaFila < 2) return { encontrado: false };
+  const filtro = toStrUpper_(codigo);
+  if (!filtro) return { encontrado: false };
 
-  // Leemos desde la fila 2, columna 2 (B) y traemos 2 columnas (B y C)
-  // data[x][0] será la columna B (Código)
-  // data[x][1] será la columna C (Descripción)
-  const data = hoja.getRange(2, 2, ultimaFila - 1, 2).getValues();
-  
-  const filaEncontrada = data.find(f => String(f[0]).trim().toUpperCase() === filtro);
+  const registro = CatalogoRepository.getPorCodigo(filtro)[0];
 
-  if (filaEncontrada) {
-    return { 
-      encontrado: true, 
-      descripcion: filaEncontrada[1] 
+  if (registro) {
+    return {
+      encontrado: true,
+      id: registro.idproducto,
+      descripcion: registro.descripcion
     };
   }
-  
+
   return { encontrado: false };
 }
 
 function obtenerUbicacionesPorBodega(bodegaNombre) {
   if (!bodegaNombre) return [];
-  
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const hoja = ss.getSheetByName('UBICACIONES'); // Asegúrate que el nombre sea exacto
-    const fullData = hoja.getDataRange().getValues();
-    
-    // Supongamos: Columna B (index 1) es Bodega, Columna C (index 2) es Ubicación
-    const ubicaciones = fullData
-      .slice(1) // Quitamos encabezados
-      .filter(fila => {
-        // Limpieza de datos para comparación segura
-        const bodegaFila = String(fila[1]).trim().toUpperCase();
-        const bodegaBusqueda = String(bodegaNombre).trim().toUpperCase();
-        return bodegaFila === bodegaBusqueda;
-      })
-      .map(fila => String(fila[2]).trim()) // Extraer ubicación
-      .filter((valor, indice, self) => valor !== "" && self.indexOf(valor) === indice); // Únicos y no vacíos
 
-    return ubicaciones.sort(); // Ordenar A-Z
+  try {
+    const bodegaBusqueda = toStrUpper_(bodegaNombre);
+
+    const ubicaciones = getRowsByKey_("UBICACIONES_EXCEDENTES")
+      .filter(fila => toStrUpper_(fila[COL.UBICACIONES_EXCEDENTES.BODEGA]) === bodegaBusqueda)
+      .map(fila => toStrUpper_(fila[COL.UBICACIONES_EXCEDENTES.UBICACION]))
+      .filter(Boolean);
+
+    return [...new Set(ubicaciones)].sort();
+
   } catch (e) {
-    console.error("Error: " + e.message);
-    throw new Error("No se pudo acceder a la hoja de Ubicaciones");
+    console.error("Error en obtenerUbicacionesPorBodega(): " + e.message);
+    throw new Error("No se pudieron obtener las ubicaciones de la bodega.");
   }
 }
 
+
 function procesarLoteEtiquetas(lote) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const config = _obtenerContextoTemporal(ss); // Reutilizamos tu función de fecha/hora
-  
-  // Inyectamos el Folio Único a cada etiqueta del lote
+  const ss = getSpreadsheetByFileKey_(SHEETS.ETIQUETAS.file);
+  const config = _obtenerContextoTemporal(ss);
+
   const loteConFolio = lote.map(item => {
-    // Generamos el folio usando la lógica: marcatiempobase&idcodigo&#caja
-    // Como aquí no hay "caja" de destino, usamos "ALM" o el ID
     const marcaTiempo = config.fecha.split('/').reverse().join('') + config.hora.replace(/:/g, '');
-    item.folio = `${marcaTiempo}&${item.codigo}&#ETIQ`; 
+    item.folio = `${marcaTiempo}&${item.codigo}&#ETIQ`;
     return item;
   });
 
   const tmpl = HtmlService.createTemplateFromFile('EtiquetaIdentificadoraImpresa');
   tmpl.lote = loteConFolio;
   tmpl.fechaHora = config.fecha + " " + config.hora;
-  
+
   return tmpl.evaluate().getContent();
 }
+
 
 /**
  * Obtiene las filas de la Bitácora que NO tienen Folio (Col M) o Responsable (Col N)
@@ -201,97 +141,94 @@ function obtenerTraspasosPendientes() {
  * Obtiene la lista de usuarios con rol de responsable (Hoja USUARIOS)
  */
 function obtenerAgentesResponsables() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName('USUARIOS');
-  if (!hoja) return ["Admin"];
-  
-  // Asumiendo que los nombres están en la Col B (index 1)
-  return hoja.getDataRange().getValues().slice(1)
-    .map(f => f[1])
-    .filter(Boolean)
-    .sort();
+  try {
+    const usuarios = UsuariosRepository.getAll();
+
+    const responsables = usuarios
+      .filter(u => toStrUpper_(u.rol) === "RESPONSABLE")
+      .map(u => toStrUpper_(u.nombre))
+      .filter(Boolean)
+      .sort();
+
+    return responsables.length ? responsables : ["ADMIN"];
+
+  } catch (e) {
+    console.error("Error en obtenerAgentesResponsables(): " + e.message);
+    return ["ADMIN"];
+  }
 }
+
 
 
 /**
  * Esta función es la que llama tu formulario Generador de Etiquetas
  */
+
 function procesarLoteEtiquetasExcedentes(lote) {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const config = _obtenerContextoTemporal(ss); 
-    
-    // --- PASO CRÍTICO: Guardar en Base de Datos primero ---
-    // Si esto falla, el catch atrapará el error y no se imprimirá nada
+    const ss = getSpreadsheetByFileKey_(SHEETS.EXCEDENTES.file);
+    const config = _obtenerContextoTemporal(ss);
+
     guardarExcedentesEnBD(lote, config);
-    
-    // --- PASO 2: Generar la plantilla de impresión ---
+
     const tmpl = HtmlService.createTemplateFromFile('EtiquetaExcedentesImpresa');
-    
+
     tmpl.lote = lote.map(item => {
       return {
         codigo: item.codigo,
         descripcion: item.descripcion,
         cantidad: item.cantidad,
-        id: item.id,           // ID del catálogo para QR
-        idUnico: item.idUnico, // Folio único generado en el cliente
+        id: item.id,
+        idUnico: item.idUnico,
         cajaNo: item.cajaNo,
         totalCajas: item.totalCajas
       };
     });
-    
+
     tmpl.fechaHora = config.fecha + " " + config.hora;
-    
+
     return tmpl.evaluate().getContent();
-    
+
   } catch (e) {
-    console.error("Error en proceso unificado de excedentes: " + e.message);
-    throw new Error(e.message); 
+    console.error("Error en procesarLoteEtiquetasExcedentes(): " + e.message);
+    throw new Error(e.message);
   }
 }
 
+
+
 function procesarReimpresionExcedentes(lista) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getSpreadsheetByFileKey_(SHEETS.EXCEDENTES.file);
   const config = _obtenerContextoTemporal(ss);
+
   const tmpl = HtmlService.createTemplateFromFile('EtiquetaExcedentesImpresa');
-  
-  // Re-mapeamos la lista para que coincida con tu HTML actual
+
   tmpl.lote = lista.map(item => {
     return {
       codigo: item.codigo,
       descripcion: item.descripcion,
       cantidad: item.cantidad,
       ubicacion: item.ubicacion,
-      id: item.idUnico,      // <--- Tu HTML busca item.id para el QR
-      idUnico: item.idUnico  // <--- Tu HTML busca item.idUnico para el Footer
+      id: item.idUnico,
+      idUnico: item.idUnico
     };
   });
-  
+
   tmpl.fechaHora = config.fecha + " " + config.hora;
   return tmpl.evaluate().getContent();
 }
 
+
+
 function obtenerTodosLosCodigos() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const hoja = ss.getSheetByName('CATALOGO');
-    if (!hoja) return [];
-    
-    // Suponiendo que los códigos están en la Columna B (2)
-    const ultimaFila = hoja.getLastRow();
-    if (ultimaFila < 2) return [];
-    
-    const codigos = hoja.getRange(2, 2, ultimaFila - 1, 1).getValues()
-      .flat() // Convierte [[cod1], [cod2]] en [cod1, cod2]
-      .filter(Boolean) // Quita vacíos
-      .map(c => String(c).trim().toUpperCase()); // Normaliza
-      
-    return [...new Set(codigos)].sort(); // Devuelve únicos ordenados
+    return CatalogoRepository.getCodigos();
   } catch (e) {
     console.error("Error al cargar códigos: " + e.message);
     return [];
   }
 }
+
 
 /**
  * Sanitización de Grado Industrial para IDs
@@ -319,60 +256,28 @@ function buscarPorCodigo() {
   }).buscarProductoPorCodigo(cod);
 }
 
-function buscarProductoPorCodigo(codigo) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName('CATALOGO');
-  const filtro = codigo.trim().toUpperCase();
-  
-  const ultimaFila = hoja.getLastRow();
-  if (ultimaFila < 2) return { encontrado: false };
-
-  // Cambiamos el rango para incluir la Columna A (ID), B (Código) y C (Descripción)
-  // getRange(fila, columna, numFilas, numColumnas)
-  const data = hoja.getRange(2, 1, ultimaFila - 1, 3).getValues();
-  
-  // f[0] es ID (Col A), f[1] es Código (Col B), f[2] es Descripción (Col C)
-  const filaEncontrada = data.find(f => String(f[1]).trim().toUpperCase() === filtro);
-
-  if (filaEncontrada) {
-    return { 
-      encontrado: true, 
-      id: filaEncontrada[0], // <--- AHORA SÍ ENVIAMOS EL ID
-      descripcion: filaEncontrada[2] 
-    };
-  }
-  
-  return { encontrado: false };
-}
-
 function obtenerTodaLaBaseExcedentes() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    // Validamos ambos nombres posibles de la hoja
-    const hoja = ss.getSheetByName('Bitacora-TRASPASOS') || ss.getSheetByName('Bitacora-Traspasos');
-    
-    if (!hoja) throw new Error("No se encontró la hoja de 'Bitacora-TRASPASOS'");
+    const ss = getSpreadsheetByFileKey_(SHEETS.TRASPASOS.file);
+    const hoja = getSheetByKey_("TRASPASOS");
 
     const valores = hoja.getDataRange().getValues();
     if (valores.length <= 1) return [];
 
-    // Eliminamos encabezados
     valores.shift();
-
     const zonaHoraria = ss.getSpreadsheetTimeZone();
 
-    // Filtramos y mapeamos en un solo paso para mayor eficiencia
     return valores
-      .filter(fila => {
-        // La columna 14 corresponde al IDUNICO (Columna O)
-        const idUnico = String(fila[14] || "").trim();
-        return idUnico !== ""; // DESPRECIAR VACÍOS: Solo pasan los que tienen IDUNICO
-      })
+      .filter(fila => String(fila[14] || "").trim() !== "")
       .map((fila, index) => {
         return {
-          idFila: index + 2, 
-          fecha: fila instanceof Date ? Utilities.formatDate(fila, zonaHoraria, "dd/MM/yyyy") : String(fila || ""),
-          hora: fila[1] instanceof Date ? Utilities.formatDate(fila[1], zonaHoraria, "HH:mm:ss") : String(fila[1] || ""),
+          idFila: index + 2,
+          fecha: fila[0] instanceof Date
+            ? Utilities.formatDate(fila[0], zonaHoraria, "dd/MM/yyyy")
+            : String(fila[0] || ""),
+          hora: fila[1] instanceof Date
+            ? Utilities.formatDate(fila[1], zonaHoraria, "HH:mm:ss")
+            : String(fila[1] || ""),
           tipoMovimiento: String(fila[2] || "").trim(),
           serie: String(fila[3] || "").trim(),
           bodegaSalida: String(fila[4] || "").trim(),
@@ -385,15 +290,17 @@ function obtenerTodaLaBaseExcedentes() {
           cantidad: Number(fila[11]) || 0,
           folio: String(fila[12] || "").trim(),
           responsable: String(fila[13] || "").trim(),
-          idUnico: String(fila[14] || "").trim() 
+          idUnico: String(fila[14] || "").trim()
         };
       })
-      .reverse(); // Los más recientes primero
+      .reverse();
+
   } catch (error) {
     Logger.log("Error en obtenerTodaLaBaseExcedentes: " + error.toString());
     return [];
   }
 }
+
 
 function obtenerContenidoVista(nombreArchivo) {
   try {
@@ -458,6 +365,7 @@ function forzarEjecucionScripts(contenedor) {
 }
 
 
+
 function obtenerEstadoFolios() {
   const maestro = obtenerInformacionExcedentes();
   const base = (maestro && maestro.baseExcedentes) || [];
@@ -466,7 +374,8 @@ function obtenerEstadoFolios() {
     idUnico: item.idUnico || item.eidUnico || "",
     sku: item.sku || item.ecodigo || "",
     descripcion: item.descripcion || item.edescripcion || "",
-    ubicacionActual: item.ubicacionActual || item.eserie || "",
-    balance: Number(item.balance != null ? item.balance : item.esaldo || 0)
+    ubicacionActual: item.ubicacionActual || item.eubicacion || "",
+    balance: Number(item.balance != null ? item.balance : item.ecantidad || 0)
   }));
 }
+
