@@ -62,7 +62,7 @@
         <?!= HtmlService.createHtmlOutputFromFile('FilaEtiquetasIdentificadoras').getContent(); ?>
       <script>
         
-        let mapaProductosGlobal = {}; // Memoria RAM para productos
+        let mapaCatalogoGlobal = {}; // Memoria RAM para catalogo
         let mapaMedidasGlobal = {};   // Memoria RAM para medidas       
         window.colaDeImpresionEtiquetas = window.colaDeImpresionEtiquetas || [];
         let snackbarTimeout;
@@ -131,7 +131,7 @@ window.inicializarVistaEtiquetas = function() {
   
 console.log("🏷️ [Etiquetas] inicializarVistaEtiquetas() ejecutada");
 console.log("📦 [Etiquetas] Cache completo:", window.DATA_ALMACEN_CACHE);
-console.log("📊 [Etiquetas] mapaProductos:", window.DATA_ALMACEN_CACHE?.mapaProductos);
+console.log("📊 [Etiquetas] mapaCatalogo:", window.DATA_ALMACEN_CACHE?.mapaCatalogo);
 console.log("📊 [Etiquetas] mapaMedidas:", window.DATA_ALMACEN_CACHE?.mapaMedidas);
 console.log("📊 [Etiquetas] codigos total:", window.DATA_ALMACEN_CACHE?.codigos?.length || 0);
 console.log("📊 [Etiquetas] nombresEtiquetas total:", window.DATA_ALMACEN_CACHE?.nombresEtiquetas?.length || 0);
@@ -141,7 +141,7 @@ console.log("📊 [Etiquetas] nombresEtiquetas total:", window.DATA_ALMACEN_CACH
   if (window.DATA_ALMACEN_CACHE) {
     console.log("⚡ [Etiquetas] Cargando datos desde DATA_ALMACEN_CACHE...");
 
-    mapaProductosGlobal = window.DATA_ALMACEN_CACHE.mapaProductos || {};
+    mapaCatalogoGlobal = window.DATA_ALMACEN_CACHE.mapaCatalogo || {};
     mapaMedidasGlobal = window.DATA_ALMACEN_CACHE.mapaMedidas || {};
     listaCodigosGlobal = window.DATA_ALMACEN_CACHE.codigos || [];
     listaNombresEtiquetasGlobal = window.DATA_ALMACEN_CACHE.nombresEtiquetas || [];
@@ -153,7 +153,7 @@ console.log("📊 [Etiquetas] nombresEtiquetas total:", window.DATA_ALMACEN_CACH
 
   // 2) Si por alguna razón esta vista ya tenía datos en memoria local, reutilízalos
   if (
-    Object.keys(mapaProductosGlobal).length > 0 ||
+    Object.keys(mapaCatalogoGlobal).length > 0 ||
     Object.keys(mapaMedidasGlobal).length > 0 ||
     listaCodigosGlobal.length > 0 ||
     listaNombresEtiquetasGlobal.length > 0
@@ -186,9 +186,9 @@ function buscarPorCodigo() {
     return;
   }
 
-  const producto = mapaProductosGlobal[codigo];
+  const producto = mapaCatalogoGlobal[codigo];
   if (producto) {
-    document.getElementById('idInput').value = producto.id;
+    document.getElementById('idInput').value = producto.idproducto;
     document.getElementById('descripcionInput').value = producto.descripcion;
   }
 }
