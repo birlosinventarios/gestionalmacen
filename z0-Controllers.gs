@@ -34,20 +34,21 @@ function obtenerNegativosBirlosCompleto() {
 }
 
 
-
-
 /**
- * Carga de datos para TRASPASOS PENDIENTES - monitortraspasos.html
+ * Carga de datos para TRASPASOS PENDIENTES - MonitorTraspasos.html
  */
 function obtenerTraspasosPendientes() {
   try {
-    const zonaHoraria = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+    // ✅ Resolver el archivo correcto desde CONSTANTS
+    const ssTraspasos = getSpreadsheetByFileKey_(SHEETS.TRASPASOS.file);
+    const zonaHoraria = ssTraspasos.getSpreadsheetTimeZone();
+
     const data = TraspasosService.getPendientes();
 
     const salida = data.map(x => ({
       fila: Number(x.fila || 0),
 
-      // ✅ Convertimos fechas/horas a STRING plano
+      // ✅ Convertimos fechas/horas a STRING plano usando la TZ del archivo configurado
       fechatraspaso: x.fechatraspaso
         ? Utilities.formatDate(new Date(x.fechatraspaso), zonaHoraria, "dd/MM/yyyy")
         : "",
@@ -86,7 +87,6 @@ function obtenerTraspasosPendientes() {
     return [];
   }
 }
-
 
 
 /**
@@ -135,5 +135,4 @@ function debugTraspasosPendientes() {
     return [];
   }
 }
-
-
+``

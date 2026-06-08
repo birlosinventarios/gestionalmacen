@@ -1,25 +1,16 @@
+
 /**
  * Se ejecuta automáticamente al abrir el Spreadsheet.
+ * Menú simplificado: solo acceso al proyecto web.
  */
 function onOpen() {
-  var ui = SpreadsheetApp.getUi();
-  ui.createMenu(' 🛠️ Herramientas Almacen')
-      .addSeparator()
-      .addItem(' ✏️ Registrar Traspasos', 'abrirFormularioTraspasos')
-      .addItem(' ✏️ PRUEBAS NO ABRIR', 'AppAlmacen')
-      .addItem(' 📋 Revisar Traspasos', 'abrirFormularioMonitorTraspasos')
-      .addItem(' 👁️ Historial Traspasos', 'abrirHistorialTraspasos')
-      .addItem(' 👁️ Consulta de Excedentes', 'abrirConsultaExcedentes')
-      .addSeparator()
-      .addItem(' 🏷️ Generador de Etiquetas - IDENTIFICACION', 'abrirFormularioEtiquetas')
-      .addItem(' 📦 Generador de Etiquetas Excedentes', 'abrirFormularioEtiquetasExcedentes')
-      .addItem(' 📦 Generador de Etiquetas Excedentes - Casillero', 'abrirFormularioEtiquetasExcedentesCasillero')
-      .addItem(' 📦 Generador de Etiquetas Excedentes - Reimpresion', 'abrirFormularioEtiquetasExcedentesReimpresion')
-      .addSeparator()
-      .addItem('Gestor de excedentes PRO', 'abrirGestorExcedentes')
-      .addSeparator()
-      .addToUi();
+  const ui = SpreadsheetApp.getUi();
+
+  ui.createMenu('🔩 Aplicación Birlos y Tornillos')
+    .addItem('⚙️ Abrir Aplicación', 'abrirProyectoWeb')
+    .addToUi();
 }
+
 
 /**
  * Función principal de Aplicación Web.
@@ -84,6 +75,43 @@ function doGet(e) {
   }
 }
 
+
+/**
+ * Abre el proyecto web en una nueva ventana/pestaña.
+ */
+function abrirProyectoWeb() {
+  const url = "https://script.google.com/macros/s/AKfycbyu75nLi2e1gREn7Atp3qb6UPyIEn4ioXQkawl7slQxtHrz-UNW1tJBFakA6HdpLeY0dw/exec";
+
+  const html = HtmlService.createHtmlOutput(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <base target="_top">
+      </head>
+      <body style="font-family: Arial, sans-serif; padding: 18px; text-align: center;">
+        <p style="margin: 0 0 12px 0; font-size: 14px; color: #1c1d1f;">
+          Abriendo proyecto...
+        </p>
+
+        <script>
+          window.open("${url}", "_blank");
+          google.script.host.close();
+        </script>
+
+        <p style="margin-top: 10px; font-size: 12px; color: #666;">
+          Si no se abrió automáticamente,
+          <a href="${url}" target="_blank" style="color:#d93025; font-weight:bold;">
+            haz clic aquí
+          </a>.
+        </p>
+      </body>
+    </html>
+  `)
+  .setWidth(360)
+  .setHeight(140);
+
+  SpreadsheetApp.getUi().showModelessDialog(html, 'Abrir proyecto');
+}
 
 
 /**

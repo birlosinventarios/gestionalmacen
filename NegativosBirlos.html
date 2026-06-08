@@ -223,12 +223,14 @@
 
     // Componente Core del Dashboard de Negativos
     const NegativosBirlosDashboard = () => {
+
       const [negativos, setNegativos] = useState([]);
       const [ubicacionesSurtido, setUbicacionesSurtido] = useState([]);
       const [loading, setLoading] = useState(true);
       const [searchQuery, setSearchQuery] = useState("");
       const [filterStatus, setFilterStatus] = useState("ALL");
       const [activeRow, setActiveRow] = useState(null);
+      const [sortBy, setSortBy] = useState("NONE");
       const fetchDatabase = useCallback(() => {
         const USAR_MOCK = false; // 👈 Cambia a false cuando ya exista el controller real
 
@@ -236,28 +238,41 @@
 
         if (!USAR_MOCK && typeof google !== 'undefined' && google.script && google.script.run) {
           google.script.run
-            .withSuccessHandler((resultado) => {
-              setNegativos(resultado.negativos || []);
-              setUbicacionesSurtido(resultado.ubicacionesSurtido || []);
-              setLoading(false);
+            
+              .withSuccessHandler((resultado) => {
+                const negativosCargados = resultado.negativos || [];
+                const ubicacionesCargadas = resultado.ubicacionesSurtido || [];
 
-              Toast.fire({
-                icon: 'success',
-                title: 'Sincronización Completada',
-                text: 'Existencias actualizadas desde el servidor central.'
-              });
-            })
-            .withFailureHandler((error) => {
-              console.error("🚨 Falló la comunicación con el servidor:", error);
-              setLoading(false);
+                setNegativos(negativosCargados);
+                setUbicacionesSurtido(ubicacionesCargadas);
+                setLoading(false);
 
-              Swal.fire({
-                icon: 'error',
-                title: 'Error de Comunicación',
-                text: 'Imposible extraer la matriz de existencias negativas.',
-                confirmButtonColor: '#d93025'
-              });
-            })
+                console.log("======================================================");
+                console.log("📦 [NegativosBirlos] RESPUESTA RECIBIDA DEL BACKEND");
+                console.log("======================================================");
+                console.log("📊 Total negativos:", negativosCargados.length);
+                console.log("📍 Total ubicaciones surtido:", ubicacionesCargadas.length);
+                console.log("🔎 Primeros 5 negativos:");
+                console.log(JSON.stringify(negativosCargados.slice(0, 5), null, 2));
+                console.log("🔎 Primeras 5 ubicaciones surtido:");
+                console.log(JSON.stringify(ubicacionesCargadas.slice(0, 5), null, 2));
+
+                if (negativosCargados.length > 0) {
+                  console.table(negativosCargados.slice(0, 5));
+                }
+
+                if (ubicacionesCargadas.length > 0) {
+                  console.table(ubicacionesCargadas.slice(0, 5));
+                }
+
+                console.log("======================================================");
+
+                Toast.fire({
+                  icon: 'success',
+                  title: 'Sincronización Completada',
+                  text: 'Existencias actualizadas desde el servidor central.'
+                });
+              })
             .obtenerNegativosBirlosCompleto();
 
         } else {
@@ -332,18 +347,40 @@
         fetchDatabase();
       }, [fetchDatabase]);
 
-      const mapUbicacionesFloor = useMemo(() => {
-        return ubicacionesSurtido.reduce((acc, item) => {
-          if (item.codigo) {
-            acc[item.codigo.toUpperCase().trim()] = item.ubicacion;
-          }
-          return acc;
-        }, {});
-      }, [ubicacionesSurtido]);
+        const mapUbicacionesFloor = useMemo(() => {
+          const mapa = ubicacionesSurtido.reduce((acc, item) => {
+            const codigo = String(item.codigo || "").toUpperCase().trim();
+            const ubicacion = String(item.ubicacion || "").toUpperCase().trim();
+
+            if (codigo) {
+              acc[codigo] = ubicacion;
+            }
+
+            return acc;
+          }, {});
+
+          const entries = Object.entries(mapa);
+
+          console.log("======================================================");
+          console.log("🗺️ [NegativosBirlos] MAPA DE UBICACIONES PISO");
+          console.log("======================================================");
+          console.log("📊 Total claves en mapa:", entries.length);
+          console.log("🔎 Primeros 5 pares código -> ubicación:");
+          console.log(entries.slice(0, 5));
+          console.table(
+            entries.slice(0, 5).map(([codigo, ubicacion]) => ({
+              codigo,
+              ubicacion
+            }))
+          );
+          console.log("======================================================");
+
+          return mapa;
+        }, [ubicacionesSurtido]);
 
 
       const consolidadoNegativos = useMemo(() => {
-        return negativos.map(item => {
+        const salida = negativos.map(item => {
           const sku = String(item.codigo).toUpperCase().trim();
           const ubicacionPiso = mapUbicacionesFloor[sku] || "SIN ASIGNAR";
           const sumaExcedente = Number(item.excedentebodega || 0) + Number(item.excedentecasablanca || 0);
@@ -366,9 +403,45 @@
             estatusTecnico
           };
         });
+
+        console.log("======================================================");
+        console.log("🧩 [NegativosBirlos] CONSOLIDADO FINAL");
+        console.log("======================================================");
+        console.log("📊 Total registros consolidados:", salida.length);
+        console.log("🔎 Primeros 5 registros consolidados:");
+        console.log(JSON.stringify(salida.slice(0, 5), null, 2));
+        console.table(
+          salida.slice(0, 5).map(x => ({
+            codigo: x.codigo,
+            ubicacionPiso: x.ubicacionPiso,
+            almacenbirlos: x.almacenbirlos,
+            excedentebodega: x.excedentebodega,
+            excedentecasablanca: x.excedentecasablanca,
+            sumaExcedente: x.sumaExcedente,
+            deficit: x.deficit,
+            estatusTecnico: x.estatusTecnico
+          }))
+        );
+
+        // ✅ DETECTOR DE REGISTROS SIN UBICACIÓN
+        const sinAsignar = salida.filter(x => x.ubicacionPiso === "SIN ASIGNAR");
+
+        console.log("🚨 Total registros SIN ASIGNAR:", sinAsignar.length);
+        console.log("🔎 Primeros 5 SIN ASIGNAR:");
+        console.log(JSON.stringify(sinAsignar.slice(0, 5), null, 2));
+        console.table(
+          sinAsignar.slice(0, 5).map(x => ({
+            codigo: x.codigo,
+            idproducto: x.idproducto,
+            descripcion: x.descripcion,
+            ubicacionPiso: x.ubicacionPiso
+          }))
+        );
+
+        console.log("======================================================");
+
+        return salida;
       }, [negativos, mapUbicacionesFloor]);
-
-
 
       const metrics = useMemo(() => {
         const negativosActivos = consolidadoNegativos.length;
@@ -401,6 +474,34 @@
         });
       }, [consolidadoNegativos, searchQuery, filterStatus]);
 
+      
+      const recordsFinal = useMemo(() => {
+        const salida = [...recordsFiltered];
+
+        if (sortBy === "CODIGO") {
+          salida.sort((a, b) =>
+            String(a.codigo || "").localeCompare(
+              String(b.codigo || ""),
+              "es",
+              { sensitivity: "base", numeric: true }
+            )
+          );
+        }
+
+        if (sortBy === "UBICACION") {
+          salida.sort((a, b) =>
+            String(a.ubicacionPiso || "").localeCompare(
+              String(b.ubicacionPiso || ""),
+              "es",
+              { sensitivity: "base", numeric: true }
+            )
+          );
+        }
+
+        return salida;
+      }, [recordsFiltered, sortBy]);
+
+
       const getInfoExcedentes = (item) => {
         Swal.fire({
           title: 'Información de Excedentes',
@@ -431,7 +532,6 @@
           cancelButtonText: 'Salir',
           customClass: {
             popup: 'rounded-[1.5rem]',
-            confirmButton: 'rounded-xl px-5 py-3 font-bold',
             cancelButton: 'rounded-xl px-5 py-3'
           },
           preConfirm: () => {
@@ -536,6 +636,9 @@
             />
           </div>
 
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+            
+            {/* Lado izquierdo: filtros */}
             <div className="flex flex-wrap items-center gap-2">
               {[
                 { id: 'ALL', label: 'Negativos', count: consolidadoNegativos.length },
@@ -554,8 +657,43 @@
                   {btn.label} ({btn.count})
                 </button>
               ))}
-            </div>          
+            </div>
 
+            {/* Lado derecho: ordenamientos */}
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <button
+                onClick={() => setSortBy("CODIGO")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  sortBy === "CODIGO"
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                }`}
+              >
+                Código A-Z
+              </button>
+
+              <button
+                onClick={() => setSortBy("UBICACION")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  sortBy === "UBICACION"
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                }`}
+              >
+                Ubicación A-Z
+              </button>
+
+              <button
+                onClick={() => setSortBy("NONE")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  sortBy === "NONE"
+                    ? 'bg-slate-200 text-slate-900 shadow-sm'
+                    : 'bg-white text-slate-500 border border-[#dadce0] hover:bg-slate-50'
+                }`}
+              >
+              </button>
+            </div>
+          </div>
 
           {/* Tabla de Datos */}
           <div className="bg-white border border-[#dadce0] rounded-[1.5rem] overflow-hidden shadow-sm">
@@ -601,7 +739,7 @@
                 </thead>
                 
                 <tbody className="divide-y divide-[#dadce0]">
-                  {recordsFiltered.map((item, idx) => (
+                  {recordsFinal.map((item, idx) => (
                     <tr
                       key={item.idproducto || idx}
                       onClick={() => setActiveRow(activeRow === idx ? null : idx)}
@@ -730,7 +868,7 @@
                 </tbody>
               </table>
 
-              {recordsFiltered.length === 0 && !loading && (
+              {recordsFinal.length === 0 && !loading && (
                 <div className="p-20 text-center space-y-4">
                   <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
                     <LocalIcon name="search-slash" size={28} />
