@@ -1,539 +1,188 @@
 <div class="container">
 
+  <div class="campo">
+    <label for="tipoMovimientoInput">Tipo de movimiento</label>
+    <div class="input-con-icono">
+      <input type="text" id="tipoMovimientoInput" list="listaTipos" placeholder="Escribe o selecciona un tipo de movimiento">
+      <span class="material-icons">label</span>
+    </div>
+    <datalist id="listaTipos">
+      <option value="Acomodo">
+      <option value="Surtido">
+      <option value="Cambio de bodega">
+    </datalist>
+  </div>
+
+  <div id="cuerpoFormulario" style="display: none;">
+
+    <div class="campo">
+      <label for="solicitanteInput">Solicitante</label>
+      <div class="input-con-icono">
+        <input type="text" id="solicitanteInput" list="listaSolicitantes" placeholder="Escribe o selecciona un nombre">
+        <span class="material-icons">account_circle</span>
+      </div>
+      <datalist id="listaSolicitantes"></datalist>
+    </div>
+
+    <div id="seccionSalida">
+      <div class="fila-doble">
         <div class="campo">
-          <label for="tipoMovimientoInput">Tipo de movimiento</label>
+          <label id="labelBodegaSalida">Bodega (Salida)</label>
           <div class="input-con-icono">
-          <input type="text" id="tipoMovimientoInput" list="listaTipos" placeholder="Escribe o selecciona un tipo de movimiento">
-          <span class="material-icons">label</span>
-          </div>
-          <datalist id="listaTipos">
-            <option value="Acomodo">
-            <option value="Surtido">
-            <option value="Cambio de bodega">
-          </datalist>
-        </div>
-
-        <div id="cuerpoFormulario" style="display: none;">
-
-        <div class="campo">
-          <label for="solicitanteInput">Solicitante</label>
-          <div class="input-con-icono">
-          <input type="text" id="solicitanteInput" list="listaSolicitantes" placeholder="Escribe o selecciona un nombre">
-          <span class="material-icons">account_circle</span>
-          </div>
-          <datalist id="listaSolicitantes"></datalist>
-        </div>
-
-        <div id="seccionSalida">
-          <div class="fila-doble">
-            <div class="campo">
-              <label id="labelBodegaSalida">Bodega (Salida)</label>
-              <div class="input-con-icono">
-                <input type="text" id="bodegaSalidaInput" list="listaBodega" placeholder="Selecciona una bodega" onchange="cargarUbicaciones('bodegaSalidaInput', 'listaUbiSalida', 'ubiSalidaInput')">
-                <span class="material-icons">store</span>
-              </div>
-              <datalist id="listaBodega"></datalist>
-            </div>
-
-            <div class="campo">
-              <label id="labelUbiSalida">Ubicación (Salida)</label>
-              <div class="input-con-icono">
-                <input type="text" id="ubiSalidaInput" list="listaUbiSalida" placeholder="Selecciona una ubicacion">
-                <span class="material-icons">place</span>
-              </div>
-              <datalist id="listaUbiSalida"></datalist>
-            </div>
+            <input
+              type="text"
+              id="bodegaSalidaInput"
+              list="listaBodegas"
+              placeholder="Selecciona una bodega"
+              onchange="cargarUbicaciones('bodegaSalidaInput', 'listaUbiSalida', 'ubiSalidaInput')"
+            >
+            <span class="material-icons">store</span>
           </div>
         </div>
-
-        <div id="seccionEntrada">
-          <div class="fila-doble">
-            <div class="campo">
-              <label>Bodega (Entrada)</label>
-              <div class="input-con-icono">
-                <input type="text" id="bodegaEntradaInput" list="listaBodega" placeholder="Selecciona una bodega" onchange="cargarUbicaciones('bodegaEntradaInput', 'listaUbiEntrada', 'ubiEntradaInput')">
-                <span class="material-icons">store_mall_directory</span>
-              </div>
-              <datalist id="listaBodega"></datalist>
-            </div>
-
-            <div class="campo">
-              <label>Ubicación (Entrada)</label>
-              <div class="input-con-icono">
-                <input type="text" id="ubiEntradaInput" list="listaUbiEntrada" placeholder="Selecciona una ubicacion">
-                <span class="material-icons">near_me</span>
-              </div>
-              <datalist id="listaUbiEntrada"></datalist>
-            </div>
-          </div>
-        </div>
-
-          <div class="campo">
-            <label for="codigoInput">Codigo</label>
-            <div class="input-con-icono">
-              <input type="text" id="codigoInput" list="listaCodigosDinamica" placeholder="Escribe o selecciona un codigo">
-              <span class="material-icons">inventory_2</span>
-            </div>
-            <datalist id="listaCodigosDinamica"></datalist>
-            </div>
 
         <div class="campo">
-          <label for="descripcion">Descripcion</label>
+          <label id="labelUbiSalida">Ubicación (Salida)</label>
           <div class="input-con-icono">
-          <input type="text" id="descripcionInput" placeholder="" readonly placeholder="Esperando código..." style="background-color: #eee;">
-          <span class="material-icons">description</span>
+            <input type="text" id="ubiSalidaInput" list="listaUbiSalida" placeholder="Selecciona una ubicacion">
+            <span class="material-icons">place</span>
           </div>
-        </div>        
+          <datalist id="listaUbiSalida"></datalist>
+        </div>
+      </div>
+    </div>
+
+    <div id="seccionEntrada">
+      <div class="fila-doble">
+        <div class="campo">
+          <label>Bodega (Entrada)</label>
+          <div class="input-con-icono">
+            <input
+              type="text"
+              id="bodegaEntradaInput"
+              list="listaBodegas"
+              placeholder="Selecciona una bodega"
+              onchange="cargarUbicaciones('bodegaEntradaInput', 'listaUbiEntrada', 'ubiEntradaInput')"
+            >
+            <span class="material-icons">store_mall_directory</span>
+          </div>
+        </div>
 
         <div class="campo">
-          <label for="cantidad">Cantidad</label>
+          <label>Ubicación (Entrada)</label>
           <div class="input-con-icono">
-          <input type="number" id="cantidadInput" placeholder="Ej: 1800">
-          <span class="material-icons">tag</span>
+            <input type="text" id="ubiEntradaInput" list="listaUbiEntrada" placeholder="Selecciona una ubicacion">
+            <span class="material-icons">near_me</span>
           </div>
+          <datalist id="listaUbiEntrada"></datalist>
         </div>
+      </div>
+    </div>
 
-        <div style="display: flex; justify-content: center; width: 100%;">
-          <button class="btn-anadir-ajustado" onclick="agregarALista()" style="width: 100%; height: 50px;">
-            <span class="material-icons">add</span>Añadir a la Fila
-          </button>
+    <!-- datalist compartido para ambas bodegas -->
+    <datalist id="listaBodegas"></datalist>
+
+    <div class="campo">
+      <label for="codigoInput">Codigo</label>
+      <div class="input-con-icono">
+        <input type="text" id="codigoInput" list="listaCodigosDinamica" placeholder="Escribe o selecciona un codigo">
+        <span class="material-icons">inventory_2</span>
+      </div>
+      <datalist id="listaCodigosDinamica"></datalist>
+    </div>
+
+    <div class="campo">
+      <label for="descripcionInput">Descripcion</label>
+      <div class="input-con-icono">
+        <input type="text" id="descripcionInput" readonly placeholder="Esperando código..." style="background-color: #eee;">
+        <span class="material-icons">description</span>
+      </div>
+    </div>
+
+    <div class="campo">
+      <label for="cantidadInput">Cantidad</label>
+      <div class="input-con-icono">
+        <input type="number" id="cantidadInput" placeholder="Ej: 1800">
+        <span class="material-icons">tag</span>
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: center; width: 100%;">
+      <button class="btn-anadir-ajustado" onclick="agregarALista()" style="width: 100%; height: 50px;">
+        <span class="material-icons">add</span>Añadir a la Fila
+      </button>
+    </div>
+
+    <div class="cola-container" style="margin-top: 20px; border-top: 2px solid var(--border-color); padding-top: 15px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <label style="margin-bottom: 0;">
+          Traspasos solicitados: <span id="contador" class="badge">0</span>
+        </label>
+
+        <div
+          id="displaySolicitante"
+          style="font-size: 12px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; display: flex; align-items: center; gap: 5px;"
+        >
+          <span class="material-icons" style="font-size: 16px;">person</span>
+          <span id="nombreSolicitanteDinamico">Sin solicitante</span>
         </div>
-
-
-            <div class="cola-container" style="margin-top: 20px; border-top: 2px solid var(--border-color); padding-top: 15px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <label style="margin-bottom: 0;">Traspasos solicitados: <span id="contador" class="badge">0</span></label>
-                
-                <div id="displaySolicitante" style="font-size: 12px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; display: flex; align-items: center; gap: 5px;">
-                  <span class="material-icons" style="font-size: 16px;">person</span>
-                  <span id="nombreSolicitanteDinamico">Sin solicitante</span>
-                </div>
-              </div>
-
-              <ul id="listaTraspasos" class="lista-datos">
-                </ul>
-              
-              <button id="btnRegistrarTodo" onclick="generar()" class="btn-registrar-ajustado">
-                <span class="material-icons">save</span> 
-                <span id="textoBotonRegistrar">Registrar</span>
-              </button>
-            </div>
-
-            <div id="snackbar"></div>
-
-
       </div>
 
+      <ul id="listaTraspasos" class="lista-datos"></ul>
 
-        <?!= HtmlService.createHtmlOutputFromFile('FilaTraspasos').getContent(); ?>
+      <button id="btnRegistrarTodo" onclick="generar()" class="btn-registrar-ajustado">
+        <span class="material-icons">save</span>
+        <span id="textoBotonRegistrar">Registrar</span>
+      </button>
+    </div>
 
-      <script>
+    <div id="snackbar"></div>
+  </div>
+</div>
 
+<?!= HtmlService.createHtmlOutputFromFile('FilaTraspasos').getContent(); ?>
 
-
-// --- 1. DECLARACIÓN DE VARIABLES EN ÁMBITO GLOBAL SEGURO ---
-window.colaDeTraspasos = window.colaDeTraspasos || [];
-window.codigosGlobal = window.codigosGlobal || [];
-window.mapaCatalogoGlobal = window.mapaCatalogoGlobal || {};
-window.mapaUbicacionesExcedentesGlobal = window.mapaUbicacionesExcedentesGlobal || [];
-window.usuariosGlobal = window.usuariosGlobal || [];
-window.bodegasGlobal = window.bodegasGlobal || [];
-
-var DEFAULT_VALUE = "1 - ALMACEN BIRLOS";
-
-
-
-// --- 2. FUNCIÓN DE MONTAJE Y RE-INICIALIZACIÓN ---
-window.inicializarVistaTraspasos = function() {
-  console.log("🛠️ Montando y re-vinculando componentes de Formulario de Traspasos...");
-
-  const cuerpoForm = document.getElementById('cuerpoFormulario');
-  if (cuerpoForm) cuerpoForm.style.display = "none";
-
-  // Re-vincular los Event Listeners a los nuevos elementos del DOM
-  vincularEventosDOM();
-
-  // Si APPALMACEN ya cargó el bootstrap, lo reutilizamos
-  if (window.DATA_ALMACEN_CACHE) {
-    console.log("⚡ [UX FITO] Cargando catálogos desde DATA_ALMACEN_CACHE...");
-    console.log("📦 [Traspasos] Cache visible:", window.DATA_ALMACEN_CACHE);
-
-    window.usuariosGlobal = window.DATA_ALMACEN_CACHE.usuarios || [];
-    window.bodegasGlobal = window.DATA_ALMACEN_CACHE.bodegas || [];
-    window.codigosGlobal = window.DATA_ALMACEN_CACHE.codigos || [];
-    window.mapaCatalogoGlobal = window.DATA_ALMACEN_CACHE.mapaCatalogo || {};
-    window.mapaUbicacionesExcedentesGlobal = window.DATA_ALMACEN_CACHE.mapaUbicacionesExcedentes || [];
-
-    inicializarDatalistsLocales();
-    actualizarVistaLista();
-    return;
-  }
-
-  // Fallback: reutilizar memoria local si ya había sido poblada antes
-  if (
-    window.usuariosGlobal.length > 0 ||
-    window.bodegasGlobal.length > 0 ||
-    window.codigosGlobal.length > 0 ||
-    Object.keys(window.mapaCatalogoGlobal).length > 0 ||
-    window.mapaUbicacionesExcedentesGlobal.length > 0
-  ) {
-    console.log("⚡ [UX FITO] Reutilizando datos ya cargados en memoria local.");
-
-    inicializarDatalistsLocales();
-    actualizarVistaLista();
-    return;
-  }
-
-  // Ya no se hace llamada propia al backend desde esta vista
-  console.warn("⚠️ No se encontró DATA_ALMACEN_CACHE. Esta vista depende de la carga inicial realizada por APPALMACEN.");
-  lanzarNotificacion("⚠️ No hay datos iniciales en memoria. Abre la vista desde APPALMACEN.", "warning");
-};
-
-window.initVista = window.inicializarVistaTraspasos;
-console.log("🧩 [Traspasos] initVista definida:", typeof window.initVista);
-
-
-
-
-function inicializarDatalistsLocales() {
-  // Solicitantes
-  const dlSolicitantes = document.getElementById('listaSolicitantes');
-  if (dlSolicitantes) {
-    dlSolicitantes.innerHTML = window.usuariosGlobal
-      .map(u => `<option value="${u.nombre}">`)
-      .join('');
-  }
-
-  // Bodegas (nota: tu HTML tiene dos datalist con el mismo id="listaBodega")
-  const opcionesBodegas = window.bodegasGlobal
-    .map(b => `<option value="${b}">`)
-    .join('');
-
-  document.querySelectorAll('#listaBodega').forEach(el => {
-    el.innerHTML = opcionesBodegas;
-  });
-
-  // Códigos
-  actualizarDatalist(window.codigosGlobal);
-}
-
-
-// Vinculación dinámica de eventos (evita que se pierdan al destruir el DOM)
-function vincularEventosDOM() {
-  const solicitanteInput = document.getElementById('solicitanteInput');
-  const tipoMovimientoInput = document.getElementById('tipoMovimientoInput');
-  const codigoInput = document.getElementById('codigoInput');
-  const ubiSalidaInput = document.getElementById('ubiSalidaInput');
-  const ubiEntradaInput = document.getElementById('ubiEntradaInput');
-  const cantidadInput = document.getElementById('cantidadInput');
-  const bodegaSalidaInput = document.getElementById('bodegaSalidaInput');
-  const bodegaEntradaInput = document.getElementById('bodegaEntradaInput');
-
-  if (solicitanteInput) {
-    solicitanteInput.addEventListener('input', (e) => {
-      const nombre = e.target.value.trim();
-      document.getElementById('nombreSolicitanteDinamico').innerText = nombre || "Sin solicitante";
-    });
-    solicitanteInput.addEventListener('change', function() {
-      validarValorEnLista('solicitanteInput', window.usuariosGlobal, "solicitante");
-      if (this.value.trim() && bodegaSalidaInput) bodegaSalidaInput.focus();
-    });
-  }
-
-  if (tipoMovimientoInput) {
-    tipoMovimientoInput.addEventListener('change', gestionarVisibilidad);
-  }
-
-  if (codigoInput) {
-    codigoInput.addEventListener('change', buscarPorCodigo);
-  }
-
-  if (ubiSalidaInput) {
-    ubiSalidaInput.addEventListener('change', function() {
-      const bodegaActual = bodegaSalidaInput.value.toUpperCase();
-      const ubicacionesPermitidas = window.mapaUbicacionesExcedentesGlobal
-        .filter(item => item.bodega === bodegaActual)
-        .map(item => item.ubi);
-      
-      validarValorEnLista('ubiSalidaInput', ubicacionesPermitidas, "ubicación");
-
-      if (!this.value.trim()) return;
-      if (tipoMovimientoInput.value === "Cambio de bodega" && bodegaEntradaInput) {
-        bodegaEntradaInput.focus();
-      } else {
-        codigoInput.focus();
-      }
-    });
-  }
-
-  if (ubiEntradaInput) {
-    ubiEntradaInput.addEventListener('change', function() {
-      const bodegaActual = bodegaEntradaInput.value.toUpperCase();
-      const ubicacionesPermitidas = window.mapaUbicacionesExcedentesGlobal
-        .filter(item => item.bodega === bodegaActual)
-        .map(item => item.ubi);
-      
-      validarValorEnLista('ubiEntradaInput', ubicacionesPermitidas, "ubicación");
-      if (this.value.trim()) codigoInput.focus();
-    });
-  }
-  
-  if (cantidadInput) {
-    cantidadInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        agregarALista(); 
-      }
-    });
-
-    cantidadInput.addEventListener('wheel', function() {
-      this.blur();
-    });
-  }
-
-  if (bodegaSalidaInput) {
-    bodegaSalidaInput.addEventListener('change', function() {
-      validarValorEnLista('bodegaSalidaInput', window.bodegasGlobal, "bodega");
-    });
-  }
-
-  if (bodegaEntradaInput) {
-    bodegaEntradaInput.addEventListener('change', function() {
-      validarValorEnLista('bodegaEntradaInput', window.bodegasGlobal, "bodega");
-    });
-  }
-}
-
-// --- Resto de funciones auxiliares que ya tenías ---
-function gestionarVisibilidad() {
-  const tipo = document.getElementById('tipoMovimientoInput').value;
-  const cuerpoForm = document.getElementById('cuerpoFormulario');
-  const tiposValidos = ["Acomodo", "Surtido", "Cambio de bodega"];
-
-  if (!tiposValidos.includes(tipo)) {
-    cuerpoForm.style.display = "none";
-    return;
-  }
-
-  cuerpoForm.style.display = "block";
-  const seccionEntrada = document.getElementById('seccionEntrada');
-  seccionEntrada.style.display = (tipo === "Cambio de bodega") ? "block" : "none";
-
-  ["bodegaSalidaInput", "ubiSalidaInput", "bodegaEntradaInput", "ubiEntradaInput"].forEach(id => {
-    document.getElementById(id).value = "";
-  });
-
-  document.getElementById('solicitanteInput').focus();
-}
-
-function actualizarDatalist(lista) {
-  const dl = document.getElementById('listaCodigosDinamica');
-  if (dl) dl.innerHTML = lista.map(c => `<option value="${c}">`).join('');
-}
-
-function buscarPorCodigo() {
-  const inputCodigo = document.getElementById('codigoInput');
-  const descripcionInput = document.getElementById('descripcionInput');
-  const cantidadInput = document.getElementById('cantidadInput');
-
-  const codigo = inputCodigo.value.trim().toUpperCase();
-  if (!codigo) return;
-
-  // 1) Validar que el código exista
-  if (!window.codigosGlobal.includes(codigo)) {
-    lanzarNotificacion(`⚠️ El código "${codigo}" no existe en el catálogo.`, "error");
-    inputCodigo.value = "";
-    descripcionInput.value = "";
-    inputCodigo.focus();
-    return;
-  }
-
-  // 2) Buscar directamente en el mapa cargado desde bootstrap
-  const producto = window.mapaCatalogoGlobal[codigo];
-
-  if (!producto) {
-    lanzarNotificacion(`⚠️ El código "${codigo}" no tiene descripción disponible en memoria.`, "warning");
-    descripcionInput.value = "";
-    return;
-  }
-
-  // 3) Llenar la descripción localmente
-  descripcionInput.value = producto.descripcion || "";
-  cantidadInput.focus();
-}
-
-
-function cargarUbicaciones(idInputBodega, idDatalist, idInputUbi) {
-  const inputBodega = document.getElementById(idInputBodega);
-  const bodegaSeleccionada = inputBodega.value.trim().toUpperCase();
-  const dlUbicaciones = document.getElementById(idDatalist);
-  const inputUbi = document.getElementById(idInputUbi);
-
-  if (!bodegaSeleccionada) {
-    dlUbicaciones.innerHTML = "";
-    return;
-  }
-
-  const filtradas = window.mapaUbicacionesExcedentesGlobal
-    .filter(item => item.bodega === bodegaSeleccionada)
-    .map(item => item.ubi);
-
-  if (filtradas.length > 0) {
-    const unicas = [...new Set(filtradas)].sort();
-    dlUbicaciones.innerHTML = unicas.map(u => `<option value="${u}">`).join('');
-    inputUbi.placeholder = "Seleccione ubicación";
-    inputUbi.focus(); 
-  } else {
-    inputUbi.placeholder = "⚠️ Sin ubicaciones";
-    dlUbicaciones.innerHTML = "";
-  }
-}
-
-function agregarALista() {
-  const getVal = (id) => document.getElementById(id).value.trim();
-  const tipo = getVal('tipoMovimientoInput');
-
-  const codValido = window.codigosGlobal.includes(getVal('codigoInput').toUpperCase());
-  const solValido = window.usuariosGlobal.some(u => u.nombre.toUpperCase() === getVal('solicitanteInput').toUpperCase());
-
-  if (!codValido || !solValido) {
-    lanzarNotificacion("❌ No se puede añadir: Hay valores no permitidos o campos vacíos", "error");
-    return;
-  }
-  
-  let vSalidaBod = getVal('bodegaSalidaInput');
-  let vSalidaUbi = getVal('ubiSalidaInput');
-  let vEntradaBod = getVal('bodegaEntradaInput');
-  let vEntradaUbi = getVal('ubiEntradaInput');
-
-  let bSalida, uSalida, bEntrada, uEntrada;
-
-  if (tipo === "Surtido") {
-    bSalida = vSalidaBod || DEFAULT_VALUE;
-    uSalida = vSalidaUbi;
-    bEntrada = DEFAULT_VALUE;
-    uEntrada = DEFAULT_VALUE;
-  } 
-  else if (tipo === "Acomodo") {
-    bSalida = DEFAULT_VALUE;
-    uSalida = DEFAULT_VALUE;
-    bEntrada = vSalidaBod || DEFAULT_VALUE;
-    uEntrada = vSalidaUbi;
-  } 
-  else {
-    bSalida = vSalidaBod || DEFAULT_VALUE;
-    uSalida = vSalidaUbi;
-    bEntrada = vEntradaBod || DEFAULT_VALUE;
-    uEntrada = vEntradaUbi;
-  }
-
-  const item = {
-    tipo: tipo,
-    solicitante: getVal('solicitanteInput').toUpperCase(),
-    codigo: getVal('codigoInput').toUpperCase(),
-    descripcion: getVal('descripcionInput').toUpperCase(),
-    cantidad: parseFloat(getVal('cantidadInput')),
-    bodegaSalida: bSalida,
-    ubiSalida: uSalida,
-    bodegaEntrada: bEntrada,
-    ubiEntrada: uEntrada,
-    idUnico: `${Date.now()}-${getVal('codigoInput')}`.replace(/\s+/g, '')
+<script>
+(function () {
+  // =========================================================
+  // ESTADO SEGURO DE LA VISTA
+  // =========================================================
+  window.FormularioTraspasosState = window.FormularioTraspasosState || {
+    usuarios: [],
+    bodegas: [],
+    codigos: [],
+    mapaCatalogo: {},
+    mapaUbicacionesExcedentes: [],
+    defaultValue: "1 - ALMACEN BIRLOS"
   };
 
-  if (!item.tipo || !item.solicitante || !item.codigo || isNaN(item.cantidad) || item.cantidad <= 0) {
-    return lanzarNotificacion("❌ Datos incompletos", "error");
+  window.colaDeTraspasos = window.colaDeTraspasos || [];
+
+  const state = window.FormularioTraspasosState;
+
+  // =========================================================
+  // HELPERS INTERNOS
+  // =========================================================
+  function normalizarTexto(valor) {
+    return String(valor || "").trim().toUpperCase();
   }
 
-  if ((tipo === "Surtido" || tipo === "Cambio de bodega") && !uSalida) {
-    return lanzarNotificacion("⚠️ Indica la ubicación de Salida", "warning");
+  function limpiarCamposCapturaInterno() {
+    const codigoInput = document.getElementById('codigoInput');
+    const descripcionInput = document.getElementById('descripcionInput');
+    const cantidadInput = document.getElementById('cantidadInput');
+
+    if (codigoInput) codigoInput.value = "";
+    if (descripcionInput) descripcionInput.value = "";
+    if (cantidadInput) cantidadInput.value = "";
+    if (codigoInput) codigoInput.focus();
   }
-  if ((tipo === "Acomodo" || tipo === "Cambio de bodega") && !uEntrada) {
-    return lanzarNotificacion("⚠️ Indica la ubicación de Entrada", "warning");
-  }
 
-  window.colaDeTraspasos.push(item);
-  actualizarVistaLista();
-  
-  document.getElementById('codigoInput').value = "";
-  document.getElementById('descripcionInput').value = "";
-  document.getElementById('cantidadInput').value = "";
-  document.getElementById('codigoInput').focus();
-  lanzarNotificacion("✅ Añadido");
-}
-
-function actualizarVistaLista() {
-  const listaUL = document.getElementById('listaTraspasos');
-  const plantillaEl = document.getElementById('plantillaTraspaso');
-  if (!listaUL || !plantillaEl) return;
-  
-  const plantilla = plantillaEl.innerHTML;
-  const btnRegistrar = document.getElementById('btnRegistrarTodo');
-  const textoBtn = document.getElementById('textoBotonRegistrar');
-  const contador = document.getElementById('contador');
-
-  listaUL.innerHTML = window.colaDeTraspasos.map((item, i) => {
-    const tipoCss = item.tipo.toLowerCase().replace(/\s+/g, '-');
-    let ubiHtml = (item.tipo === "Cambio de bodega") 
-      ? `<span class="ubi-badge">${item.ubiSalida}</span> ➔ <span class="ubi-badge">${item.ubiEntrada}</span>`
-      : `<span class="ubi-badge">${item.tipo === "Acomodo" ? item.ubiEntrada : item.ubiSalida}</span>`;
-
-    return plantilla
-      .replace(/{{INDEX}}/g, i)
-      .replace("{{TIPO_CSS}}", tipoCss)
-      .replace("{{TIPO}}", item.tipo)
-      .replace("{{CODIGO}}", item.codigo)
-      .replace("{{DESCRIPCION}}", item.descripcion)
-      .replace("{{UBI_HTML}}", ubiHtml)
-      .replace("{{CANTIDAD}}", item.cantidad);
-  }).join('');
-
-  const cant = window.colaDeTraspasos.length;
-  if (contador) contador.innerText = cant;
-
-  if (btnRegistrar && textoBtn) {
-    if (cant > 0) {
-      btnRegistrar.style.display = "block";
-      textoBtn.innerText = `Registrar traspasos`;
-    } else {
-      btnRegistrar.style.display = "none";
+  function lanzarNotificacionLocal(mensaje, tipo = "info") {
+    if (typeof window.notificar === 'function') {
+      window.notificar(mensaje, tipo);
+      return;
     }
-  }
-}
 
-function quitarDeLista(index) {
-  window.colaDeTraspasos.splice(index, 1);
-  actualizarVistaLista();
-}
-
-function generar() {
-  if (window.colaDeTraspasos.length === 0) return;
-
-  const btn = document.getElementById('btnRegistrarTodo');
-  const contenidoOriginal = btn.innerHTML;
-
-  btn.disabled = true;
-  btn.innerHTML = '<span class="material-icons rotating">sync</span> Procesando...';
-
-  google.script.run
-    .withSuccessHandler(msg => {
-      lanzarNotificacion(msg, "success");
-      window.colaDeTraspasos = [];
-      actualizarVistaLista();
-      btn.disabled = false;
-      btn.innerHTML = contenidoOriginal;
-    })
-    .withFailureHandler(err => {
-      lanzarNotificacion("❌ Error: " + err.message, "error");
-      btn.disabled = false;
-      btn.innerHTML = '<span class="material-icons">error</span> Reintentar';
-    })
-    .procesarTraspasos(window.colaDeTraspasos);
-}
-
-function lanzarNotificacion(mensaje, tipo = "info") {
-  if (typeof window.notificar === 'function') {
-    window.notificar(mensaje, tipo);
-  } else {
     const ToastOscuroLocal = Swal.mixin({
       toast: true,
       position: 'top-end',
@@ -556,36 +205,509 @@ function lanzarNotificacion(mensaje, tipo = "info") {
       title: mensaje
     });
   }
-}
 
-function validarValorEnLista(idInput, listaPermitida, nombreCampo) {
-  const input = document.getElementById(idInput);
-  if (!input) return false;
-  const valor = input.value.trim().toUpperCase();
+  function hidratarDesdeCache_(cache) {
+    state.usuarios = cache.usuarios || [];
+    state.bodegas = cache.bodegas || [];
+    state.codigos = cache.codigos || [];
 
-  if (valor === "") return false;
+    // Compatibilidad temporal con contrato nuevo y legacy
+    state.mapaCatalogo = cache.mapaCatalogo || cache.mapaProductos || {};
+    state.mapaUbicacionesExcedentes =
+      cache.mapaUbicacionesExcedentes ||
+      cache.mapaUbicaciones ||
+      [];
 
-  const existe = listaPermitida.some(item => 
-    (typeof item === 'string' ? item.toUpperCase() : item.nombre.toUpperCase()) === valor
-  );
-
-  if (!existe) {
-    lanzarNotificacion(`⚠️ El ${nombreCampo} "${valor}" no es válido. Seleccione uno de la lista.`, "error");
-    input.value = "";
-    input.focus();
-    return false;
+    // Compatibilidad opcional con globals viejas si otra parte todavía las usa
+    window.usuariosGlobal = state.usuarios;
+    window.bodegasGlobal = state.bodegas;
+    window.codigosGlobal = state.codigos;
+    window.mapaCatalogoGlobal = state.mapaCatalogo;
+    window.mapaUbicacionesExcedentesGlobal = state.mapaUbicacionesExcedentes;
   }
-  return true;
-}
 
+  function guardarEnCacheGlobal_() {
+    window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+    window.DATA_ALMACEN_CACHE.usuarios = state.usuarios || [];
+    window.DATA_ALMACEN_CACHE.bodegas = state.bodegas || [];
+    window.DATA_ALMACEN_CACHE.codigos = state.codigos || [];
+    window.DATA_ALMACEN_CACHE.mapaCatalogo = state.mapaCatalogo || {};
+    window.DATA_ALMACEN_CACHE.mapaUbicacionesExcedentes = state.mapaUbicacionesExcedentes || [];
+  }
 
-// Solo fallback si la vista se abre fuera del shell principal
-if (!window.DATA_ALMACEN_CACHE) {
-  setTimeout(() => {
-    if (typeof window.inicializarVistaTraspasos === 'function') {
-      window.inicializarVistaTraspasos();
+  function bindOnce(el, key, eventName, handler) {
+    if (!el) return;
+    const flag = `bound_${key}`;
+    if (el.dataset[flag]) return;
+
+    el.addEventListener(eventName, handler);
+    el.dataset[flag] = "1";
+  }
+
+  // =========================================================
+  // MONTAJE / INIT DE LA VISTA
+  // =========================================================
+  window.inicializarVistaTraspasos = function () {
+    console.log("🛠️ Montando FormularioTraspasos...");
+
+    const cuerpoForm = document.getElementById('cuerpoFormulario');
+    if (cuerpoForm) cuerpoForm.style.display = "none";
+
+    vincularEventosDOM();
+
+    // 1) Si APPALMACEN ya tiene bootstrap, se reutiliza
+    if (window.DATA_ALMACEN_CACHE) {
+      console.log("⚡ [Traspasos] Cargando desde DATA_ALMACEN_CACHE...");
+      console.log("📦 [Traspasos] Cache visible:", window.DATA_ALMACEN_CACHE);
+
+      hidratarDesdeCache_(window.DATA_ALMACEN_CACHE);
+      inicializarDatalistsLocales();
+      actualizarVistaLista();
+      return;
     }
-  }, 100);
-}
 
+    // 2) Si ya había datos en memoria local
+    if (
+      state.usuarios.length > 0 ||
+      state.bodegas.length > 0 ||
+      state.codigos.length > 0 ||
+      Object.keys(state.mapaCatalogo).length > 0 ||
+      state.mapaUbicacionesExcedentes.length > 0
+    ) {
+      console.log("⚡ [Traspasos] Reutilizando memoria local...");
+      inicializarDatalistsLocales();
+      actualizarVistaLista();
+      return;
+    }
+
+    // 3) Fallback al controller
+    console.warn("⚠️ No se encontró DATA_ALMACEN_CACHE. Solicitando bootstrap de Traspasos...");
+
+    google.script.run
+      .withSuccessHandler(function (data) {
+        console.log("✅ Bootstrap recibido desde FormularioTraspasosController:", data);
+
+        hidratarDesdeCache_(data);
+        guardarEnCacheGlobal_();
+
+        inicializarDatalistsLocales();
+        actualizarVistaLista();
+        lanzarNotificacionLocal("✅ Datos de traspasos cargados", "success");
+      })
+      .withFailureHandler(function (err) {
+        console.error("❌ Error cargando bootstrap:", err);
+        lanzarNotificacionLocal("❌ No se pudo cargar la información inicial de traspasos", "error");
+      })
+      .FormularioTraspasosController_getBootstrap();
+  };
+
+  // Alias esperado por el shell
+  window.initVista = window.inicializarVistaTraspasos;
+  console.log("🧩 [Traspasos] initVista definida:", typeof window.initVista);
+
+  // =========================================================
+  // DATALISTS
+  // =========================================================
+  function inicializarDatalistsLocales() {
+    // Solicitantes
+    const dlSolicitantes = document.getElementById('listaSolicitantes');
+    if (dlSolicitantes) {
+      dlSolicitantes.innerHTML = state.usuarios
+        .map(u => `<option value="${u.nombre}">`)
+        .join('');
+    }
+
+    // Bodegas
+    const dlBodegas = document.getElementById('listaBodegas');
+    if (dlBodegas) {
+      dlBodegas.innerHTML = state.bodegas
+        .map(b => `<option value="${b}">`)
+        .join('');
+    }
+
+    // Códigos
+    actualizarDatalist(state.codigos);
+  }
+
+  function actualizarDatalist(lista) {
+    const dl = document.getElementById('listaCodigosDinamica');
+    if (dl) {
+      dl.innerHTML = (lista || []).map(c => `<option value="${c}">`).join('');
+    }
+  }
+
+  // =========================================================
+  // EVENTOS DOM
+  // =========================================================
+  function vincularEventosDOM() {
+    const solicitanteInput = document.getElementById('solicitanteInput');
+    const tipoMovimientoInput = document.getElementById('tipoMovimientoInput');
+    const codigoInput = document.getElementById('codigoInput');
+    const ubiSalidaInput = document.getElementById('ubiSalidaInput');
+    const ubiEntradaInput = document.getElementById('ubiEntradaInput');
+    const cantidadInput = document.getElementById('cantidadInput');
+    const bodegaSalidaInput = document.getElementById('bodegaSalidaInput');
+    const bodegaEntradaInput = document.getElementById('bodegaEntradaInput');
+
+    bindOnce(solicitanteInput, 'inputSolicitante', 'input', (e) => {
+      const nombre = e.target.value.trim();
+      const destino = document.getElementById('nombreSolicitanteDinamico');
+      if (destino) destino.innerText = nombre || "Sin solicitante";
+    });
+
+    bindOnce(solicitanteInput, 'changeSolicitante', 'change', function () {
+      validarValorEnListaInterno('solicitanteInput', state.usuarios, "solicitante");
+      if (this.value.trim() && bodegaSalidaInput) bodegaSalidaInput.focus();
+    });
+
+    bindOnce(tipoMovimientoInput, 'changeTipoMovimiento', 'change', gestionarVisibilidad);
+    bindOnce(codigoInput, 'changeCodigo', 'change', buscarPorCodigo);
+
+    bindOnce(ubiSalidaInput, 'changeUbiSalida', 'change', function () {
+      const bodegaActual = normalizarTexto(bodegaSalidaInput ? bodegaSalidaInput.value : "");
+      const ubicacionesPermitidas = state.mapaUbicacionesExcedentes
+        .filter(item => item.bodega === bodegaActual)
+        .map(item => item.ubi);
+
+      validarValorEnListaInterno('ubiSalidaInput', ubicacionesPermitidas, "ubicación");
+
+      if (!this.value.trim()) return;
+
+      if (tipoMovimientoInput && tipoMovimientoInput.value === "Cambio de bodega" && bodegaEntradaInput) {
+        bodegaEntradaInput.focus();
+      } else if (codigoInput) {
+        codigoInput.focus();
+      }
+    });
+
+    bindOnce(ubiEntradaInput, 'changeUbiEntrada', 'change', function () {
+      const bodegaActual = normalizarTexto(bodegaEntradaInput ? bodegaEntradaInput.value : "");
+      const ubicacionesPermitidas = state.mapaUbicacionesExcedentes
+        .filter(item => item.bodega === bodegaActual)
+        .map(item => item.ubi);
+
+      validarValorEnListaInterno('ubiEntradaInput', ubicacionesPermitidas, "ubicación");
+
+      if (this.value.trim() && codigoInput) {
+        codigoInput.focus();
+      }
+    });
+
+    bindOnce(cantidadInput, 'keypressCantidad', 'keypress', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        agregarALista();
+      }
+    });
+
+    bindOnce(cantidadInput, 'wheelCantidad', 'wheel', function () {
+      this.blur();
+    });
+
+    bindOnce(bodegaSalidaInput, 'changeBodegaSalida', 'change', function () {
+      validarValorEnListaInterno('bodegaSalidaInput', state.bodegas, "bodega");
+    });
+
+    bindOnce(bodegaEntradaInput, 'changeBodegaEntrada', 'change', function () {
+      validarValorEnListaInterno('bodegaEntradaInput', state.bodegas, "bodega");
+    });
+  }
+
+  // =========================================================
+  // LÓGICA DE UI
+  // =========================================================
+  function gestionarVisibilidad() {
+    const tipo = document.getElementById('tipoMovimientoInput')?.value || "";
+    const cuerpoForm = document.getElementById('cuerpoFormulario');
+    const tiposValidos = ["Acomodo", "Surtido", "Cambio de bodega"];
+
+    if (!tiposValidos.includes(tipo)) {
+      if (cuerpoForm) cuerpoForm.style.display = "none";
+      return;
+    }
+
+    if (cuerpoForm) cuerpoForm.style.display = "block";
+
+    const seccionEntrada = document.getElementById('seccionEntrada');
+    if (seccionEntrada) {
+      seccionEntrada.style.display = (tipo === "Cambio de bodega") ? "block" : "none";
+    }
+
+    ["bodegaSalidaInput", "ubiSalidaInput", "bodegaEntradaInput", "ubiEntradaInput"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+
+    const solicitanteInput = document.getElementById('solicitanteInput');
+    if (solicitanteInput) solicitanteInput.focus();
+  }
+
+  function buscarPorCodigo() {
+    const inputCodigo = document.getElementById('codigoInput');
+    const descripcionInput = document.getElementById('descripcionInput');
+    const cantidadInput = document.getElementById('cantidadInput');
+
+    const codigo = normalizarTexto(inputCodigo ? inputCodigo.value : "");
+    if (!codigo) return;
+
+    // 1) Validar que el código exista
+    if (!state.codigos.includes(codigo)) {
+      lanzarNotificacionLocal(`⚠️ El código "${codigo}" no existe en el catálogo.`, "error");
+
+      if (inputCodigo) inputCodigo.value = "";
+      if (descripcionInput) descripcionInput.value = "";
+      if (inputCodigo) inputCodigo.focus();
+      return;
+    }
+
+    // 2) Buscar primero en memoria local
+    const producto = state.mapaCatalogo[codigo];
+    if (producto) {
+      if (descripcionInput) descripcionInput.value = producto.descripcion || "";
+      if (cantidadInput) cantidadInput.focus();
+      return;
+    }
+
+    // 3) Fallback al backend
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.encontrado) {
+          lanzarNotificacionLocal(`⚠️ El código "${codigo}" no fue encontrado.`, "warning");
+          if (descripcionInput) descripcionInput.value = "";
+          return;
+        }
+
+        if (descripcionInput) descripcionInput.value = res.descripcion || "";
+        if (cantidadInput) cantidadInput.focus();
+      })
+      .withFailureHandler(function (err) {
+        lanzarNotificacionLocal("❌ Error consultando producto: " + err.message, "error");
+      })
+      .FormularioTraspasosController_buscarProductoPorCodigo(codigo);
+  }
+
+  window.cargarUbicaciones = function (idInputBodega, idDatalist, idInputUbi) {
+    const inputBodega = document.getElementById(idInputBodega);
+    const dlUbicaciones = document.getElementById(idDatalist);
+    const inputUbi = document.getElementById(idInputUbi);
+
+    const bodegaSeleccionada = normalizarTexto(inputBodega ? inputBodega.value : "");
+
+    if (!bodegaSeleccionada) {
+      if (dlUbicaciones) dlUbicaciones.innerHTML = "";
+      return;
+    }
+
+    const filtradas = state.mapaUbicacionesExcedentes
+      .filter(item => item.bodega === bodegaSeleccionada)
+      .map(item => item.ubi);
+
+    if (filtradas.length > 0) {
+      const unicas = [...new Set(filtradas)].sort();
+      if (dlUbicaciones) {
+        dlUbicaciones.innerHTML = unicas.map(u => `<option value="${u}">`).join('');
+      }
+      if (inputUbi) {
+        inputUbi.placeholder = "Seleccione ubicación";
+        inputUbi.focus();
+      }
+    } else {
+      if (inputUbi) inputUbi.placeholder = "⚠️ Sin ubicaciones";
+      if (dlUbicaciones) dlUbicaciones.innerHTML = "";
+    }
+  };
+
+  function agregarALista() {
+    const getVal = (id) => {
+      const el = document.getElementById(id);
+      return el ? el.value.trim() : "";
+    };
+
+    const tipo = getVal('tipoMovimientoInput');
+    const codigo = normalizarTexto(getVal('codigoInput'));
+    const solicitante = normalizarTexto(getVal('solicitanteInput'));
+
+    const codValido = state.codigos.includes(codigo);
+    const solValido = state.usuarios.some(u => normalizarTexto(u.nombre) === solicitante);
+
+    if (!codValido || !solValido) {
+      lanzarNotificacionLocal("❌ No se puede añadir: Hay valores no permitidos o campos vacíos", "error");
+      return;
+    }
+
+    let vSalidaBod = normalizarTexto(getVal('bodegaSalidaInput'));
+    let vSalidaUbi = normalizarTexto(getVal('ubiSalidaInput'));
+    let vEntradaBod = normalizarTexto(getVal('bodegaEntradaInput'));
+    let vEntradaUbi = normalizarTexto(getVal('ubiEntradaInput'));
+
+    let bSalida, uSalida, bEntrada, uEntrada;
+
+    if (tipo === "Surtido") {
+      bSalida = vSalidaBod || state.defaultValue;
+      uSalida = vSalidaUbi;
+      bEntrada = state.defaultValue;
+      uEntrada = state.defaultValue;
+    } else if (tipo === "Acomodo") {
+      bSalida = state.defaultValue;
+      uSalida = state.defaultValue;
+      bEntrada = vSalidaBod || state.defaultValue;
+      uEntrada = vSalidaUbi;
+    } else {
+      bSalida = vSalidaBod || state.defaultValue;
+      uSalida = vSalidaUbi;
+      bEntrada = vEntradaBod || state.defaultValue;
+      uEntrada = vEntradaUbi;
+    }
+
+    const item = {
+      tipo: tipo,
+      solicitante: solicitante,
+      codigo: codigo,
+      descripcion: normalizarTexto(getVal('descripcionInput')),
+      cantidad: parseFloat(getVal('cantidadInput')),
+      bodegaSalida: bSalida,
+      ubiSalida: uSalida,
+      bodegaEntrada: bEntrada,
+      ubiEntrada: uEntrada,
+      idUnico: `${Date.now()}-${codigo}`.replace(/\s+/g, '')
+    };
+
+    if (!item.tipo || !item.solicitante || !item.codigo || isNaN(item.cantidad) || item.cantidad <= 0) {
+      lanzarNotificacionLocal("❌ Datos incompletos", "error");
+      return;
+    }
+
+    if ((tipo === "Surtido" || tipo === "Cambio de bodega") && !uSalida) {
+      lanzarNotificacionLocal("⚠️ Indica la ubicación de Salida", "warning");
+      return;
+    }
+
+    if ((tipo === "Acomodo" || tipo === "Cambio de bodega") && !uEntrada) {
+      lanzarNotificacionLocal("⚠️ Indica la ubicación de Entrada", "warning");
+      return;
+    }
+
+    window.colaDeTraspasos.push(item);
+    actualizarVistaLista();
+    limpiarCamposCapturaInterno();
+    lanzarNotificacionLocal("✅ Añadido", "success");
+  }
+
+  function actualizarVistaLista() {
+    const listaUL = document.getElementById('listaTraspasos');
+    const plantillaEl = document.getElementById('plantillaTraspaso');
+    if (!listaUL || !plantillaEl) return;
+
+    const plantilla = plantillaEl.innerHTML;
+    const btnRegistrar = document.getElementById('btnRegistrarTodo');
+    const textoBtn = document.getElementById('textoBotonRegistrar');
+    const contador = document.getElementById('contador');
+
+    listaUL.innerHTML = window.colaDeTraspasos.map((item, i) => {
+      const tipoCss = item.tipo.toLowerCase().replace(/\s+/g, '-');
+      const ubiHtml = (item.tipo === "Cambio de bodega")
+        ? `<span class="ubi-badge">${item.ubiSalida}</span> ➔ <span class="ubi-badge">${item.ubiEntrada}</span>`
+        : `<span class="ubi-badge">${item.tipo === "Acomodo" ? item.ubiEntrada : item.ubiSalida}</span>`;
+
+      return plantilla
+        .replace(/{{INDEX}}/g, i)
+        .replace("{{TIPO_CSS}}", tipoCss)
+        .replace("{{TIPO}}", item.tipo)
+        .replace("{{CODIGO}}", item.codigo)
+        .replace("{{DESCRIPCION}}", item.descripcion)
+        .replace("{{UBI_HTML}}", ubiHtml)
+        .replace("{{CANTIDAD}}", item.cantidad);
+    }).join('');
+
+    const cant = window.colaDeTraspasos.length;
+    if (contador) contador.innerText = cant;
+
+    if (btnRegistrar && textoBtn) {
+      if (cant > 0) {
+        btnRegistrar.style.display = "block";
+        textoBtn.innerText = `Registrar traspasos`;
+      } else {
+        btnRegistrar.style.display = "none";
+      }
+    }
+  }
+
+  function quitarDeLista(index) {
+    window.colaDeTraspasos.splice(index, 1);
+    actualizarVistaLista();
+  }
+
+  function generar() {
+    if (window.colaDeTraspasos.length === 0) return;
+
+    const btn = document.getElementById('btnRegistrarTodo');
+    const contenidoOriginal = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons rotating">sync</span> Procesando...';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        lanzarNotificacionLocal(res.mensaje || "✅ Registrado correctamente", "success");
+        window.colaDeTraspasos = [];
+        actualizarVistaLista();
+        btn.disabled = false;
+        btn.innerHTML = contenidoOriginal;
+      })
+      .withFailureHandler(err => {
+        lanzarNotificacionLocal("❌ Error: " + err.message, "error");
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons">error</span> Reintentar';
+      })
+      .FormularioTraspasosController_registrarLote(window.colaDeTraspasos);
+  }
+
+  // =========================================================
+  // VALIDACIONES
+  // =========================================================
+  function validarValorEnListaInterno(idInput, listaPermitida, nombreCampo) {
+    const input = document.getElementById(idInput);
+    if (!input) return false;
+
+    const valor = normalizarTexto(input.value);
+    if (valor === "") return false;
+
+    const existe = (listaPermitida || []).some(item =>
+      (typeof item === 'string'
+        ? normalizarTexto(item)
+        : normalizarTexto(item.nombre)) === valor
+    );
+
+    if (!existe) {
+      lanzarNotificacionLocal(`⚠️ El ${nombreCampo} "${valor}" no es válido. Seleccione uno de la lista.`, "error");
+      input.value = "";
+      input.focus();
+      return false;
+    }
+
+    return true;
+  }
+
+  // =========================================================
+  // FUNCIONES PÚBLICAS PARA HTML INLINE
+  // =========================================================
+  window.buscarPorCodigo = buscarPorCodigo;
+  window.agregarALista = agregarALista;
+  window.actualizarVistaLista = actualizarVistaLista;
+  window.quitarDeLista = quitarDeLista;
+  window.generar = generar;
+  window.validarValorEnLista = validarValorEnListaInterno;
+  window.lanzarNotificacion = window.lanzarNotificacion || lanzarNotificacionLocal;
+
+  // =========================================================
+  // FALLBACK SI LA VISTA SE ABRE SOLA
+  // =========================================================
+  if (!window.DATA_ALMACEN_CACHE) {
+    setTimeout(() => {
+      if (typeof window.inicializarVistaTraspasos === 'function') {
+        window.inicializarVistaTraspasos();
+      }
+    }, 100);
+  }
+})();
 </script>

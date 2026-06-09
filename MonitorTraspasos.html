@@ -1,5 +1,4 @@
 <div class="container">
-
   <div id="listaPendientes">
     <p style="text-align:center; color: #666;">Cargando movimientos pendientes...</p>
   </div>
@@ -9,370 +8,388 @@
 
 <script>
   (function() {
-        let escribiendo = false;
-        let responsables = [];
-        let procesando = false;
-        let ultimoSnapshot = null;
-        let intervaloActual = 3000; // comienza rápido
-        let maxIntervalo = 20000;   // límite superior
+    window.escribiendoMonitor = false;
 
-        // ==========================================
-        // 1. GESTOR UNIFICADO DE NOTIFICACIONES (UX FITO)
-        // ==========================================
-        
-        window.cargar_MonitorTraspasos = function() {
-          console.log("🔄 Inicializando: Monitor de Traspasos Pendientes");
+    let responsables = [];
+    let procesando = false;
+    let ultimoSnapshot = null;
+    let intervaloActual = 3000;
+    let maxIntervalo = 20000;
 
-            if (window.temporizadorActualizacion) {
-              clearTimeout(window.temporizadorActualizacion);
-              window.temporizadorActualizacion = null;
-              console.log("🧹 Temporizador previo limpiado.");
-            }
+    function mapearResponsablesDesdeCache_(cache) {
+      return (cache.usuarios || [])
+        .filter(u => {
+          const rol = String(u.rol || "").trim().toUpperCase();
+          return rol === "RESPONSABLE" || rol === "ADMIN";
+        })
+        .map(u => String(u.nombre || "").trim().toUpperCase())
+        .filter(Boolean);
+    }
 
-          const cacheDisponible = window.DATA_ALMACEN_CACHE || window.GLOBAL_DATA;
+    function guardarResponsablesEnCache_(lista) {
+      window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+      window.DATA_ALMACEN_CACHE.responsablesMonitor = lista || [];
+    }
 
-          if (cacheDisponible) {
-            console.log("⚡ Cargando responsables desde caché global...");
-            
-            responsables = (cacheDisponible.usuarios || [])
-              .filter(u => u.rol === "RESPONSABLE" || u.rol === "ADMIN")
-              .map(u => u.nombre);
+    function obtenerResponsablesDesdeCacheCompat_() {
+      const cacheDisponible = window.DATA_ALMACEN_CACHE || window.GLOBAL_DATA || null;
+      if (!cacheDisponible) return [];
 
-            cargarPendientes(true);
-            ejecutarCiclo();
+      if (Array.isArray(cacheDisponible.responsablesMonitor) && cacheDisponible.responsablesMonitor.length > 0) {
+        return cacheDisponible.responsablesMonitor;
+      }
 
+      if (Array.isArray(cacheDisponible.usuarios) && cacheDisponible.usuarios.length > 0) {
+        return mapearResponsablesDesdeCache_(cacheDisponible);
+      }
+
+      return [];
+    }
+
+    // =========================================================
+    // INIT DE VISTA
+    // =========================================================
+    window.cargar_MonitorTraspasos = function() {
+      console.log("🔄 Inicializando: Monitor de Traspasos Pendientes");
+
+      if (window.temporizadorActualizacion) {
+        clearTimeout(window.temporizadorActualizacion);
+        window.temporizadorActualizacion = null;
+        console.log("🧹 Temporizador previo limpiado.");
+      }
+
+      const responsablesDesdeCache = obtenerResponsablesDesdeCacheCompat_();
+
+      if (responsablesDesdeCache.length > 0) {
+        console.log("⚡ [Monitor] Cargando responsables desde caché...");
+        responsables = [...new Set(responsablesDesdeCache)].sort();
+
+        cargarPendientes(true);
+        ejecutarCiclo();
+        return;
+      }
+
+      console.warn("⚠️ No hubo responsables en caché. Solicitando bootstrap del monitor...");
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          responsables = (data.responsables || []).slice().sort();
+          guardarResponsablesEnCache_(responsables);
+
+          console.log("✅ Responsables cargados desde MonitorTraspasosController:", responsables);
+
+          cargarPendientes(true);
+          ejecutarCiclo();
+        })
+        .withFailureHandler(function(err) {
+          console.error("❌ Error cargando bootstrap del monitor:", err);
+          if (typeof window.lanzarNotificacion === "function") {
+            window.lanzarNotificacion("❌ No se pudo cargar la información inicial del monitor", "error");
+          }
+        })
+        .MonitorTraspasosController_getBootstrap();
+    };
+
+    window.initVista = window.cargar_MonitorTraspasos;
+    console.log("🧩 [Monitor] initVista definida:", typeof window.initVista);
+
+    // =========================================================
+    // CONTROL DE INTERACCIÓN
+    // =========================================================
+    const contenedorPendientes = document.getElementById('listaPendientes');
+    if (contenedorPendientes) {
+      contenedorPendientes.onmouseenter = () => {
+        window.escribiendoMonitor = true;
+      };
+
+      contenedorPendientes.onmouseleave = () => {
+        const inputs = document.querySelectorAll('input[type="number"]');
+        const hayTexto = Array.from(inputs).some(i => i.value.trim() !== "");
+        if (!hayTexto) {
+          window.escribiendoMonitor = false;
+        }
+      };
+    }
+
+    // =========================================================
+    // CICLO DE ACTUALIZACIÓN
+    // =========================================================
+    function ejecutarCiclo() {
+      if (!document.getElementById('listaPendientes')) return;
+
+      window.temporizadorActualizacion = setTimeout(() => {
+        cargarPendientes(false).then(huboCambios => {
+          if (huboCambios) {
+            intervaloActual = 3000;
           } else {
-            console.warn("⚠️ No hay cache disponible.");
-            window.lanzarNotificacion("⚠️ Esta vista requiere datos iniciales del sistema principal", "warning");
+            intervaloActual = Math.min(intervaloActual + 3000, maxIntervalo);
           }
-        };
 
-        
-        window.initVista = window.cargar_MonitorTraspasos;
-        console.log("🧩 [Monitor] initVista definida:", typeof window.initVista);
+          console.log(`⏱️ Próxima consulta en ${intervaloActual / 1000}s`);
+          ejecutarCiclo();
+        });
+      }, intervaloActual);
+    }
 
-
-
-        // ==========================================
-        // 2. CONTROL DE INTERACCIÓN DE ESCRITURA
-        // ==========================================
-        const contenedorPendientes = document.getElementById('listaPendientes');
-        if (contenedorPendientes) {
-          contenedorPendientes.onmouseenter = () => { 
-            escribiendo = true; 
-          };
-
-          contenedorPendientes.onmouseleave = () => { 
-            // Buscamos si hay folios numéricos activos para no interrumpir la captura
-            const inputs = document.querySelectorAll('input[type="number"]');
-            const hayTexto = Array.from(inputs).some(i => i.value.trim() !== "");
-            if (!hayTexto) {
-              escribiendo = false;
-            }
-          };
+    // =========================================================
+    // CARGA DE PENDIENTES
+    // =========================================================
+    window.cargarPendientes = function(forzar = false) {
+      return new Promise((resolve) => {
+        if (!forzar && (procesando || window.escribiendoMonitor)) {
+          resolve(false);
+          return;
         }
 
-        // ==========================================
-        // 3. CICLO DE ACTUALIZACIÓN AUTOMÁTICA
-        // ==========================================
-        
-            
-        function ejecutarCiclo() {
-          if (!document.getElementById('listaPendientes')) return;
+        procesando = true;
 
-          window.temporizadorActualizacion = setTimeout(() => {
-            cargarPendientes(false).then(huboCambios => {
-              if (huboCambios) {
-                intervaloActual = 3000;
-              } else {
-                intervaloActual = Math.min(intervaloActual + 3000, maxIntervalo);
-              }
+        console.log("📡 [Monitor] Llamando MonitorTraspasosController_obtenerPendientes...");
 
-              console.log(`⏱️ Próxima consulta en ${intervaloActual / 1000}s`);
-              ejecutarCiclo();
-            });
-          }, intervaloActual);
-        }
+        google.script.run
+          .withSuccessHandler(function(pendientes) {
+            procesando = false;
 
+            console.log("📥 [Monitor] pendientes:", pendientes);
+            console.log("🧪 Array?:", Array.isArray(pendientes));
+            console.log("📊 Total:", Array.isArray(pendientes) ? pendientes.length : "no-array");
 
-
-        // ==========================================
-        // 4. OBTENER Y CONFIGURAR PENDIENTES
-        // ==========================================
-        
-        
-            window.cargarPendientes = function(forzar = false) {
-              return new Promise((resolve) => {
-
-                if (!forzar && (procesando || escribiendo)) {
-                  resolve(false);
-                  return;
-                }
-
-                procesando = true;
-
-                console.log("📡 [Monitor] Llamando obtenerTraspasosPendientes...");
-
-                google.script.run
-                    .withSuccessHandler(function(pendientes) {
-                      procesando = false;
-
-                      console.log("📥 [Monitor] pendientes:", pendientes);
-                      console.log("🧪 Array?:", Array.isArray(pendientes));
-                      console.log("📊 Total:", Array.isArray(pendientes) ? pendientes.length : "no-array");
-
-                      if (Array.isArray(pendientes) && pendientes.length > 0) {
-                        console.log("🔝 Primero:", pendientes[0]);
-                        console.log("🔚 Último:", pendientes[pendientes.length - 1]);
-                      }
-
-                      if (!Array.isArray(pendientes) || pendientes.length === 0) {
-                        renderizarCards([]);
-                        resolve(false);
-                        return;
-                      }
-
-                      const snapshotActual = JSON.stringify(pendientes);
-                      let huboCambios = false;
-
-                      if (ultimoSnapshot !== null && snapshotActual === ultimoSnapshot) {
-                        console.log("😴 [Monitor] Sin cambios");
-                        huboCambios = false;
-                      } else {
-                        console.log("🔄 [Monitor] Hubo cambios");
-                        ultimoSnapshot = snapshotActual;
-                        huboCambios = true;
-                        renderizarCards(pendientes);
-                      }
-
-                      resolve(huboCambios);
-
-                  })
-                  .withFailureHandler(function(err) {
-                    procesando = false;
-                    console.error("❌ Error:", err);
-                    resolve(false);
-                  })
-                  .obtenerTraspasosPendientes();
-
-              });
-            };
-
-
-
-        // ==========================================
-        // 5. RENDERIZADO DE TARJETAS (CARDS)
-        // ==========================================
-        window.renderizarCards = function(pendientes) {
-          const contenedor = document.getElementById('listaPendientes');
-          if (!contenedor) return;
-
-          if (!pendientes || pendientes.length === 0) {
-            contenedor.innerHTML = '<div style="text-align:center; margin-top:50px; color: #666;"><span class="material-icons" style="font-size:48px; color:#4CAF50;">done_all</span><p>✅ No hay movimientos pendientes.</p></div>';
-            return;
-          }
-
-          let opcionesResponsablesHTML = '<option value="">Responsable...</option>';
-          responsables.forEach(r => {
-            opcionesResponsablesHTML += `<option value="${r}">${r}</option>`;
-          });
-
-          const mapaAdmin = {
-            "BODEGA 1": "2 - Excedente Bodega",
-            "BODEGA 2": "2 - Excedente Bodega",
-            "BODEGA 3": "2 - Excedente Bodega",
-            "BODEGA MOSTRADOR": "2 - Excedente Bodega",
-            "CASA BLANCA 1": "3 - Excedente Casa Blanca",
-            "CASA BLANCA 2": "3 - Excedente Casa Blanca"
-          };
-
-          pendientes.forEach(item => {
-            let base = item.tipomovimiento === "ACOMODO" ? item.bodegaentrada : (item.bodegasalida || "");
-            let clave = base.toString().toUpperCase().trim();
-            item.bodegaVisual = mapaAdmin[clave] || base;
-          }); 
-
-          pendientes.sort((a, b) => a.bodegaVisual.localeCompare(b.bodegaVisual));
-
-          contenedor.innerHTML = '';
-          let ultimaBodegaSegmentada = "";
-
-          pendientes.forEach(item => {
-            let bodegaActual = item.bodegaVisual; 
-            
-            if (bodegaActual !== ultimaBodegaSegmentada) {
-              ultimaBodegaSegmentada = bodegaActual;
-              const separador = document.createElement('div');
-              separador.className = 'separador-bodega';
-              separador.innerHTML = `<span class="material-icons">store</span> ${bodegaActual}`;
-              contenedor.appendChild(separador);
+            if (!Array.isArray(pendientes) || pendientes.length === 0) {
+              renderizarCards([]);
+              ultimoSnapshot = JSON.stringify([]);
+              resolve(false);
+              return;
             }
 
-            const card = document.createElement('div');
-            card.className = 'card-pendiente';
-            card.style.display = "flex";
-            card.style.flexWrap = "wrap"; 
-            card.style.alignItems = "center";
-            card.style.gap = "15px";
-            card.style.padding = "15px";
-            card.style.marginBottom = "15px";
+            const snapshotActual = JSON.stringify(pendientes);
+            let huboCambios = false;
 
-                // Construcción del contenido de la tarjeta
-                card.innerHTML = `
-                <div class="columnatiposerie">
-                  <div class="titulotiposerietraspaso">Tipo
-                  </div>
+            if (ultimoSnapshot !== null && snapshotActual === ultimoSnapshot) {
+              console.log("😴 [Monitor] Sin cambios");
+              huboCambios = false;
+            } else {
+              console.log("🔄 [Monitor] Hubo cambios");
+              ultimoSnapshot = snapshotActual;
+              huboCambios = true;
+              renderizarCards(pendientes);
+            }
 
-                  <div class="itemtipotraspaso">
-                  ${item.tipomovimiento}
-                  </div>
+            resolve(huboCambios);
+          })
+          .withFailureHandler(function(err) {
+            procesando = false;
+            console.error("❌ Error:", err);
+            resolve(false);
+          })
+          .MonitorTraspasosController_obtenerPendientes();
+      });
+    };
 
-                  <div class="titulotiposerietraspaso">Serie
-                  </div>
+    // =========================================================
+    // RENDER DE CARDS
+    // =========================================================
+    window.renderizarCards = function(pendientes) {
+      const contenedor = document.getElementById('listaPendientes');
+      if (!contenedor) return;
 
-                  <div class="itemserietraspaso">
-                    <span class="material-icons">label
-                    </span>
-                    ${item.serie || '---'}
-                  </div>
-                </div>
+      if (!pendientes || pendientes.length === 0) {
+        contenedor.innerHTML =
+          '<div style="text-align:center; margin-top:50px; color: #666;">' +
+          '<span class="material-icons" style="font-size:48px; color:#4CAF50;">done_all</span>' +
+          '<p>✅ No hay movimientos pendientes.</p>' +
+          '</div>';
+        return;
+      }
 
-                <div class="columnacodigodescripcion">
-                    <div class="itemcodigotraspaso">
-                      ${item.codigo}
-                    </div>
-              
-                    <div class="itemdescripciontraspaso">
-                      ${item.descripcion}
-                    </div>
-                </div>
+      let opcionesResponsablesHTML = '<option value="">Responsable...</option>';
+      responsables.forEach(r => {
+        opcionesResponsablesHTML += `<option value="${r}">${r}</option>`;
+      });
 
+      const mapaAdmin = {
+        "BODEGA 1": "2 - Excedente Bodega",
+        "BODEGA 2": "2 - Excedente Bodega",
+        "BODEGA 3": "2 - Excedente Bodega",
+        "BODEGA MOSTRADOR": "2 - Excedente Bodega",
+        "CASA BLANCA 1": "3 - Excedente Casa Blanca",
+        "CASA BLANCA 2": "3 - Excedente Casa Blanca"
+      };
 
-                <div class="cuadrodatostraspaso">
-                    <div class="cuadrantecuadrodatostraspaso">
-                    <div class="tituloscuadrodatostraspaso">Almacen Salida:</div>
-                      <div class="itemcuadrodatostraspaso">
-                      ${limpiarNombre(item.bodegasalida)}</div>
-                    </div>
+      pendientes.forEach(item => {
+        let base = item.tipomovimiento === "ACOMODO"
+          ? item.bodegaentrada
+          : (item.bodegasalida || "");
 
-                    <div class="cuadrantecuadrodatostraspaso">
-                    <div class="tituloscuadrodatostraspaso">Almacen Entrada:</div>
-                      <div class="itemcuadrodatostraspaso">
-                      ${limpiarNombre(item.bodegaentrada)}</div>
-                    </div>
+        let clave = String(base || "").toUpperCase().trim();
+        item.bodegaVisual = mapaAdmin[clave] || base;
+      });
 
-                    <div class="cuadrantecuadrodatostraspaso">
-                      <div class="tituloscuadrodatostraspaso">Cantidad:</div>
-                      <div class="itemcuadrocantidadtraspaso">
-                        ${Math.abs(Number(item.cantidad || 0))}
-                      </div>
-                    </div>
+      pendientes.sort((a, b) => String(a.bodegaVisual || "").localeCompare(String(b.bodegaVisual || "")));
 
-                    <div class="cuadrantecuadrodatostraspaso">
-                    <div class="tituloscuadrodatostraspaso">Solicita:</div>
-                      <div class="itemcuadrodatostraspaso">
-                      ${item.solicitante}</div>
-                   </div>
-                </div>
+      contenedor.innerHTML = '';
+      let ultimaBodegaSegmentada = "";
 
+      pendientes.forEach(item => {
+        let bodegaActual = item.bodegaVisual;
 
-                <div style="display:flex; flex-direction:column; gap:8px;">
-                  
-                  <div class="input-con-icono" style="flex-grow:1;">
-                      <span class="material-icons">person</span>
-                      <select id="resp_${item.fila}" 
-                              onfocus="escribiendo = true" >
-                          ${opcionesResponsablesHTML}
-                      </select>
-                  </div>
+        if (bodegaActual !== ultimaBodegaSegmentada) {
+          ultimaBodegaSegmentada = bodegaActual;
+          const separador = document.createElement('div');
+          separador.className = 'separador-bodega';
+          separador.innerHTML = `<span class="material-icons">store</span> ${bodegaActual}`;
+          contenedor.appendChild(separador);
+        }
 
-                  <div style="display:flex; gap:5px;">
-                    
-                    <div class="input-con-icono">
-                    <span class="material-icons">tag</span>
-                    <input type="number" 
-                            id="folio_${item.fila}" 
-                            placeholder="Folio" 
-                            onfocus="escribiendo = true" 
-                            oninput="escribiendo = true"
-                            style="height:38px !important; font-size:13px;">
-                    </div>
+        const card = document.createElement('div');
+        card.className = 'card-pendiente';
+        card.style.display = "flex";
+        card.style.flexWrap = "wrap";
+        card.style.alignItems = "center";
+        card.style.gap = "15px";
+        card.style.padding = "15px";
+        card.style.marginBottom = "15px";
 
-                    <button onclick="procesarFila(${item.fila}, this)" class="btn-anadir-ajustado" style="min-width:45px; height:45px; background:#d93025;">
-                      <span class="material-icons">save</span>
-                    </button>
+        card.innerHTML = `
+          <div class="columnatiposerie">
+            <div class="titulotiposerietraspaso">Tipo</div>
+            <div class="itemtipotraspaso">${item.tipomovimiento}</div>
 
-                  </div>
+            <div class="titulotiposerietraspaso">Serie</div>
+            <div class="itemserietraspaso">
+              <span class="material-icons">label</span>
+              ${item.serie || '---'}
+            </div>
+          </div>
 
-                </div>
-              `;
-                contenedor.appendChild(card);
-              });
-            };
+          <div class="columnacodigodescripcion">
+            <div class="itemcodigotraspaso">${item.codigo}</div>
+            <div class="itemdescripciontraspaso">${item.descripcion}</div>
+          </div>
 
+          <div class="cuadrodatostraspaso">
+            <div class="cuadrantecuadrodatostraspaso">
+              <div class="tituloscuadrodatostraspaso">Almacen Salida:</div>
+              <div class="itemcuadrodatostraspaso">${limpiarNombre(item.bodegasalida)}</div>
+            </div>
 
-        // ==========================================
-        // 6. AUXILIARES
-        // ==========================================
-        window.limpiarNombre = function(nombre) {
-          if (!nombre || nombre === "---" || nombre === "") return "1 - Almacen Birlos";
+            <div class="cuadrantecuadrodatostraspaso">
+              <div class="tituloscuadrodatostraspaso">Almacen Entrada:</div>
+              <div class="itemcuadrodatostraspaso">${limpiarNombre(item.bodegaentrada)}</div>
+            </div>
 
-          const mapaAdmin = {
-            "BODEGA 1": "2 - Excedente Bodega",
-            "BODEGA 2": "2 - Excedente Bodega",
-            "BODEGA 3": "2 - Excedente Bodega",
-            "BODEGA MOSTRADOR": "2 - Excedente Bodega",
-            "CASA BLANCA 1": "3 - Excedente Casa Blanca",
-            "CASA BLANCA 2": "3 - Excedente Casa Blanca"
-          };
+            <div class="cuadrantecuadrodatostraspaso">
+              <div class="tituloscuadrodatostraspaso">Cantidad:</div>
+              <div class="itemcuadrocantidadtraspaso">${Math.abs(Number(item.cantidad || 0))}</div>
+            </div>
 
-          let clave = nombre.toString().toUpperCase().trim();
-          return mapaAdmin[clave] || nombre.toString().trim();
-        };
+            <div class="cuadrantecuadrodatostraspaso">
+              <div class="tituloscuadrodatostraspaso">Solicita:</div>
+              <div class="itemcuadrodatostraspaso">${item.solicitante}</div>
+            </div>
+          </div>
 
-        // ==========================================
-        // 7. PROCESAR ACCIÓN DE GUARDADO
-        // ==========================================
-        window.procesarFila = function(numFila, boton) {
-          const folio = document.getElementById('folio_' + numFila).value.trim();
-          const resp = document.getElementById('resp_' + numFila).value;
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div class="input-con-icono" style="flex-grow:1;">
+              <span class="material-icons">person</span>
+              <select id="resp_${item.fila}" onfocus="window.escribiendoMonitor = true">
+                ${opcionesResponsablesHTML}
+              </select>
+            </div>
 
-          if (!folio || !resp) {
-            window.lanzarNotificacion("Indica Folio y Responsable", "warning");
-            return;
+            <div style="display:flex; gap:5px;">
+              <div class="input-con-icono">
+                <span class="material-icons">tag</span>
+                <input
+                  type="number"
+                  id="folio_${item.fila}"
+                  placeholder="Folio"
+                  onfocus="window.escribiendoMonitor = true"
+                  oninput="window.escribiendoMonitor = true"
+                  style="height:38px !important; font-size:13px;"
+                >
+              </div>
+
+              <button
+                onclick="procesarFila(${item.fila}, this)"
+                class="btn-anadir-ajustado"
+                style="min-width:45px; height:45px; background:#d93025;"
+              >
+                <span class="material-icons">save</span>
+              </button>
+            </div>
+          </div>
+        `;
+
+        contenedor.appendChild(card);
+      });
+    };
+
+    // =========================================================
+    // AUXILIAR VISUAL
+    // =========================================================
+    window.limpiarNombre = function(nombre) {
+      if (!nombre || nombre === "---" || nombre === "") return "1 - ALMACEN BIRLOS";
+
+      const mapaAdmin = {
+        "BODEGA 1": "2 - Excedente Bodega",
+        "BODEGA 2": "2 - Excedente Bodega",
+        "BODEGA 3": "2 - Excedente Bodega",
+        "BODEGA MOSTRADOR": "2 - Excedente Bodega",
+        "CASA BLANCA 1": "3 - Excedente Casa Blanca",
+        "CASA BLANCA 2": "3 - Excedente Casa Blanca"
+      };
+
+      let clave = nombre.toString().toUpperCase().trim();
+      return mapaAdmin[clave] || nombre.toString().trim();
+    };
+
+    // =========================================================
+    // PROCESAR FILA
+    // =========================================================
+    window.procesarFila = function(numFila, boton) {
+      const inputFolio = document.getElementById('folio_' + numFila);
+      const selectResp = document.getElementById('resp_' + numFila);
+
+      const folio = inputFolio ? inputFolio.value.trim() : "";
+      const resp = selectResp ? selectResp.value : "";
+
+      if (!folio || !resp) {
+        if (typeof window.lanzarNotificacion === "function") {
+          window.lanzarNotificacion("Indica Folio y Responsable", "warning");
+        }
+        return;
+      }
+
+      boton.disabled = true;
+      boton.style.opacity = "0.5";
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (typeof window.lanzarNotificacion === "function") {
+            window.lanzarNotificacion(res.mensaje || "Traspaso procesado con éxito", "success");
           }
 
-          boton.disabled = true;
-          boton.style.opacity = "0.5";
+          const card = boton.closest('.card-pendiente');
+          if (card) {
+            card.style.transition = "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
+            card.style.opacity = "0";
+            card.style.transform = "translateX(100px)";
 
-          google.script.run
-            .withSuccessHandler(function(res) {
-              window.lanzarNotificacion("Traspaso procesado con éxito", "success");
+            setTimeout(() => {
+              card.style.display = "none";
+              window.escribiendoMonitor = false;
+              cargarPendientes(true);
+            }, 300);
+          }
+        })
+        .withFailureHandler(function(err) {
+          if (typeof window.lanzarNotificacion === "function") {
+            window.lanzarNotificacion("Error: " + err.message, "error");
+          }
+          boton.disabled = false;
+          boton.style.opacity = "1";
+        })
+        .MonitorTraspasosController_registrarMovimiento(numFila, folio, resp);
+    };
 
-              // Animación de salida instantánea UX FITO
-              const card = boton.closest('.card-pendiente');
-              if (card) {
-                card.style.transition = "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)";
-                card.style.opacity = "0";
-                card.style.transform = "translateX(100px)"; 
-                setTimeout(() => {
-                  card.style.display = "none";
-                  escribiendo = false;
-                  cargarPendientes(true); // Recarga silenciosa en background
-                }, 3000);
-              }
-            })
-            .withFailureHandler(function(err) {
-              window.lanzarNotificacion("Error: " + err, "error");
-              boton.disabled = false;
-              boton.style.opacity = "1";
-            })
-            .registrarMovimientoSistema(numFila, folio, resp);
-        };
-
-        window.validarTexto = function(input) {
-          escribiendo = input.value.trim() !== "";
-        };
-
-      })();
+  })();
 </script>

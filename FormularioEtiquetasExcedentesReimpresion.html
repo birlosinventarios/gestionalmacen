@@ -1,317 +1,216 @@
-    <div class="container mt-3">
+<div id="contenedorReimpresion" class="container mt-3">
 
-      <div class="card-formulario">
-        <div class="campo">
-          <label>ID</label>
-          <div class="input-con-icono">
-            <span class="material-icons">qr_code_scanner</span>
-            <input type="text" id="busquedaID" list="listaIDs" placeholder="Escanea o Selecciona un ID" oninput="aplicarFiltrosCruzados()">
-            <datalist id="listaIDs"></datalist>
-          </div>
-        </div>
-
-        <div class="campo">
-          <label>Codigo</label>
-          <div class="input-con-icono">
-            <span class="material-icons">inventory_2</span>
-            <input type="text" id="resCodigo" list="listaCodigos" placeholder="Escribe o selecciona un Codigo" oninput="aplicarFiltrosCruzados()">
-            <datalist id="listaCodigos"></datalist>
-          </div>
-        </div>
-
-        <div class="campo">
-          <label>Descripcion</label>
-          <div class="input-con-icono">
-            <span class="material-icons">description</span>
-            <input type="text" id="resDesc" readonly>
-          </div>
-        </div>
-
-        <div class="row">
-          <div class="col-6">
-            <div class="campo">
-              <label>Cantidad</label>
-              <div class="input-con-icono">
-                <span class="material-icons">tag</span>
-                <input type="text" id="resCant" readonly>
-              </div>
-            </div>
-          </div>
-          <div class="col-6">
-            <div class="campo">
-              <label>Ubicación Actual</label>
-              <div class="input-con-icono">
-                <span class="material-icons">place</span>
-                <input type="text" id="resUbi" list="listaUbicaciones" placeholder="Escribe o selecciona una Ubicacion" oninput="aplicarFiltrosCruzados()">
-                <datalist id="listaUbicaciones"></datalist>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <button class="btn-anadir-ajustado" onclick="agregarAListaReimpresion()" style="margin-top:15px;">
-          <span class="material-icons">add_circle</span> Añadir a la lista
-        </button>
+  <div class="card-formulario">
+    <div class="campo">
+      <label>ID</label>
+      <div class="input-con-icono">
+        <span class="material-icons">qr_code_scanner</span>
+        <input type="text" id="busquedaID" list="listaIDs" placeholder="Escanea o Selecciona un ID" oninput="aplicarFiltrosCruzados()">
+        <datalist id="listaIDs"></datalist>
       </div>
-
-      <div class="contenedor-lista-traspasos">
-        <ul id="listaReimpresion" class="fila-traspasos-lista">
-          </ul>
-      </div>
-
-      <button id="btnImprimirTodo" class="btn-anadir-ajustado" onclick="generarReimpresion()">
-        <span class="material-icons">print</span> 
-        <span id="textoBoton">Imprimir</span>
-      </button>
-
-      <div id="snackbar"></div>
-
     </div>
 
-    <?!= HtmlService.createHtmlOutputFromFile('FilaExcedentesReimpresion').getContent(); ?>
+    <div class="campo">
+      <label>Codigo</label>
+      <div class="input-con-icono">
+        <span class="material-icons">inventory_2</span>
+        <input type="text" id="resCodigo" list="listaCodigos" placeholder="Escribe o selecciona un Codigo" oninput="aplicarFiltrosCruzados()">
+        <datalist id="listaCodigos"></datalist>
+      </div>
+    </div>
 
-    <script>
-  let baseDatosExcedentes = []; 
-  let hashExcedentes = ""; 
-  let listaParaImprimir = [];
-  let snackbarTimeout; // Declaración necesaria para evitar errores
-  let bloqueadoPorLlenado = false;
+    <div class="campo">
+      <label>Descripcion</label>
+      <div class="input-con-icono">
+        <span class="material-icons">description</span>
+        <input type="text" id="resDesc" readonly>
+      </div>
+    </div>
 
-// --- CARGA INICIAL Y MONITOREO (ESTILO SPA) ---
-(function() {
-  console.log("Iniciando Módulo de Reimpresión de Excedentes...");
+    <div class="row">
+      <div class="col-6">
+        <div class="campo">
+          <label>Cantidad</label>
+          <div class="input-con-icono">
+            <span class="material-icons">tag</span>
+            <input type="text" id="resCant" readonly>
+          </div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="campo">
+          <label>Ubicación Actual</label>
+          <div class="input-con-icono">
+            <span class="material-icons">place</span>
+            <input type="text" id="resUbi" list="listaUbicaciones" placeholder="Escribe o selecciona una Ubicacion" oninput="aplicarFiltrosCruzados()">
+            <datalist id="listaUbicaciones"></datalist>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  // 1. LIMPIEZA DE SEGURIDAD
-  // Si ya existía un intervalo de una visita anterior, lo detenemos
-  if (window.intervaloReimpresion) {
-    clearInterval(window.intervaloReimpresion);
-    console.log("Intervalo de reimpresión previo limpiado.");
+    <button class="btn-anadir-ajustado" onclick="agregarAListaReimpresion()" style="margin-top:15px;">
+      <span class="material-icons">add_circle</span> Añadir a la lista
+    </button>
+  </div>
+
+  <div class="contenedor-lista-traspasos">
+    <ul id="listaReimpresion" class="fila-traspasos-lista"></ul>
+  </div>
+
+  <button id="btnImprimirTodo" class="btn-anadir-ajustado" onclick="generarReimpresion()">
+    <span class="material-icons">print</span>
+    <span id="textoBoton">Imprimir</span>
+  </button>
+
+  <div id="snackbar"></div>
+</div>
+
+<?!= HtmlService.createHtmlOutputFromFile('FilaExcedentesReimpresion').getContent(); ?>
+
+<script>
+(function () {
+  // =========================================================
+  // ESTADO SEGURO DE LA VISTA
+  // =========================================================
+  window.FormularioEtiquetasExcedentesReimpresionState =
+    window.FormularioEtiquetasExcedentesReimpresionState || {
+      baseDatosExcedentes: [],
+      hashExcedentes: "",
+      listaParaImprimir: [],
+      snackbarTimeout: null,
+      bloqueadoPorLlenado: false,
+      bootstrap: {
+        ids: [],
+        codigos: [],
+        ubicaciones: []
+      }
+    };
+
+  const state = window.FormularioEtiquetasExcedentesReimpresionState;
+
+  // =========================================================
+  // HELPERS INTERNOS
+  // =========================================================
+  function normalizarTexto(valor) {
+    return String(valor || "").trim().toUpperCase();
   }
 
-  // 2. CARGA DE METADATA INICIAL
-  google.script.run
-    .withSuccessHandler(function() { 
-      console.log("Metadata de reimpresión lista"); 
-    })
-    .withFailureHandler(function(err) {
-      console.error("Error al cargar metadata:", err);
-    })
-    .obtenerMegaDataInicial();
-
-  // 3. PRIMERA SINCRONIZACIÓN
-  sincronizarBaseDeDatos(); 
-
-  // 4. CONFIGURAR EL CICLO DE ACTUALIZACIÓN (Cada 3 segundos)
-  window.intervaloReimpresion = setInterval(function() {
-    // Verificamos si el contenedor de reimpresión aún existe en el DOM
-    // Cambia 'contenedorReimpresion' por el ID real de tu div principal en este archivo
-    const vistaActiva = document.getElementById('contenedorReimpresion'); 
-    
-    if (!vistaActiva) {
-      clearInterval(window.intervaloReimpresion);
-      console.log("Ciclo de reimpresión detenido por cambio de vista.");
+  function lanzarNotificacionLocal(m, t = "info") {
+    if (typeof window.notificar === "function") {
+      window.notificar(m, t);
       return;
     }
 
-    sincronizarBaseDeDatos();
-  }, 3000);
-
-})();
-
-  // 2. SINCRONIZACIÓN Y NOTIFICACIÓN
-function sincronizarBaseDeDatos() {
-  const activo = document.activeElement.id;
-  // Capturamos valores actuales para saber si el usuario está filtrando
-  const valID = document.getElementById("busquedaID").value;
-  const valCod = document.getElementById("resCodigo").value;
-  const valUbi = document.getElementById("resUbi").value;
-
-  const estaFiltrando = valID || valCod || valUbi;
-
-  google.script.run
-    .withSuccessHandler(function(datos) {
-      if (!datos) return;
-      const nuevoHash = JSON.stringify(datos);
-      if (nuevoHash === hashExcedentes) return; 
-      
-      const esPrimeraCarga = (baseDatosExcedentes.length === 0);
-      baseDatosExcedentes = datos;
-      hashExcedentes = nuevoHash;
-      
-      // Si el usuario NO está escribiendo y NO hay filtros aplicados, actualizamos listas
-      if (!estaFiltrando && !bloqueadoPorLlenado) {
-          actualizarDataListsManual(baseDatosExcedentes);
-      }
-
-      if (esPrimeraCarga) {
-        lanzarNotificacion("✅ Base de Excedentes conectada", "success");
-      }
-    })
-    .obtenerTodaLaBaseExcedentes();
-}
-
-  // 3. FUNCIÓN PARA NOTIFICACIONES (Estilo Toast)
-function lanzarNotificacion(m, t) {
     const x = document.getElementById("snackbar");
-    if (!x) return; // Seguridad por si no existe el div
+    if (!x) return;
 
-    clearTimeout(snackbarTimeout);
+    if (state.snackbarTimeout) {
+      clearTimeout(state.snackbarTimeout);
+    }
+
     x.innerText = m;
-    
-    // Aplicamos la clase 'show' y el tipo (ej: success, error, warning)
-    x.className = `show ${t || ''}`;
-    
-    snackbarTimeout = setTimeout(() => { 
-      x.className = x.className.replace("show", ""); 
+    x.className = `show ${t || ""}`;
+
+    state.snackbarTimeout = setTimeout(() => {
+      x.className = x.className.replace("show", "");
     }, 3000);
   }
 
-// 4. FILTROS CRUZADOS DINÁMICOS
-/**
- * Motor de filtrado N-Way (Cruzado). 
- * Filtra la base de datos basándose en los 3 criterios simultáneamente.
- */
-function aplicarFiltrosCruzados() {
-if (bloqueadoPorLlenado) return;
+  function bindOnce(el, key, eventName, handler) {
+    if (!el) return;
+    const flag = `bound_${key}`;
+    if (el.dataset[flag]) return;
 
-  // Capturamos el valor ORIGINAL (sin toUpperCase aquí)
-  const valID = document.getElementById("busquedaID").value.trim();
-  const valCod = document.getElementById("resCodigo").value.trim();
-  const valUbi = document.getElementById("resUbi").value.trim();
-
-  // Para la búsqueda interna, sí usamos una versión en mayúsculas
-  const searchID = valID.toUpperCase();
-  const searchCod = valCod.toUpperCase();
-  const searchUbi = valUbi.toUpperCase();
-
-  if (!valID && !valCod && !valUbi) {
-    limpiarCamposDetalle();
-    actualizarDataListsManual(baseDatosExcedentes);
-    return;
+    el.addEventListener(eventName, handler);
+    el.dataset[flag] = "1";
   }
-
-  const filtrados = baseDatosExcedentes.filter(item => {
-    const matchID = !valID || String(item.IDUNICO).toUpperCase().includes(searchID);
-    const matchCod = !valCod || String(item.CODIGO).toUpperCase().includes(searchCod);
-    const matchUbi = !valUbi || String(item.UBICACION).toUpperCase().includes(searchUbi);
-    return matchID && matchCod && matchUbi;
-  });
-
-  actualizarDataListsManual(filtrados);
-
-  if (filtrados.length === 1) {
-    bloqueadoPorLlenado = true;
-    llenarFormulario(filtrados); // <--- Corregido filtrados
-    setTimeout(() => { bloqueadoPorLlenado = false; }, 200);
-  } else {
-    // Comparación de coincidencia exacta (Case-Insensitive para mayor comodidad)
-    const itemExacto = filtrados.find(i => String(i.IDUNICO).trim().toUpperCase() === searchID);
-    if (itemExacto) {
-      bloqueadoPorLlenado = true;
-      llenarFormulario(itemExacto);
-      setTimeout(() => { bloqueadoPorLlenado = false; }, 200);
-    } else {
-      document.getElementById('resDesc').value = "";
-      document.getElementById('resCant').value = "";
-      document.getElementById('busquedaID').dataset.actualId = "";
-    }
-  }
-}
-
-// 5. UTILIDADES
-function actualizarDataListsManual(datos) {
-// Sacamos valores únicos de los datos que ya pasaron el filtro
-  const ids = [...new Set(datos.map(i => i.IDUNICO).filter(Boolean))];
-  const codigos = [...new Set(datos.map(i => i.CODIGO).filter(Boolean))];
-  const ubis = [...new Set(datos.map(i => i.UBICACION).filter(Boolean))];
-
-  llenarDatalist("listaIDs", ids);
-  llenarDatalist("listaCodigos", codigos);
-  llenarDatalist("listaUbicaciones", ubis);
-}
 
   function llenarDatalist(id, array) {
-const dl = document.getElementById(id);
-  if (!dl) return;
-  dl.innerHTML = ''; // Limpiamos opciones anteriores
-  
-  // Ordenar y quitar duplicados/nulos ya viene del paso anterior
-  array.sort().forEach(v => {
-    if (v) {
-      let opt = document.createElement('option');
-      opt.value = v;
-      dl.appendChild(opt);
+    const dl = document.getElementById(id);
+    if (!dl) return;
+
+    dl.innerHTML = "";
+    (array || []).slice().sort().forEach(v => {
+      if (v) {
+        const opt = document.createElement("option");
+        opt.value = v;
+        dl.appendChild(opt);
+      }
+    });
+  }
+
+  function actualizarDataListsManual(datos) {
+    const ids = [...new Set((datos || []).map(i => i.IDUNICO).filter(Boolean))];
+    const codigos = [...new Set((datos || []).map(i => i.CODIGO).filter(Boolean))];
+    const ubis = [...new Set((datos || []).map(i => i.UBICACION).filter(Boolean))];
+
+    llenarDatalist("listaIDs", ids);
+    llenarDatalist("listaCodigos", codigos);
+    llenarDatalist("listaUbicaciones", ubis);
+  }
+
+  function llenarFormulario(d) {
+    if (!d || Array.isArray(d)) return;
+
+    const elID = document.getElementById('busquedaID');
+    const elCod = document.getElementById('resCodigo');
+    const elUbi = document.getElementById('resUbi');
+    const elDesc = document.getElementById('resDesc');
+    const elCant = document.getElementById('resCant');
+
+    if (elID && elID.value !== String(d.IDUNICO || "")) elID.value = d.IDUNICO || "";
+    if (elCod && elCod.value !== String(d.CODIGO || "")) elCod.value = d.CODIGO || "";
+    if (elUbi && elUbi.value !== String(d.UBICACION || "")) elUbi.value = d.UBICACION || "";
+    if (elDesc) elDesc.value = d.DESCRIPCION || "";
+    if (elCant) elCant.value = d.CANTIDAD || "";
+
+    if (elID) {
+      elID.dataset.actualId = d.IDUNICO || "";
     }
-  });
-}
-
-function llenarFormulario(d) {
-if (!d || Array.isArray(d)) return; 
-  
-  const elID = document.getElementById('busquedaID');
-  const elCod = document.getElementById('resCodigo');
-  const elUbi = document.getElementById('resUbi');
-
-  // Comparamos los valores tal cual vienen, sin forzar mayúsculas
-  if (elID.value !== String(d.IDUNICO)) elID.value = d.IDUNICO || "";
-  if (elCod.value !== String(d.CODIGO)) elCod.value = d.CODIGO || "";
-  if (elUbi.value !== String(d.UBICACION)) elUbi.value = d.UBICACION || "";
-
-  document.getElementById('resDesc').value = d.DESCRIPCION || "";
-  document.getElementById('resCant').value = d.CANTIDAD || "";
-  
-  elID.dataset.actualId = d.IDUNICO || "";
-}
-
-  function restablecerFiltros() {
-limpiarCamposDetalle();
-  actualizarDataListsManual(baseDatosExcedentes);
-}
+  }
 
   function limpiarCamposDetalle() {
-    document.getElementById('resDesc').value = "";
-    document.getElementById('resCant').value = "";
-    document.getElementById('busquedaID').dataset.actualId = "";
+    const resDesc = document.getElementById('resDesc');
+    const resCant = document.getElementById('resCant');
+    const busquedaID = document.getElementById('busquedaID');
+
+    if (resDesc) resDesc.value = "";
+    if (resCant) resCant.value = "";
+    if (busquedaID) busquedaID.dataset.actualId = "";
   }
 
+  function limpiarFormularioBusqueda() {
+    state.bloqueadoPorLlenado = true;
 
-// 6. GESTIÓN DE LISTA E IMPRESIÓN
-function agregarAListaReimpresion() {
-const inputID = document.getElementById('busquedaID');
-  const valorId = inputID.dataset.actualId;
-  
-  // Validación extra: Que el valor del input coincida con el ID guardado
-  if (!valorId || inputID.value !== valorId) { 
-    lanzarNotificacion("⚠️ Por favor, selecciona un ID válido de la lista", "warning"); 
-    return; 
+    const ids = ["busquedaID", "resCodigo", "resDesc", "resCant", "resUbi"];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+
+    const elID = document.getElementById('busquedaID');
+    if (elID) elID.dataset.actualId = "";
+
+    actualizarDataListsManual(state.baseDatosExcedentes);
+
+    state.bloqueadoPorLlenado = false;
+
+    if (elID) elID.focus();
   }
 
-  if (listaParaImprimir.some(item => item.idUnico === valorId)) {
-    lanzarNotificacion("❌ Este ID ya está en la lista", "error");
-    return;
-  }
-
-  listaParaImprimir.push({
-    idUnico: valorId,
-    codigo: document.getElementById('resCodigo').value,
-    descripcion: document.getElementById('resDesc').value,
-    cantidad: document.getElementById('resCant').value,
-    ubicacion: document.getElementById('resUbi').value
-  });
-
-  actualizarVistaReimpresion();
-  limpiarFormularioBusqueda(); // Esta función ahora resetea todo
-  lanzarNotificacion("➕ Añadido a la lista", "success");
-}
-
-function actualizarVistaReimpresion() {
+  function actualizarVistaReimpresionInterna() {
     const listaUI = document.getElementById('listaReimpresion');
     const btnPrint = document.getElementById('btnImprimirTodo');
     const textoBoton = document.getElementById('textoBoton');
-    const plantilla = document.getElementById('plantillaExcedenteReimpresion').innerHTML;
-    
+    const plantillaEl = document.getElementById('plantillaExcedenteReimpresion');
+
+    if (!listaUI || !btnPrint || !textoBoton || !plantillaEl) return;
+
+    const plantilla = plantillaEl.innerHTML;
+
     listaUI.innerHTML = "";
-    listaParaImprimir.forEach((item, index) => {
+    state.listaParaImprimir.forEach((item, index) => {
       let html = plantilla
         .replace(/{{idUnico}}/g, item.idUnico)
         .replace(/{{codigo}}/g, item.codigo)
@@ -319,97 +218,346 @@ function actualizarVistaReimpresion() {
         .replace(/{{cantidad}}/g, item.cantidad)
         .replace(/{{ubicacion}}/g, item.ubicacion)
         .replace(/{{index}}/g, index);
+
       listaUI.insertAdjacentHTML('beforeend', html);
     });
 
-    btnPrint.style.display = listaParaImprimir.length > 0 ? "block" : "none";
-    textoBoton.innerText = `Imprimir (${listaParaImprimir.length})`;
+    btnPrint.style.display = state.listaParaImprimir.length > 0 ? "block" : "none";
+    textoBoton.innerText = `Imprimir (${state.listaParaImprimir.length})`;
   }
 
-  function quitarDeListaReimpresion(index) {
-    listaParaImprimir.splice(index, 1);
-    actualizarVistaReimpresion();
+  // =========================================================
+  // BOOTSTRAP + SINCRONIZACIÓN
+  // =========================================================
+  function hidratarBootstrap_(bootstrap) {
+    state.bootstrap.ids = bootstrap.ids || [];
+    state.bootstrap.codigos = bootstrap.codigos || [];
+    state.bootstrap.ubicaciones = bootstrap.ubicaciones || [];
+
+    // Guardamos en cache global para reutilización
+    window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+    window.DATA_ALMACEN_CACHE.reimpresionExcedentesBootstrap = bootstrap;
   }
 
-function limpiarFormularioBusqueda() {
-bloqueadoPorLlenado = true; // Evita que oninput se dispare mientras limpiamos
-  
-  const ids = ["busquedaID", "resCodigo", "resDesc", "resCant", "resUbi"];
-  ids.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = "";
-  });
-  
-  document.getElementById('busquedaID').dataset.actualId = ""; 
-  
-  // RESTAURACIÓN TOTAL: Esto permite que al volver a escribir aparezcan todos los valores
-  actualizarDataListsManual(baseDatosExcedentes); 
-  
-  bloqueadoPorLlenado = false;
-  document.getElementById('busquedaID').focus();
-}
+  function sincronizarBaseDeDatos() {
+    const elID = document.getElementById("busquedaID");
+    const elCod = document.getElementById("resCodigo");
+    const elUbi = document.getElementById("resUbi");
 
-      // 7. IMPRESIÓN FINAL
-function generarReimpresion() {
-    if (listaParaImprimir.length === 0) return;
+    const valID = elID ? elID.value : "";
+    const valCod = elCod ? elCod.value : "";
+    const valUbi = elUbi ? elUbi.value : "";
+
+    const estaFiltrando = valID || valCod || valUbi;
+
+    google.script.run
+      .withSuccessHandler(function (datos) {
+        if (!Array.isArray(datos)) return;
+
+        const nuevoHash = JSON.stringify(datos);
+        if (nuevoHash === state.hashExcedentes) return;
+
+        const esPrimeraCarga = (state.baseDatosExcedentes.length === 0);
+
+        state.baseDatosExcedentes = datos;
+        state.hashExcedentes = nuevoHash;
+
+        if (!estaFiltrando && !state.bloqueadoPorLlenado) {
+          actualizarDataListsManual(state.baseDatosExcedentes);
+        }
+
+        if (esPrimeraCarga) {
+          lanzarNotificacionLocal("✅ Base de Excedentes conectada", "success");
+        }
+      })
+      .withFailureHandler(function (err) {
+        console.error("❌ Error al sincronizar base de excedentes:", err);
+      })
+      .FormularioEtiquetasExcedentesReimpresionController_obtenerBase();
+  }
+
+  // =========================================================
+  // INIT DE VISTA
+  // =========================================================
+  window.inicializarVistaEtiquetasExcedentesReimpresion = function () {
+    console.log("📦 [Reimpresión Excedentes] Inicializando vista...");
+
+    // Si hay ciclo previo, se limpia
+    if (window.intervaloReimpresion) {
+      clearInterval(window.intervaloReimpresion);
+      window.intervaloReimpresion = null;
+      console.log("🧹 Intervalo de reimpresión previo limpiado.");
+    }
+
+    const cacheBootstrap = window.DATA_ALMACEN_CACHE?.reimpresionExcedentesBootstrap || null;
+
+    // 1) Reutilizar bootstrap de cache si existe
+    if (cacheBootstrap) {
+      console.log("⚡ [Reimpresión Excedentes] Cargando bootstrap desde cache...");
+      hidratarBootstrap_(cacheBootstrap);
+
+      // Usa bootstrap para poblar datalists mientras llega la base
+      llenarDatalist("listaIDs", state.bootstrap.ids);
+      llenarDatalist("listaCodigos", state.bootstrap.codigos);
+      llenarDatalist("listaUbicaciones", state.bootstrap.ubicaciones);
+
+      sincronizarBaseDeDatos();
+      iniciarCicloReimpresion_();
+      return;
+    }
+
+    // 2) Si ya existe bootstrap en memoria local
+    if (
+      state.bootstrap.ids.length > 0 ||
+      state.bootstrap.codigos.length > 0 ||
+      state.bootstrap.ubicaciones.length > 0
+    ) {
+      console.log("⚡ [Reimpresión Excedentes] Reutilizando bootstrap local...");
+
+      llenarDatalist("listaIDs", state.bootstrap.ids);
+      llenarDatalist("listaCodigos", state.bootstrap.codigos);
+      llenarDatalist("listaUbicaciones", state.bootstrap.ubicaciones);
+
+      sincronizarBaseDeDatos();
+      iniciarCicloReimpresion_();
+      return;
+    }
+
+    // 3) Fallback al controller nuevo
+    console.warn("⚠️ [Reimpresión Excedentes] Solicitando bootstrap específico...");
+
+    google.script.run
+      .withSuccessHandler(function (bootstrap) {
+        console.log("✅ [Reimpresión Excedentes] Bootstrap recibido:", bootstrap);
+
+        hidratarBootstrap_(bootstrap);
+
+        llenarDatalist("listaIDs", state.bootstrap.ids);
+        llenarDatalist("listaCodigos", state.bootstrap.codigos);
+        llenarDatalist("listaUbicaciones", state.bootstrap.ubicaciones);
+
+        sincronizarBaseDeDatos();
+        iniciarCicloReimpresion_();
+      })
+      .withFailureHandler(function (err) {
+        console.error("❌ Error al cargar bootstrap de reimpresión:", err);
+        lanzarNotificacionLocal("❌ No se pudo cargar la base de reimpresión", "error");
+      })
+      .FormularioEtiquetasExcedentesReimpresionController_getBootstrap();
+  };
+
+  window.initVista = window.inicializarVistaEtiquetasExcedentesReimpresion;
+  console.log("🧩 [Reimpresión Excedentes] initVista definida:", typeof window.initVista);
+
+  function iniciarCicloReimpresion_() {
+    window.intervaloReimpresion = setInterval(function () {
+      const vistaActiva = document.getElementById('contenedorReimpresion');
+
+      if (!vistaActiva) {
+        clearInterval(window.intervaloReimpresion);
+        window.intervaloReimpresion = null;
+        console.log("🛑 Ciclo de reimpresión detenido por cambio de vista.");
+        return;
+      }
+
+      sincronizarBaseDeDatos();
+    }, 3000);
+  }
+
+  // =========================================================
+  // FILTROS CRUZADOS
+  // =========================================================
+  window.aplicarFiltrosCruzados = function () {
+    if (state.bloqueadoPorLlenado) return;
+
+    const elID = document.getElementById("busquedaID");
+    const elCod = document.getElementById("resCodigo");
+    const elUbi = document.getElementById("resUbi");
+
+    const valID = elID ? elID.value.trim() : "";
+    const valCod = elCod ? elCod.value.trim() : "";
+    const valUbi = elUbi ? elUbi.value.trim() : "";
+
+    const searchID = valID.toUpperCase();
+    const searchCod = valCod.toUpperCase();
+    const searchUbi = valUbi.toUpperCase();
+
+    if (!valID && !valCod && !valUbi) {
+      limpiarCamposDetalle();
+      actualizarDataListsManual(state.baseDatosExcedentes);
+      return;
+    }
+
+    const filtrados = state.baseDatosExcedentes.filter(item => {
+      const matchID = !valID || String(item.IDUNICO).toUpperCase().includes(searchID);
+      const matchCod = !valCod || String(item.CODIGO).toUpperCase().includes(searchCod);
+      const matchUbi = !valUbi || String(item.UBICACION).toUpperCase().includes(searchUbi);
+      return matchID && matchCod && matchUbi;
+    });
+
+    actualizarDataListsManual(filtrados);
+
+    if (filtrados.length === 1) {
+      state.bloqueadoPorLlenado = true;
+      llenarFormulario(filtrados[0]);
+      setTimeout(() => { state.bloqueadoPorLlenado = false; }, 200);
+    } else {
+      const itemExacto = filtrados.find(i =>
+        String(i.IDUNICO).trim().toUpperCase() === searchID
+      );
+
+      if (itemExacto) {
+        state.bloqueadoPorLlenado = true;
+        llenarFormulario(itemExacto);
+        setTimeout(() => { state.bloqueadoPorLlenado = false; }, 200);
+      } else {
+        const resDesc = document.getElementById('resDesc');
+        const resCant = document.getElementById('resCant');
+        const busquedaID = document.getElementById('busquedaID');
+
+        if (resDesc) resDesc.value = "";
+        if (resCant) resCant.value = "";
+        if (busquedaID) busquedaID.dataset.actualId = "";
+      }
+    }
+  };
+
+  // =========================================================
+  // GESTIÓN DE LISTA
+  // =========================================================
+  window.agregarAListaReimpresion = function () {
+    const inputID = document.getElementById('busquedaID');
+    const valorId = inputID ? inputID.dataset.actualId : "";
+
+    if (!valorId || (inputID && inputID.value !== valorId)) {
+      lanzarNotificacionLocal("⚠️ Por favor, selecciona un ID válido de la lista", "warning");
+      return;
+    }
+
+    if (state.listaParaImprimir.some(item => item.idUnico === valorId)) {
+      lanzarNotificacionLocal("❌ Este ID ya está en la lista", "error");
+      return;
+    }
+
+    state.listaParaImprimir.push({
+      idUnico: valorId,
+      codigo: document.getElementById('resCodigo')?.value || "",
+      descripcion: document.getElementById('resDesc')?.value || "",
+      cantidad: document.getElementById('resCant')?.value || "",
+      ubicacion: document.getElementById('resUbi')?.value || ""
+    });
+
+    actualizarVistaReimpresionInterna();
+    limpiarFormularioBusqueda();
+    lanzarNotificacionLocal("➕ Añadido a la lista", "success");
+  };
+
+  window.quitarDeListaReimpresion = function (index) {
+    state.listaParaImprimir.splice(index, 1);
+    actualizarVistaReimpresionInterna();
+  };
+
+  // =========================================================
+  // IMPRESIÓN FINAL
+  // =========================================================
+  window.generarReimpresion = function () {
+    if (state.listaParaImprimir.length === 0) return;
+
     const btn = document.getElementById('btnImprimirTodo');
+    const textoBoton = document.getElementById('textoBoton');
+
+    if (!btn || !textoBoton) return;
+
     btn.disabled = true;
-    document.getElementById('textoBoton').innerText = "⏳ Generando...";
+    textoBoton.innerText = "⏳ Generando...";
 
     const win = window.open("", "_blank");
-         win.document.write(`
-                          <html>
-                            <head>
-                              <title>Generando Etiquetas...</title>
-                              <style>
-                                body { 
-                                  font-family: 'Google Sans', Roboto, Arial, sans-serif; 
-                                  display: flex; 
-                                  flex-direction: column; 
-                                  align-items: center; 
-                                  justify-content: center; 
-                                  height: 100vh; 
-                                  margin: 0; 
-                                  color: #5f6368; 
-                                  background-color: #f8f9fa;
-                                }
-                                .spinner {
-                                  width: 50px;
-                                  height: 50px;
-                                  border: 5px solid #f3f3f3;
-                                  border-top: 5px solid #d93025; /* Color rojo de tu interfaz */
-                                  border-radius: 50%;
-                                  animation: spin 1s linear infinite;
-                                  margin-bottom: 20px;
-                                }
-                                @keyframes spin {
-                                  0% { transform: rotate(0deg); }
-                                  100% { transform: rotate(360deg); }
-                                }
-                                h3 { font-weight: 400; }
-                              </style>
-                            </head>
-                            <body>
-                              <div class="spinner"></div>
-                              <h3>Preparando tus etiquetas...</h3>
-                              <p>Esto tomará solo unos segundos.</p>
-                            </body>
-                          </html>
-                        `);
-                        win.document.close();
+    if (!win) {
+      lanzarNotificacionLocal("⚠️ Ventana bloqueada. Permite los pop-ups.", "warning");
+      btn.disabled = false;
+      textoBoton.innerText = "Imprimir";
+      return;
+    }
 
-google.script.run
-      .withSuccessHandler(function(html) {
+    win.document.write(`
+      <html>
+        <head>
+          <title>Generando Etiquetas...</title>
+          <style>
+            body { 
+              font-family: 'Google Sans', Roboto, Arial, sans-serif; 
+              display: flex; 
+              flex-direction: column; 
+              align-items: center; 
+              justify-content: center; 
+              height: 100vh; 
+              margin: 0; 
+              color: #5f6368; 
+              background-color: #f8f9fa;
+            }
+            .spinner {
+              width: 50px;
+              height: 50px;
+              border: 5px solid #f3f3f3;
+              border-top: 5px solid #d93025;
+              border-radius: 50%;
+              animation: spin 1s linear infinite;
+              margin-bottom: 20px;
+            }
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            h3 { font-weight: 400; }
+          </style>
+        </head>
+        <body>
+          <div class="spinner"></div>
+          <h3>Preparando tus etiquetas...</h3>
+          <p>Esto tomará solo unos segundos.</p>
+        </body>
+      </html>
+    `);
+    win.document.close();
+
+    google.script.run
+      .withSuccessHandler(function (html) {
         win.document.open();
         win.document.write(html);
         win.document.close();
-        
-        listaParaImprimir = [];
-        actualizarVistaReimpresion();
+
+        state.listaParaImprimir = [];
+        actualizarVistaReimpresionInterna();
+
         btn.disabled = false;
-        document.getElementById('textoBoton').innerText = "Imprimir";
-        lanzarNotificacion("🖨️ Enviado a impresión", "success");
+        textoBoton.innerText = "Imprimir";
+
+        lanzarNotificacionLocal("🖨️ Enviado a impresión", "success");
       })
-      .procesarReimpresionExcedentes(listaParaImprimir); 
+      .withFailureHandler(function (err) {
+        console.error("❌ Error al procesar reimpresión:", err);
+        win.close();
+
+        btn.disabled = false;
+        textoBoton.innerText = "Imprimir";
+
+        lanzarNotificacionLocal("❌ Error al generar la reimpresión", "error");
+      })
+      .FormularioEtiquetasExcedentesReimpresionController_procesarReimpresion(state.listaParaImprimir);
+  };
+
+  // Compatibilidad si el shell o algún código viejo la busca
+  window.lanzarNotificacion = window.lanzarNotificacion || lanzarNotificacionLocal;
+
+  // =========================================================
+  // FALLBACK SI LA VISTA SE ABRE SOLA
+  // =========================================================
+  if (!window.DATA_ALMACEN_CACHE) {
+    setTimeout(() => {
+      if (typeof window.inicializarVistaEtiquetasExcedentesReimpresion === 'function') {
+        window.inicializarVistaEtiquetasExcedentesReimpresion();
+      }
+    }, 100);
   }
-    </script>
+})();
+</script>

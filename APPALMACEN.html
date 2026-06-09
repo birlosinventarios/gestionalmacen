@@ -252,44 +252,47 @@ window.lanzarNotificacion = window.notificar;
 
 
     const App = () => {
-      const [activeTool, setActiveTool] = useState('NegativosBirlos');
+      const [activeTool, setActiveTool] = useState('FormularioTraspasos');
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
       const [viewContent, setViewContent] = useState(""); 
       const [loading, setLoading] = useState(false); 
       const containerRef = useRef(null);
 
       // Función única de carga para evitar descargas múltiples
-      window.inicializarMegaData = () => {
-        if (window.DATA_ALMACEN_CACHE) {
-          console.log("⚡ [MegaData] Datos leídos desde la memoria local. No se consulta al servidor.");
-          return Promise.resolve(window.DATA_ALMACEN_CACHE);
-        }
+    window.inicializarMegaData = () => {
+      if (window.DATA_ALMACEN_CACHE) {
+        console.log("⚡ [MegaData] Datos leídos desde la memoria local. No se consulta al servidor.");
+        return Promise.resolve(window.DATA_ALMACEN_CACHE);
+      }
 
-        return new Promise((resolve, reject) => {
-          window.notificar("Sincronizando base de datos...", "info", 4000);
-          
-          google.script.run
-            .withSuccessHandler((megaData) => {
-              window.DATA_ALMACEN_CACHE = megaData;
-              
-              // Poblamos las globales del navegador
-              window.usuariosGlobal = megaData.usuarios || [];
-              window.bodegasGlobal = megaData.bodegas || [];
-              window.mapaUbicacionesGlobal = megaData.mapaUbicaciones || [];
-              window.catalogoGlobal = megaData.catalogo || [];
-              
-              window.notificar("Catálogo sincronizado exitosamente", "success");
-              console.log("📦 [MegaData Cache] Datos sincronizados por primera vez:", megaData);
-              resolve(megaData);
-            })
-            .withFailureHandler((error) => {
-              window.notificar("Error al descargar el catálogo", "error");
-              console.error("🚨 Fallo de MegaData:", error);
-              reject(error);
-            })
-            .getDataInicial();
-        });
-      };
+      return new Promise((resolve, reject) => {
+        window.notificar("Sincronizando base de datos...", "info", 4000);
+        
+        google.script.run
+          .withSuccessHandler((megaData) => {
+            window.DATA_ALMACEN_CACHE = megaData;
+
+            // Globals alineadas al contrato nuevo
+            window.usuariosGlobal = megaData.usuarios || [];
+            window.bodegasGlobal = megaData.bodegas || [];
+            window.codigosGlobal = megaData.codigos || [];
+            window.mapaCatalogoGlobal = megaData.mapaCatalogo || megaData.mapaProductos || {};
+            window.mapaUbicacionesExcedentesGlobal =
+              megaData.mapaUbicacionesExcedentes || megaData.mapaUbicaciones || [];
+
+            window.notificar("Catálogo sincronizado exitosamente", "success");
+            console.log("📦 [MegaData Cache] Datos sincronizados por primera vez:", megaData);
+            resolve(megaData);
+          })
+          .withFailureHandler((error) => {
+            window.notificar("Error al descargar el catálogo", "error");
+            console.error("🚨 Fallo de MegaData:", error);
+            reject(error);
+          })
+          .FormularioTraspasosController_getBootstrap(); // 👈 importante
+      });
+    };
+
 
      const seleccionarVista = (id, fileName) => {
         
@@ -332,7 +335,7 @@ window.lanzarNotificacion = window.notificar;
         window.inicializarMegaData()
           .then(() => {
             console.log("✅ [Shell] MegaData lista. Cargando vista inicial...");
-            seleccionarVista('NegativosBirlos', 'NegativosBirlos');
+            seleccionarVista('FormularioTraspasos', 'FormularioTraspasos');
           })
           .catch((error) => {
             console.error("🚨 [Shell] No se pudo inicializar MegaData:", error);
