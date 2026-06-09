@@ -2,48 +2,60 @@
 
 <script type="text/babel">
   (function() {
-    const { useState, useEffect, useMemo, useCallback, useRef } = React;
+    const { useState, useEffect, useMemo, useRef } = React;
 
-    // --- COMPONENTE: ICONOS DE LUCIDE ---
+    // =========================================================
+    // COMPONENTE: ICONOS DE LUCIDE
+    // =========================================================
     const LocalIcon = ({ name, size = 20, className = "" }) => {
       useEffect(() => {
         if (window.lucide) window.lucide.createIcons();
       }, [name]);
+
       return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
     };
 
-    // --- COMPONENTE: TARJETA DE MÉTRICAS ---
-const SummaryCard = ({ label, value, iconName, colorClass }) => (
-  <div className={`bg-white p-6 rounded-[1.5rem] border ${colorClass.split(' ') || 'border-gray-100'} shadow-sm flex items-center gap-6 transition-all hover:shadow-lg hover:-translate-y-1`}>
-    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${colorClass.split(' ').slice(0,2).join(' ')} shadow-inner`}>
-      <LocalIcon name={iconName} size={32} />
-    </div>
-    <div className="flex flex-col">
-      <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#5f6368] mb-1">
-        {label}
-      </p>
-      <h3 className="text-4xl font-black text-[#1c1d1f] tracking-tighter">
-        {value.toLocaleString()} 
-        <span className="text-sm font-bold text-gray-400 ml-2 italic">
-          {label.includes("Stock") ? "uds" : "reg"}
-        </span>
-      </h3>
-    </div>
-  </div>
-);
+    // =========================================================
+    // COMPONENTE: TARJETA DE MÉTRICAS
+    // =========================================================
+    const SummaryCard = ({ label, value, iconName, colorClass }) => (
+      <div className={`bg-white p-6 rounded-[1.5rem] border ${colorClass.split(' ') || 'border-gray-100'} shadow-sm flex items-center gap-6 transition-all hover:shadow-lg hover:-translate-y-1`}>
+        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${colorClass.split(' ').slice(0,2).join(' ')} shadow-inner`}>
+          <LocalIcon name={iconName} size={32} />
+        </div>
+        <div className="flex flex-col">
+          <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#5f6368] mb-1">
+            {label}
+          </p>
+          <h3 className="text-4xl font-black text-[#1c1d1f] tracking-tighter">
+            {Number(value || 0).toLocaleString()}
+            <span className="text-sm font-bold text-gray-400 ml-2 italic">
+              {label.includes("Stock") ? "uds" : "reg"}
+            </span>
+          </h3>
+        </div>
+      </div>
+    );
 
+    // =========================================================
+    // LÓGICA DE BODEGA POR SERIE
+    // =========================================================
+    const obtenerNombreBodega = (item) => {
+      const serie = String(item.eserie || "").toUpperCase();
 
-const obtenerNombreBodega = (item) => {
-      const serie = (item.eserie || "").toUpperCase();
       if (serie.startsWith("B1")) return "Bodega 1";
       if (serie.startsWith("B2")) return "Bodega 2";
       if (serie.startsWith("B3")) return "Bodega 3";
       if (serie.startsWith("BM")) return "Bodega Mostrador";
       if (serie.startsWith("CB1")) return "Casa Blanca 1";
       if (serie.startsWith("CB2")) return "Casa Blanca 2";
+
       return item.ebodegaActual || 'Almacén Central';
     };
 
+    // =========================================================
+    // COMPONENTE PRINCIPAL
+    // =========================================================
     const VistaGestorExcedentes = () => {
       const [data, setDatos] = useState([]);
       const [loading, setLoading] = useState(true);
@@ -52,195 +64,138 @@ const obtenerNombreBodega = (item) => {
       const [isSearchExpanded, setIsSearchExpanded] = useState(false);
       const inputRef = useRef(null);
 
-      // --- CARGA DE DATOS ---
-useEffect(() => {
-  refrescarDatos();
-}, []);
+      // ---------------------------------------------------------
+      // CARGA INICIAL
+      // ---------------------------------------------------------
+      useEffect(() => {
+        refrescarDatos();
+      }, []);
 
-const refrescarDatos = () => {
-  setLoading(true);
-  
-  google.script.run
-    .withSuccessHandler((resultadoMaestro) => {
-      // ========================================================
-      // 🔓 TRASPARENCIA TEMPORAL - AUDITORÍA DE DATOS EN NAVEGADOR
-      // ========================================================
-      console.log("======================================================");
-      console.log("📦 [AUDITORÍA DE BACKEND] Objeto Maestro Recibido:");
-      console.log(resultadoMaestro);
-      
-      if (resultadoMaestro) {
-        console.log(`📊 Filas en Bitacora-TRASPASOS: ${resultadoMaestro.movimientosBitacora?.length || 0}`);
-        console.log(`📊 Filas en BD-EXCEDENTES: ${resultadoMaestro.baseExcedentes?.length || 0}`);
-        
-        // Muestra los primeros 5 registros de cada una en una tabla interactiva en la consola
-        if (resultadoMaestro.movimientosBitacora?.length > 0) {
-          console.log("🔍 Muestra - Movimientos Bitácora:");
-          console.table(resultadoMaestro.movimientosBitacora.slice(0, 5));
-        }
-        if (resultadoMaestro.baseExcedentes?.length > 0) {
-          console.log("🔍 Muestra - Base de Excedentes Consolidados:");
-          console.table(resultadoMaestro.baseExcedentes.slice(0, 5));
-        }
-      } else {
-        console.error("🚨 El backend devolvió un objeto NULL o UNDEFINED.");
-      }
-      console.log("======================================================");
-      // ========================================================
+      // ---------------------------------------------------------
+      // REFRESH CONTRA CONTROLLER NUEVO
+      // ---------------------------------------------------------
+      const refrescarDatos = () => {
+        setLoading(true);
 
-      // Desempaque seguro
-      const movimientosCrudos = (resultadoMaestro && resultadoMaestro.movimientosBitacora) || [];
+        google.script.run
+          .withSuccessHandler((resultado) => {
+            console.log("======================================================");
+            console.log("📦 [GestorExcedentes] Datos consolidados recibidos:");
+            console.table(resultado || []);
+            console.log(`📊 Total registros consolidados: ${(resultado || []).length}`);
+            console.log("======================================================");
 
-      // OPCIONAL: Si deseas guardar el estado plano de BD-EXCEDENTES en un hook state, aquí lo tienes:
-      // if (resultadoMaestro && resultadoMaestro.baseExcedentes) setBaseExcedentes(resultadoMaestro.baseExcedentes);
+            setDatos(Array.isArray(resultado) ? resultado : []);
+            setLoading(false);
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ Error cargando excedentes consolidados:", err);
 
-      if (movimientosCrudos.length === 0) {
-        setDatos([]);
-        setLoading(false);
-        return;
-      }
+            if (typeof window.notificar === "function") {
+              window.notificar("No se pudieron recuperar los excedentes consolidados", "error");
+            } else if (typeof Swal !== "undefined") {
+              Swal.fire("Error", "No se pudieron recuperar los excedentes consolidados", "error");
+            }
 
-      // Agrupamos por eidUnico para obtener el saldo neto real en excedentes
-      const mapaSaldos = movimientosCrudos.reduce((acc, mov) => {
-        const id = mov.eidUnico;
-        if (!id) return acc; // Ignoramos movimientos sin identificador único
+            setDatos([]);
+            setLoading(false);
+          })
+          .GestorExcedentesController_obtenerExcedentesConsolidados();
+      };
 
-        if (!acc[id]) {
-          // Copiamos las propiedades del movimiento inicial
-          // Inicializamos 'esaldo' en 0 para mantener consistencia con el diseño de tu tabla
-          acc[id] = { ...mov, esaldo: 0 };
-        }
-
-        // Sumamos (Acomodo aumenta saldo (+), Surtido disminuye saldo (-))
-        // Nota: Asegúrate de que en la bitácora las salidas/surtidos ya vengan con valor negativo en ecantidad,
-        // o que apliques lógica de tipo de movimiento si es necesario.
-        acc[id].esaldo += Number(mov.ecantidad || 0);
-        return acc;
-      }, {});
-
-      // Filtramos para mostrar únicamente lo que tiene saldo en existencia actualmente (> 0)
-      const excedentesReales = Object.values(mapaSaldos).filter(
-        (item) => item.esaldo > 0
-      );
-
-      setDatos(excedentesReales); // Guarda el array en el estado 'data'
-      setLoading(false);
-    })
-    .withFailureHandler((err) => {
-      console.error("Error cargando excedentes:", err);
-      Swal.fire("Error", "No se pudieron recuperar los movimientos de la bitácora", "error");
-      setLoading(false);
-    })
-    .obtenerInformacionExcedentes(); // Llamada a tu función purgada
-};
-
-const procesarSaldos = (movimientos) => {
-  // 1. Agrupamos por IDUNICO para sumar cantidades
-  const mapaSaldos = movimientos.reduce((acc, mov) => {
-    const id = mov.idUnico;
-    if (!acc[id]) {
-      // Si es la primera vez que vemos este ID, creamos la base
-      acc[id] = { ...mov, saldoActual: 0 };
-    }
-    // Sumamos la cantidad (Acomodo + / Surtido -)
-    acc[id].saldoActual += Number(mov.cantidad);
-    return acc;
-  }, {});
-
-  // 2. Convertimos el mapa a un array y filtramos solo lo que tenga saldo > 0
-  const soloExcedentes = Object.values(mapaSaldos).filter(item => item.saldoActual > 0);
-  
-  setDatos(soloExcedentes); // Guardamos en el estado de React
-};
-
-// --- 🎯 DETECCIÓN DE BODEGAS CON STOCK SEGÚN LA BÚSQUEDA ---
+      // ---------------------------------------------------------
+      // DETECCIÓN DE BODEGAS CON STOCK SEGÚN LA BÚSQUEDA
+      // ---------------------------------------------------------
       const bodegasConExistenciaBuscada = useMemo(() => {
         const resultado = new Set();
         const f = filtro.toLowerCase().trim();
-        if (!f) return resultado; // Si no hay búsqueda, retorna Set vacío.
+
+        if (!f) return resultado;
 
         data.forEach(item => {
-          const coincide = 
+          const coincide =
             (item.ecodigo && item.ecodigo.toLowerCase().includes(f)) ||
             (item.eidUnico && item.eidUnico.toLowerCase().includes(f)) ||
             (item.edescripcion && item.edescripcion.toLowerCase().includes(f));
-          
+
           if (coincide && Number(item.esaldo) > 0) {
             resultado.add(obtenerNombreBodega(item));
           }
         });
+
         return resultado;
       }, [data, filtro]);
 
+      // ---------------------------------------------------------
+      // FILTROS EN FRONT
+      // ---------------------------------------------------------
       const datosFiltrados = useMemo(() => {
         let filtrados = data;
 
-        // 1. Filtrado por botón de Bodega
+        // 1) Filtrado por bodega
         if (bodegaSeleccionada !== "Todos") {
           filtrados = filtrados.filter(item => obtenerNombreBodega(item) === bodegaSeleccionada);
         }
 
-        // 2. Filtrado por input de búsqueda de texto libre
+        // 2) Filtrado por búsqueda libre
         if (!filtro.trim()) return filtrados;
+
         const f = filtro.toLowerCase().trim();
-        return filtrados.filter(item => 
+        return filtrados.filter(item =>
           (item.ecodigo && item.ecodigo.toLowerCase().includes(f)) ||
           (item.eidUnico && item.eidUnico.toLowerCase().includes(f)) ||
           (item.edescripcion && item.edescripcion.toLowerCase().includes(f))
         );
       }, [data, filtro, bodegaSeleccionada]);
 
-      // Array de segmentos requeridos
+      // Segmentación fija
       const opcionBodegas = [
-        "Todos", 
-        "Bodega 1", 
-        "Bodega 2", 
-        "Bodega 3", 
-        "Bodega Mostrador", 
-        "Casa Blanca 1", 
+        "Todos",
+        "Bodega 1",
+        "Bodega 2",
+        "Bodega 3",
+        "Bodega Mostrador",
+        "Casa Blanca 1",
         "Casa Blanca 2"
       ];
-
-
 
       return (
         <div className="h-full w-full flex flex-col relative bg-[#f8f9fa]">
 
-          {/* Métricas */}
+          {/* MÉTRICAS */}
           <div className="px-8 py-6 grid grid-cols-1 md:grid-cols-3 gap-8">
-            <SummaryCard 
-              label="IDs en Sistema" 
-              value={data.length} 
-              iconName="database" 
-              colorClass="bg-slate-50 text-slate-700 border-slate-100" 
+            <SummaryCard
+              label="IDs en Sistema"
+              value={data.length}
+              iconName="database"
+              colorClass="bg-slate-50 text-slate-700 border-slate-100"
             />
-            
-            <SummaryCard 
-              label="Stock Total Excedente" 
-              value={data.reduce((acc, item) => acc + (Number(item.esaldo) || 0), 0)} 
-              iconName="package-check" 
-              colorClass="bg-emerald-50 text-emerald-600 border-emerald-100" 
+
+            <SummaryCard
+              label="Stock Total Excedente"
+              value={data.reduce((acc, item) => acc + (Number(item.esaldo) || 0), 0)}
+              iconName="package-check"
+              colorClass="bg-emerald-50 text-emerald-600 border-emerald-100"
             />
-            
-            <SummaryCard 
-              label="Resultados Búsqueda" 
-              value={datosFiltrados.length} 
-              iconName="search" 
-              colorClass="bg-[#fffafa] text-[#d93025] border-[#fdecea]" 
+
+            <SummaryCard
+              label="Resultados Búsqueda"
+              value={datosFiltrados.length}
+              iconName="search"
+              colorClass="bg-[#fffafa] text-[#d93025] border-[#fdecea]"
             />
           </div>
 
-          {/* 🔘 Segmentación por Bodega con Resaltado Dinámico */}
+          {/* SEGMENTACIÓN POR BODEGA */}
           <div className="px-8 pb-5 flex flex-wrap gap-2 shrink-0">
             {opcionBodegas.map((bodega) => {
               const esActivo = bodegaSeleccionada === bodega;
               const tieneStockBuscado = bodegasConExistenciaBuscada.has(bodega);
-              
+
               let clasesBordeYFondo = "";
               if (esActivo) {
                 clasesBordeYFondo = "bg-[#1c1d1f] text-white border-[#1c1d1f] shadow-md";
               } else if (tieneStockBuscado) {
-                // 🌟 Asignamos ÚNICAMENTE nuestra clase CSS pura para evitar conflictos de Tailwind
                 clasesBordeYFondo = "bodega-pulso-rojo shadow-md";
               } else {
                 clasesBordeYFondo = "bg-white text-[#5f6368] border-[#dadce0] hover:bg-gray-50 hover:text-[#1c1d1f]";
@@ -258,7 +213,7 @@ const procesarSaldos = (movimientos) => {
             })}
           </div>
 
-          {/* Tabla */}
+          {/* TABLA */}
           <div className="flex-1 overflow-auto px-8 pb-40">
             <div className="bg-white rounded-[2rem] border border-[#dadce0] overflow-hidden shadow-sm">
               <table className="w-full text-left">
@@ -278,36 +233,34 @@ const procesarSaldos = (movimientos) => {
                     </th>
                   </tr>
                 </thead>
+
                 <tbody className="divide-y divide-[#f1f3f4] bg-white">
                   {datosFiltrados.map((item, idx) => (
                     <tr key={item.eidUnico || idx} className="group hover:bg-[#fcfcfc] transition-colors">
-                      
-                      {/* SKU: Alineado a la izquierda con ID en formato Label de alto contraste */}
+
+                      {/* SKU / ID */}
                       <td className="px-6 py-4 text-left">
                         <div className="flex flex-col items-start gap-1.5">
-                            {/* Código con contraste por grosor y tamaño */}
                           <span className="text-[18px] font-black text-[#1c1d1f] leading-none ml-0.5">
                             {item.ecodigo}
                           </span>
 
-                          {/* ID UNICO como Label/Badge de alto contraste */}
                           <span className="inline-block px-3 py-1 rounded-md bg-[#d93025]/15 border border-[#d93025]/30 text-[#d93025] font-mono text-[20px] font-bold tracking-wider shadow-sm backdrop-blur-sm">
                             {item.eidUnico}
-                          </span>                    
+                          </span>
                         </div>
-                      </td>    
+                      </td>
 
-                      {/* DESCRIPCIÓN: Alineado a la derecha */}
+                      {/* DESCRIPCIÓN */}
                       <td className="px-6 py-4 text-center">
                         <span className="text-[20px] font-medium text-[#3c4043] leading-tight block">
                           {item.edescripcion}
                         </span>
                       </td>
 
-                      {/* BALANCE: Centrado */}
+                      {/* BALANCE */}
                       <td className="px-8 py-6 text-center">
                         <div className="inline-flex flex-col items-end">
-                          {/* Texto ahora en negro sólido */}
                           <span className="text-[20px] font-black text-[#1c1d1f]">
                             {item.esaldo || 0}
                           </span>
@@ -317,27 +270,15 @@ const procesarSaldos = (movimientos) => {
                         </div>
                       </td>
 
-                      {/* UBICACIÓN: Centrado con Lógica de Bodega */}
+                      {/* UBICACIÓN */}
                       <td className="px-6 py-4 text-center">
                         <div className="flex flex-col items-center">
-                          {/* Serie con estilo destacado utilizando la propiedad ya depurada */}
                           <span className="text-[20px] text-[#5f6368] font-medium bg-gray-100 px-3 py-0.5 rounded-lg mb-1">
                             {item.eserie || 'Sin Serie'}
                           </span>
 
-                          {/* Lógica Condicional para el nombre de la Bodega */}
                           <span className="text-[20px] font-bold text-[#1c1d1f]">
-                            {(() => {
-                              const serie = (item.eserie || "").toUpperCase();
-                              if (serie.startsWith("B1")) return "Bodega 1";
-                              if (serie.startsWith("B2")) return "Bodega 2";
-                              if (serie.startsWith("B3")) return "Bodega 3";
-                              if (serie.startsWith("BM")) return "Bodega Mostrador";
-                              if (serie.startsWith("CB1")) return "Casa Blanca 1";
-                              if (serie.startsWith("CB2")) return "Casa Blanca 2";
-                              
-                              return item.ebodegaActual || 'Almacén Central';
-                            })()}
+                            {obtenerNombreBodega(item)}
                           </span>
                         </div>
                       </td>
@@ -346,19 +287,22 @@ const procesarSaldos = (movimientos) => {
                   ))}
                 </tbody>
               </table>
+
               {loading && (
                 <div className="p-20 flex flex-col items-center text-[#d93025]">
                   <LocalIcon name="loader-2" size={40} className="animate-spin mb-2" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-[#5f6368]">Sincronizando...</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#5f6368]">
+                    Sincronizando...
+                  </span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* 🔘 BOTONES FLOTANTES: VERSIÓN ULTRA-PREMIUM */}
+          {/* BOTONES FLOTANTES */}
           <div className="fixed bottom-10 right-10 flex flex-col items-end gap-5 z-50">
-            
-            {/* Buscador Expandible con Glassmorphism */}
+
+            {/* BUSCADOR EXPANDIBLE */}
             <div className="flex items-center gap-3">
               {isSearchExpanded && (
                 <input
@@ -371,19 +315,19 @@ const procesarSaldos = (movimientos) => {
                   onChange={(e) => setFiltro(e.target.value)}
                 />
               )}
-              
-              <button 
+
+              <button
                 onClick={() => {
                   setIsSearchExpanded(!isSearchExpanded);
                   if (!isSearchExpanded) {
                     setTimeout(() => inputRef.current?.focus(), 120);
                   } else {
-                    setFiltro(""); 
+                    setFiltro("");
                   }
                 }}
                 className={`w-16 h-16 rounded-[1.25rem] shadow-lg flex items-center justify-center text-white transition-all duration-500 transform active:scale-95 hover:scale-105 hover:shadow-[0_10px_25px_rgba(217,48,37,0.3)] ${
-                  isSearchExpanded 
-                    ? 'bg-[#1c1d1f] hover:bg-black ring-4 ring-black/10' 
+                  isSearchExpanded
+                    ? 'bg-[#1c1d1f] hover:bg-black ring-4 ring-black/10'
                     : 'bg-[#d93025] hover:bg-[#b02218] ring-4 ring-[#d93025]/10'
                 }`}
                 title={isSearchExpanded ? "Cerrar buscador" : "Buscar material"}
@@ -392,49 +336,48 @@ const procesarSaldos = (movimientos) => {
               </button>
             </div>
 
-            {/* Botón de Actualización de Alto Contraste */}
-            <button 
-                onClick={refrescarDatos}
-                disabled={loading}
-                className="w-16 h-16 bg-white/90 backdrop-blur-md border border-[#dadce0] rounded-[1.25rem] shadow-lg flex items-center justify-center text-[#5f6368] hover:text-[#d93025] hover:border-[#d93025]/40 transition-all duration-300 transform active:scale-95 hover:scale-105 hover:shadow-[0_10px_20px_rgba(0,0,0,0.05)] disabled:opacity-50 disabled:pointer-events-none"
-                title="Actualizar tabla"
-              >
-                <LocalIcon 
-                  name="refresh-cw" 
-                  size={26} 
-                  className={loading ? "text-[#d93025]" : ""} // Se eliminó "animate-spin" y la transición "hover:rotate-180"
-                />
-              </button>
+            {/* REFRESH */}
+            <button
+              onClick={refrescarDatos}
+              disabled={loading}
+              className="w-16 h-16 bg-white/90 backdrop-blur-md border border-[#dadce0] rounded-[1.25rem] shadow-lg flex items-center justify-center text-[#5f6368] hover:text-[#d93025] hover:border-[#d93025]/40 transition-all duration-300 transform active:scale-95 hover:scale-105 hover:shadow-[0_10px_20px_rgba(0,0,0,0.05)] disabled:opacity-50 disabled:pointer-events-none"
+              title="Actualizar tabla"
+            >
+              <LocalIcon
+                name="refresh-cw"
+                size={26}
+                className={loading ? "text-[#d93025]" : ""}
+              />
+            </button>
           </div>
         </div>
       );
     };
 
-    
-window.cargar_GestorExcedentes = () => {
-  const rootEl = document.getElementById('vista-excedentes-root');
-  if (!rootEl) {
-    console.warn("⚠️ [GestorExcedentes] No se encontró #vista-excedentes-root");
-    return;
-  }
+    // =========================================================
+    // CONTRATO CON EL SHELL
+    // =========================================================
+    window.cargar_GestorExcedentes = () => {
+      const rootEl = document.getElementById('vista-excedentes-root');
+      if (!rootEl) {
+        console.warn("⚠️ [GestorExcedentes] No se encontró #vista-excedentes-root");
+        return;
+      }
 
-  // Si ya había un root previo, desmontarlo para evitar conflictos al volver a la vista
-  if (window.__GESTOR_EXCEDENTES_ROOT__) {
-    try {
-      window.__GESTOR_EXCEDENTES_ROOT__.unmount();
-    } catch (e) {
-      console.warn("⚠️ [GestorExcedentes] No se pudo desmontar root previo:", e);
-    }
-  }
+      if (window.__GESTOR_EXCEDENTES_ROOT__) {
+        try {
+          window.__GESTOR_EXCEDENTES_ROOT__.unmount();
+        } catch (e) {
+          console.warn("⚠️ [GestorExcedentes] No se pudo desmontar root previo:", e);
+        }
+      }
 
-  window.__GESTOR_EXCEDENTES_ROOT__ = ReactDOM.createRoot(rootEl);
-  window.__GESTOR_EXCEDENTES_ROOT__.render(<VistaGestorExcedentes />);
-};
+      window.__GESTOR_EXCEDENTES_ROOT__ = ReactDOM.createRoot(rootEl);
+      window.__GESTOR_EXCEDENTES_ROOT__.render(<VistaGestorExcedentes />);
+    };
 
-// ✅ Contrato con el shell
-window.initVista = window.cargar_GestorExcedentes;
-console.log("🧩 [GestorExcedentes] initVista definida:", typeof window.initVista)
-
+    window.initVista = window.cargar_GestorExcedentes;
+    console.log("🧩 [GestorExcedentes] initVista definida:", typeof window.initVista);
 
   })();
 </script>
@@ -455,11 +398,9 @@ console.log("🧩 [GestorExcedentes] initVista definida:", typeof window.initVis
     }
   }
 
-  /* 🌟 CLASE DEFINITIVA DE GLOW Y PULSO ROJO INTERMITENTE */
   .bodega-pulso-rojo {
     color: #d93025 !important;
     border-color: #d93025 !important;
-    /* Bloqueamos el shadow de tailwind para inyectar el nuestro */
     --tw-shadow: 0 0 #0000 !important;
     animation: resplandorRojoFuerte 1.2s infinite alternate ease-in-out !important;
   }
@@ -470,9 +411,7 @@ console.log("🧩 [GestorExcedentes] initVista definida:", typeof window.initVis
       background-color: #ffffff;
     }
     100% {
-      /* Sombreado rojo intenso difuminado hacia afuera */
       box-shadow: 0 0 16px 4px rgba(217, 48, 37, 0.6);
-      /* Ligero tintado rojo de fondo para el interior del botón */
       background-color: rgba(217, 48, 37, 0.05);
     }
   }

@@ -1,125 +1,164 @@
-      <button class="btn-filtros-flotante" type="button" data-bs-toggle="offcanvas" data-bs-target="#panelFiltros">
-        <span class="material-icons">filter_list</span>
-      </button>
+<button class="btn-filtros-flotante" type="button" data-bs-toggle="offcanvas" data-bs-target="#panelFiltros">
+  <span class="material-icons">filter_list</span>
+</button>
 
-      <?!= HtmlService.createHtmlOutputFromFile('FiltroLateral').getContent(); ?>
+<?!= HtmlService.createHtmlOutputFromFile('FiltroLateral').getContent(); ?>
 
-      <div class="container">
+<div class="container">
+  <div id="listaHistorial">
+    <p style="text-align:center; color: #666;">Cargando información...</p>
+  </div>
+</div>
 
-          <div id="listaHistorial">
-            <p style="text-align:center; color: #666;">Cargando información...</p>
-          </div>
-      </div>
-
-      <div id="snackbar"></div>
-
-
-
+<div id="snackbar"></div>
 
 <script>
-(function() {
-  let snackbarTimer = null;
-  let globalOpcionesSolicitante = '<option value="">Seleccionar...</option>';
-  let globalOpcionesResp = '<option value="">Seleccionar...</option>';
-  let globalOpcionesBodegas = '<option value="">Seleccionar...</option>';
-  let globalOpcionesUbicaciones = '<option value="">Seleccionar...</option>';
-  let datosOriginales = [];
-
-  function promesaScript(nombreFuncion, ...args) {
-    return new Promise((resolve, reject) => {
-      google.script.run
-        .withSuccessHandler(resolve)
-        .withFailureHandler(reject)[nombreFuncion](...args);
-    });
-  }
-
-  async function inicializarApp() {
-    const contenedor = document.getElementById('listaHistorial');
-
-    try {
-      const megaData = window.DATA_ALMACEN_CACHE;
-
-      if (!megaData) {
-        throw new Error("No existe DATA_ALMACEN_CACHE en memoria");
-      }
-
-      if (megaData.usuarios) {
-        globalOpcionesSolicitante =
-          '<option value="">Seleccionar...</option>' +
-          megaData.usuarios
-            .map(u => `<option value="${u.nombre}">${u.nombre}</option>`)
-            .join('');
-
-        globalOpcionesResp =
-          '<option value="">Seleccionar...</option>' +
-          megaData.usuarios
-            .filter(u => u.rol === "RESPONSABLE" || u.rol === "ADMIN")
-            .map(u => `<option value="${u.nombre}">${u.nombre}</option>`)
-            .join('');
-      }
-
-      if (megaData.bodegas) {
-        const todas = [...new Set(["1 - Almacen Birlos", ...megaData.bodegas])].sort();
-        globalOpcionesBodegas =
-          '<option value="">Seleccionar...</option>' +
-          todas.map(b => `<option value="${b}">${b}</option>`).join('');
-      }
-
-      if (megaData.mapaUbicaciones) {
-        const ubiUnicas = [...new Set(megaData.mapaUbicaciones.map(m => m.ubi))].sort();
-        globalOpcionesUbicaciones =
-          '<option value="">Seleccionar...</option>' +
-          ubiUnicas.map(u => `<option value="${u}">${u}</option>`).join('');
-      }
-
-      cargarHistorial();
-    } catch (error) {
-      console.error("Error al inicializar historial:", error);
-      contenedor.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+(function () {
+  // =========================================================
+  // ESTADO SEGURO DE LA VISTA
+  // =========================================================
+  window.HistorialTraspasosState = window.HistorialTraspasosState || {
+    snackbarTimer: null,
+    datosOriginales: [],
+    bootstrap: {
+      usuarios: [],
+      solicitantes: [],
+      responsables: [],
+      bodegas: [],
+      ubicaciones: []
+    },
+    opciones: {
+      solicitanteHTML: '<option value="">Seleccionar...</option>',
+      responsableHTML: '<option value="">Seleccionar...</option>',
+      bodegasHTML: '<option value="">Seleccionar...</option>',
+      ubicacionesHTML: '<option value="">Seleccionar...</option>'
     }
+  };
+
+  const state = window.HistorialTraspasosState;
+
+  // =========================================================
+  // HELPERS INTERNOS
+  // =========================================================
+  function normalizarTexto(valor) {
+    return String(valor || "").trim().toUpperCase();
   }
 
-  function cargarHistorial() {
-    const contenedor = document.getElementById('listaHistorial');
-    if (!contenedor) return;
+  function lanzarNotificacionLocal(mensaje, tipo = 'success') {
+    if (typeof window.notificar === 'function') {
+      window.notificar(mensaje, tipo);
+      return;
+    }
 
-    google.script.run
-      .withSuccessHandler(function(datos) {
-        console.log("Datos recibidos del servidor:", datos);
-
-        if (!datos || datos.length === 0) {
-          contenedor.innerHTML = '<div class="alert alert-warning text-center">No hay registros disponibles.</div>';
-          return;
-        }
-
-        datosOriginales = datos;
-        renderizarHistorial(datos);
-        actualizarDatalists(datos);
-      })
-      .withFailureHandler(err => {
-        console.error("Error al cargar historial:", err);
-        contenedor.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
-      })
-      .obtenerTodosLosRegistros();
-  }
-
-  function lanzarNotificacion(mensaje, tipo = 'success') {
     const el = document.getElementById("snackbar");
     if (!el) return;
 
-    clearTimeout(snackbarTimer);
+    clearTimeout(state.snackbarTimer);
+
     el.innerText = mensaje;
     el.className = `show ${tipo}`;
 
     const cerrar = () => {
       el.classList.remove("show");
-      snackbarTimer = setTimeout(() => {
+      state.snackbarTimer = setTimeout(() => {
         el.className = "";
       }, 400);
     };
 
-    snackbarTimer = setTimeout(cerrar, 3000);
+    state.snackbarTimer = setTimeout(cerrar, 3000);
     el.onclick = cerrar;
+  }
+
+  function inyectarSeleccion(html, valor) {
+    if (!valor) return html;
+    const buscar = `value="${valor}"`;
+    return html.replace(buscar, `${buscar} selected`);
+  }
+
+  function cacheHistorialDisponible_(cache) {
+    if (!cache) return false;
+
+    const usuariosOk = Array.isArray(cache.usuarios) && cache.usuarios.length > 0;
+    const bodegasOk = Array.isArray(cache.bodegas) && cache.bodegas.length > 0;
+    const ubicacionesOk =
+      (Array.isArray(cache.mapaUbicacionesExcedentes) && cache.mapaUbicacionesExcedentes.length > 0) ||
+      (Array.isArray(cache.mapaUbicaciones) && cache.mapaUbicaciones.length > 0);
+
+    return usuariosOk && bodegasOk && ubicacionesOk;
+  }
+
+  function construirBootstrapDesdeCache_(cache) {
+    const usuarios = (cache.usuarios || []).map(u => ({
+      idusuario: u.idusuario || "",
+      nombre: normalizarTexto(u.nombre),
+      rol: normalizarTexto(u.rol)
+    }));
+
+    const solicitantes = [...new Set(usuarios.map(u => u.nombre).filter(Boolean))].sort();
+
+    const responsables = [...new Set(
+      usuarios
+        .filter(u => u.rol === "RESPONSABLE" || u.rol === "ADMIN")
+        .map(u => u.nombre)
+        .filter(Boolean)
+    )].sort();
+
+    const bodegasBase = (cache.bodegas || []).map(b => normalizarTexto(b)).filter(Boolean);
+    const bodegas = [...new Set(["1 - ALMACEN BIRLOS", ...bodegasBase])].sort();
+
+    const mapaUbis = cache.mapaUbicacionesExcedentes || cache.mapaUbicaciones || [];
+    const ubicaciones = [...new Set(
+      mapaUbis
+        .map(m => normalizarTexto(m.ubi || m.ubicacion || m))
+        .filter(Boolean)
+    )].sort();
+
+    return {
+      usuarios,
+      solicitantes,
+      responsables,
+      bodegas,
+      ubicaciones
+    };
+  }
+
+  function hidratarBootstrap_(bootstrap) {
+    state.bootstrap = {
+      usuarios: bootstrap.usuarios || [],
+      solicitantes: bootstrap.solicitantes || [],
+      responsables: bootstrap.responsables || [],
+      bodegas: bootstrap.bodegas || [],
+      ubicaciones: bootstrap.ubicaciones || []
+    };
+
+    state.opciones.solicitanteHTML =
+      '<option value="">Seleccionar...</option>' +
+      state.bootstrap.solicitantes
+        .map(v => `<option value="${v}">${v}</option>`)
+        .join('');
+
+    state.opciones.responsableHTML =
+      '<option value="">Seleccionar...</option>' +
+      state.bootstrap.responsables
+        .map(v => `<option value="${v}">${v}</option>`)
+        .join('');
+
+    state.opciones.bodegasHTML =
+      '<option value="">Seleccionar...</option>' +
+      state.bootstrap.bodegas
+        .map(v => `<option value="${v}">${v}</option>`)
+        .join('');
+
+    state.opciones.ubicacionesHTML =
+      '<option value="">Seleccionar...</option>' +
+      state.bootstrap.ubicaciones
+        .map(v => `<option value="${v}">${v}</option>`)
+        .join('');
+  }
+
+  function guardarBootstrapEnCacheGlobal_() {
+    window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+    window.DATA_ALMACEN_CACHE.historialTraspasosBootstrap = state.bootstrap;
   }
 
   function actualizarDatalists(datos) {
@@ -142,7 +181,7 @@
     const almacenes = [...new Set([
       ...datos.map(item => item.origen),
       ...datos.map(item => item.destino),
-      "1 - Almacen Birlos"
+      "1 - ALMACEN BIRLOS"
     ])];
 
     renderizarOpcionesDatalist('listaAlmacenes', almacenes);
@@ -165,6 +204,31 @@
 
     lista.innerHTML = "";
     lista.appendChild(fragmento);
+  }
+
+  function cargarHistorial() {
+    const contenedor = document.getElementById('listaHistorial');
+    if (!contenedor) return;
+
+    google.script.run
+      .withSuccessHandler(function (datos) {
+        console.log("📚 [Historial] Registros recibidos:", datos);
+
+        if (!datos || datos.length === 0) {
+          state.datosOriginales = [];
+          contenedor.innerHTML = '<div class="alert alert-warning text-center">No hay registros disponibles.</div>';
+          return;
+        }
+
+        state.datosOriginales = datos;
+        renderizarHistorial(datos);
+        actualizarDatalists(datos);
+      })
+      .withFailureHandler(err => {
+        console.error("❌ [Historial] Error al cargar registros:", err);
+        contenedor.innerHTML = `<div class="alert alert-danger">Error: ${err.message}</div>`;
+      })
+      .HistorialTraspasosController_obtenerRegistros();
   }
 
   function renderizarHistorial(registros) {
@@ -200,18 +264,19 @@
 
       if (bodegaReferencia !== ultimaBodegaHeader) {
         ultimaBodegaHeader = bodegaReferencia;
+
         const sep = document.createElement('div');
         sep.className = 'separador-bodega-segmentada';
         sep.style = "background-color: #e9ecef;padding: 12px; margin: 25px 0 10px 0; border-left: 6px solid #d93025; font-weight: bold; display: flex; align-items: center; gap: 10px; border-radius: 4px; position: sticky; top: 0; z-index: 10; color: #333;";
-        sep.innerHTML = `<span class="material-icons">warehouse</span> ${bodegaReferencia.toUpperCase()}`;
+        sep.innerHTML = `<span class="material-icons">warehouse</span> ${String(bodegaReferencia).toUpperCase()}`;
         fragmento.appendChild(sep);
       }
 
-      const opcionesOrigen = inyectarSeleccion(globalOpcionesBodegas, item.origen);
-      const opcionesDestino = inyectarSeleccion(globalOpcionesBodegas, item.destino);
-      const opcionesResp = inyectarSeleccion(globalOpcionesResp, item.responsable);
-      const opcionesSerie = inyectarSeleccion(globalOpcionesUbicaciones, item.serie);
-      const opcionesSol = inyectarSeleccion(globalOpcionesSolicitante, item.solicitante);
+      const opcionesOrigen = inyectarSeleccion(state.opciones.bodegasHTML, item.origen);
+      const opcionesDestino = inyectarSeleccion(state.opciones.bodegasHTML, item.destino);
+      const opcionesResp = inyectarSeleccion(state.opciones.responsableHTML, item.responsable);
+      const opcionesSerie = inyectarSeleccion(state.opciones.ubicacionesHTML, item.serie);
+      const opcionesSol = inyectarSeleccion(state.opciones.solicitanteHTML, item.solicitante);
 
       const card = document.createElement('div');
       card.className = 'historial-card-pendiente';
@@ -219,6 +284,7 @@
         <div class="columnatiposerie">
           <div class="titulotiposerietraspaso">Tipo</div>
           <div class="itemtipotraspaso">${item.tipo}</div>
+
           <div class="titulotiposerietraspaso">Serie</div>
           <div class="itemserietraspaso">
             <span id="serie_texto_${item.fila}"><span class="material-icons">label</span>${item.serie || '---'}</span>
@@ -294,10 +360,15 @@
         </div>
 
         <div class="columna-acciones-historial">
-          <button type="button" onclick="activarEdicion(this, ${item.fila})" class="btn-icono-historial btn-editar"><span class="material-icons">edit</span></button>
-          <button type="button" id="btn_guardar_${item.fila}" onclick="guardarEdicion(this, ${item.fila})" class="btn-icono-historial btn-guardar" style="display:none;"><span class="material-icons">check_circle</span></button>
+          <button type="button" onclick="activarEdicion(this, ${item.fila})" class="btn-icono-historial btn-editar">
+            <span class="material-icons">edit</span>
+          </button>
+          <button type="button" id="btn_guardar_${item.fila}" onclick="guardarEdicion(this, ${item.fila})" class="btn-icono-historial btn-guardar" style="display:none;">
+            <span class="material-icons">check_circle</span>
+          </button>
         </div>
       `;
+
       fragmento.appendChild(card);
     });
 
@@ -305,62 +376,37 @@
     contenedor.appendChild(fragmento);
   }
 
-  function inyectarSeleccion(html, valor) {
-    if (!valor) return html;
-    const buscar = `value="${valor}"`;
-    return html.replace(buscar, `${buscar} selected`);
+  function preservarSignoLocal_(fila, nuevaCantidadPositiva) {
+    const idx = state.datosOriginales.findIndex(i => i.fila == fila);
+    if (idx === -1) return nuevaCantidadPositiva;
+
+    const original = Number(state.datosOriginales[idx].cantidad || 0);
+    return original < 0 ? -Math.abs(Number(nuevaCantidadPositiva || 0)) : Math.abs(Number(nuevaCantidadPositiva || 0));
   }
 
-  window.activarEdicion = function(boton, numFila) {
-    const campos = ['folio', 'resp', 'origen', 'destino', 'cant', 'serie', 'solicitante'];
-
-    campos.forEach(c => {
-      document.getElementById(`${c}_texto_${numFila}`).style.display = 'none';
-      document.getElementById(`${c}_input_${numFila}`).style.display = 'block';
-    });
-
-    boton.style.display = 'none';
-    document.getElementById(`btn_guardar_${numFila}`).style.display = 'block';
-    lanzarNotificacion("✏️ Modo edición activado", "info");
-  };
-
-  window.guardarEdicion = function(botonGuardar, numFila) {
-    const datos = {
-      folio: document.getElementById(`folio_input_${numFila}`).value,
-      responsable: document.getElementById(`resp_input_${numFila}`).value,
-      origen: document.getElementById(`origen_input_${numFila}`).value,
-      destino: document.getElementById(`destino_input_${numFila}`).value,
-      cantidad: document.getElementById(`cant_input_${numFila}`).value,
-      serie: document.getElementById(`serie_input_${numFila}`).value,
-      solicitante: document.getElementById(`solicitante_input_${numFila}`).value
-    };
-
-    botonGuardar.disabled = true;
-    botonGuardar.innerHTML = '<span class="material-icons">sync</span>';
-    lanzarNotificacion("⏳ Procesando cambios...", "info");
-
-    google.script.run
-      .withSuccessHandler(() => {
-        lanzarNotificacion("✅ Registro actualizado", "success");
-        actualizarInterfazTrasGuardar(numFila, datos, botonGuardar);
-      })
-      .withFailureHandler((err) => {
-        lanzarNotificacion(`❌ Error: ${err.message}`, "error");
-        botonGuardar.disabled = false;
-        botonGuardar.innerHTML = '<span class="material-icons">check_circle</span>';
-      })
-      .actualizarRegistroDesdeHistorialCompleto(numFila, datos);
-  };
-
   function actualizarInterfazTrasGuardar(numFila, datos, botonGuardar) {
-    const idx = datosOriginales.findIndex(i => i.fila == numFila);
-    if (idx !== -1) datosOriginales[idx] = { ...datosOriginales[idx], ...datos };
+    const idx = state.datosOriginales.findIndex(i => i.fila == numFila);
+
+    const cantidadConSigno = preservarSignoLocal_(numFila, datos.cantidad);
+
+    if (idx !== -1) {
+      state.datosOriginales[idx] = {
+        ...state.datosOriginales[idx],
+        folio: datos.folio,
+        responsable: datos.responsable,
+        origen: datos.origen,
+        destino: datos.destino,
+        cantidad: cantidadConSigno,
+        serie: datos.serie,
+        solicitante: datos.solicitante
+      };
+    }
 
     document.getElementById(`folio_texto_${numFila}`).innerText = datos.folio;
     document.getElementById(`resp_texto_${numFila}`).innerText = datos.responsable;
     document.getElementById(`origen_texto_${numFila}`).innerText = datos.origen;
     document.getElementById(`destino_texto_${numFila}`).innerText = datos.destino;
-    document.getElementById(`cant_texto_${numFila}`).innerText = datos.cantidad;
+    document.getElementById(`cant_texto_${numFila}`).innerText = Math.abs(Number(datos.cantidad || 0));
     document.getElementById(`serie_texto_${numFila}`).innerHTML = `<span class="material-icons">label</span>${datos.serie}`;
     document.getElementById(`solicitante_texto_${numFila}`).innerText = datos.solicitante;
 
@@ -373,19 +419,74 @@
     botonGuardar.style.display = 'none';
     botonGuardar.disabled = false;
     botonGuardar.innerHTML = '<span class="material-icons">check_circle</span>';
-    botonGuardar.parentElement.querySelector('.btn-editar').style.display = 'block';
+
+    const btnEditar = botonGuardar.parentElement.querySelector('.btn-editar');
+    if (btnEditar) btnEditar.style.display = 'block';
   }
 
-  window.aplicarFiltros = function() {
-    const fFecha = document.getElementById('filterFecha').value;
-    const fTipo = document.getElementById('filterTipo').value.toUpperCase();
-    const fCodigo = document.getElementById('filterCodigo').value.toUpperCase();
-    const fAlmacen = document.getElementById('filterAlmacen').value.toUpperCase();
-    const fSolicitante = document.getElementById('filterSolicitante').value.toUpperCase();
-    const fResponsable = document.getElementById('filterResponsable').value.toUpperCase();
-    const fFolio = document.getElementById('filterFolio').value.toUpperCase();
+  // =========================================================
+  // EDICIÓN
+  // =========================================================
+  window.activarEdicion = function (boton, numFila) {
+    const campos = ['folio', 'resp', 'origen', 'destino', 'cant', 'serie', 'solicitante'];
 
-    const resultados = datosOriginales.filter(item => {
+    campos.forEach(c => {
+      const texto = document.getElementById(`${c}_texto_${numFila}`);
+      const input = document.getElementById(`${c}_input_${numFila}`);
+
+      if (texto) texto.style.display = 'none';
+      if (input) input.style.display = 'block';
+    });
+
+    boton.style.display = 'none';
+
+    const btnGuardar = document.getElementById(`btn_guardar_${numFila}`);
+    if (btnGuardar) btnGuardar.style.display = 'block';
+
+    lanzarNotificacionLocal("✏️ Modo edición activado", "info");
+  };
+
+  window.guardarEdicion = function (botonGuardar, numFila) {
+    const datos = {
+      folio: document.getElementById(`folio_input_${numFila}`)?.value || "",
+      responsable: document.getElementById(`resp_input_${numFila}`)?.value || "",
+      origen: document.getElementById(`origen_input_${numFila}`)?.value || "",
+      destino: document.getElementById(`destino_input_${numFila}`)?.value || "",
+      cantidad: document.getElementById(`cant_input_${numFila}`)?.value || "",
+      serie: document.getElementById(`serie_input_${numFila}`)?.value || "",
+      solicitante: document.getElementById(`solicitante_input_${numFila}`)?.value || ""
+    };
+
+    botonGuardar.disabled = true;
+    botonGuardar.innerHTML = '<span class="material-icons">sync</span>';
+    lanzarNotificacionLocal("⏳ Procesando cambios...", "info");
+
+    google.script.run
+      .withSuccessHandler(() => {
+        lanzarNotificacionLocal("✅ Registro actualizado", "success");
+        actualizarInterfazTrasGuardar(numFila, datos, botonGuardar);
+      })
+      .withFailureHandler((err) => {
+        lanzarNotificacionLocal(`❌ Error: ${err.message}`, "error");
+        botonGuardar.disabled = false;
+        botonGuardar.innerHTML = '<span class="material-icons">check_circle</span>';
+      })
+      .HistorialTraspasosController_actualizarRegistro(numFila, datos);
+  };
+
+  // =========================================================
+  // FILTROS
+  // =========================================================
+  window.aplicarFiltros = function () {
+    const fFecha = document.getElementById('filterFecha')?.value || "";
+    const fTipo = normalizarTexto(document.getElementById('filterTipo')?.value || "");
+    const fCodigo = normalizarTexto(document.getElementById('filterCodigo')?.value || "");
+    const fAlmacen = normalizarTexto(document.getElementById('filterAlmacen')?.value || "");
+    const fSolicitante = normalizarTexto(document.getElementById('filterSolicitante')?.value || "");
+    const fResponsable = normalizarTexto(document.getElementById('filterResponsable')?.value || "");
+    const fFolio = normalizarTexto(document.getElementById('filterFolio')?.value || "");
+
+    const resultados = state.datosOriginales.filter(item => {
       let fechaItemComp = "";
       if (item.fecha && item.fecha.includes('/')) {
         const partes = item.fecha.split('/');
@@ -394,38 +495,77 @@
 
       return (
         (!fFecha || fechaItemComp === fFecha) &&
-        (!fTipo || item.tipo.toUpperCase().includes(fTipo)) &&
-        (!fCodigo || item.codigo.toUpperCase().includes(fCodigo)) &&
-        (!fSolicitante || item.solicitante.toUpperCase().includes(fSolicitante)) &&
-        (!fResponsable || item.responsable.toUpperCase().includes(fResponsable)) &&
-        (!fFolio || item.folio.toUpperCase().includes(fFolio)) &&
-        (!fAlmacen || item.origen.toUpperCase().includes(fAlmacen) || item.destino.toUpperCase().includes(fAlmacen))
+        (!fTipo || normalizarTexto(item.tipo).includes(fTipo)) &&
+        (!fCodigo || normalizarTexto(item.codigo).includes(fCodigo)) &&
+        (!fSolicitante || normalizarTexto(item.solicitante).includes(fSolicitante)) &&
+        (!fResponsable || normalizarTexto(item.responsable).includes(fResponsable)) &&
+        (!fFolio || normalizarTexto(item.folio).includes(fFolio)) &&
+        (!fAlmacen || normalizarTexto(item.origen).includes(fAlmacen) || normalizarTexto(item.destino).includes(fAlmacen))
       );
     });
 
     renderizarHistorial(resultados);
   };
 
-  window.limpiarFiltros = function() {
+  window.limpiarFiltros = function () {
     const ids = ['filterFecha', 'filterTipo', 'filterCodigo', 'filterAlmacen', 'filterSolicitante', 'filterResponsable', 'filterFolio'];
     ids.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = "";
     });
 
-    renderizarHistorial(datosOriginales);
-    lanzarNotificacion("🧹 Filtros limpiados", "info");
+    renderizarHistorial(state.datosOriginales);
+    lanzarNotificacionLocal("🧹 Filtros limpiados", "info");
   };
 
-
-  window.inicializarVistaHistorialTraspasos = function() {
+  // =========================================================
+  // INIT DE VISTA
+  // =========================================================
+  window.inicializarVistaHistorialTraspasos = function () {
     console.log("📚 [Historial] Inicializando vista...");
-    inicializarApp();
+
+    const contenedor = document.getElementById('listaHistorial');
+    if (!contenedor) return;
+
+    const cacheBootstrap = window.DATA_ALMACEN_CACHE?.historialTraspasosBootstrap || null;
+
+    // 1) Bootstrap desde cache dedicado
+    if (cacheBootstrap) {
+      console.log("⚡ [Historial] Cargando bootstrap desde cache dedicado...");
+      hidratarBootstrap_(cacheBootstrap);
+      cargarHistorial();
+      return;
+    }
+
+    // 2) Bootstrap derivado desde cache global si existe suficiente data
+    if (cacheHistorialDisponible_(window.DATA_ALMACEN_CACHE)) {
+      console.log("⚡ [Historial] Construyendo bootstrap desde DATA_ALMACEN_CACHE...");
+      const bootstrapDerivado = construirBootstrapDesdeCache_(window.DATA_ALMACEN_CACHE);
+      hidratarBootstrap_(bootstrapDerivado);
+      guardarBootstrapEnCacheGlobal_();
+      cargarHistorial();
+      return;
+    }
+
+    // 3) Fallback al controller nuevo
+    console.warn("⚠️ [Historial] Solicitando bootstrap específico...");
+
+    google.script.run
+      .withSuccessHandler(function (bootstrap) {
+        console.log("✅ [Historial] Bootstrap recibido:", bootstrap);
+        hidratarBootstrap_(bootstrap);
+        guardarBootstrapEnCacheGlobal_();
+        cargarHistorial();
+      })
+      .withFailureHandler(function (error) {
+        console.error("❌ [Historial] Error al inicializar:", error);
+        contenedor.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+      })
+      .HistorialTraspasosController_getBootstrap();
   };
 
   window.initVista = window.inicializarVistaHistorialTraspasos;
   console.log("🧩 [Historial] initVista definida:", typeof window.initVista);
-
 
 })();
 </script>
