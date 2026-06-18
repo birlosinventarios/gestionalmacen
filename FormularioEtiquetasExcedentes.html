@@ -1,3 +1,5 @@
+<script>/** FormularioEtiquetasExcedentes.html */</script>
+
 <div class="container">
 
   <div class="campo">
@@ -81,7 +83,8 @@
     listaCodigos: [],
     mapaCatalogo: {},
     snackbarTimeout: null,
-    medidasFijas: { alto: 8, ancho: 12.5 }
+    medidasFijas: { alto: 8, ancho: 12.5 },
+    lastNotifyAt: {}
   };
 
   window.colaDeImpresionExcedentes = window.colaDeImpresionExcedentes || [];
@@ -89,18 +92,17 @@
   const state = window.FormularioEtiquetasExcedentesState;
 
   // =========================================================
-  // HELPERS INTERNOS
+  // HELPERS DE NOTIFICACIÓN
   // =========================================================
-  function normalizarTexto(valor) {
-    return String(valor || "").trim().toUpperCase();
-  }
+  function notify_(mensaje, tipo = 'info', timer = 2500, options = {}) {
+    const fn = window.notificar || window.lanzarNotificacion;
 
-  function lanzarNotificacionLocal(msg, tipo = 'success') {
-    if (typeof window.notificar === 'function') {
-      window.notificar(msg, tipo);
+    if (typeof fn === 'function') {
+      fn(mensaje, tipo, timer, options);
       return;
     }
 
+    // Fallback local solo si la vista vive fuera del shell
     const x = document.getElementById("snackbar");
     if (!x) return;
 
@@ -108,7 +110,7 @@
       clearTimeout(state.snackbarTimeout);
     }
 
-    x.innerText = msg;
+    x.innerText = mensaje;
     x.className = "show " + tipo;
     x.style.visibility = "visible";
     x.style.opacity = "1";
@@ -121,8 +123,41 @@
       }, 300);
     };
 
-    state.snackbarTimeout = setTimeout(cerrar, 2000);
+    state.snackbarTimeout = setTimeout(cerrar, Math.min(timer, 1800));
     x.onclick = cerrar;
+  }
+
+  function notifyOnce_(key, mensaje, tipo = 'info', timer = 2500, options = {}, cooldown = 8000) {
+    const now = Date.now();
+    const last = state.lastNotifyAt[key] || 0;
+    if (now - last < cooldown) return;
+    state.lastNotifyAt[key] = now;
+    notify_(mensaje, tipo, timer, options);
+  }
+
+  // =========================================================
+  // HELPERS INTERNOS
+  // =========================================================
+  function normalizarTexto(valor) {
+    return String(valor || "").trim().toUpperCase();
+  }
+
+  function getViewRoot_() {
+    return document.querySelector('.container');
+  }
+
+  function existeCodigo_(codigoNormalizado) {
+    return (state.listaCodigos || []).some(item => normalizarTexto(item) === codigoNormalizado);
+  }
+
+  function obtenerProductoLocal_(codigoNormalizado) {
+    if (state.mapaCatalogo[codigoNormalizado]) return state.mapaCatalogo[codigoNormalizado];
+
+    const claveReal = Object.keys(state.mapaCatalogo || {}).find(
+      key => normalizarTexto(key) === codigoNormalizado
+    );
+
+    return claveReal ? state.mapaCatalogo[claveReal] : null;
   }
 
   function bindOnce(el, key, eventName, handler) {
@@ -194,10 +229,18 @@
     const valor = normalizarTexto(input.value);
     if (valor === "") return false;
 
-    const existe = state.listaCodigos.some(item => normalizarTexto(item) === valor);
+    const existe = existeCodigo_(valor);
 
     if (!existe) {
-      lanzarNotificacionLocal(`⚠️ El código "${valor}" no es válido.`, "error");
+      notify_(
+        `El código "${valor}" no es válido.`,
+        "error",
+        3200,
+        {
+          title: "Código no permitido",
+          sound: true
+        }
+      );
       limpiarCamposInterno();
       return false;
     }
@@ -243,8 +286,24 @@
   // INIT DE VISTA
   // =========================================================
   window.inicializarVistaEtiquetasExcedentes = function () {
+    const root = getViewRoot_();
+
+    if (root && root.dataset.feeInit === "1") {
+      console.log("⏭️ [Excedentes] Inicialización omitida: esta instancia ya fue montada.");
+      return;
+    }
+
+    if (root) {
+      root.dataset.feeInit = "1";
+    }
+
     console.log("📦 [Excedentes] Inicializando vista...");
     console.log("📦 [Excedentes] DATA_ALMACEN_CACHE:", window.DATA_ALMACEN_CACHE);
+
+    notify_("Inicializando vista de etiquetas de excedentes...", "info", 1600, {
+      title: "Cargando vista",
+      sound: false
+    });
 
     vincularEventosDOMExcedentes_();
 
@@ -262,7 +321,11 @@
       console.log("⚡ [Excedentes] Cargando datos desde DATA_ALMACEN_CACHE...");
       hidratarDesdeCache_(cache);
       poblarDatalistExcedentes_();
-      lanzarNotificacionLocal("Sistema listo", "success");
+
+      notify_("Datos de excedentes cargados desde memoria local.", "success", 1800, {
+        title: "Sistema listo",
+        sound: false
+      });
       return;
     }
 
@@ -270,12 +333,21 @@
     if (state.listaCodigos.length > 0 && Object.keys(state.mapaCatalogo).length > 0) {
       console.log("⚡ [Excedentes] Reutilizando datos ya cargados en memoria local...");
       poblarDatalistExcedentes_();
-      lanzarNotificacionLocal("Sistema listo", "success");
+
+      notify_("Datos reutilizados desde memoria local.", "success", 1800, {
+        title: "Sistema listo",
+        sound: false
+      });
       return;
     }
 
-    // 3) Fallback al nuevo controller
+    // 3) Fallback al controller nuevo
     console.warn("⚠️ [Excedentes] La cache no tiene datos suficientes. Solicitando bootstrap específico...");
+
+    notify_("Solicitando catálogo de excedentes...", "info", 1800, {
+      title: "Sincronización requerida",
+      sound: false
+    });
 
     google.script.run
       .withSuccessHandler(function (data) {
@@ -287,11 +359,23 @@
         guardarEnCacheGlobal_();
         poblarDatalistExcedentes_();
 
-        lanzarNotificacionLocal("✅ Datos de excedentes cargados", "success");
+        notify_("Datos de excedentes cargados correctamente.", "success", 2200, {
+          title: "Sistema listo",
+          sound: false
+        });
       })
       .withFailureHandler(function (err) {
         console.error("❌ [Excedentes] Error cargando bootstrap:", err);
-        lanzarNotificacionLocal("❌ No se pudo cargar la información inicial de excedentes", "error");
+
+        notify_(
+          "No se pudo cargar la información inicial de excedentes.",
+          "error",
+          4200,
+          {
+            title: "Error de carga",
+            sound: true
+          }
+        );
       })
       .FormularioEtiquetasExcedentesController_getBootstrap();
   };
@@ -306,7 +390,17 @@
     const cod = normalizarTexto(document.getElementById('codigoInput')?.value);
     if (!cod) return;
 
-    if (!state.listaCodigos.includes(cod)) {
+    if (!existeCodigo_(cod)) {
+      notify_(
+        `El código "${cod}" no existe en el catálogo.`,
+        "error",
+        3200,
+        {
+          title: "Código inválido",
+          sound: true
+        }
+      );
+      limpiarCamposInterno();
       return;
     }
 
@@ -317,14 +411,29 @@
     if (idInput) idInput.value = "Buscando...";
 
     // Primero intenta local
-    const productoLocal = state.mapaCatalogo[cod];
+    const productoLocal = obtenerProductoLocal_(cod);
     if (productoLocal) {
       if (descripcionInput) descripcionInput.value = productoLocal.descripcion || "";
       if (idInput) idInput.value = productoLocal.idproducto || "N/A";
-      const codigoInput = document.getElementById('codigoInput');
-      if (codigoInput) codigoInput.value = cod;
+
+      notifyOnce_(
+        "producto-excedente-local",
+        "Producto localizado correctamente.",
+        "success",
+        1300,
+        {
+          title: "Código encontrado",
+          sound: false
+        },
+        1200
+      );
       return;
     }
+
+    notify_("Consultando producto en el servidor...", "info", 1400, {
+      title: "Buscando producto",
+      sound: false
+    });
 
     // Fallback al controller nuevo
     google.script.run
@@ -332,16 +441,36 @@
         if (res && res.encontrado) {
           if (descripcionInput) descripcionInput.value = res.descripcion || "";
           if (idInput) idInput.value = res.idproducto || res.id || "N/A";
-          const codigoInput = document.getElementById('codigoInput');
-          if (codigoInput) codigoInput.value = cod;
+
+          notify_("Producto localizado correctamente.", "success", 1400, {
+            title: "Código encontrado",
+            sound: false
+          });
         } else {
-          lanzarNotificacionLocal("❌ Error interno: Código no encontrado en detalles", "error");
+          notify_(
+            `El código "${cod}" no fue encontrado en los detalles del producto.`,
+            "error",
+            3200,
+            {
+              title: "Sin resultados",
+              sound: true
+            }
+          );
           limpiarCamposInterno();
         }
       })
       .withFailureHandler(function (err) {
         console.error("❌ Error buscando producto de excedentes:", err);
-        lanzarNotificacionLocal("❌ Error al buscar el producto", "error");
+
+        notify_(
+          "Ocurrió un error al buscar el producto.",
+          "error",
+          4200,
+          {
+            title: "Error de búsqueda",
+            sound: true
+          }
+        );
         limpiarCamposInterno();
       })
       .FormularioEtiquetasExcedentesController_buscarProductoPorCodigo(cod);
@@ -360,25 +489,57 @@
     const idProducto = idInput?.value || "";
     const numCajas = parseInt(cajasInput?.value, 10) || 1;
 
-    if (!state.listaCodigos.includes(cod)) {
-      lanzarNotificacionLocal("⚠️ El código no es válido o no ha sido seleccionado de la lista", "error");
+    if (!existeCodigo_(cod)) {
+      notify_(
+        "El código no es válido o no fue seleccionado correctamente de la lista.",
+        "error",
+        3200,
+        {
+          title: "Código inválido",
+          sound: true
+        }
+      );
       if (codigoInput) codigoInput.focus();
       return;
     }
 
     if (!idProducto || idProducto === "Buscando..." || !desc || desc === "Buscando...") {
-      lanzarNotificacionLocal("⏳ Por favor, espera a que carguen los datos del producto", "error");
+      notify_(
+        "Espera a que se carguen los datos completos del producto.",
+        "warning",
+        3000,
+        {
+          title: "Producto en carga",
+          sound: true
+        }
+      );
       return;
     }
 
     if (!cant || Number(cant) <= 0) {
-      lanzarNotificacionLocal("⚠️ Ingresa una cantidad de piezas válida", "error");
+      notify_(
+        "Ingresa una cantidad de piezas válida.",
+        "error",
+        3000,
+        {
+          title: "Cantidad inválida",
+          sound: true
+        }
+      );
       if (cantidadInput) cantidadInput.focus();
       return;
     }
 
     if (numCajas <= 0) {
-      lanzarNotificacionLocal("⚠️ El número de cajas debe ser mayor a cero", "error");
+      notify_(
+        "El número de cajas debe ser mayor a cero.",
+        "error",
+        3000,
+        {
+          title: "Número de cajas inválido",
+          sound: true
+        }
+      );
       if (cajasInput) cajasInput.focus();
       return;
     }
@@ -411,7 +572,16 @@
 
     actualizarVista();
     resetearFormularioCompletoInterno();
-    lanzarNotificacionLocal(`✅ ${numCajas} etiquetas listas en la fila`, "success");
+
+    notify_(
+      `${numCajas} etiqueta(s) de excedente se añadieron correctamente a la fila.`,
+      "success",
+      1800,
+      {
+        title: "Añadido a la fila",
+        sound: false
+      }
+    );
   };
 
   window.actualizarVista = function () {
@@ -456,33 +626,80 @@
   window.quitar = function (index) {
     window.colaDeImpresionExcedentes.splice(index, 1);
     actualizarVista();
+
+    notify_("Etiqueta de excedente eliminada de la fila.", "warning", 1400, {
+      title: "Elemento removido",
+      sound: false
+    });
   };
 
   window.limpiarCampos = function () {
     limpiarCamposInterno();
+
+    notify_("Campos limpiados.", "info", 1200, {
+      title: "Formulario limpio",
+      sound: false
+    });
   };
 
   window.resetearFormularioCompleto = function () {
     resetearFormularioCompletoInterno();
+
+    notify_("Formulario restablecido.", "info", 1200, {
+      title: "Formulario limpio",
+      sound: false
+    });
   };
 
   window.generar = function () {
     if (window.colaDeImpresionExcedentes.length === 0) {
-      lanzarNotificacionLocal("⚠️ La fila está vacía", "error");
+      notify_(
+        "La fila está vacía. Agrega etiquetas antes de imprimir.",
+        "warning",
+        3200,
+        {
+          title: "Fila vacía",
+          sound: true
+        }
+      );
       return;
     }
 
     const btn = document.getElementById('btnImprimirTodo');
     const textoBoton = document.getElementById('textoBoton');
 
-    if (!btn || !textoBoton) return;
+    if (!btn || !textoBoton) {
+      notify_(
+        "No se encontró el control de impresión en la vista.",
+        "error",
+        4200,
+        {
+          title: "Error de interfaz",
+          sound: true
+        }
+      );
+      return;
+    }
 
     btn.disabled = true;
     textoBoton.innerText = "⏳ Generando...";
 
+    notify_("Preparando lote de impresión de excedentes...", "info", 1600, {
+      title: "Generando etiquetas",
+      sound: false
+    });
+
     const win = window.open("", "_blank");
     if (!win) {
-      lanzarNotificacionLocal("⚠️ Ventana bloqueada. Permite los pop-ups.", "warning");
+      notify_(
+        "La ventana fue bloqueada. Permite los pop-ups para continuar.",
+        "warning",
+        4200,
+        {
+          title: "Pop-up bloqueado",
+          sound: true
+        }
+      );
       btn.disabled = false;
       textoBoton.innerText = "Imprimir";
       return;
@@ -491,39 +708,63 @@
     win.document.write(`
       <html>
         <head>
-          <title>Generando Etiquetas...</title>
+          <title>Generando etiquetas...</title>
           <style>
-            body { 
-              font-family: sans-serif; 
-              display: flex; 
-              flex-direction: column; 
-              align-items: center; 
-              justify-content: center; 
-              height: 100vh; 
-              margin: 0; 
-              color: #5f6368; 
-              background-color: #f8f9fa; 
+            body {
+              font-family: Arial, sans-serif;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              height: 100vh;
+              margin: 0;
+              color: #5f6368;
+              background-color: #f8f9fa;
             }
-            .spinner { 
-              width: 50px; 
-              height: 50px; 
-              border: 5px solid #f3f3f3; 
-              border-top: 5px solid #d93025; 
-              border-radius: 50%; 
-              animation: spin 1s linear infinite; 
-              margin-bottom: 20px; 
+
+            .spinner {
+              width: 50px;
+              height: 50px;
+              border: 5px solid #f3f3f3;
+              border-top: 5px solid #d93025;
+              border-radius: 50%;
+              animation: spin 1s linear infinite;
+              margin-bottom: 20px;
             }
-            @keyframes spin { 
-              0% { transform: rotate(0deg); } 
-              100% { transform: rotate(360deg); } 
+
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
             }
-            h3 { font-weight: 400; }
+
+            .loader {
+              text-align: center;
+              max-width: 420px;
+              padding: 0 24px;
+            }
+
+            .loader h3 {
+              margin: 0 0 8px 0;
+              font-size: 22px;
+              font-weight: 700;
+              color: #1c1d1f;
+              letter-spacing: 0.04em;
+            }
+
+            .loader p {
+              margin: 0;
+              font-size: 14px;
+              color: #5f6368;
+              line-height: 1.5;
+            }
           </style>
         </head>
         <body>
           <div class="spinner"></div>
-          <h3>Preparando etiquetas de excedentes...</h3>
-          <p>Guardando en base de datos y generando vista.</p>
+          <div class="loader">
+            <h3>Preparando etiquetas...</h3>
+            <p>Espera un momento mientras se genera la impresión del excedente.</p>
+          </div>
         </body>
       </html>
     `);
@@ -542,7 +783,10 @@
         btn.disabled = false;
         textoBoton.innerText = "Imprimir";
 
-        lanzarNotificacionLocal("✅ Etiquetas generadas con éxito", "success");
+        notify_("Etiquetas de excedentes generadas correctamente.", "success", 2400, {
+          title: "Impresión lista",
+          sound: true
+        });
       })
       .withFailureHandler(function (err) {
         win.close();
@@ -551,7 +795,15 @@
         btn.disabled = false;
         textoBoton.innerText = "Imprimir";
 
-        lanzarNotificacionLocal("❌ Error al generar etiquetas de excedentes", "error");
+        notify_(
+          "No se pudieron generar las etiquetas de excedentes.",
+          "error",
+          4200,
+          {
+            title: "Error de impresión",
+            sound: true
+          }
+        );
       })
       .FormularioEtiquetasExcedentesController_procesarLote(window.colaDeImpresionExcedentes);
   };
@@ -560,18 +812,10 @@
     return validarCodigoEstrictoInterno();
   };
 
-  // Compatibilidad si el shell la busca
-  window.lanzarNotificacion = window.lanzarNotificacion || lanzarNotificacionLocal;
+  // Compatibilidad si alguna parte vieja lo usa
+  window.lanzarNotificacion = window.notificar || window.lanzarNotificacion || notify_;
 
-  // =========================================================
-  // FALLBACK SI LA VISTA SE ABRE SOLA
-  // =========================================================
-  if (!window.DATA_ALMACEN_CACHE) {
-    setTimeout(() => {
-      if (typeof window.inicializarVistaEtiquetasExcedentes === 'function') {
-        window.inicializarVistaEtiquetasExcedentes();
-      }
-    }, 100);
-  }
+  // No auto-init aquí.
+  // El shell es quien llama window.initVista().
 })();
 </script>

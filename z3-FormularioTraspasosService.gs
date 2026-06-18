@@ -179,15 +179,6 @@ const FormularioTraspasosService = (() => {
     return ubi;
   }
 
-  function _generarIdUnico_(item, config) {
-    const fechaBase = config.fecha.split("/").reverse().join("");
-    const horaBase = config.hora.replace(/:/g, "");
-    const codigo = toStrUpper_(item.codigo);
-    const random = Math.floor(Math.random() * 100000).toString().padStart(5, "0");
-
-    return `${fechaBase}${horaBase}${codigo}${random}`;
-  }
-
   function _resolverMovimiento_(item, ctx) {
     const tipoUI = _canonTipoUI_(item.tipo);
     const tipoUpper = _canonTipoUpper_(item.tipo);
@@ -389,7 +380,7 @@ const FormularioTraspasosService = (() => {
 
       const rows = lote.map(item => {
         const entity = _resolverMovimiento_(item, ctx);
-        entity.idunico = toStr_(item.idUnico) || _generarIdUnico_(item, config);
+        entity.idunico = "";
         return _mapEntityToRow_(entity, config);
       });
 

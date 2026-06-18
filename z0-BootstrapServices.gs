@@ -1,61 +1,83 @@
-
 /**
  * BootstrapServices.gs
  * Carga inicial compartida para la SPA
  */
 const BootstrapServices = (() => {
 
-  function mapaCatalogo_(catalogo) {
-    return catalogo.reduce((acc, item) => {
-      const codigo = String(item.codigo || "").trim().toUpperCase();
-      if (!codigo) return acc;
+  function logDuracion_(etapa, inicio, extra) {
+    const ms = Date.now() - inicio;
+    if (extra !== undefined) {
+      console.log(`[BOOT][SERVER] ${etapa}: ${ms} ms`, extra);
+    } else {
+      console.log(`[BOOT][SERVER] ${etapa}: ${ms} ms`);
+    }
+  }
 
-      acc[codigo] = {
+  function procesarCatalogo_(catalogo) {
+    const mapaCatalogo = {};
+    const codigosUnicos = new Set();
+
+    for (let i = 0; i < catalogo.length; i++) {
+      const item = catalogo[i];
+      const codigo = String(item.codigo || "").trim().toUpperCase();
+      if (!codigo) continue;
+
+      codigosUnicos.add(codigo);
+
+      mapaCatalogo[codigo] = {
         idproducto: item.idproducto || "",
         descripcion: String(item.descripcion || "").trim().toUpperCase()
       };
+    }
 
-      return acc;
-    }, {});
+    return {
+      mapaCatalogo,
+      codigos: [...codigosUnicos].sort()
+    };
   }
 
-  function mapaMedidas_(etiquetas) {
-    return etiquetas.reduce((acc, item) => {
-      const nombre = String(item.nombre || "").trim();
-      if (!nombre) return acc;
+  function procesarEtiquetas_(etiquetas) {
+    const mapaMedidas = {};
 
-      acc[nombre] = {
+    for (let i = 0; i < etiquetas.length; i++) {
+      const item = etiquetas[i];
+      const nombre = String(item.nombre || "").trim();
+      if (!nombre) continue;
+
+      mapaMedidas[nombre] = {
         alto: Number(item.alto || 0),
         ancho: Number(item.ancho || 0)
       };
+    }
 
-      return acc;
-    }, {});
+    return {
+      mapaMedidas,
+      nombresEtiquetas: Object.keys(mapaMedidas).sort()
+    };
   }
 
-  function mapaUbicacionesExcedentes_(ubicaciones) {
-    return ubicaciones
-      .map(x => ({
-        bodega: String(x.bodega || "").trim().toUpperCase(),
-        ubi: String(x.ubicacion || "").trim().toUpperCase()
-      }))
-      .filter(x => x.bodega && x.ubi);
-  }
+  function procesarUbicaciones_(ubicaciones) {
+    const mapaUbicacionesExcedentes = [];
+    const bodegasSet = new Set();
 
-  function mapaBodegas_(ubicaciones) {
-    return [...new Set(
-      ubicaciones
-        .map(x => String(x.bodega || "").trim().toUpperCase())
-        .filter(Boolean)
-    )].sort();
-  }
+    for (let i = 0; i < ubicaciones.length; i++) {
+      const item = ubicaciones[i];
+      const bodega = String(item.bodega || "").trim().toUpperCase();
+      const ubi = String(item.ubicacion || "").trim().toUpperCase();
 
-  function codigos_(catalogo) {
-    return [...new Set(
-      catalogo
-        .map(x => String(x.codigo || "").trim().toUpperCase())
-        .filter(Boolean)
-    )].sort();
+      if (!bodega || !ubi) continue;
+
+      bodegasSet.add(bodega);
+      mapaUbicacionesExcedentes.push({
+        bodega,
+        ubi
+      });
+    }
+
+    return {
+      mapaUbicacionesExcedentes,
+      bodegas: [...bodegasSet].sort()
+    };
   }
 
   function usuariosOrdenados_(usuarios) {
@@ -66,28 +88,71 @@ const BootstrapServices = (() => {
 
   return {
     getInfoInicial: function() {
+      const tTotal = Date.now();
+
       try {
-        console.time("BOOTSTRAP:getInfoInicial");
+        console.log("[BOOT][SERVER] BootstrapServices.getInfoInicial :: INICIO");
 
         /** ===============================
          * REPOSITORIES
          * =============================== */
+        let t = Date.now();
         const usuarios = UsuariosRepository.getAll();
+        logDuracion_("UsuariosRepository.getAll", t, { total: usuarios.length });
+
+        t = Date.now();
         const ubicacionesExcedentes = UbicacionesExcedentesRepository.getAll();
+        logDuracion_("UbicacionesExcedentesRepository.getAll", t, { total: ubicacionesExcedentes.length });
+
+        t = Date.now();
         const catalogo = CatalogoRepository.getAll();
+        logDuracion_("CatalogoRepository.getAll", t, { total: catalogo.length });
+
+        t = Date.now();
         const etiquetas = EtiquetasRepository.getAll();
+        logDuracion_("EtiquetasRepository.getAll", t, { total: etiquetas.length });
 
         /** ===============================
          * TRANSFORMACIONES
          * =============================== */
+        t = Date.now();
         const usuariosOrdenados = usuariosOrdenados_(usuarios);
-        const bodegas = mapaBodegas_(ubicacionesExcedentes);
-        const mapaUbicacionesExcedentes = mapaUbicacionesExcedentes_(ubicacionesExcedentes);
-        const mapaCatalogo = mapaCatalogo_(catalogo);
-        const mapaMedidas = mapaMedidas_(etiquetas);
-        const nombresEtiquetas = Object.keys(mapaMedidas).sort();
-        const codigos = codigos_(catalogo);
+        logDuracion_("usuariosOrdenados_", t, { total: usuariosOrdenados.length });
 
+        t = Date.now();
+        const {
+          mapaUbicacionesExcedentes,
+          bodegas
+        } = procesarUbicaciones_(ubicacionesExcedentes);
+        logDuracion_("procesarUbicaciones_", t, {
+          bodegas: bodegas.length,
+          ubicaciones: mapaUbicacionesExcedentes.length
+        });
+
+        t = Date.now();
+        const {
+          mapaCatalogo,
+          codigos
+        } = procesarCatalogo_(catalogo);
+        logDuracion_("procesarCatalogo_", t, {
+          codigos: codigos.length,
+          clavesMapaCatalogo: Object.keys(mapaCatalogo).length
+        });
+
+        t = Date.now();
+        const {
+          mapaMedidas,
+          nombresEtiquetas
+        } = procesarEtiquetas_(etiquetas);
+        logDuracion_("procesarEtiquetas_", t, {
+          clavesMapaMedidas: Object.keys(mapaMedidas).length,
+          nombresEtiquetas: nombresEtiquetas.length
+        });
+
+        /** ===============================
+         * PAYLOAD FINAL
+         * =============================== */
+        t = Date.now();
         const resultado = {
           usuarios: usuariosOrdenados,
           bodegas,
@@ -95,14 +160,17 @@ const BootstrapServices = (() => {
           codigos,
           mapaCatalogo,
           mapaMedidas,
-          nombresEtiquetas,
+          nombresEtiquetas
         };
+        logDuracion_("Construcción payload final", t);
 
-        console.timeEnd("BOOTSTRAP:getInfoInicial");
+        logDuracion_("BootstrapServices.getInfoInicial :: TOTAL", tTotal);
+
         return resultado;
 
       } catch (error) {
         console.error("❌ ERROR BootstrapServices.getInfoInicial:", error);
+        logDuracion_("BootstrapServices.getInfoInicial :: ERROR TOTAL", tTotal);
 
         return {
           usuarios: [],
@@ -111,64 +179,10 @@ const BootstrapServices = (() => {
           codigos: [],
           mapaCatalogo: {},
           mapaMedidas: {},
-          nombresEtiquetas: [],
+          nombresEtiquetas: []
         };
       }
     }
   };
 
 })();
-
-
-
-
-/**
- * Debug de BootstrapServices.getInfoInicial()
- * Muestra conteos y primeras 5 muestras en el registro de ejecución  
- */
-function debugGetInfoInicial() {
-  const resultado = BootstrapServices.getInfoInicial();
-
-  Logger.log("========================================");
-  Logger.log("📦 DEBUG BootstrapServices.getInfoInicial()");
-  Logger.log("========================================");
-
-  // Usuarios
-  Logger.log("👤 usuarios total: %s", resultado.usuarios.length);
-  Logger.log("👤 usuarios muestra (5): %s", JSON.stringify(resultado.usuarios.slice(0, 5), null, 2));
-
-  // Bodegas
-  Logger.log("🏬 bodegas total: %s", resultado.bodegas.length);
-  Logger.log("🏬 bodegas muestra (5): %s", JSON.stringify(resultado.bodegas.slice(0, 5), null, 2));
-
-  // Mapa ubicaciones excedentes
-  Logger.log("📍 mapaUbicacionesExcedentes total: %s", resultado.mapaUbicacionesExcedentes.length);
-  Logger.log(
-    "📍 mapaUbicacionesExcedentes muestra (5): %s",
-    JSON.stringify(resultado.mapaUbicacionesExcedentes.slice(0, 5), null, 2)
-  );
-
-  // Codigos
-  Logger.log("🔢 codigos total: %s", resultado.codigos.length);
-  Logger.log("🔢 codigos muestra (5): %s", JSON.stringify(resultado.codigos.slice(0, 5), null, 2));
-
-  // Mapa catalogo
-  const clavesMapa = Object.keys(resultado.mapaCatalogo || {});
-  Logger.log("🧩 mapaCatalogo total claves: %s", clavesMapa.length);
-  Logger.log("🧩 mapaCatalogo claves muestra (5): %s", JSON.stringify(clavesMapa.slice(0, 5), null, 2));
-
-  const muestraMapa = clavesMapa.slice(0, 5).reduce((acc, key) => {
-    acc[key] = resultado.mapaCatalogo[key];
-    return acc;
-  }, {});
-  Logger.log("🧩 mapaCatalogo muestra (5): %s", JSON.stringify(muestraMapa, null, 2));
-
-  // Etiquetas
-  Logger.log("🏷️ mapaMedidas total claves: %s", Object.keys(resultado.mapaMedidas || {}).length);
-  Logger.log("🏷️ mapaMedidas: %s", JSON.stringify(resultado.mapaMedidas, null, 2));
-  Logger.log("🏷️ nombresEtiquetas total: %s", resultado.nombresEtiquetas.length);
-  Logger.log("🏷️ nombresEtiquetas muestra (5): %s", JSON.stringify(resultado.nombresEtiquetas.slice(0, 5), null, 2));
-
-  Logger.log("========================================");
-  return resultado;
-}

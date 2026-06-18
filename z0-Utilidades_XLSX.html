@@ -1,0 +1,109 @@
+  <script>
+
+  // Utilidades_XLSX.html
+  // Helper global para exportación de datasets a Excel real (.xlsx)
+  // Requiere que SheetJS ya esté cargado en el shell.
+  
+
+  (function () {
+    if (!window.ExcelExportUtils) {
+      window.ExcelExportUtils = {};
+    }
+
+    function sanitizeFileName_(name) {
+      return String(name || "Reporte")
+        .replace(/[\\/:*?"<>|]+/g, "_")
+        .replace(/\s+/g, "_")
+        .trim();
+    }
+
+    function autoColumns_(rows) {
+      if (!Array.isArray(rows) || !rows.length) return [];
+
+      const headers = Object.keys(rows[0] || {});
+      return headers.map(header => {
+        const maxLen = Math.max(
+          String(header || "").length,
+          ...rows.map(r => String(r?.[header] ?? "").length)
+        );
+        return { wch: Math.min(Math.max(maxLen + 2, 12), 40) };
+      });
+    }
+
+    function mapRowsByColumns_(rows, columns) {
+      if (!Array.isArray(columns) || !columns.length) return rows;
+
+      return rows.map(row => {
+        const salida = {};
+        columns.forEach(col => {
+          const key = col.key;
+          const label = col.label || key;
+          salida[label] = row?.[key] ?? "";
+        });
+        return salida;
+      });
+    }
+
+    window.ExcelExportUtils.exportarAXLSX = function ({
+      fileName = "Reporte.xlsx",
+      sheetName = "Datos",
+      rows = [],
+      columns = null
+    } = {}) {
+      try {
+        if (!window.XLSX) {
+          if (window.notificar) {
+            window.notificar("La librería XLSX no está disponible en el shell.", "error");
+          }
+          console.error("❌ XLSX no está disponible en window.");
+          return;
+        }
+
+        const safeRows = Array.isArray(rows) ? rows : [];
+
+        if (!safeRows.length) {
+          if (window.notificar) {
+            window.notificar("No hay datos para exportar.", "warning");
+          }
+          return;
+        }
+
+        const exportRows = mapRowsByColumns_(safeRows, columns);
+
+        const wb = window.XLSX.utils.book_new();
+        const ws = window.XLSX.utils.json_to_sheet(exportRows);
+
+        if (ws["!ref"]) {
+          ws["!autofilter"] = { ref: ws["!ref"] };
+        }
+
+        ws["!cols"] = autoColumns_(exportRows);
+
+        window.XLSX.utils.book_append_sheet(
+          wb,
+          ws,
+          String(sheetName || "Datos").substring(0, 31)
+        );
+
+        const finalName = sanitizeFileName_(fileName).endsWith(".xlsx")
+          ? sanitizeFileName_(fileName)
+          : `${sanitizeFileName_(fileName)}.xlsx`;
+
+        // writeFile / writeFileXLSX son los helpers recomendados por SheetJS
+        // para intentar guardar / descargar archivos directamente en navegador.
+        window.XLSX.writeFileXLSX(wb, finalName);
+
+        if (window.notificar) {
+          window.notificar(`Archivo exportado: ${finalName}`, "success");
+        }
+
+        console.log("✅ XLSX exportado:", finalName);
+      } catch (error) {
+        console.error("❌ Error exportando XLSX:", error);
+        if (window.notificar) {
+          window.notificar("No se pudo exportar el archivo Excel.", "error");
+        }
+      }
+    };
+  })();
+</script>

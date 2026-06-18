@@ -1,171 +1,218 @@
+<script>/** APPALMACEN.HTML */</script>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">  
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema de Gestión - Birlos y Tornillos</title>
-  
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-<script src="https://unpkg.com/lucide@latest"></script>
-<script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
- 
-  <style>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <?!= HtmlService.createHtmlOutputFromFile('z0-Utilidades_XLSX').getContent(); ?>
+  <script src="https://unpkg.com/lucide@latest"></script>
 
+<style>
   <?!= HtmlService.createHtmlOutputFromFile('Estilos_Globales').getContent(); ?>
 
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
-    
-    :root {
-      --primary: #d93025;
-      --bg-color: #f8f9fa;
-      --text-main: #1c1d1f;
-    }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
 
-   body {
-  margin: 0;
-  padding: 0;
-  height: 100vh;
-  width: 100vw; /* Asegura el ancho total */
-  background-color: var(--bg-color);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif; /* Fallbacks de sistema para mayor velocidad */
-  overflow: hidden;
-  -webkit-font-smoothing: antialiased; /* Mejora la legibilidad de la fuente en Mac/iOS */
-}
-
-/* El contenedor principal de tu App (ej.#app-container)*/
-.main-wrapper {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background-color: var(--bg-color); /* #f8f9fa */
-}
-
-/* El área de contenido que REALMENTE debe  sscrollear */
-.scrollable-content {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch; /* Suavidad en dispositivos móviles */
-  padding: 20px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--secondary) transparent;
-}
-    
-
-    .sidebar-transition {
-      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .sidebar-mini { width: 80px; }
-    .sidebar-visible { width: 280px; }
-
-    /* Área invisible para detectar hover */
-    .sidebar-trigger {
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 20px;
-      height: 100vh;
-      z-index: 50;
-    }
-
-    .overlay-fade {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.3);
-      backdrop-filter: blur(2px);
-      z-index: 30;
-      animation: fadeIn 0.3s ease;
-    }
-
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-    .logo-container {
-      background: white;
-      padding: 4px;
-      border-radius: 7.5px;
-      width: 50px;
-      height: 50px;
-    }
-
-
-      .custom-scroll::-webkit-scrollbar { width: 4px; }
-      .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
-      .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
-      
-      /* Estilo simple para notificaciones tipo Toast manuales si Sonner falla */
-      .toast-container {
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 9999;
-      }
-
-/* Animación de entrada: se desliza desde la derecha y aparece */
-@keyframes toastIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
+  :root {
+    --primary: #d93025;
+    --bg-color: #f8f9fa;
+    --text-main: #1c1d1f;
   }
-  to {
-    transform: translateX(0);
-    opacity: 1;
+
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    width: 100vw;
+    background-color: var(--bg-color);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
   }
-}
 
-/* Animación de salida: se desliza hacia la derecha y se desvanece */
-@keyframes toastOut {
-  from {
-    transform: translateX(0);
-    opacity: 1;
+  .main-wrapper {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-color);
   }
-  to {
-    transform: translateX(100%);
-    opacity: 0;
+
+  .scrollable-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--secondary) transparent;
   }
-}
 
-/* Clases para SweetAlert */
-.animate-toast-in {
-  animation: toastIn 0.5s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-}
+  .sidebar-transition {
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 
-.animate-toast-out {
-  animation: toastOut 0.4s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-}
+  .sidebar-mini { width: 80px; }
+  .sidebar-visible { width: 280px; }
 
-.swal2-popup.swal2-toast {
-  backdrop-filter: blur(8px);
-  background-color: rgba(28, 29, 31, 0.95) !important; /* Fondo ligeramente traslúcido */
-  border-left: 4px solid #d93025 !important; /* Acento lateral de marca */
-}
+  .sidebar-trigger {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 20px;
+    height: 100vh;
+    z-index: 50;
+  }
 
-  </style>
+  .overlay-fade {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(2px);
+    z-index: 30;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .logo-container {
+    background: white;
+    padding: 4px;
+    border-radius: 7.5px;
+    width: 50px;
+    height: 50px;
+  }
+
+  .custom-scroll::-webkit-scrollbar { width: 4px; }
+  .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+  .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
+
+  /* =========================================================
+     ANIMACIONES IGUALES A PROTOTIPOTRASPASOS
+  ========================================================= */
+  @keyframes toastInProto {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes toastOutProto {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+
+  .animate-toast-in {
+    animation: toastInProto 0.35s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+
+  .animate-toast-out {
+    animation: toastOutProto 0.25s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+
+  /* =========================================================
+     TOASTS GLOBALES HOMOLOGADOS CON PROTOTIPOTRASPASOS
+  ========================================================= */
+  .swal2-popup.swal2-toast {
+    backdrop-filter: blur(8px);
+    background: #1c1d1f !important;
+    color: #ffffff !important;
+    border-left: 4px solid #d93025 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22) !important;
+  }
+
+  .swal2-popup.swal2-toast .swal2-title {
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    letter-spacing: 0.02em;
+  }
+
+  .swal2-popup.swal2-toast .swal2-html-container,
+  .swal2-popup.swal2-toast .swal2-text {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #ffffff !important;
+  }
+
+  .swal2-timer-progress-bar {
+    background: #d93025 !important;
+  }
+</style>
+
 </head>
 <body>
+
+  <div id="boot-splash" style="
+    height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:Arial,sans-serif;
+    color:#5f6368;
+    background:#f8f9fa;
+  ">
+    Cargando sistema...
+  </div>
+
   <div id="root"></div>
 
-  <script type="text/babel">
+  <script>
     const { useState, useEffect, useRef } = React;
+    const e = React.createElement;
 
-    // Variables globales de caché de almacenamiento de datos
-    window.DATA_ALMACEN_CACHE = null;
-    window.usuariosGlobal = [];
-    window.bodegasGlobal = [];
-    window.mapaUbicacionesGlobal = [];
-    window.catalogoGlobal = [];
+    // =========================================================
+    // CACHE GLOBAL
+    // =========================================================
+    window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || null;
+    window.usuariosGlobal = window.usuariosGlobal || [];
+    window.bodegasGlobal = window.bodegasGlobal || [];
+    window.mapaUbicacionesGlobal = window.mapaUbicacionesGlobal || [];
+    window.catalogoGlobal = window.catalogoGlobal || [];
 
+    // =========================================================
+    // HELPERS GENERALES
+    // =========================================================
+    function escapeHtml_(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // =========================================================
+    // ICONO LUCIDE
+    // =========================================================
     const Icon = ({ name, size = 20, className = "" }) => {
       const iconRef = useRef(null);
+
       useEffect(() => {
         if (window.lucide && iconRef.current) {
           iconRef.current.innerHTML = '';
@@ -178,159 +225,530 @@
           window.lucide.createIcons();
         }
       }, [name, size, className]);
-      return <span ref={iconRef} className="inline-flex items-center"></span>;
+
+      return e("span", { ref: iconRef, className: "inline-flex items-center" });
     };
 
-const TOOLS = [
-  // CATEGORÍA: PROCESOS
-  { id: 'FormularioTraspasos', name: 'Registrar Traspasos', icon: 'arrow-right-left', category: 'Procesos' },
-  { id: 'MonitorTraspasos', name: 'Traspasos Pendientes', icon: 'clipboard-list', category: 'Procesos' },
-  
-  // CATEGORÍA: ETIQUETADO
-  { id: 'FormularioEtiquetasIdentificadoras', name: 'Etiquetas Identificadoras', icon: 'tag', category: 'Etiquetado' },
-  { id: 'FormularioEtiquetasExcedentes', name: 'Etiquetas Excedentes', icon: 'tag', category: 'Etiquetado' },
-  { id: 'FormularioEtiquetasExcedentesReimpresion', name: 'Reimpresión Excedentes', icon: 'printer', category: 'Etiquetado' },
-  
-  // CATEGORÍA: CONSULTA / GESTIÓN
-  { id: 'HistorialTraspasos', name: 'Historial Traspasos', icon: 'history', category: 'Consultas' },
-  { id: 'GestorExcedentes', name: 'Control de excedentes', icon: 'settings', category: 'Consultas' },
-  { id: 'NegativosBirlos', name: 'Negativos en Almacen', icon: 'alert-triangle', category: 'Consultas' },
+    // =========================================================
+    // MENÚ DE HERRAMIENTAS
+    // =========================================================
+    const TOOLS = [
+      { id: 'FormularioTraspasos', name: 'Registrar Traspasos', icon: 'arrow-right-left', category: 'Procesos' },
+      { id: 'MonitorTraspasos', name: 'Traspasos Pendientes', icon: 'clipboard-list', category: 'Procesos' },
+      { id: 'FormularioEtiquetasIdentificadoras', name: 'Etiquetas Identificadoras', icon: 'tag', category: 'Etiquetado' },
+      { id: 'FormularioEtiquetasExcedentes', name: 'Etiquetas Excedentes', icon: 'tag', category: 'Etiquetado' },
+      { id: 'FormularioEtiquetasExcedentesReimpresion', name: 'Reimpresión Excedentes', icon: 'printer', category: 'Etiquetado' },
+      { id: 'HistorialTraspasos', name: 'Historial Traspasos', icon: 'history', category: 'Consultas' },
+      { id: 'GestorExcedentes', name: 'Control de excedentes', icon: 'settings', category: 'Consultas' },
+      { id: 'NegativosBirlos', name: 'Negativos en Almacén', icon: 'alert-triangle', category: 'Consultas' },
+      { id: 'MonitorReabastecimiento', name: 'Monitor de Reabastecimiento', icon: 'package-plus', category: 'Consultas' },
+      { id: 'PrototipoTraspasos', name: 'Prueba Traspasos', icon: 'cloud-alert', category: 'Pruebas' }
+    ];
 
-  // CATEGORÍA: Pruebas
-  { id: 'PrototipoTraspasos', name: 'Prueba Traspasos', icon: 'cloud-alert', category: 'Pruebas' }
-];
+    // =========================================================
+    // SISTEMA GLOBAL DE NOTIFICACIONES + SONIDO
+    // =========================================================
+    const NOTIFY_META = {
+      success: {
+        accent: '#d93025',
+        title: 'Operación exitosa',
+        icon: 'success'
+      },
+      warning: {
+        accent: '#696160',
+        title: 'Revisión necesaria',
+        icon: 'warning'
+      },
+      error: {
+        accent: '#a50e0e',
+        title: 'Error del sistema',
+        icon: 'error'
+      },
+      info: {
+        accent: '#454040',
+        title: 'Notificación',
+        icon: 'info'
+      }
+    };
 
-// ==========================================
-// 🔘 CONFIGURACIÓN UNIFICADA DE TOASTS (UX FITO)
-// ==========================================
-const Toast = Swal.mixin({
-  toast: true,
-  position: 'top-end',
-  showConfirmButton: false,
-  timerProgressBar: true,
-  background: 'rgba(28, 29, 31, 0.95)', // Tu color de fondo oscuro --text-main con opacidad
-  color: '#ffffff', // 🌟 ESTO ASEGURA QUE TODO EL TEXTO DEL TOAST SEA BLANCO
-  customClass: {
-    popup: 'swal2-toast'
-  }
-});
+    window.NOTIFY_STATE = window.NOTIFY_STATE || {
+      soundEnabled: true,
+      audioUnlocked: false,
+      audioContext: null,
+      audioUnlockBound: false
+    };
 
-// 🔘 CONFIGURACIÓN UNIFICADA DE TOASTS
-window.notificar = (mensaje, tipo = 'info', customTimer = 3000) => {
-  const colores = {
-    success: '#10b981',
-    warning: '#f59e0b',
-    error: '#d93025',
-    info: '#ffffff'
-  };
+    function inicializarAudioNotificaciones_() {
+      if (window.NOTIFY_STATE.audioUnlockBound) return;
+      window.NOTIFY_STATE.audioUnlockBound = true;
 
-  const colorTema = colores[tipo] || colores.info;
+      const unlock = async () => {
+        try {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return;
 
-  Toast.fire({
-    icon: tipo,
-    // 🧠 Si deseas asegurar el color del texto a nivel de HTML para que nada lo sobrescriba:
-    html: `<span style="color: #ffffff; font-weight: 500;">${mensaje}</span>`,
-    iconColor: colorTema,
-    timer: customTimer,
-    didOpen: (toast) => {
-      toast.addEventListener('mouseenter', Swal.stopTimer);
-      toast.addEventListener('mouseleave', Swal.resumeTimer);
-      
-      const progress = toast.querySelector('.swal2-timer-progress-bar');
-      if (progress) {
-        // Usa el color del tema dinámico para la barra de progreso
-        progress.style.backgroundColor = colorTema; 
+          if (!window.NOTIFY_STATE.audioContext) {
+            window.NOTIFY_STATE.audioContext = new AC();
+          }
+
+          if (window.NOTIFY_STATE.audioContext.state === 'suspended') {
+            await window.NOTIFY_STATE.audioContext.resume();
+          }
+
+          window.NOTIFY_STATE.audioUnlocked = true;
+        } catch (err) {
+          console.warn("⚠️ [Notify] No se pudo desbloquear el audio:", err);
+        } finally {
+          document.removeEventListener('pointerdown', unlock, true);
+          document.removeEventListener('keydown', unlock, true);
+          document.removeEventListener('touchstart', unlock, true);
+        }
+      };
+
+      document.addEventListener('pointerdown', unlock, true);
+      document.addEventListener('keydown', unlock, true);
+      document.addEventListener('touchstart', unlock, true);
+    }
+
+    function tocarSonidoNotificacion_(tipo = 'info') {
+      try {
+        const state = window.NOTIFY_STATE;
+        if (!state.soundEnabled || !state.audioUnlocked) return;
+        const ctx = state.audioContext;
+        if (!ctx) return;
+
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+
+        const now = ctx.currentTime;
+        const master = ctx.createGain();
+        master.gain.setValueAtTime(0.0001, now);
+        master.connect(ctx.destination);
+
+        const configs = {
+          success: {
+            notes: [880, 1174],
+            durations: [0.08, 0.12],
+            spacing: 0.09,
+            type: 'sine',
+            volume: 0.05
+          },
+          warning: {
+            notes: [622, 740],
+            durations: [0.10, 0.10],
+            spacing: 0.10,
+            type: 'triangle',
+            volume: 0.045
+          },
+          error: {
+            notes: [392, 311],
+            durations: [0.11, 0.14],
+            spacing: 0.10,
+            type: 'sawtooth',
+            volume: 0.04
+          },
+          info: {
+            notes: [784],
+            durations: [0.08],
+            spacing: 0,
+            type: 'sine',
+            volume: 0.035
+          }
+        };
+
+        const cfg = configs[tipo] || configs.info;
+
+        cfg.notes.forEach((freq, index) => {
+          const start = now + (index * cfg.spacing);
+          const end = start + cfg.durations[index];
+
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = cfg.type;
+          osc.frequency.setValueAtTime(freq, start);
+
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(cfg.volume, start + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, end);
+
+          osc.connect(gain);
+          gain.connect(master);
+
+          osc.start(start);
+          osc.stop(end + 0.02);
+        });
+      } catch (err) {
+        console.warn("⚠️ [Notify] No se pudo reproducir el sonido:", err);
       }
     }
-  });
-};
 
-// Crear un alias global de compatibilidad para evitar romper código viejo
-window.lanzarNotificacion = window.notificar;
+    window.configurarSonidoNotificaciones = (enabled = true) => {
+      window.NOTIFY_STATE.soundEnabled = !!enabled;
+    };
+
+    // =========================================================
+    // TOAST GLOBAL HOMOLOGADO CON PROTOTIPOTRASPASOS
+    // =========================================================
+    const Toast = Swal.mixin({
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1c1d1f',
+      color: '#ffffff',
+      iconColor: '#d93025',
+      showClass: {
+        popup: 'animate-toast-in'
+      },
+      hideClass: {
+        popup: 'animate-toast-out'
+      },
+      didOpen: (toast) => {
+        toast.addEventListener('mouseenter', Swal.stopTimer);
+        toast.addEventListener('mouseleave', Swal.resumeTimer);
+        const progress = toast.querySelector('.swal2-timer-progress-bar');
+        if (progress) progress.style.backgroundColor = '#d93025';
+      }
+    });
+
+    window.notificar = (mensaje, tipo = 'info', customTimer = 3000, options = {}) => {
+      const meta = NOTIFY_META[tipo] || NOTIFY_META.info;
+
+      const title = options.title || mensaje;
+      const text = options.title ? mensaje : (options.text || '');
+
+      Toast.fire({
+        icon: tipo,
+        title,
+        text,
+        timer: customTimer,
+        background: options.background || '#1c1d1f',
+        color: options.color || '#ffffff',
+        iconColor: options.iconColor || '#d93025'
+      });
+
+      const shouldSound = options.sound !== false && (options.sound === true || tipo !== 'info');
+      if (shouldSound) {
+        tocarSonidoNotificacion_(tipo);
+      }
+    };
+
+    window.lanzarNotificacion = window.notificar;
+
+    // =========================================================
+    // MODAL DEL SISTEMA
+    // =========================================================
+    window.modalSistema = ({
+      tipo = 'info',
+      title = null,
+      text = '',
+      confirmText = 'Aceptar',
+      cancelText = 'Cancelar',
+      showCancelButton = false,
+      reverseButtons = true
+    } = {}) => {
+      return Swal.fire({
+        icon: tipo,
+        title: title || 'Mensaje del sistema',
+        html: escapeHtml_(text),
+        showCancelButton,
+        reverseButtons,
+        confirmButtonText: confirmText,
+        cancelButtonText: cancelText,
+        background: '#1c1d1f',
+        color: '#ffffff',
+        confirmButtonColor: '#d93025',
+        cancelButtonColor: '#454040',
+        didOpen: () => {
+          tocarSonidoNotificacion_(tipo === 'info' ? 'warning' : tipo);
+        }
+      });
+    };
+
+    window.confirmarSistema = (config = {}) => {
+      return window.modalSistema({
+        tipo: config.tipo || 'warning',
+        title: config.title || 'Confirmar acción',
+        text: config.text || '¿Deseas continuar?',
+        confirmText: config.confirmText || 'Continuar',
+        cancelText: config.cancelText || 'Cancelar',
+        showCancelButton: true,
+        reverseButtons: true
+      });
+    };
+
+    inicializarAudioNotificaciones_();
 
 
+    // =========================================================
+    // HELPERS DE SHELL
+    // =========================================================
 
+    function getSwalPopup_() {
+      try {
+        return typeof Swal !== 'undefined' && typeof Swal.getPopup === 'function'
+          ? Swal.getPopup()
+          : document.querySelector('.swal2-popup');
+      } catch (e) {
+        return document.querySelector('.swal2-popup');
+      }
+    }
 
+    function esToastVisible_() {
+      const popup = getSwalPopup_();
+      return !!(popup && popup.classList.contains('swal2-toast'));
+    }
+
+    function limpiarRecursosDeVistaAnterior({ cerrarToast = false } = {}) {
+      window.initVista = null;
+
+      if (window.temporizadorActualizacion) {
+        clearInterval(window.temporizadorActualizacion);
+        window.temporizadorActualizacion = null;
+      }
+
+      if (window.intervaloReimpresion) {
+        clearInterval(window.intervaloReimpresion);
+        window.intervaloReimpresion = null;
+      }
+
+      if (typeof Swal !== 'undefined' && Swal.isVisible()) {
+        const popup = getSwalPopup_();
+        const esToast = !!(popup && popup.classList.contains('swal2-toast'));
+
+        // Solo cerramos si NO es toast o si explícitamente queremos cerrarlo
+        if (!esToast || cerrarToast) {
+          Swal.close();
+        }
+      }
+
+      window.escribiendo = false;
+      window.lanzarNotificacion = window.notificar;
+    } 
+
+    async function cargarScriptExternoSeguro(oldScript) {
+      const src = oldScript.getAttribute("src");
+      if (!src) return;
+
+      const yaExiste = document.querySelector(`script[data-shell-src="${src}"]`);
+      if (yaExiste) {
+        console.log("♻️ [Shell] Script externo ya cargado, se reutiliza:", src);
+        return;
+      }
+
+      await new Promise((resolve, reject) => {
+        const externalScript = document.createElement("script");
+        externalScript.src = src;
+        externalScript.async = false;
+        externalScript.dataset.shellSrc = src;
+
+        Array.from(oldScript.attributes).forEach(attr => {
+          if (attr.name !== "src" && attr.name !== "type") {
+            externalScript.setAttribute(attr.name, attr.value);
+          }
+        });
+
+        externalScript.onload = () => {
+          console.log("✅ [Shell] Script externo cargado:", src);
+          resolve();
+        };
+
+        externalScript.onerror = (err) => {
+          console.error("❌ [Shell] Error cargando script externo:", src, err);
+          reject(new Error(`No se pudo cargar el script externo: ${src}`));
+        };
+
+        document.body.appendChild(externalScript);
+      });
+    }
+
+    function ejecutarScriptInline(scriptContent, scriptType = "text/javascript") {
+      const runtimeScript = document.createElement("script");
+      runtimeScript.type = scriptType;
+      runtimeScript.text = scriptContent;
+      document.body.appendChild(runtimeScript);
+      document.body.removeChild(runtimeScript);
+    }
+
+    async function ejecutarScriptsDeVista(container) {
+      const scripts = Array.from(container.querySelectorAll("script"));
+
+      for (const oldScript of scripts) {
+        const originalType = (oldScript.getAttribute("type") || "").toLowerCase().trim();
+        const scriptContent = oldScript.textContent || "";
+
+        console.log("🔍 [Shell] Analizando script:", {
+          type: originalType || "(vacío)",
+          src: oldScript.src || "(inline)",
+          preview: (scriptContent || "").substring(0, 120)
+        });
+
+        if (originalType === "text/template" || originalType === "text/x-template" || originalType === "application/json" || originalType === "application/ld+json") {
+          console.log("⏭️ [Shell] Script omitido por ser plantilla/datos:", originalType);
+          continue;
+        }
+
+        if (originalType === "module") {
+          console.warn("⚠️ [Shell] Script type='module' omitido por incompatibilidad con HtmlService.");
+          continue;
+        }
+
+        if (oldScript.src) {
+          await cargarScriptExternoSeguro(oldScript);
+          continue;
+        }
+
+        if (originalType === "text/babel" || originalType === "text/jsx") {
+          try {
+            const transpiled = Babel.transform(scriptContent, {
+              presets: [["react", { runtime: "classic" }]],
+              sourceType: "script"
+            }).code;
+
+            ejecutarScriptInline(transpiled, "text/javascript");
+            console.log("✅ [Shell] Script Babel transpildado y ejecutado");
+          } catch (err) {
+            console.error("❌ [Shell] Error transpiling Babel script:", err);
+            throw err;
+          }
+          continue;
+        }
+
+        if (originalType === "" || originalType === "text/javascript" || originalType === "application/javascript") {
+          try {
+            ejecutarScriptInline(scriptContent, "text/javascript");
+            console.log("✅ [Shell] Script JS ejecutado");
+          } catch (err) {
+            console.error("❌ [Shell] Error ejecutando script JS:", err);
+            throw err;
+          }
+          continue;
+        }
+
+        console.warn("⚠️ [Shell] Tipo de script no manejado, se omite:", originalType);
+      }
+    }
+
+    // =========================================================
+    // APP PRINCIPAL
+    // =========================================================
     const App = () => {
       const [activeTool, setActiveTool] = useState('FormularioTraspasos');
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-      const [viewContent, setViewContent] = useState(""); 
-      const [loading, setLoading] = useState(false); 
+      const [viewContent, setViewContent] = useState("");
+      const [loading, setLoading] = useState(false);
       const containerRef = useRef(null);
 
-      // Función única de carga para evitar descargas múltiples
     window.inicializarMegaData = () => {
       if (window.DATA_ALMACEN_CACHE) {
-        console.log("⚡ [MegaData] Datos leídos desde la memoria local. No se consulta al servidor.");
+        console.log("⚡ [MegaData] Datos leídos desde memoria local. No se consulta al servidor.");
         return Promise.resolve(window.DATA_ALMACEN_CACHE);
       }
 
       return new Promise((resolve, reject) => {
-        window.notificar("Sincronizando base de datos...", "info", 4000);
-        
-        google.script.run
-          .withSuccessHandler((megaData) => {
-            window.DATA_ALMACEN_CACHE = megaData;
+        const t0 = performance.now();
+        console.log(`[BOOT][CLIENTE] Inicio inicializarMegaData: ${t0.toFixed(2)} ms`);
 
-            // Globals alineadas al contrato nuevo
-            window.usuariosGlobal = megaData.usuarios || [];
-            window.bodegasGlobal = megaData.bodegas || [];
-            window.codigosGlobal = megaData.codigos || [];
-            window.mapaCatalogoGlobal = megaData.mapaCatalogo || megaData.mapaProductos || {};
-            window.mapaUbicacionesExcedentesGlobal =
-              megaData.mapaUbicacionesExcedentes || megaData.mapaUbicaciones || [];
+        // Paso A: avisar al usuario
+        window.notificar("Sincronizando base de datos...", "info", 4200, {
+          title: "Sincronización",
+          sound: false
+        });
 
-            window.notificar("Catálogo sincronizado exitosamente", "success");
-            console.log("📦 [MegaData Cache] Datos sincronizados por primera vez:", megaData);
-            resolve(megaData);
-          })
-          .withFailureHandler((error) => {
-            window.notificar("Error al descargar el catálogo", "error");
-            console.error("🚨 Fallo de MegaData:", error);
-            reject(error);
-          })
-          .FormularioTraspasosController_getBootstrap(); // 👈 importante
+        console.log(
+          `[BOOT][CLIENTE] Toast solicitado en: ${(performance.now() - t0).toFixed(2)} ms`
+        );
+
+        // Paso B: darle tiempo al navegador para pintar el toast
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const tDispatch = performance.now();
+
+            console.log(
+              `[BOOT][CLIENTE] Despachando APPALMACENController_getBootstrap en: ${(tDispatch - t0).toFixed(2)} ms`
+            );
+
+            google.script.run
+              .withSuccessHandler((megaData) => {
+                const tSuccess = performance.now();
+
+                console.log(
+                  `[BOOT][CLIENTE] Respuesta bootstrap recibida en: ${(tSuccess - t0).toFixed(2)} ms`
+                );
+
+                window.DATA_ALMACEN_CACHE = megaData;
+                window.usuariosGlobal = megaData.usuarios || [];
+                window.bodegasGlobal = megaData.bodegas || [];
+                window.codigosGlobal = megaData.codigos || [];
+                window.mapaCatalogoGlobal = megaData.mapaCatalogo || megaData.mapaProductos || {};
+                window.mapaUbicacionesExcedentesGlobal =
+                  megaData.mapaUbicacionesExcedentes || megaData.mapaUbicaciones || [];
+
+                console.log("[BOOT][CLIENTE] Resumen bootstrap:", {
+                  usuarios: window.usuariosGlobal.length,
+                  bodegas: window.bodegasGlobal.length,
+                  codigos: window.codigosGlobal.length,
+                  ubicaciones: window.mapaUbicacionesExcedentesGlobal.length
+                });
+
+                window.notificar("Base de datos sincronizada exitosamente", "success", 3200, {
+                  title: "Sistema listo",
+                  sound: true
+                });
+
+                console.log("📦 [MegaData Cache] Datos sincronizados por primera vez:", megaData);
+                console.log(
+                  `[BOOT][CLIENTE] Finalizó inicializarMegaData en: ${(performance.now() - t0).toFixed(2)} ms`
+                );
+
+                resolve(megaData);
+              })
+              .withFailureHandler((error) => {
+                const tFail = performance.now();
+
+                console.error(
+                  `[BOOT][CLIENTE] Error bootstrap recibido en: ${(tFail - t0).toFixed(2)} ms`,
+                  error
+                );
+
+                window.notificar("Error al descargar el catálogo", "error", 4200, {
+                  title: "Sincronización fallida",
+                  sound: true
+                });
+
+                reject(error);
+              })
+              .APPALMACENController_getBootstrap();
+          });
+        });
       });
     };
 
-
-     const seleccionarVista = (id, fileName) => {
-        
-        window.initVista = null;
-        console.log("🧹 [Shell] initVista reiniciada antes de cargar vista:", fileName);
-
-
-        if (window.temporizadorActualizacion) {
-          clearInterval(window.temporizadorActualizacion);
-          window.temporizadorActualizacion = null;
-        }
-
-        // ✅ EN LUGAR DE HACERLA NULL, ASEGURAMOS QUE APUNTE A NUESTRO NOTIFICADOR UNIFICADO
-        window.lanzarNotificacion = window.notificar; 
-
-        if (typeof Swal !== 'undefined' && Swal.isVisible()) {
-          Swal.close();
-        }
-
-        window.escribiendo = false;
+      const seleccionarVista = (id, fileName) => {
+        limpiarRecursosDeVistaAnterior({ cerrarToast: false });
+        console.log("🧹 [Shell] Preparando carga de vista:", fileName);
         setViewContent("");
         setActiveTool(id);
         setLoading(true);
-        
+
         google.script.run
           .withSuccessHandler((html) => {
             setViewContent(html);
             setLoading(false);
           })
           .withFailureHandler((err) => {
+            console.error("❌ [Shell] Error al cargar la vista:", err);
             setLoading(false);
-            window.notificar("Error al cargar la vista", "error");
+            window.notificar("Error al cargar la vista", "error", 4200, {
+              title: "Carga fallida"
+            });
           })
-          .obtenerContenidoVista(fileName);
+          .APPALMACENController_obtenerContenidoVista(fileName);
       };
 
-      
-      // 🔄 Carga inicial garantizada de una sola vía
       useEffect(() => {
         window.inicializarMegaData()
           .then(() => {
@@ -339,110 +757,47 @@ window.lanzarNotificacion = window.notificar;
           })
           .catch((error) => {
             console.error("🚨 [Shell] No se pudo inicializar MegaData:", error);
-            window.notificar("Error al sincronizar base de datos. Reintenta.", "error");
+            window.notificar("Error al sincronizar base de datos. Reintenta.", "error", 4500, {
+              title: "Inicialización incompleta",
+              badge: "Error"
+            });
             setLoading(false);
           });
       }, []);
 
-
-        
-      // ⚡ Motor de encendido de scripts dinámicos
       useEffect(() => {
         if (!containerRef.current || !viewContent) return;
 
-        console.log("📄 [Shell] viewContent cargado para:", activeTool);
-        console.log("🧪 [Shell] typeof window.initVista ANTES de ejecutar scripts:", typeof window.initVista);
+        let cancelado = false;
 
-        const scripts = containerRef.current.querySelectorAll("script");
+        (async () => {
+          try {
+            console.log("📄 [Shell] viewContent cargado para:", activeTool);
+            console.log("🧪 [Shell] typeof window.initVista ANTES:", typeof window.initVista);
 
-        scripts.forEach((oldScript) => {
-          const originalType = (oldScript.getAttribute("type") || "").toLowerCase().trim();
-          const scriptContent = oldScript.textContent || "";
+            await ejecutarScriptsDeVista(containerRef.current);
 
-          // ✅ 1) IGNORAR scripts que son plantillas o datos
-          if (
-            originalType === "text/template" ||
-            originalType === "text/x-template" ||
-            originalType === "application/json" ||
-            originalType === "application/ld+json"
-          ) {
-            console.log("⏭️ [Shell] Script omitido por ser plantilla/datos:", originalType);
-            return;
-          }
+            if (cancelado) return;
 
-          // ✅ 2) Scripts externos
-          if (oldScript.src) {
-            const externalScript = document.createElement("script");
-            Array.from(oldScript.attributes).forEach(attr => {
-              externalScript.setAttribute(attr.name, attr.value);
+            console.log("🧪 [Shell] typeof window.initVista DESPUÉS:", typeof window.initVista);
+
+            if (typeof window.initVista === "function") {
+              console.log("🚀 [Shell] Ejecutando initVista:", window.initVista.name || "(anónima)");
+              window.initVista();
+            } else {
+              console.warn("⚠️ [Shell] No existe window.initVista para la vista actual");
+            }
+          } catch (err) {
+            console.error("❌ [Shell] Error inicializando vista:", err);
+            window.notificar("Error al inicializar la vista", "error", 4500, {
+              title: "Inicialización fallida",
+              badge: "Crítico"
             });
-            document.body.appendChild(externalScript);
-            console.log("✅ [Shell] Script externo agregado:", oldScript.src);
-            return;
           }
+        })();
 
-          // ✅ 3) Scripts con JSX/Babel
-          if (originalType === "text/babel" || originalType === "text/jsx") {
-            try {
-              const transpiled = Babel.transform(scriptContent, {
-                presets: ["react"]
-              }).code;
-
-              const runtimeScript = document.createElement("script");
-              runtimeScript.type = "text/javascript";
-              runtimeScript.text = transpiled;
-
-              document.body.appendChild(runtimeScript);
-              document.body.removeChild(runtimeScript);
-
-              console.log("✅ [Shell] Script Babel transpildado y ejecutado");
-            } catch (err) {
-              console.error("❌ [Shell] Error transpiling Babel script:", err);
-            }
-            return;
-          }
-
-          // ✅ 4) Scripts JS normales inline
-          if (
-            originalType === "" ||
-            originalType === "text/javascript" ||
-            originalType === "application/javascript" ||
-            originalType === "module"
-          ) {
-            try {
-              const newScript = document.createElement("script");
-              newScript.type = originalType || "text/javascript";
-              newScript.text = scriptContent;
-
-              document.body.appendChild(newScript);
-              document.body.removeChild(newScript);
-
-              console.log("✅ [Shell] Script JS ejecutado");
-            } catch (err) {
-              console.error("❌ [Shell] Error ejecutando script JS:", err);
-            }
-            return;
-          }
-
-          console.warn("⚠️ [Shell] Tipo de script no manejado, se omite:", originalType);
-        });
-
-        setTimeout(() => {
-          console.log("🧪 [Shell] typeof window.initVista DESPUÉS de ejecutar scripts:", typeof window.initVista);
-
-          if (typeof window.initVista === "function") {
-            console.log("🚀 [Shell] Ejecutando initVista:", window.initVista.name || "(anónima)");
-            window.initVista();
-          } else {
-            console.warn("⚠️ [Shell] No existe window.initVista para la vista actual");
-          }
-        }, 80);
-
+        return () => { cancelado = true; };
       }, [viewContent, activeTool]);
-
-
-
-
 
       const toolsByCategory = TOOLS.reduce((acc, tool) => {
         if (!acc[tool.category]) acc[tool.category] = [];
@@ -450,123 +805,79 @@ window.lanzarNotificacion = window.notificar;
         return acc;
       }, {});
 
-      return (
-        <div className="flex h-screen w-full overflow-hidden">
-          
-          <div className="sidebar-trigger" onMouseEnter={() => setIsSidebarOpen(true)}></div>
-
-          {/* SIDEBAR */}
-          <aside 
-            onMouseEnter={() => setIsSidebarOpen(true)}
-            onMouseLeave={() => setIsSidebarOpen(false)}
-            className={`bg-[#1c1d1f] flex flex-col z-40 sidebar-transition relative shadow-xl ${
-              isSidebarOpen ? 'sidebar-visible' : 'sidebar-mini'
-            }`}
-          >
-            {/* LOGO SECTION */}
-            <div className="p-4 flex flex-col items-center">
-              <div className="logo-container flex items-center justify-center shadow-md">
-                <img 
-                  src="https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png" 
-                  alt="Logo" className="w-full h-full object-contain"
-                />
-              </div>
-              <div className={`mt-4 text-center transition-all duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>
-                <span className="block text-white font-black uppercase text-[15px] tracking-[0.05em]">
-                  Gestión de Almacén
-                </span>
-                <span className="text-[#d93025] font-bold text-[12px] uppercase tracking-[0.20em]">
-                  Birlos y Tornillos
-                </span>
-              </div>
-            </div>
-
-              {/*  Borde gris  */}
-            <div className="flex justify-center my-2">
-              <div className={`h-[3px] bg-gray-700/50 transition-all duration-500 ${isSidebarOpen ? 'w-4/5' : 'w-1/2'}`}></div>
-            </div>
-
-            {/* Lista de vistas */}
-            <nav className="flex-1 px-3 space-y-6 mt-4 custom-scroll overflow-y-auto">
-              {Object.keys(toolsByCategory).map(category => (
-                <div key={category} className="space-y-2">
-                  {/* Título de Categoría */}
-                  <div className={`px-4 transition-all duration-300 ${isSidebarOpen ? 'opacity-100 h-auto mb-2' : 'opacity-0 h-0 overflow-hidden'}`}>
-                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">
-                      {category}
-                    </p>
-                  </div>
-
-                  {/* Botones de la Categoría */}
-                  <div className="space-y-1">
-                    {toolsByCategory[category].map(tool => (
-                      <button 
-                        key={tool.id}
-                        onClick={() => seleccionarVista(tool.id, tool.id)}
-                        className={`w-full h-11 flex items-center rounded-xl transition-all group relative ${
-                          activeTool === tool.id ? 'bg-[#d93025] text-white shadow-lg shadow-red-900/20' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                        }`}
-                      >
-                        <div className="min-w-[50px] flex items-center justify-center">
-                          <Icon name={tool.icon} size={18} />
-                        </div>
-                        <span className={`font-bold uppercase text-[11px] tracking-tight transition-opacity duration-300 ${
-                          isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'
-                        }`}>
-                          {tool.name}
-                        </span>
-                        
-                        {/* Indicador visual de activo (bolita a la derecha) */}
-                        {activeTool === tool.id && isSidebarOpen && (
-                          <div className="absolute right-4 w-1.5 h-1.5 bg-white rounded-full"></div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  
-                  {/* SEPARADOR ENTRE CATEGORÍAS */}
-                            <div className="flex justify-center pb-2">
-                              <div className={`h-[3px] bg-gray-700/50 rounded-full transition-all duration-500 ${
-                                isSidebarOpen ? 'w-4/5 opacity-100' : 'w-0 opacity-0 overflow-hidden'
-                              }`}></div>
-                            </div>
-                          </div>
-              ))}
-            </nav>
-          </aside>
-
-          {/* MAIN CONTENT AREA */}
-          <main className="flex-1 flex flex-col relative bg-[#f8f9fa]">
-            {isSidebarOpen && <div className="overlay-fade" onClick={() => setIsSidebarOpen(false)}></div>}
-
-            {/* HEADER DINÁMICO */}
-            <header className="h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10">
-              <div>
-                <h1 className="text-xl font-black uppercase tracking-tighter">
-                  {TOOLS.find(t => t.id === activeTool)?.name}
-                </h1>
-              </div>
-            </header>
-
-            {/* CONTENEDOR DE VISTAS */}
-          <div className="flex-1 overflow-auto bg-white m-4 rounded-2xl shadow-sm border border-[#dadce0]">
-            {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <Icon name="loader-2" className="animate-spin text-[#d93025]" size={40} />
-              </div>
-            ) : (
-              /* 💉 Conectamos la referencia aquí */
-              <div ref={containerRef} dangerouslySetInnerHTML={{ __html: viewContent }} />
-            )}
-          </div>
-          </main>
-        </div>
+      return e("div", { className: "flex h-screen w-full overflow-hidden" },
+        e("div", { className: "sidebar-trigger", onMouseEnter: () => setIsSidebarOpen(true) }),
+        e("aside", {
+          onMouseEnter: () => setIsSidebarOpen(true),
+          onMouseLeave: () => setIsSidebarOpen(false),
+          className: `bg-[#1c1d1f] flex flex-col z-40 sidebar-transition relative shadow-xl ${isSidebarOpen ? 'sidebar-visible' : 'sidebar-mini'}`
+        },
+          e("div", { className: "p-4 flex flex-col items-center" },
+            e("div", { className: "logo-container flex items-center justify-center shadow-md" },
+              e("img", { src: "https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png", alt: "Logo", className: "w-full h-full object-contain" })
+            ),
+            e("div", { className: `mt-4 text-center transition-all duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}` },
+              e("span", { className: "block text-white font-black uppercase text-[15px] tracking-[0.05em]" }, "Gestión de Almacén"),
+              e("span", { className: "text-[#d93025] font-bold text-[12px] uppercase tracking-[0.20em]" }, "Birlos y Tornillos")
+            )
+          ),
+          e("div", { className: "flex justify-center my-2" },
+            e("div", { className: `h-[3px] bg-gray-700/50 transition-all duration-500 ${isSidebarOpen ? 'w-4/5' : 'w-1/2'}` })
+          ),
+          e("nav", { className: "flex-1 px-3 space-y-6 mt-4 custom-scroll overflow-y-auto" },
+            Object.keys(toolsByCategory).map(category =>
+              e("div", { key: category, className: "space-y-2" },
+                e("div", { className: `px-4 transition-all duration-300 ${isSidebarOpen ? 'opacity-100 h-auto mb-2' : 'opacity-0 h-0 overflow-hidden'}` },
+                  e("p", { className: "text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]" }, category)
+                ),
+                e("div", { className: "space-y-1" },
+                  toolsByCategory[category].map(tool =>
+                    e("button", {
+                      key: tool.id,
+                      onClick: () => seleccionarVista(tool.id, tool.id),
+                      className: `w-full h-11 flex items-center rounded-xl transition-all group relative ${activeTool === tool.id ? 'bg-[#d93025] text-white shadow-lg shadow-red-900/20' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`
+                    },
+                      e("div", { className: "min-w-[50px] flex items-center justify-center" },
+                        e(Icon, { name: tool.icon, size: 18 })
+                      ),
+                      e("span", {
+                        className: `font-bold uppercase text-[11px] tracking-tight transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'}`
+                      }, tool.name),
+                      activeTool === tool.id && isSidebarOpen ? e("div", { className: "absolute right-4 w-1.5 h-1.5 bg-white rounded-full" }) : null
+                    )
+                  )
+                ),
+                e("div", { className: "flex justify-center pb-2" },
+                  e("div", { className: `h-[3px] bg-gray-700/50 rounded-full transition-all duration-500 ${isSidebarOpen ? 'w-4/5 opacity-100' : 'w-0 opacity-0 overflow-hidden'}` })
+                )
+              )
+            )
+          )
+        ),
+        e("main", { className: "flex-1 flex flex-col relative bg-[#f8f9fa]" },
+          isSidebarOpen ? e("div", { className: "overlay-fade", onClick: () => setIsSidebarOpen(false) }) : null,
+          e("header", { className: "h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10" },
+            e("div", null,
+              e("h1", { className: "text-xl font-black uppercase tracking-tighter" },
+                TOOLS.find(t => t.id === activeTool)?.name
+              )
+            )
+          ),
+          e("div", { className: "flex-1 overflow-auto bg-white m-4 rounded-2xl shadow-sm border border-[#dadce0]" },
+            loading
+              ? e("div", { className: "flex items-center justify-center h-full" },
+                  e(Icon, { name: "loader-2", className: "animate-spin text-[#d93025]", size: 40 })
+                )
+              : e("div", { ref: containerRef, dangerouslySetInnerHTML: { __html: viewContent } })
+          )
+        )
       );
     };
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-    
+    root.render(e(App));
+
+    document.getElementById('boot-splash').style.display = 'none';
   </script>
 </body>
 </html>

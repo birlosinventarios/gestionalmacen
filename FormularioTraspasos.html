@@ -1,3 +1,5 @@
+<script>/** FormularioTraspasos.html */</script>
+
 <div class="container">
 
   <div class="campo">
@@ -166,6 +168,15 @@
     return String(valor || "").trim().toUpperCase();
   }
 
+  function getViewRoot_() {
+    const cuerpo = document.getElementById('cuerpoFormulario');
+    if (cuerpo) {
+      const cont = cuerpo.closest('.container');
+      if (cont) return cont;
+    }
+    return document.getElementById('tipoMovimientoInput')?.closest('.container') || null;
+  }
+
   function limpiarCamposCapturaInterno() {
     const codigoInput = document.getElementById('codigoInput');
     const descripcionInput = document.getElementById('descripcionInput');
@@ -177,21 +188,39 @@
     if (codigoInput) codigoInput.focus();
   }
 
-  function lanzarNotificacionLocal(mensaje, tipo = "info") {
+  /**
+   * Wrapper local:
+   * - Usa SIEMPRE el shell si existe
+   * - Mantiene fallback si la vista vive sola fuera de APPALMACEN
+   */
+  function lanzarNotificacionLocal(mensaje, tipo = "info", options = {}) {
+    const timer = options.timer || 3000;
+    const title = options.title || null;
+
     if (typeof window.notificar === 'function') {
-      window.notificar(mensaje, tipo);
+      window.notificar(mensaje, tipo, timer, {
+        title,
+        sound: options.sound
+      });
       return;
     }
 
-    const ToastOscuroLocal = Swal.mixin({
+    // Fallback únicamente si la vista se abre aislada
+    const ToastFallback = Swal.mixin({
       toast: true,
       position: 'top-end',
       showConfirmButton: false,
-      timer: 3000,
+      timer,
       timerProgressBar: true,
       background: '#1c1d1f',
       color: '#ffffff',
-      iconColor: tipo === 'success' ? '#10b981' : (tipo === 'info' ? '#ffffff' : '#d93025'),
+      iconColor: '#d93025',
+      showClass: {
+        popup: 'animate-toast-in'
+      },
+      hideClass: {
+        popup: 'animate-toast-out'
+      },
       didOpen: (toast) => {
         toast.addEventListener('mouseenter', Swal.stopTimer);
         toast.addEventListener('mouseleave', Swal.resumeTimer);
@@ -200,9 +229,10 @@
       }
     });
 
-    ToastOscuroLocal.fire({
+    ToastFallback.fire({
       icon: tipo,
-      title: mensaje
+      title: title || mensaje,
+      text: title ? mensaje : ''
     });
   }
 
@@ -248,6 +278,16 @@
   // MONTAJE / INIT DE LA VISTA
   // =========================================================
   window.inicializarVistaTraspasos = function () {
+    const root = getViewRoot_();
+    if (root && root.dataset.ftInit === "1") {
+      console.log("⏭️ [Traspasos] Inicialización omitida: esta instancia ya fue montada.");
+      return;
+    }
+
+    if (root) {
+      root.dataset.ftInit = "1";
+    }
+
     console.log("🛠️ Montando FormularioTraspasos...");
 
     const cuerpoForm = document.getElementById('cuerpoFormulario');
@@ -280,7 +320,7 @@
       return;
     }
 
-    // 3) Fallback al controller
+    // 3) Fallback al controller solo si de verdad no vino preinyectado
     console.warn("⚠️ No se encontró DATA_ALMACEN_CACHE. Solicitando bootstrap de Traspasos...");
 
     google.script.run
@@ -292,11 +332,28 @@
 
         inicializarDatalistsLocales();
         actualizarVistaLista();
-        lanzarNotificacionLocal("✅ Datos de traspasos cargados", "success");
+
+        lanzarNotificacionLocal(
+          "Datos de traspasos cargados correctamente.",
+          "success",
+          {
+            title: "Sistema listo",
+            timer: 2600,
+            sound: true
+          }
+        );
       })
       .withFailureHandler(function (err) {
         console.error("❌ Error cargando bootstrap:", err);
-        lanzarNotificacionLocal("❌ No se pudo cargar la información inicial de traspasos", "error");
+        lanzarNotificacionLocal(
+          "No se pudo cargar la información inicial de traspasos.",
+          "error",
+          {
+            title: "Error de carga",
+            timer: 4200,
+            sound: true
+          }
+        );
       })
       .FormularioTraspasosController_getBootstrap();
   };
@@ -452,7 +509,15 @@
 
     // 1) Validar que el código exista
     if (!state.codigos.includes(codigo)) {
-      lanzarNotificacionLocal(`⚠️ El código "${codigo}" no existe en el catálogo.`, "error");
+      lanzarNotificacionLocal(
+        `El código "${codigo}" no existe en el catálogo.`,
+        "error",
+        {
+          title: "Código inválido",
+          timer: 3600,
+          sound: true
+        }
+      );
 
       if (inputCodigo) inputCodigo.value = "";
       if (descripcionInput) descripcionInput.value = "";
@@ -472,7 +537,15 @@
     google.script.run
       .withSuccessHandler(function (res) {
         if (!res || !res.encontrado) {
-          lanzarNotificacionLocal(`⚠️ El código "${codigo}" no fue encontrado.`, "warning");
+          lanzarNotificacionLocal(
+            `El código "${codigo}" no fue encontrado.`,
+            "warning",
+            {
+              title: "Sin resultados",
+              timer: 3200,
+              sound: true
+            }
+          );
           if (descripcionInput) descripcionInput.value = "";
           return;
         }
@@ -481,7 +554,15 @@
         if (cantidadInput) cantidadInput.focus();
       })
       .withFailureHandler(function (err) {
-        lanzarNotificacionLocal("❌ Error consultando producto: " + err.message, "error");
+        lanzarNotificacionLocal(
+          err.message || "No se pudo consultar el producto.",
+          "error",
+          {
+            title: "Error consultando producto",
+            timer: 4200,
+            sound: true
+          }
+        );
       })
       .FormularioTraspasosController_buscarProductoPorCodigo(codigo);
   }
@@ -531,7 +612,15 @@
     const solValido = state.usuarios.some(u => normalizarTexto(u.nombre) === solicitante);
 
     if (!codValido || !solValido) {
-      lanzarNotificacionLocal("❌ No se puede añadir: Hay valores no permitidos o campos vacíos", "error");
+      lanzarNotificacionLocal(
+        "Hay valores no permitidos o campos vacíos.",
+        "error",
+        {
+          title: "No se puede añadir",
+          timer: 3600,
+          sound: true
+        }
+      );
       return;
     }
 
@@ -568,29 +657,61 @@
       bodegaSalida: bSalida,
       ubiSalida: uSalida,
       bodegaEntrada: bEntrada,
-      ubiEntrada: uEntrada,
-      idUnico: `${Date.now()}-${codigo}`.replace(/\s+/g, '')
+      ubiEntrada: uEntrada
     };
 
     if (!item.tipo || !item.solicitante || !item.codigo || isNaN(item.cantidad) || item.cantidad <= 0) {
-      lanzarNotificacionLocal("❌ Datos incompletos", "error");
+      lanzarNotificacionLocal(
+        "Completa todos los datos requeridos antes de continuar.",
+        "error",
+        {
+          title: "Datos incompletos",
+          timer: 3400,
+          sound: true
+        }
+      );
       return;
     }
 
     if ((tipo === "Surtido" || tipo === "Cambio de bodega") && !uSalida) {
-      lanzarNotificacionLocal("⚠️ Indica la ubicación de Salida", "warning");
+      lanzarNotificacionLocal(
+        "Debes indicar la ubicación de salida.",
+        "warning",
+        {
+          title: "Ubicación faltante",
+          timer: 3200,
+          sound: true
+        }
+      );
       return;
     }
 
     if ((tipo === "Acomodo" || tipo === "Cambio de bodega") && !uEntrada) {
-      lanzarNotificacionLocal("⚠️ Indica la ubicación de Entrada", "warning");
+      lanzarNotificacionLocal(
+        "Debes indicar la ubicación de entrada.",
+        "warning",
+        {
+          title: "Ubicación faltante",
+          timer: 3200,
+          sound: true
+        }
+      );
       return;
     }
 
     window.colaDeTraspasos.push(item);
     actualizarVistaLista();
     limpiarCamposCapturaInterno();
-    lanzarNotificacionLocal("✅ Añadido", "success");
+
+    lanzarNotificacionLocal(
+      "El traspaso se añadió correctamente a la fila.",
+      "success",
+      {
+        title: "Añadido a la fila",
+        timer: 1600,
+        sound: false
+      }
+    );
   }
 
   function actualizarVistaLista() {
@@ -648,14 +769,32 @@
 
     google.script.run
       .withSuccessHandler(res => {
-        lanzarNotificacionLocal(res.mensaje || "✅ Registrado correctamente", "success");
+        lanzarNotificacionLocal(
+          res.mensaje || "Los traspasos se registraron correctamente.",
+          "success",
+          {
+            title: "Registro completado",
+            timer: 3200,
+            sound: true
+          }
+        );
+
         window.colaDeTraspasos = [];
         actualizarVistaLista();
         btn.disabled = false;
         btn.innerHTML = contenidoOriginal;
       })
       .withFailureHandler(err => {
-        lanzarNotificacionLocal("❌ Error: " + err.message, "error");
+        lanzarNotificacionLocal(
+          err.message || "No se pudo registrar el lote de traspasos.",
+          "error",
+          {
+            title: "Error al registrar",
+            timer: 4200,
+            sound: true
+          }
+        );
+
         btn.disabled = false;
         btn.innerHTML = '<span class="material-icons">error</span> Reintentar';
       })
@@ -679,7 +818,15 @@
     );
 
     if (!existe) {
-      lanzarNotificacionLocal(`⚠️ El ${nombreCampo} "${valor}" no es válido. Seleccione uno de la lista.`, "error");
+      lanzarNotificacionLocal(
+        `El ${nombreCampo} "${valor}" no es válido. Selecciona un valor de la lista.`,
+        "error",
+        {
+          title: "Valor no permitido",
+          timer: 3600,
+          sound: true
+        }
+      );
       input.value = "";
       input.focus();
       return false;
@@ -697,17 +844,9 @@
   window.quitarDeLista = quitarDeLista;
   window.generar = generar;
   window.validarValorEnLista = validarValorEnListaInterno;
-  window.lanzarNotificacion = window.lanzarNotificacion || lanzarNotificacionLocal;
+  window.lanzarNotificacion = window.notificar || lanzarNotificacionLocal;
 
-  // =========================================================
-  // FALLBACK SI LA VISTA SE ABRE SOLA
-  // =========================================================
-  if (!window.DATA_ALMACEN_CACHE) {
-    setTimeout(() => {
-      if (typeof window.inicializarVistaTraspasos === 'function') {
-        window.inicializarVistaTraspasos();
-      }
-    }, 100);
-  }
+  // No auto-init aquí.
+  // El shell es quien llama window.initVista().
 })();
 </script>

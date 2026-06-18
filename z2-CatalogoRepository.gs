@@ -1,6 +1,6 @@
 /**
- * UsuariosRepository.gs
- * Lectura de hoja USUARIOS
+ * CatalogoRepository.gs
+ * Lectura de hoja CATALOGO
  */
 
 const CatalogoRepository = (() => {

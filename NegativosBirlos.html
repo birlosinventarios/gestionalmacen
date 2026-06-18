@@ -1,3 +1,5 @@
+<script>/** NegativosBirlos.html */</script>
+
 <style>
   #render-negativos-birlos {
     --local-primary: #d93025;
@@ -17,27 +19,29 @@
     width: 6px;
     height: 6px;
   }
+
   #render-negativos-birlos .custom-scroll::-webkit-scrollbar-track {
     background: rgba(0, 0, 0, 0.03);
   }
+
   #render-negativos-birlos .custom-scroll::-webkit-scrollbar-thumb {
     background: rgba(0, 0, 0, 0.15);
     border-radius: 99px;
   }
+
   #render-negativos-birlos .custom-scroll::-webkit-scrollbar-thumb:hover {
     background: var(--local-primary);
   }
 
   /* Oculta la barra del scroll exterior pero mantiene el scroll funcional */
   #render-negativos-birlos {
-    scrollbar-width: none;      /* Firefox */
-    -ms-overflow-style: none;   /* IE / Edge Legacy */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
 
   #render-negativos-birlos::-webkit-scrollbar {
-    display: none;              /* Chrome / Safari / Edge Chromium */
+    display: none;
   }
-
 
   /* Animaciones aisladas por prefijo para evitar colisiones globales */
   @keyframes nbSubtleRedPulse {
@@ -48,16 +52,6 @@
 
   #render-negativos-birlos .red-pulse-badge {
     animation: nbSubtleRedPulse 2s infinite ease-in-out;
-  }
-
-  @keyframes nbSubtleGreenPulse {
-    0% { box-shadow: 0 0 0 0px rgba(16, 185, 129, 0.3); }
-    70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-    100% { box-shadow: 0 0 0 0px rgba(16, 185, 129, 0); }
-  }
-
-  #render-negativos-birlos .green-pulse-btn {
-    animation: nbSubtleGreenPulse 2.5s infinite ease-in-out;
   }
 
   @keyframes nbFadeInUp {
@@ -74,42 +68,143 @@
   #render-negativos-birlos .fade-in-up {
     animation: nbFadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
+
+  /* Botón exportar */
+  #render-negativos-birlos .btn-exportar-flotante {
+    width: 62px;
+    height: 62px;
+    border: none;
+    border-radius: 999px;
+    background: #d93025;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 12px 30px rgba(217, 48, 37, 0.28);
+    transition: all 0.25s ease;
+  }
+
+  #render-negativos-birlos .btn-exportar-flotante:hover {
+    background: #a50e0e;
+    transform: translateY(-1px);
+  }
+
+  #render-negativos-birlos .btn-exportar-flotante:disabled {
+    background: #cbd5e1;
+    color: #64748b;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  #render-negativos-birlos .badge-exportar-flotante {
+    position: absolute;
+    top: -6px;
+    right: -4px;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: #1c1d1f;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #ffffff;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+  }
+
+  #render-negativos-birlos .offcanvas-export-header {
+    border-bottom: 1px solid #dadce0;
+  }
+
+  #render-negativos-birlos .kpi-export-panel {
+    background: #f8f9fa;
+    border: 1px solid #dadce0;
+    border-radius: 1rem;
+    padding: 1rem;
+  }
+
+  #render-negativos-birlos .btn-exportar-panel {
+    width: 100%;
+    border: none;
+    border-radius: 1rem;
+    background: #d93025;
+    color: white;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 14px 16px;
+    transition: all 0.2s ease;
+  }
+
+  #render-negativos-birlos .btn-exportar-panel:hover {
+    background: #a50e0e;
+  }
+
+  #render-negativos-birlos .animate-fab-in {
+    animation: fabInNB 0.25s ease-out;
+  }
+
+  @keyframes fabInNB {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  #render-negativos-birlos .animate-slide-left {
+    animation: slideLNB 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes slideLNB {
+    from {
+      opacity: 0;
+      transform: translateX(40px) scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
 </style>
 
-<!-- Contenedor Raíz Único Inyectable -->
-<div id="render-negativos-birlos" class="h-full w-full flex flex-col bg-[#f8f9fa] overflow-y-auto p-4 md:p-8">
-  <!-- El componente de React montará dinámicamente su estructura aquí adentro -->
-</div>
+<!-- Contenedor raíz -->
+<div id="render-negativos-birlos" class="h-full w-full flex flex-col bg-[#f8f9fa] overflow-y-auto p-4 md:p-8"></div>
 
 <script type="text/babel">
-  /**
-   * INTERFAZ MÓDULO: NEGATIVOS EN ALMACÉN BIRLOS
-   * Inicialización controlada para inyección dinámica dentro del ecosistema corporativo.
-   */
   window.cargar_NegativosBirlos = () => {
     const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-    // Configuración unificada de alertas tácticas en contraste oscuro corporativo
-    const Toast = Swal.mixin({
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 3500,
-      timerProgressBar: true,
-      background: '#1c1d1f',
-      color: '#ffffff',
-      iconColor: '#d93025',
-      didOpen: (toast) => {
-        toast.addEventListener('mouseenter', Swal.stopTimer);
-        toast.addEventListener('mouseleave', Swal.resumeTimer);
-        const progress = toast.querySelector('.swal2-timer-progress-bar');
-        if (progress) progress.style.backgroundColor = '#d93025';
+    // =========================================================
+    // HELPERS DE NOTIFICACIÓN
+    // =========================================================
+    const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
+      const fn = window.notificar || window.lanzarNotificacion;
+      if (typeof fn === "function") {
+        fn(mensaje, tipo, timer, options);
       }
-    });
+    };
 
-    // Componente de Icono optimizado reutilizando la instancia global del motor Lucide
+    const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
+      const now = Date.now();
+      const last = ref.current[key] || 0;
+      if (now - last < cooldown) return;
+      ref.current[key] = now;
+      notify_(mensaje, tipo, timer, options);
+    };
+
+    const shellNotifyStateRef = { current: {} };
+    const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
+
     const LocalIcon = ({ name, size = 18, className = "" }) => {
       const iconRef = useRef(null);
+
       useEffect(() => {
         if (window.lucide && iconRef.current) {
           iconRef.current.innerHTML = '';
@@ -122,10 +217,10 @@
           window.lucide.createIcons();
         }
       }, [name, size, className]);
+
       return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
     };
 
-    // Componente Interno KPI Block parametrizado
     const KPIBlock = ({ title, value, unit, iconName, trend, indicatorColor }) => {
       const colorMap = {
         red: 'bg-red-50 text-red-600 border border-red-100',
@@ -159,27 +254,17 @@
 
       return (
         <div className="bg-white border border-[#dadce0] rounded-[1.5rem] p-6 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group min-h-[170px]">
-          
-          {/* Barra superior */}
           <div className={`absolute top-0 left-0 right-0 h-1.5 ${topBarColor}`}></div>
 
-          {/* Estructura principal */}
           <div className="h-full flex flex-col pt-2">
-            
-            {/* Título arriba */}
             <div className="mb-1">
               <p className="text-[18px] font-extrabold uppercase tracking-[0.14em] text-[#5f6368] leading-tight">
                 {title}
               </p>
             </div>
 
-            {/* Cuerpo dividido en 2 columnas */}
             <div className="grid grid-cols-[1fr_auto] items-end h-full gap-4">
-              
-              {/* Columna izquierda */}
               <div className="flex flex-col justify-between h-full min-w-0">
-                
-                {/* Value + unit */}
                 <div className="flex items-end gap-2 flex-wrap">
                   <h3 className="text-5xl font-black tracking-tight text-[#1c1d1f] leading-none">
                     {value}
@@ -192,7 +277,6 @@
                   )}
                 </div>
 
-                {/* Trend abajo */}
                 {trend && (
                   <div className="mt-4 flex items-center gap-2 flex-wrap">
                     <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${trendColor}`}>
@@ -208,7 +292,6 @@
                 )}
               </div>
 
-              {/* Columna derecha: icono abajo y a la derecha */}
               <div className="self-end justify-self-end">
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${colorMap[indicatorColor]}`}>
                   <LocalIcon name={iconName} size={40} />
@@ -220,63 +303,125 @@
       );
     };
 
-
-    // Componente Core del Dashboard de Negativos
     const NegativosBirlosDashboard = () => {
-
       const [negativos, setNegativos] = useState([]);
       const [ubicacionesSurtido, setUbicacionesSurtido] = useState([]);
       const [loading, setLoading] = useState(true);
       const [searchQuery, setSearchQuery] = useState("");
       const [filterStatus, setFilterStatus] = useState("ALL");
+      const [filterBodega, setFilterBodega] = useState("TODAS");
       const [activeRow, setActiveRow] = useState(null);
       const [sortBy, setSortBy] = useState("NONE");
-      const fetchDatabase = useCallback(() => {
-        const USAR_MOCK = false; // 👈 Cambia a false cuando ya exista el controller real
+      const [hoverMenu, setHoverMenu] = useState(null);
+      const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+      const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
 
+      const closeMenuTimeout = useRef(null);
+      const searchInputRef = useRef(null);
+      const firstLoadDoneRef = useRef(false);
+      const manualRefreshCountRef = useRef(0);
+
+      const fetchDatabase = useCallback((contexto = "init") => {
+        const USAR_MOCK = false;
         setLoading(true);
+
+        if (contexto === "init") {
+          notify_("Cargando análisis de negativos en almacén...", "info", 1600, {
+            title: "Inicializando vista",
+            sound: false
+          });
+        } else {
+          notify_("Actualizando negativos de almacén...", "info", 1400, {
+            title: "Sincronizando",
+            sound: false
+          });
+        }
 
         if (!USAR_MOCK && typeof google !== 'undefined' && google.script && google.script.run) {
           google.script.run
-            
-              .withSuccessHandler((resultado) => {
-                const negativosCargados = resultado.negativos || [];
-                const ubicacionesCargadas = resultado.ubicacionesSurtido || [];
+            .withSuccessHandler((resultado) => {
+              const negativosCargados = resultado?.negativos || [];
+              const ubicacionesCargadas = resultado?.ubicacionesSurtido || [];
 
-                setNegativos(negativosCargados);
-                setUbicacionesSurtido(ubicacionesCargadas);
-                setLoading(false);
+              setNegativos(negativosCargados);
+              setUbicacionesSurtido(ubicacionesCargadas);
+              setLoading(false);
 
-                console.log("======================================================");
-                console.log("📦 [NegativosBirlos] RESPUESTA RECIBIDA DEL BACKEND");
-                console.log("======================================================");
-                console.log("📊 Total negativos:", negativosCargados.length);
-                console.log("📍 Total ubicaciones surtido:", ubicacionesCargadas.length);
-                console.log("🔎 Primeros 5 negativos:");
-                console.log(JSON.stringify(negativosCargados.slice(0, 5), null, 2));
-                console.log("🔎 Primeras 5 ubicaciones surtido:");
-                console.log(JSON.stringify(ubicacionesCargadas.slice(0, 5), null, 2));
+              const total = Array.isArray(negativosCargados) ? negativosCargados.length : 0;
 
-                if (negativosCargados.length > 0) {
-                  console.table(negativosCargados.slice(0, 5));
+              if (total === 0) {
+                if (contexto === "init") {
+                  notify_("No se encontraron negativos activos en almacén.", "success", 2200, {
+                    title: "Sin pendientes críticos",
+                    sound: false
+                  });
+                } else {
+                  notify_("La actualización terminó sin registros negativos activos.", "success", 1800, {
+                    title: "Actualización completada",
+                    sound: false
+                  });
                 }
+                firstLoadDoneRef.current = true;
+                return;
+              }
 
-                if (ubicacionesCargadas.length > 0) {
-                  console.table(ubicacionesCargadas.slice(0, 5));
+              if (!firstLoadDoneRef.current) {
+                firstLoadDoneRef.current = true;
+                notify_(
+                  `Se cargaron ${total} registros con negativos activos.`,
+                  "success",
+                  2200,
+                  {
+                    title: "Sincronización completada",
+                    sound: false
+                  }
+                );
+              } else {
+                manualRefreshCountRef.current += 1;
+                if (contexto !== "init") {
+                  notify_(
+                    `Negativos actualizados correctamente (${total} registros).`,
+                    "success",
+                    1800,
+                    {
+                      title: "Actualización completada",
+                      sound: false
+                    }
+                  );
+                } else {
+                  notifyOnceShell_(
+                    "negativos-refresh-interno",
+                    "La vista de negativos se actualizó correctamente.",
+                    "success",
+                    1600,
+                    {
+                      title: "Vista lista",
+                      sound: false
+                    },
+                    12000
+                  );
                 }
+              }
+            })
+            .withFailureHandler((err) => {
+              console.error("❌ [NegativosBirlos] Error consultando controller:", err);
+              setNegativos([]);
+              setUbicacionesSurtido([]);
+              setLoading(false);
 
-                console.log("======================================================");
-
-                Toast.fire({
-                  icon: 'success',
-                  title: 'Sincronización Completada',
-                  text: 'Existencias actualizadas desde el servidor central.'
-                });
-              })
-            .obtenerNegativosBirlosCompleto();
+              notify_(
+                (err && err.message) ? err.message : "No se pudo consultar NegativosBirlosController.",
+                "error",
+                4200,
+                {
+                  title: contexto === "init" ? "Error de carga" : "Error de sincronización",
+                  sound: true
+                }
+              );
+            })
+            .NegativosBirlosController_getVista();
 
         } else {
-          // ✅ Modo mock forzado para desarrollo visual
           setTimeout(() => {
             const mockNegativos = [
               {
@@ -286,104 +431,106 @@
                 almacenbirlos: -45,
                 excedentebodega: 150,
                 excedentecasablanca: 0
-              },
-              {
-                idproducto: 244,
-                codigo: "PLH-1/4X5",
-                descripcion: "PIJA PARA LAMINA CABEZA HEXAGONAL 1/4X5",
-                almacenbirlos: -120,
-                excedentebodega: 80,
-                excedentecasablanca: 50
-              },
-              {
-                idproducto: 1102,
-                codigo: "TCR-3/8X2",
-                descripcion: "TORNILLO CARROCERIA GRADO 2 3/8 X 2",
-                almacenbirlos: -8,
-                excedentebodega: 0,
-                excedentecasablanca: 0
-              },
-              {
-                idproducto: 5312,
-                codigo: "PLP-10X1",
-                descripcion: "PIJA PARA LAMINA PHILLIPS PLANA 10X1",
-                almacenbirlos: -310,
-                excedentebodega: 500,
-                excedentecasablanca: 250
-              },
-              {
-                idproducto: 840,
-                codigo: "RDA-5/16",
-                descripcion: "RONDANA DE PRESION GALVANIZADA 5/16",
-                almacenbirlos: -12,
-                excedentebodega: 0,
-                excedentecasablanca: 100
               }
             ];
 
             const mockUbicacionesSurtido = [
-              { codigo: "T5S-1/4X31/2", ubicacion: "B1-P05-A2" },
-              { codigo: "PLH-1/4X5", ubicacion: "BM-P21-C1" },
-              { codigo: "TCR-3/8X2", ubicacion: "B1-P12-A1" },
-              { codigo: "PLP-10X1", ubicacion: "B2-P01-B3" },
-              { codigo: "RDA-5/16", ubicacion: "BM-P03-A4" }
+              { codigo: "T5S-1/4X31/2", ubicacion: "B1-P05-A2" }
             ];
 
             setNegativos(mockNegativos);
             setUbicacionesSurtido(mockUbicacionesSurtido);
             setLoading(false);
 
-            Toast.fire({
-              icon: 'info',
-              title: 'Modo mock activo',
-              text: 'Vista cargada con datos simulados.'
+            notify_("Vista cargada con datos simulados.", "info", 1800, {
+              title: "Modo mock activo",
+              sound: false
             });
           }, 1000);
         }
       }, []);
 
-
       useEffect(() => {
-        fetchDatabase();
+        fetchDatabase("init");
       }, [fetchDatabase]);
 
-        const mapUbicacionesFloor = useMemo(() => {
-          const mapa = ubicacionesSurtido.reduce((acc, item) => {
-            const codigo = String(item.codigo || "").toUpperCase().trim();
-            const ubicacion = String(item.ubicacion || "").toUpperCase().trim();
+      const getBodegaKey = (ubicacion) => {
+        const raw = String(ubicacion || "").toUpperCase().trim();
 
-            if (codigo) {
-              acc[codigo] = ubicacion;
-            }
+        if (!raw || raw === "SIN ASIGNAR") return "SIN_UBICACION";
+        if (raw.startsWith("B1")) return "B1";
+        if (raw.startsWith("B2")) return "B2";
+        if (raw.startsWith("B3")) return "B3";
+        if (raw.startsWith("CU")) return "CU";
+        if (raw.startsWith("MO")) return "MO";
 
-            return acc;
-          }, {});
+        return "OTRO";
+      };
 
-          const entries = Object.entries(mapa);
+      const getBodegaLabel = (key) => {
+        const map = {
+          TODAS: "Todas",
+          B1: "Bodega 1",
+          B2: "Bodega 2",
+          B3: "Bodega 3",
+          CU: "Cuarto Alto Riesgo",
+          MO: "Mostrador",
+          SIN_UBICACION: "Sin ubicación",
+          OTRO: "Otro"
+        };
+        return map[key] || "Todas";
+      };
 
-          console.log("======================================================");
-          console.log("🗺️ [NegativosBirlos] MAPA DE UBICACIONES PISO");
-          console.log("======================================================");
-          console.log("📊 Total claves en mapa:", entries.length);
-          console.log("🔎 Primeros 5 pares código -> ubicación:");
-          console.log(entries.slice(0, 5));
-          console.table(
-            entries.slice(0, 5).map(([codigo, ubicacion]) => ({
-              codigo,
-              ubicacion
-            }))
-          );
-          console.log("======================================================");
+      const openHoverMenu = (menuName) => {
+        if (closeMenuTimeout.current) {
+          clearTimeout(closeMenuTimeout.current);
+          closeMenuTimeout.current = null;
+        }
+        setHoverMenu(menuName);
+      };
 
-          return mapa;
-        }, [ubicacionesSurtido]);
+      const closeHoverMenuWithDelay = () => {
+        if (closeMenuTimeout.current) {
+          clearTimeout(closeMenuTimeout.current);
+        }
 
+        closeMenuTimeout.current = setTimeout(() => {
+          setHoverMenu(null);
+        }, 180);
+      };
+
+      const cancelCloseHoverMenu = () => {
+        if (closeMenuTimeout.current) {
+          clearTimeout(closeMenuTimeout.current);
+          closeMenuTimeout.current = null;
+        }
+      };
+
+      const mapUbicacionesFloor = useMemo(() => {
+        const mapa = ubicacionesSurtido.reduce((acc, item) => {
+          const codigo = String(item.codigo || "").toUpperCase().trim();
+          const ubicacion = String(item.ubicacion || "").toUpperCase().trim();
+
+          if (codigo) {
+            acc[codigo] = ubicacion;
+          }
+
+          return acc;
+        }, {});
+
+        return mapa;
+      }, [ubicacionesSurtido]);
 
       const consolidadoNegativos = useMemo(() => {
-        const salida = negativos.map(item => {
+        return negativos.map(item => {
           const sku = String(item.codigo).toUpperCase().trim();
           const ubicacionPiso = mapUbicacionesFloor[sku] || "SIN ASIGNAR";
-          const sumaExcedente = Number(item.excedentebodega || 0) + Number(item.excedentecasablanca || 0);
+          const bodegaKey = getBodegaKey(ubicacionPiso);
+          const bodegaLabel = getBodegaLabel(bodegaKey);
+
+          const sumaExcedente =
+            Number(item.excedentebodega || 0) + Number(item.excedentecasablanca || 0);
+
           const deficit = Math.abs(Number(item.almacenbirlos || 0));
           const traspasoViable = sumaExcedente >= deficit;
 
@@ -397,50 +544,14 @@
           return {
             ...item,
             ubicacionPiso,
+            bodegakey: bodegaKey,
+            bodegalabel: bodegaLabel,
             sumaExcedente,
             deficit,
             traspasoViable,
             estatusTecnico
           };
         });
-
-        console.log("======================================================");
-        console.log("🧩 [NegativosBirlos] CONSOLIDADO FINAL");
-        console.log("======================================================");
-        console.log("📊 Total registros consolidados:", salida.length);
-        console.log("🔎 Primeros 5 registros consolidados:");
-        console.log(JSON.stringify(salida.slice(0, 5), null, 2));
-        console.table(
-          salida.slice(0, 5).map(x => ({
-            codigo: x.codigo,
-            ubicacionPiso: x.ubicacionPiso,
-            almacenbirlos: x.almacenbirlos,
-            excedentebodega: x.excedentebodega,
-            excedentecasablanca: x.excedentecasablanca,
-            sumaExcedente: x.sumaExcedente,
-            deficit: x.deficit,
-            estatusTecnico: x.estatusTecnico
-          }))
-        );
-
-        // ✅ DETECTOR DE REGISTROS SIN UBICACIÓN
-        const sinAsignar = salida.filter(x => x.ubicacionPiso === "SIN ASIGNAR");
-
-        console.log("🚨 Total registros SIN ASIGNAR:", sinAsignar.length);
-        console.log("🔎 Primeros 5 SIN ASIGNAR:");
-        console.log(JSON.stringify(sinAsignar.slice(0, 5), null, 2));
-        console.table(
-          sinAsignar.slice(0, 5).map(x => ({
-            codigo: x.codigo,
-            idproducto: x.idproducto,
-            descripcion: x.descripcion,
-            ubicacionPiso: x.ubicacionPiso
-          }))
-        );
-
-        console.log("======================================================");
-
-        return salida;
       }, [negativos, mapUbicacionesFloor]);
 
       const metrics = useMemo(() => {
@@ -461,24 +572,29 @@
         };
       }, [consolidadoNegativos]);
 
-
       const recordsFiltered = useMemo(() => {
         return consolidadoNegativos.filter(item => {
-          const matchText = 
-            item.codigo.toLowerCase().includes(searchQuery.toLowerCase()) || 
+          const matchText =
+            item.codigo.toLowerCase().includes(searchQuery.toLowerCase()) ||
             item.descripcion.toLowerCase().includes(searchQuery.toLowerCase());
 
-          if (filterStatus === "READY") return matchText && item.traspasoViable;
-          if (filterStatus === "NO_STOCK") return matchText && !item.traspasoViable && item.sumaExcedente === 0;
-          return matchText;
-        });
-      }, [consolidadoNegativos, searchQuery, filterStatus]);
+          if (!matchText) return false;
 
-      
+          if (filterBodega !== "TODAS" && item.bodegakey !== filterBodega) {
+            return false;
+          }
+
+          if (filterStatus === "READY") return item.traspasoViable;
+          if (filterStatus === "NO_STOCK") return !item.traspasoViable && item.sumaExcedente === 0;
+
+          return true;
+        });
+      }, [consolidadoNegativos, searchQuery, filterStatus, filterBodega]);
+
       const recordsFinal = useMemo(() => {
         const salida = [...recordsFiltered];
 
-        if (sortBy === "CODIGO") {
+        if (sortBy === "CODIGO_ASC") {
           salida.sort((a, b) =>
             String(a.codigo || "").localeCompare(
               String(b.codigo || ""),
@@ -488,7 +604,17 @@
           );
         }
 
-        if (sortBy === "UBICACION") {
+        if (sortBy === "CODIGO_DESC") {
+          salida.sort((a, b) =>
+            String(b.codigo || "").localeCompare(
+              String(a.codigo || ""),
+              "es",
+              { sensitivity: "base", numeric: true }
+            )
+          );
+        }
+
+        if (sortBy === "UBICACION_ASC") {
           salida.sort((a, b) =>
             String(a.ubicacionPiso || "").localeCompare(
               String(b.ubicacionPiso || ""),
@@ -498,9 +624,112 @@
           );
         }
 
+        if (sortBy === "UBICACION_DESC") {
+          salida.sort((a, b) =>
+            String(b.ubicacionPiso || "").localeCompare(
+              String(a.ubicacionPiso || ""),
+              "es",
+              { sensitivity: "base", numeric: true }
+            )
+          );
+        }
+
         return salida;
       }, [recordsFiltered, sortBy]);
 
+      const exportarExcelCompleto = () => {
+        if (!window.ExcelExportUtils || typeof window.ExcelExportUtils.exportarAXLSX !== "function") {
+          notify_(
+            "No se detectó el helper global de exportación XLSX.",
+            "error",
+            4200,
+            {
+              title: "Exportador no disponible",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        if (!Array.isArray(consolidadoNegativos) || consolidadoNegativos.length === 0) {
+          notify_(
+            "No existen registros disponibles para exportación.",
+            "warning",
+            3200,
+            {
+              title: "Sin datos para exportar",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        const fecha = new Date().toISOString().slice(0, 10);
+
+        window.ExcelExportUtils.exportarAXLSX({
+          fileName: `Negativos_Birlos_${fecha}.xlsx`,
+          sheetName: "Negativos",
+          rows: consolidadoNegativos,
+          columns: [
+            { key: "codigo", label: "Código" },
+            { key: "descripcion", label: "Descripción" },
+            { key: "ubicacionPiso", label: "Ubicación Surtido" },
+            { key: "bodegalabel", label: "Bodega / Zona" },
+            { key: "almacenbirlos", label: "Saldo Piso Venta" },
+            { key: "excedentebodega", label: "Excedente Bodega" },
+            { key: "excedentecasablanca", label: "Excedente Casa Blanca" },
+            { key: "sumaExcedente", label: "Excedente Total" }
+          ]
+        });
+
+        notify_(
+          `Se inició la exportación de ${consolidadoNegativos.length} registros.`,
+          "success",
+          2200,
+          {
+            title: "Exportación iniciada",
+            sound: true
+          }
+        );
+      };
+
+      const abrirPanelExportacion = () => {
+        const panel = document.getElementById('panelExportarNegativos');
+
+        if (!panel) {
+          notify_(
+            "No se encontró el panel lateral de exportación.",
+            "error",
+            4200,
+            {
+              title: "Panel no disponible",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        if (typeof bootstrap === 'undefined' || !bootstrap.Offcanvas) {
+          notify_(
+            "No se detectó bootstrap.bundle.min.js para abrir el panel.",
+            "error",
+            4200,
+            {
+              title: "Bootstrap no disponible",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        const instancia = bootstrap.Offcanvas.getOrCreateInstance(panel);
+        instancia.show();
+
+        notify_("Panel de exportación abierto.", "info", 1200, {
+          title: "Exportación",
+          sound: false
+        });
+      };
 
       const getInfoExcedentes = (item) => {
         Swal.fire({
@@ -508,7 +737,7 @@
           html: `
             <div class="text-left text-sm space-y-4 p-1 text-slate-700">
               <p>Existencias resumidas en base a los acomodos y surtidos de <strong>${item.codigo}</strong> en los almacenes de excedentes.</p>
-              
+
               <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
                 <div class="flex justify-between font-medium">
                   <span>Negativo en Almacén Birlos:</span>
@@ -533,112 +762,57 @@
           customClass: {
             popup: 'rounded-[1.5rem]',
             cancelButton: 'rounded-xl px-5 py-3'
-          },
-          preConfirm: () => {
-            const qty = document.getElementById('swal-nb-nb-input-qty')?.value || document.getElementById('swal-nb-input-qty')?.value;
-            if (!qty || parseFloat(qty) <= 0) {
-              Swal.showValidationMessage('Asigne un volumen de piezas válido superior a 0');
-            }
-            return qty;
           }
         }).then((result) => {
           if (result.isConfirmed) {
-            // Aquí puedes integrar el canal de ejecución hacia tu backend de GAS
-            Toast.fire({
-              icon: 'success',
-              title: 'Movimiento Registrado',
-              text: `Enrutadas ${result.value} piezas del SKU ${item.codigo} para balance de inventario.`
-            });
+            notify_(
+              `Acción confirmada para el SKU ${item.codigo}.`,
+              "success",
+              2200,
+              {
+                title: "Movimiento registrado",
+                sound: true
+              }
+            );
           }
         });
       };
 
       return (
-        <div className="space-y-6 fade-in-up">
-          {/* Cabecera Técnica */}
-
-            <header className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 bg-white border border-[#dadce0] rounded-3xl p-6 shadow-sm">
-              
-              {/* BLOQUE IZQUIERDO: TÍTULO */}
-              <div className="space-y-1 shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse"></span>
-                  <h1 className="text-3xl font-extrabold tracking-tight text-[#1c1d1f]">
-                    Negativos en Almacén Birlos
-                  </h1>
-                </div>
-
-                <p className="text-[#5f6368] text-sm font-medium">
-                  Monitoreo de discrepancias y conciliación de saldos contra existencias en excedentes.
-                </p>
-              </div>
-
-              {/* BLOQUE CENTRAL: BARRA DE BÚSQUEDA */}
-              <div className="relative flex-1 min-w-0 xl:max-w-2xl">
-                <LocalIcon
-                  name="search"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={18}
-                />
-                <input
-                  type="text"
-                  placeholder="Filtrar por código, SKU o descripción..."
-                  className="w-full bg-slate-50 border border-[#dadce0] focus:border-[#d93025] focus:bg-white rounded-2xl pl-12 pr-4 py-3 text-sm text-[#1c1d1f] font-semibold placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#d93025]/30 transition-all"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-
-              {/* BLOQUE DERECHO: BOTÓN */}
-              <div className="flex items-center gap-3 w-full xl:w-auto shrink-0">
-                <button 
-                  onClick={fetchDatabase}
-                  disabled={loading}
-                  className="w-full xl:w-auto flex items-center justify-center gap-2 px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                >
-                  <LocalIcon
-                    name="refresh-cw"
-                    className={loading ? "animate-spin" : ""}
-                    size={16}
-                  />
-                  {loading ? "Sincronizando..." : "Forzar Actualización"}
-                </button>
-              </div>
-            </header>
+        <div className="space-y-6 fade-in-up relative">
 
           {/* Bloques de Métricos */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <KPIBlock 
-              title="Negativos sin excedentes" 
-              value={metrics.negativosSinExcedentes} 
-              unit="SKUs" 
-              iconName="alert-triangle" 
+            <KPIBlock
+              title="Negativos sin excedentes"
+              value={metrics.negativosSinExcedentes}
+              unit="SKUs"
+              iconName="alert-triangle"
               indicatorColor="red"
               trend={{ text: "Conteo Requerido", type: "negative" }}
             />
 
-            <KPIBlock 
-              title="Negativos con excedentes" 
-              value={metrics.negativosConExcedentes} 
-              unit="SKUs" 
-              iconName="box" 
+            <KPIBlock
+              title="Negativos con excedentes"
+              value={metrics.negativosConExcedentes}
+              unit="SKUs"
+              iconName="box"
               indicatorColor="amber"
               trend={{ text: "Revisar Excedentes", type: "neutral" }}
             />
 
-            <KPIBlock 
-              title="Negativos Activos" 
-              value={metrics.negativosActivos} 
-              unit="SKUs" 
-              iconName="clipboard-list" 
+            <KPIBlock
+              title="Negativos Activos"
+              value={metrics.negativosActivos}
+              unit="SKUs"
+              iconName="clipboard-list"
               indicatorColor="black"
               trend={{ text: "En monitoreo", type: "dark" }}
             />
           </div>
 
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
-            
-            {/* Lado izquierdo: filtros */}
+            {/* Filtros operativos */}
             <div className="flex flex-wrap items-center gap-2">
               {[
                 { id: 'ALL', label: 'Negativos', count: consolidadoNegativos.length },
@@ -649,8 +823,8 @@
                   key={btn.id}
                   onClick={() => setFilterStatus(btn.id)}
                   className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                    filterStatus === btn.id 
-                      ? 'bg-[#d93025] text-white shadow-sm' 
+                    filterStatus === btn.id
+                      ? 'bg-[#d93025] text-white shadow-sm'
                       : 'bg-slate-50 text-slate-500 border border-[#dadce0] hover:bg-slate-100'
                   }`}
                 >
@@ -659,30 +833,153 @@
               ))}
             </div>
 
-            {/* Lado derecho: ordenamientos */}
+            {/* Segmentación / ordenamientos */}
             <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <button
-                onClick={() => setSortBy("CODIGO")}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                  sortBy === "CODIGO"
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
-                }`}
+              {/* BODEGA */}
+              <div
+                className="relative"
+                onMouseEnter={() => openHoverMenu("BODEGA")}
+                onMouseLeave={closeHoverMenuWithDelay}
               >
-                Código A-Z
-              </button>
+                <button
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                    filterBodega !== "TODAS"
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                  }`}
+                >
+                  {`Bodega: ${getBodegaLabel(filterBodega)}`}
+                </button>
 
-              <button
-                onClick={() => setSortBy("UBICACION")}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                  sortBy === "UBICACION"
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
-                }`}
+                {hoverMenu === "BODEGA" && (
+                  <div
+                    className="absolute top-full left-0 pt-2 w-56 z-50"
+                    onMouseEnter={cancelCloseHoverMenu}
+                    onMouseLeave={closeHoverMenuWithDelay}
+                  >
+                    <div className="bg-white border border-[#dadce0] rounded-2xl shadow-lg overflow-hidden">
+                      {[
+                        { key: "TODAS", label: "Todas" },
+                        { key: "B1", label: "Bodega 1" },
+                        { key: "B2", label: "Bodega 2" },
+                        { key: "B3", label: "Bodega 3" },
+                        { key: "CU", label: "Cuarto Alto Riesgo" },
+                        { key: "MO", label: "Mostrador" },
+                        { key: "SIN_UBICACION", label: "Sin ubicación" }
+                      ].map((opt, index) => (
+                        <button
+                          key={opt.key}
+                          onClick={() => {
+                            setFilterBodega(opt.key);
+                            setHoverMenu(null);
+                          }}
+                          className={`w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 ${
+                            index > 0 ? 'border-t border-[#dadce0]' : ''
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* CÓDIGO */}
+              <div
+                className="relative"
+                onMouseEnter={() => openHoverMenu("CODIGO")}
+                onMouseLeave={closeHoverMenuWithDelay}
               >
-                Ubicación A-Z
-              </button>
+                <button
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                    sortBy === "CODIGO_ASC" || sortBy === "CODIGO_DESC"
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                  }`}
+                >
+                  Código
+                </button>
 
+                {hoverMenu === "CODIGO" && (
+                  <div
+                    className="absolute top-full left-0 pt-2 w-44 z-50"
+                    onMouseEnter={cancelCloseHoverMenu}
+                    onMouseLeave={closeHoverMenuWithDelay}
+                  >
+                    <div className="bg-white border border-[#dadce0] rounded-2xl shadow-lg overflow-hidden">
+                      <button
+                        onClick={() => {
+                          setSortBy("CODIGO_ASC");
+                          setHoverMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                      >
+                        Código A-Z
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setSortBy("CODIGO_DESC");
+                          setHoverMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 border-t border-[#dadce0]"
+                      >
+                        Código Z-A
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* UBICACIÓN */}
+              <div
+                className="relative"
+                onMouseEnter={() => openHoverMenu("UBICACION")}
+                onMouseLeave={closeHoverMenuWithDelay}
+              >
+                <button
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                    sortBy === "UBICACION_ASC" || sortBy === "UBICACION_DESC"
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                  }`}
+                >
+                  Ubicación
+                </button>
+
+                {hoverMenu === "UBICACION" && (
+                  <div
+                    className="absolute top-full left-0 pt-2 w-44 z-50"
+                    onMouseEnter={cancelCloseHoverMenu}
+                    onMouseLeave={closeHoverMenuWithDelay}
+                  >
+                    <div className="bg-white border border-[#dadce0] rounded-2xl shadow-lg overflow-hidden">
+                      <button
+                        onClick={() => {
+                          setSortBy("UBICACION_ASC");
+                          setHoverMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                      >
+                        Ubicación A-Z
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setSortBy("UBICACION_DESC");
+                          setHoverMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 border-t border-[#dadce0]"
+                      >
+                        Ubicación Z-A
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SIN ORDEN */}
               <button
                 onClick={() => setSortBy("NONE")}
                 className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
@@ -691,11 +988,12 @@
                     : 'bg-white text-slate-500 border border-[#dadce0] hover:bg-slate-50'
                 }`}
               >
+                Sin orden
               </button>
             </div>
           </div>
 
-          {/* Tabla de Datos */}
+          {/* Tabla */}
           <div className="bg-white border border-[#dadce0] rounded-[1.5rem] overflow-hidden shadow-sm">
             <div className="overflow-auto custom-scroll max-h-[70vh]">
               <table className="w-full text-left border-collapse">
@@ -737,7 +1035,7 @@
                     </th>
                   </tr>
                 </thead>
-                
+
                 <tbody className="divide-y divide-[#dadce0]">
                   {recordsFinal.map((item, idx) => (
                     <tr
@@ -769,21 +1067,23 @@
                       {/* Ubicación Surtido */}
                       <td className="px-6 py-8 text-center align-middle">
                         <div className="flex items-center justify-center h-full">
-                          <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-100 border border-slate-200/80 text-slate-700 text-[15px] font-bold font-mono-premium">
-                            <LocalIcon name="map-pin" size={18} className="text-[#d93025]" />
-                            {item.ubicacionPiso}
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-100 border border-slate-200/80 text-slate-700 text-[15px] font-bold font-mono-premium">
+                              <LocalIcon name="map-pin" size={18} className="text-[#d93025]" />
+                              {item.ubicacionPiso}
+                            </div>
+
+                            <span className="text-[11px] px-2 py-1 rounded-lg bg-slate-100 text-slate-600 font-bold uppercase">
+                              {item.bodegalabel}
+                            </span>
                           </div>
                         </div>
                       </td>
-
-
 
                       {/* Matriz de Excedentes */}
                       <td className="px-6 py-8 text-center align-middle">
                         <div className="flex items-center justify-center h-full">
                           <div className="w-full max-w-[280px] space-y-2">
-                            
-                            {/* Línea superior: saldos */}
                             <div className="flex items-center justify-between text-[15px] font-bold">
                               <span className="text-[#d93025]">
                                 B: {item.excedentebodega}
@@ -794,7 +1094,6 @@
                               </span>
                             </div>
 
-                            {/* Barra de saldo */}
                             <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
                               <div
                                 style={{
@@ -821,7 +1120,6 @@
                               ></div>
                             </div>
 
-                            {/* Línea inferior: total */}
                             <div className="text-center">
                               <span className="text-[16px] font-extrabold text-slate-900">
                                 Total: {item.sumaExcedente}
@@ -830,7 +1128,6 @@
                           </div>
                         </div>
                       </td>
-
 
                       {/* Saldo piso de venta */}
                       <td className="px-6 py-8 text-center align-middle">
@@ -894,27 +1191,277 @@
               )}
             </div>
           </div>
+
+          {/* MENÚ FLOTANTE UNIFICADO */}
+          <div className="fixed bottom-10 right-10 z-[999] flex flex-col items-end gap-3">
+
+            {/* BUSCADOR EXPANDIBLE */}
+            {isFabMenuOpen && isSearchExpanded && (
+              <div className="flex items-center gap-3 animate-slide-left">
+                <input
+                  ref={searchInputRef}
+                  autoFocus
+                  type="text"
+                  placeholder="Escribe un código, SKU o descripción..."
+                  className="w-96 bg-white/90 backdrop-blur-md border-2 border-[#d93025] rounded-[1.25rem] px-6 py-4 shadow-[0_20px_50px_rgba(217,48,37,0.15)] outline-none font-bold text-sm text-[#1c1d1f] transition-all duration-300 placeholder-gray-400 focus:ring-4 focus:ring-[#d93025]/20 focus:border-[#d93025]"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* ACCIONES DESPLEGABLES */}
+            {isFabMenuOpen && (
+              <div className="flex flex-col items-end gap-3 animate-fab-in">
+
+                {/* BUSCAR */}
+                <button
+                  onClick={() => {
+                    const nuevoEstado = !isSearchExpanded;
+                    setIsSearchExpanded(nuevoEstado);
+
+                    if (nuevoEstado) {
+                      setTimeout(() => searchInputRef.current?.focus(), 120);
+                    } else {
+                      setSearchQuery("");
+                    }
+                  }}
+                  className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 transform active:scale-95 hover:scale-105 ${
+                    isSearchExpanded
+                      ? 'bg-[#1c1d1f] text-white shadow-xl ring-4 ring-black/10'
+                      : 'bg-[rgba(217,48,37,0.12)] text-[#d93025] border border-[rgba(217,48,37,0.30)] shadow-sm hover:bg-[#d93025] hover:text-white hover:border-[#d93025] hover:shadow-xl hover:ring-4 hover:ring-[#d93025]/10'
+                  }`}
+                  title={isSearchExpanded ? "Cerrar buscador" : "Buscar material"}
+                >
+                  <LocalIcon name={isSearchExpanded ? "x" : "search"} size={24} />
+                </button>
+
+                {/* ACTUALIZAR */}
+                <button
+                  onClick={() => fetchDatabase("manual")}
+                  disabled={loading}
+                  className="w-16 h-16 bg-white/90 backdrop-blur-md border border-[#dadce0] rounded-[1.25rem] shadow-lg flex items-center justify-center text-[#5f6368] hover:text-[#d93025] hover:border-[#d93025]/40 transition-all duration-300 transform active:scale-95 hover:scale-105 disabled:opacity-50 disabled:pointer-events-none"
+                  title="Actualizar tabla"
+                >
+                  <LocalIcon
+                    name="refresh-cw"
+                    size={24}
+                    className={loading ? "text-[#d93025] animate-spin" : ""}
+                  />
+                </button>
+
+                {/* EXPORTAR */}
+                <button
+                  type="button"
+                  className="btn-exportar-flotante relative"
+                  onClick={abrirPanelExportacion}
+                  aria-controls="panelExportarNegativos"
+                  disabled={loading || consolidadoNegativos.length === 0}
+                  title="Abrir panel de exportación"
+                >
+                  <LocalIcon name="file-spreadsheet" size={24} />
+                  <span className="badge-exportar-flotante">
+                    {consolidadoNegativos.length > 99 ? "99+" : consolidadoNegativos.length}
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {/* BOTÓN PRINCIPAL */}
+            <button
+              onClick={() => {
+                const nuevoEstado = !isFabMenuOpen;
+                setIsFabMenuOpen(nuevoEstado);
+
+                if (!nuevoEstado) {
+                  setIsSearchExpanded(false);
+                  setSearchQuery("");
+                }
+              }}
+              className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 transform active:scale-95 hover:scale-105 ${
+                isFabMenuOpen
+                  ? 'bg-[#1c1d1f] text-white shadow-xl ring-4 ring-black/10'
+                  : 'bg-[rgba(217,48,37,0.12)] text-[#d93025] border border-[rgba(217,48,37,0.30)] shadow-sm hover:bg-[#d93025] hover:text-white hover:border-[#d93025] hover:shadow-xl hover:ring-4 hover:ring-[#d93025]/10'
+              }`}
+              title={isFabMenuOpen ? "Cerrar acciones" : "Abrir acciones"}
+            >
+              <LocalIcon name={isFabMenuOpen ? "x" : "ellipsis-vertical"} size={26} />
+            </button>
+
+          </div>
+
+          {/* OFFCANVAS EXPORTACIÓN */}
+          <div
+            className="offcanvas offcanvas-end"
+            tabIndex="-1"
+            id="panelExportarNegativos"
+            aria-labelledby="panelExportarNegativosLabel"
+          >
+            <div className="offcanvas-header offcanvas-export-header">
+              <div>
+                <h5 id="panelExportarNegativosLabel" className="mb-1 fw-bold">
+                  Exportación de Excel
+                </h5>
+                <p className="mb-0 text-muted" style={{ fontSize: "13px" }}>
+                  Descarga el dataset completo de negativos consolidados.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="btn-close text-reset"
+                data-bs-dismiss="offcanvas"
+                aria-label="Cerrar"
+              ></button>
+            </div>
+
+            <div className="offcanvas-body d-flex flex-column gap-3">
+              <div className="kpi-export-panel">
+                <div className="d-flex align-items-center justify-content-between">
+                  <div>
+                    <div
+                      className="text-uppercase fw-bold text-muted"
+                      style={{ fontSize: "11px", letterSpacing: "0.08em" }}
+                    >
+                      Registros disponibles
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "32px",
+                        fontWeight: 900,
+                        color: "#1c1d1f",
+                        lineHeight: 1
+                      }}
+                    >
+                      {consolidadoNegativos.length.toLocaleString()}
+                    </div>
+                  </div>
+
+                  <div
+                    className="d-flex align-items-center justify-content-center rounded-4 border"
+                    style={{
+                      width: "56px",
+                      height: "56px",
+                      background: "#fff",
+                      borderColor: "#dadce0"
+                    }}
+                  >
+                    <LocalIcon name="database" size={26} className="text-slate-700" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="kpi-export-panel">
+                <div
+                  className="text-uppercase fw-bold text-muted mb-2"
+                  style={{ fontSize: "11px", letterSpacing: "0.08em" }}
+                >
+                  Se exportarán estas columnas
+                </div>
+
+                <ul
+                  className="mb-0 ps-3"
+                  style={{ fontSize: "13px", color: "#334155", lineHeight: 1.7 }}
+                >
+                  <li>Código</li>
+                  <li>Descripción</li>
+                  <li>Ubicación Surtido</li>
+                  <li>Bodega / Zona</li>
+                  <li>Saldo Piso Venta</li>
+                  <li>Excedente Bodega</li>
+                  <li>Excedente Casa Blanca</li>
+                  <li>Excedente Total</li>
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                className="btn-exportar-panel mt-auto"
+                onClick={exportarExcelCompleto}
+                disabled={loading || consolidadoNegativos.length === 0}
+                data-bs-dismiss="offcanvas"
+              >
+                Exportar Excel
+              </button>
+            </div>
+          </div>
         </div>
       );
     };
 
-    // Montaje defensivo y manejo del ciclo de vida de React 18
+    // =========================================================
+    // CONTRATO CON EL SHELL
+    // =========================================================
     const targetElement = document.getElementById('render-negativos-birlos');
-    if (targetElement) {
-      if (window.__NEGATIVOS_BIRLOS_ROOT__) {
-        try {
-          window.__NEGATIVOS_BIRLOS_ROOT__.unmount();
-        } catch (e) {
-          console.warn("⚠️ Instancia previa retenida en memoria, liberando recursos:", e);
+
+    if (!targetElement) {
+      notify_(
+        "No se encontró el contenedor principal de la vista de negativos.",
+        "error",
+        4200,
+        {
+          title: "Error de interfaz",
+          sound: true
         }
-        window.__NEGATIVOS_BIRLOS_ROOT__ = null;
+      );
+      console.warn("⚠️ [NegativosBirlos] No se encontró #render-negativos-birlos");
+      return;
+    }
+
+    const yaInicializado = targetElement.dataset.nbMounted === "1";
+
+    if (window.__NEGATIVOS_BIRLOS_ROOT__) {
+      try {
+        window.__NEGATIVOS_BIRLOS_ROOT__.unmount();
+      } catch (e) {
+        console.warn("⚠️ Instancia previa retenida en memoria, liberando recursos:", e);
+        notifyOnceShell_(
+          "negativos-root-previo",
+          "Se liberó una instancia previa de la vista de negativos.",
+          "warning",
+          1600,
+          {
+            title: "Reinicialización",
+            sound: false
+          },
+          10000
+        );
       }
+      window.__NEGATIVOS_BIRLOS_ROOT__ = null;
+    }
+
+    try {
+      targetElement.dataset.nbMounted = "1";
       window.__NEGATIVOS_BIRLOS_ROOT__ = ReactDOM.createRoot(targetElement);
       window.__NEGATIVOS_BIRLOS_ROOT__.render(<NegativosBirlosDashboard />);
+
+      if (!yaInicializado) {
+        notifyOnceShell_(
+          "negativos-vista-montada",
+          "Vista de negativos lista para operar.",
+          "success",
+          1500,
+          {
+            title: "Vista cargada",
+            sound: false
+          },
+          12000
+        );
+      }
+    } catch (e) {
+      console.error("❌ [NegativosBirlos] Error montando root React:", e);
+      notify_(
+        "Ocurrió un error al montar la vista de negativos.",
+        "error",
+        4200,
+        {
+          title: "Error de montaje",
+          sound: true
+        }
+      );
     }
   };
 
-  // Enlace obligatorio de ejecución para el router o disparador de vistas de la Shell
   window.initVista = window.cargar_NegativosBirlos;
   console.log("🧩 [NegativosBirlos] Vista inyectable inicializada y registrada.");
 </script>

@@ -1,3 +1,5 @@
+<script>/** FormularioEtiquetasIdentificadoras.html */</script>
+
 <div class="container">
 
   <div class="campo">
@@ -58,14 +60,16 @@
 <script>
 (function () {
   // =========================================================
-  // ESTADO SEGURO DE LA VISTA (evita redeclaraciones al recargar)
+  // ESTADO SEGURO DE LA VISTA
   // =========================================================
   window.EtiquetasIdentificadorasState = window.EtiquetasIdentificadorasState || {
     mapaCatalogo: {},
     mapaMedidas: {},
     listaNombresEtiquetas: [],
     listaCodigos: [],
-    snackbarTimeout: null
+    snackbarTimeout: null,
+    initDone: false,
+    lastNotifyAt: {}
   };
 
   window.colaDeImpresionEtiquetas = window.colaDeImpresionEtiquetas || [];
@@ -73,22 +77,19 @@
   const state = window.EtiquetasIdentificadorasState;
 
   // =========================================================
-  // UTILIDADES INTERNAS
+  // HELPERS DE NOTIFICACIÓN
   // =========================================================
-  function normalizarTexto(valor) {
-    return String(valor || "").trim().toUpperCase();
-  }
+  function notify_(mensaje, tipo = "info", timer = 2500, options = {}) {
+    const fn = window.notificar || window.lanzarNotificacion;
 
-  function lanzarNotificacionLocal(mensaje, tipo = 'success') {
-    const x = document.getElementById("snackbar");
-
-    // Si no existe snackbar local, usa el notificador global del shell
-    if (!x) {
-      if (typeof window.notificar === "function") {
-        window.notificar(mensaje, tipo);
-      }
+    if (typeof fn === "function") {
+      fn(mensaje, tipo, timer, options);
       return;
     }
+
+    // Fallback local únicamente si la vista corre fuera del shell
+    const x = document.getElementById("snackbar");
+    if (!x) return;
 
     if (state.snackbarTimeout) {
       clearTimeout(state.snackbarTimeout);
@@ -107,8 +108,27 @@
       }, 400);
     };
 
-    state.snackbarTimeout = setTimeout(cerrar, 1500);
+    state.snackbarTimeout = setTimeout(cerrar, Math.min(timer, 1800));
     x.onclick = cerrar;
+  }
+
+  function notifyOnce_(key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) {
+    const now = Date.now();
+    const last = state.lastNotifyAt[key] || 0;
+    if (now - last < cooldown) return;
+    state.lastNotifyAt[key] = now;
+    notify_(mensaje, tipo, timer, options);
+  }
+
+  // =========================================================
+  // UTILIDADES INTERNAS
+  // =========================================================
+  function normalizarTexto(valor) {
+    return String(valor || "").trim().toUpperCase();
+  }
+
+  function getViewRoot_() {
+    return document.querySelector('.container');
   }
 
   function limpiarCamposInterno() {
@@ -144,6 +164,10 @@
     }
   }
 
+  function existeNormalizado_(lista, valorNormalizado) {
+    return (lista || []).some(item => normalizarTexto(item) === valorNormalizado);
+  }
+
   function validarValorEnListaInterno(idInput, listaPermitida, nombreCampo) {
     const input = document.getElementById(idInput);
     if (!input) return false;
@@ -151,14 +175,25 @@
     const valor = normalizarTexto(input.value);
     if (valor === "") return false;
 
-    const existe = (listaPermitida || []).some(item => normalizarTexto(item) === valor);
+    const existe = existeNormalizado_(listaPermitida, valor);
 
     if (!existe) {
-      lanzarNotificacionLocal(`⚠️ El ${nombreCampo} "${valor}" no es válido.`, "error");
+      notify_(
+        `El ${nombreCampo} "${valor}" no es válido.`,
+        "error",
+        3200,
+        {
+          title: "Valor no permitido",
+          sound: true
+        }
+      );
+
       input.value = "";
+
       if (idInput === 'codigoInput') {
         limpiarCamposInterno();
       }
+
       input.focus();
       return false;
     }
@@ -195,8 +230,24 @@
   console.log("📦 [Etiquetas] DATA_ALMACEN_CACHE visible en vista:", window.DATA_ALMACEN_CACHE);
 
   window.inicializarVistaEtiquetas = function () {
+    const root = getViewRoot_();
+
+    if (root && root.dataset.eiInit === "1") {
+      console.log("⏭️ [Etiquetas] Inicialización omitida: esta instancia ya fue montada.");
+      return;
+    }
+
+    if (root) {
+      root.dataset.eiInit = "1";
+    }
+
     console.log("🏷️ [Etiquetas] inicializarVistaEtiquetas() ejecutada");
     console.log("📦 [Etiquetas] Cache completo:", window.DATA_ALMACEN_CACHE);
+
+    notify_("Inicializando vista de etiquetas identificadoras...", "info", 1600, {
+      title: "Cargando vista",
+      sound: false
+    });
 
     vincularEventosDOMEtiquetas_();
 
@@ -223,7 +274,11 @@
       state.listaNombresEtiquetas = nombresEtiquetasCache;
 
       poblarDatalistsEtiquetas_();
-      lanzarNotificacionLocal("Sistema listo", "success");
+
+      notify_("Datos de etiquetas cargados desde memoria local.", "success", 1800, {
+        title: "Sistema listo",
+        sound: false
+      });
       return;
     }
 
@@ -236,12 +291,21 @@
     ) {
       console.log("⚡ [Etiquetas] Reutilizando datos ya cargados en memoria local...");
       poblarDatalistsEtiquetas_();
-      lanzarNotificacionLocal("Sistema listo", "success");
+
+      notify_("Datos reutilizados desde memoria local.", "success", 1800, {
+        title: "Sistema listo",
+        sound: false
+      });
       return;
     }
 
     // 3) Fallback al controller nuevo
     console.warn("⚠️ [Etiquetas] La cache no tiene datos suficientes. Solicitando bootstrap específico...");
+
+    notify_("Solicitando catálogo y configuraciones de etiquetas...", "info", 1800, {
+      title: "Sincronización requerida",
+      sound: false
+    });
 
     google.script.run
       .withSuccessHandler(function (data) {
@@ -260,11 +324,24 @@
         window.DATA_ALMACEN_CACHE.nombresEtiquetas = state.listaNombresEtiquetas;
 
         poblarDatalistsEtiquetas_();
-        lanzarNotificacionLocal("✅ Datos de etiquetas cargados", "success");
+
+        notify_("Datos de etiquetas cargados correctamente.", "success", 2200, {
+          title: "Sistema listo",
+          sound: false
+        });
       })
       .withFailureHandler(function (err) {
         console.error("❌ [Etiquetas] Error cargando bootstrap:", err);
-        lanzarNotificacionLocal("❌ No se pudo cargar la información inicial de etiquetas", "error");
+
+        notify_(
+          "No se pudo cargar la información inicial de etiquetas.",
+          "error",
+          4200,
+          {
+            title: "Error de carga",
+            sound: true
+          }
+        );
       })
       .FormularioEtiquetasIdentificadorasController_getBootstrap();
   };
@@ -281,8 +358,16 @@
 
     if (codigo === "") return;
 
-    if (!state.listaCodigos.includes(codigo)) {
-      lanzarNotificacionLocal(`❌ El código "${codigo}" no existe.`, "error");
+    if (!existeNormalizado_(state.listaCodigos, codigo)) {
+      notify_(
+        `El código "${codigo}" no existe.`,
+        "error",
+        3200,
+        {
+          title: "Código no válido",
+          sound: true
+        }
+      );
       limpiarCamposInterno();
       return;
     }
@@ -291,30 +376,74 @@
     if (producto) {
       document.getElementById('idInput').value = producto.idproducto || "";
       document.getElementById('descripcionInput').value = producto.descripcion || "";
+
+      notifyOnce_(
+        "codigo-resuelto-local",
+        "Producto localizado correctamente.",
+        "success",
+        1300,
+        {
+          title: "Código encontrado",
+          sound: false
+        },
+        1200
+      );
       return;
     }
+
+    notify_("Consultando producto en el servidor...", "info", 1400, {
+      title: "Buscando producto",
+      sound: false
+    });
 
     // Fallback al backend
     google.script.run
       .withSuccessHandler(function (res) {
         if (!res || !res.encontrado) {
-          lanzarNotificacionLocal(`❌ El código "${codigo}" no fue encontrado.`, "error");
+          notify_(
+            `El código "${codigo}" no fue encontrado.`,
+            "error",
+            3200,
+            {
+              title: "Sin resultados",
+              sound: true
+            }
+          );
           limpiarCamposInterno();
           return;
         }
 
         document.getElementById('idInput').value = res.idproducto || "";
         document.getElementById('descripcionInput').value = res.descripcion || "";
+
+        notify_("Producto localizado correctamente.", "success", 1400, {
+          title: "Código encontrado",
+          sound: false
+        });
       })
       .withFailureHandler(function (err) {
         console.error("❌ Error buscando producto:", err);
-        lanzarNotificacionLocal("❌ Error al buscar el producto", "error");
+
+        notify_(
+          "Ocurrió un error al buscar el producto.",
+          "error",
+          4200,
+          {
+            title: "Error de búsqueda",
+            sound: true
+          }
+        );
       })
       .FormularioEtiquetasIdentificadorasController_buscarProductoPorCodigo(codigo);
   };
 
   window.limpiarCampos = function () {
     limpiarCamposInterno();
+
+    notify_("Campos limpiados.", "info", 1200, {
+      title: "Formulario limpio",
+      sound: false
+    });
   };
 
   window.agregarALista = function () {
@@ -323,24 +452,49 @@
     const desc = document.getElementById('descripcionInput')?.value || "";
     const id = document.getElementById('idInput')?.value || "";
 
-    if (!state.listaNombresEtiquetas.includes(tipo)) {
-      lanzarNotificacionLocal("❌ Selecciona un tipo de etiqueta de la lista", "error");
+    if (!existeNormalizado_(state.listaNombresEtiquetas, tipo)) {
+      notify_(
+        "Selecciona un tipo de etiqueta válido de la lista.",
+        "error",
+        3200,
+        {
+          title: "Tipo inválido",
+          sound: true
+        }
+      );
       return;
     }
 
-    if (!state.listaCodigos.includes(cod) || !id) {
-      lanzarNotificacionLocal("❌ Código no válido o no encontrado", "error");
+    if (!existeNormalizado_(state.listaCodigos, cod) || !id) {
+      notify_(
+        "El código no es válido o todavía no se encontró correctamente.",
+        "error",
+        3200,
+        {
+          title: "Código inválido",
+          sound: true
+        }
+      );
       return;
     }
 
-    const medidas = state.mapaMedidas[tipo];
+    const tipoReal = state.listaNombresEtiquetas.find(x => normalizarTexto(x) === tipo) || tipo;
+    const medidas = state.mapaMedidas[tipoReal] || state.mapaMedidas[tipo];
     if (!medidas) {
-      lanzarNotificacionLocal("❌ No se encontraron las medidas de la etiqueta seleccionada", "error");
+      notify_(
+        "No se encontraron las medidas de la etiqueta seleccionada.",
+        "error",
+        3600,
+        {
+          title: "Medidas no disponibles",
+          sound: true
+        }
+      );
       return;
     }
 
     window.colaDeImpresionEtiquetas.push({
-      tipo: tipo,
+      tipo: tipoReal,
       codigo: cod,
       descripcion: desc,
       id: id,
@@ -350,7 +504,11 @@
 
     window.actualizarVistaLista();
     limpiarCamposInterno();
-    lanzarNotificacionLocal("Añadido a la fila", "success");
+
+    notify_("Etiqueta añadida correctamente a la fila.", "success", 1500, {
+      title: "Añadido a la fila",
+      sound: false
+    });
   };
 
   window.actualizarVistaLista = function () {
@@ -365,7 +523,7 @@
     const plantilla = plantillaEl.innerHTML;
 
     window.colaDeImpresionEtiquetas.sort((a, b) => {
-      let comparacionTipo = a.tipo.localeCompare(b.tipo);
+      const comparacionTipo = a.tipo.localeCompare(b.tipo);
       if (comparacionTipo === 0) return a.codigo.localeCompare(b.codigo);
       return comparacionTipo;
     });
@@ -374,7 +532,7 @@
     contador.innerText = window.colaDeImpresionEtiquetas.length;
 
     window.colaDeImpresionEtiquetas.forEach((item, index) => {
-      let htmlFila = plantilla
+      const htmlFila = plantilla
         .replace(/{{INDEX}}/g, index)
         .replace("{{TIPO}}", item.tipo)
         .replace("{{CODIGO}}", item.codigo)
@@ -397,11 +555,24 @@
   window.quitarDeLista = function (index) {
     window.colaDeImpresionEtiquetas.splice(index, 1);
     window.actualizarVistaLista();
+
+    notify_("Etiqueta eliminada de la fila.", "warning", 1400, {
+      title: "Elemento removido",
+      sound: false
+    });
   };
 
   window.generar = function () {
     if (window.colaDeImpresionEtiquetas.length === 0) {
-      lanzarNotificacionLocal("⚠️ Agrega etiquetas a la lista primero.", "error");
+      notify_(
+        "Agrega etiquetas a la lista antes de imprimir.",
+        "warning",
+        3200,
+        {
+          title: "Fila vacía",
+          sound: true
+        }
+      );
       return;
     }
 
@@ -416,16 +587,38 @@
 
     if (!btn || !textoBoton) {
       console.error("❌ No se encontró el botón de impresión o el span textoBoton");
+      notify_(
+        "No se encontró el control de impresión en la vista.",
+        "error",
+        4200,
+        {
+          title: "Error de interfaz",
+          sound: true
+        }
+      );
       return;
     }
 
     textoBoton.innerText = "⏳ Generando...";
     btn.disabled = true;
 
+    notify_("Preparando lote de impresión...", "info", 1600, {
+      title: "Generando etiquetas",
+      sound: false
+    });
+
     const win = window.open("", "_blank");
 
     if (!win) {
-      lanzarNotificacionLocal("⚠️ Ventana bloqueada. Por favor permite los pop-ups en la barra de direcciones.", "warning");
+      notify_(
+        "La ventana fue bloqueada. Permite los pop-ups para continuar.",
+        "warning",
+        4200,
+        {
+          title: "Pop-up bloqueado",
+          sound: true
+        }
+      );
       btn.disabled = false;
       textoBoton.innerText = "Imprimir";
       return;
@@ -434,19 +627,20 @@
     win.document.write(`
       <html>
         <head>
-          <title>Generando Etiquetas...</title>
+          <title>Generando etiquetas...</title>
           <style>
-            body { 
-              font-family: 'Google Sans', Roboto, Arial, sans-serif; 
-              display: flex; 
-              flex-direction: column; 
-              align-items: center; 
-              justify-content: center; 
-              height: 100vh; 
-              margin: 0; 
-              color: #5f6368; 
+            body {
+              font-family: Arial, sans-serif;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              height: 100vh;
+              margin: 0;
+              color: #5f6368;
               background-color: #f8f9fa;
             }
+
             .spinner {
               width: 50px;
               height: 50px;
@@ -456,17 +650,40 @@
               animation: spin 1s linear infinite;
               margin-bottom: 20px;
             }
+
             @keyframes spin {
               0% { transform: rotate(0deg); }
               100% { transform: rotate(360deg); }
             }
-            h3 { font-weight: 400; }
+
+            .loader {
+              text-align: center;
+              max-width: 420px;
+              padding: 0 24px;
+            }
+
+            .loader h3 {
+              margin: 0 0 8px 0;
+              font-size: 22px;
+              font-weight: 700;
+              color: #1c1d1f;
+              letter-spacing: 0.04em;
+            }
+
+            .loader p {
+              margin: 0;
+              font-size: 14px;
+              color: #5f6368;
+              line-height: 1.5;
+            }
           </style>
         </head>
         <body>
           <div class="spinner"></div>
-          <h3>Preparando tus etiquetas...</h3>
-          <p>Esto tomará solo unos segundos.</p>
+          <div class="loader">
+            <h3>Preparando etiquetas...</h3>
+            <p>Espera un momento mientras se genera la impresión de la etiqueta.</p>
+          </div>
         </body>
       </html>
     `);
@@ -484,7 +701,10 @@
         btn.disabled = false;
         textoBoton.innerText = "Imprimir";
 
-        lanzarNotificacionLocal("✅ Etiquetas generadas con éxito", "success");
+        notify_("Etiquetas generadas correctamente.", "success", 2400, {
+          title: "Impresión lista",
+          sound: true
+        });
       })
       .withFailureHandler(function (err) {
         win.close();
@@ -493,7 +713,15 @@
         btn.disabled = false;
         textoBoton.innerText = "Imprimir";
 
-        lanzarNotificacionLocal("❌ Error al generar etiquetas", "error");
+        notify_(
+          "No se pudieron generar las etiquetas.",
+          "error",
+          4200,
+          {
+            title: "Error de impresión",
+            sound: true
+          }
+        );
       })
       .FormularioEtiquetasIdentificadorasController_procesarLote(window.colaDeImpresionEtiquetas);
   };
@@ -501,9 +729,15 @@
   window.solicitarAccesoMantenimiento = function () {
     const pass = prompt("Introduzca la contraseña para acceder a Mantenimiento:");
     if (pass === "1234") {
-      lanzarNotificacionLocal("Acceso concedido", "success");
+      notify_("Acceso concedido.", "success", 1800, {
+        title: "Mantenimiento",
+        sound: false
+      });
     } else if (pass !== null) {
-      lanzarNotificacionLocal("❌ Contraseña incorrecta", "error");
+      notify_("La contraseña es incorrecta.", "error", 3200, {
+        title: "Acceso denegado",
+        sound: true
+      });
     }
   };
 

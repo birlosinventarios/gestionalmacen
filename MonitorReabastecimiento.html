@@ -1,0 +1,1359 @@
+<script>/** MonitorReabastecimiento.html */</script>
+
+<style>
+  #render-monitor-reabastecimiento {
+    --local-primary: #d93025;
+    --local-primary-dark: #a50e0e;
+    --local-border: #dadce0;
+    --local-bg-light: #f8f9fa;
+    --local-text-main: #1c1d1f;
+    --local-text-sec: #5f6368;
+    --local-green: #10b981;
+    --local-amber: #f59e0b;
+    --local-red: #d93025;
+    --local-slate: #334155;
+  }
+
+  #render-monitor-reabastecimiento .font-mono-premium {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  #render-monitor-reabastecimiento .custom-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  #render-monitor-reabastecimiento .custom-scroll::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  #render-monitor-reabastecimiento .custom-scroll::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 99px;
+  }
+
+  #render-monitor-reabastecimiento .custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--local-primary);
+  }
+
+  #render-monitor-reabastecimiento {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  #render-monitor-reabastecimiento::-webkit-scrollbar {
+    display: none;
+  }
+
+  @keyframes mrFadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  #render-monitor-reabastecimiento .fade-in-up {
+    animation: mrFadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+</style>
+
+<div id="render-monitor-reabastecimiento" class="h-full w-full flex flex-col bg-[#f8f9fa] overflow-y-auto p-4 md:p-8"></div>
+
+<script type="text/babel">
+  window.cargar_MonitorReabastecimiento = () => {
+    const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+    const PAGE_SIZE = 100;
+
+    // =========================================================
+    // HELPERS DE NOTIFICACIÓN
+    // =========================================================
+    const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
+      const fn = window.notificar || window.lanzarNotificacion;
+      if (typeof fn === "function") {
+        fn(mensaje, tipo, timer, options);
+      }
+    };
+
+    const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
+      const now = Date.now();
+      const last = ref.current[key] || 0;
+      if (now - last < cooldown) return;
+      ref.current[key] = now;
+      notify_(mensaje, tipo, timer, options);
+    };
+
+    const shellNotifyStateRef = { current: {} };
+    const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
+
+    const LocalIcon = ({ name, size = 18, className = "" }) => {
+      const iconRef = useRef(null);
+
+      useEffect(() => {
+        if (window.lucide && iconRef.current) {
+          iconRef.current.innerHTML = '';
+          const i = document.createElement('i');
+          i.setAttribute('data-lucide', name.toLowerCase());
+          i.style.width = `${size}px`;
+          i.style.height = `${size}px`;
+          if (className) i.className = className;
+          iconRef.current.appendChild(i);
+          window.lucide.createIcons();
+        }
+      }, [name, size, className]);
+
+      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+    };
+
+    const KPIBlock = ({ title, value, unit, iconName, indicatorColor = 'slate', trend }) => {
+      const iconStyles = {
+        green: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
+        amber: 'bg-amber-50 text-amber-600 border border-amber-100',
+        red: 'bg-red-50 text-red-600 border border-red-100',
+        blue: 'bg-blue-50 text-blue-600 border border-blue-100',
+        slate: 'bg-slate-100 text-slate-900 border border-slate-300'
+      };
+
+      const topBarColor =
+        indicatorColor === 'green'
+          ? 'bg-emerald-500'
+          : indicatorColor === 'amber'
+          ? 'bg-amber-500'
+          : indicatorColor === 'red'
+          ? 'bg-red-500'
+          : indicatorColor === 'blue'
+          ? 'bg-blue-500'
+          : 'bg-slate-900';
+
+      const trendColor =
+        trend?.type === 'green'
+          ? 'bg-emerald-50 text-emerald-700'
+          : trend?.type === 'amber'
+          ? 'bg-amber-50 text-amber-700'
+          : trend?.type === 'red'
+          ? 'bg-red-50 text-red-700'
+          : trend?.type === 'blue'
+          ? 'bg-blue-50 text-blue-700'
+          : 'bg-slate-100 text-slate-900 border border-slate-300';
+
+      return (
+        <div className="bg-white border border-[#dadce0] rounded-[1.5rem] p-6 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group min-h-[170px]">
+          <div className={`absolute top-0 left-0 right-0 h-1.5 ${topBarColor}`}></div>
+
+          <div className="h-full flex flex-col pt-2">
+            <div className="mb-1">
+              <p className="text-[18px] font-extrabold uppercase tracking-[0.14em] text-[#5f6368] leading-tight">
+                {title}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-[1fr_auto] items-end h-full gap-4">
+              <div className="flex flex-col justify-between h-full min-w-0">
+                <div className="flex items-end gap-2 flex-wrap">
+                  <h3 className="text-5xl font-black tracking-tight text-[#1c1d1f] leading-none">
+                    {value}
+                  </h3>
+
+                  {unit && (
+                    <span className="text-[18px] font-bold text-[#5f6368] uppercase leading-none pb-1">
+                      {unit}
+                    </span>
+                  )}
+                </div>
+
+                {trend && (
+                  <div className="mt-4 flex items-center gap-2 flex-wrap">
+                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${trendColor}`}>
+                      {trend.text}
+                    </span>
+
+                    {trend.sub && (
+                      <span className="text-xs font-semibold text-[#5f6368]">
+                        {trend.sub}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="self-end justify-self-end">
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${iconStyles[indicatorColor]}`}>
+                  <LocalIcon name={iconName} size={40} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const StatusBadge = ({ status }) => {
+      const map = {
+        VERDE: {
+          cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+          dot: 'bg-emerald-500',
+          label: 'Verde'
+        },
+        AMBAR: {
+          cls: 'bg-amber-50 text-amber-700 border border-amber-200',
+          dot: 'bg-amber-500',
+          label: 'Ámbar'
+        },
+        ROJO: {
+          cls: 'bg-red-50 text-red-700 border border-red-200',
+          dot: 'bg-red-500',
+          label: 'Rojo'
+        },
+        SIN_PARAMETRIZACION: {
+          cls: 'bg-slate-100 text-slate-700 border border-slate-300',
+          dot: 'bg-slate-500',
+          label: 'Sin Param.'
+        }
+      };
+
+      const current = map[status] || map.SIN_PARAMETRIZACION;
+
+      return (
+        <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-black uppercase tracking-[0.08em] ${current.cls}`}>
+          <span className={`w-2 h-2 rounded-full ${current.dot}`}></span>
+          {current.label}
+        </span>
+      );
+    };
+
+    const ActionBadge = ({ action }) => {
+      const map = {
+        'SIN ACCION': 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+        'RELLENO PREVENTIVO': 'bg-amber-50 text-amber-700 border border-amber-200',
+        'MONITOREAR / SIN RESPALDO': 'bg-slate-100 text-slate-700 border border-slate-300',
+        'RELLENO URGENTE': 'bg-red-50 text-red-700 border border-red-200',
+        'REPORTAR A COMPRAS': 'bg-slate-900 text-white border border-slate-900',
+        'REVISAR PARAMETRIZACION': 'bg-blue-50 text-blue-700 border border-blue-200'
+      };
+
+      return (
+        <span className={`inline-flex items-center justify-center px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-[0.08em] ${map[action] || 'bg-slate-100 text-slate-700 border border-slate-300'}`}>
+          {action}
+        </span>
+      );
+    };
+
+    const MonitorReabastecimientoDashboard = () => {
+      const [registros, setRegistros] = useState([]);
+      const [resumen, setResumen] = useState({});
+      const [loading, setLoading] = useState(true);
+      const [searchQuery, setSearchQuery] = useState("");
+      const [filterStatus, setFilterStatus] = useState("ALL");
+      const [filterBodega, setFilterBodega] = useState("TODAS");
+      const [sortBy, setSortBy] = useState("PRIORIDAD");
+      const [activeRow, setActiveRow] = useState(null);
+      const [currentPage, setCurrentPage] = useState(1);
+      const [hoverMenu, setHoverMenu] = useState(null);
+      const closeMenuTimeout = useRef(null);
+
+      const firstLoadDoneRef = useRef(false);
+      const syncNotifyStateRef = useRef({});
+      const notifyOnce_ = createNotifyOnce_(syncNotifyStateRef);
+
+      const fetchDatabase = useCallback((contexto = "init") => {
+        const USAR_MOCK = false;
+        setLoading(true);
+
+        if (contexto === "init") {
+          notify_("Cargando monitor de reabastecimiento...", "info", 1600, {
+            title: "Inicializando vista",
+            sound: false
+          });
+        } else {
+          notify_("Actualizando monitor de reabastecimiento...", "info", 1400, {
+            title: "Sincronizando",
+            sound: false
+          });
+        }
+
+        if (!USAR_MOCK && typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler((resultado) => {
+              const registrosCargados = resultado?.registros || [];
+              const resumenCargado = resultado?.resumen || {};
+
+              setRegistros(registrosCargados);
+              setResumen(resumenCargado);
+              setLoading(false);
+
+              console.log("======================================================");
+              console.log("📦 [MonitorReabastecimiento] RESPUESTA RECIBIDA DEL BACKEND");
+              console.log("======================================================");
+              console.log("📊 Total registros:", registrosCargados.length);
+              console.log("📌 Resumen:", resumenCargado);
+              console.log("======================================================");
+
+              const total = Array.isArray(registrosCargados) ? registrosCargados.length : 0;
+
+              if (total === 0) {
+                if (contexto === "init") {
+                  notify_("No se encontraron registros operativos para reabastecimiento.", "success", 2200, {
+                    title: "Sin pendientes",
+                    sound: false
+                  });
+                } else {
+                  notify_("La actualización terminó sin registros operativos.", "success", 1800, {
+                    title: "Actualización completada",
+                    sound: false
+                  });
+                }
+                firstLoadDoneRef.current = true;
+                return;
+              }
+
+              if (!firstLoadDoneRef.current) {
+                firstLoadDoneRef.current = true;
+                notify_(
+                  `Se cargaron ${total} registros en el monitor de reabastecimiento.`,
+                  "success",
+                  2200,
+                  {
+                    title: "Sincronización completada",
+                    sound: false
+                  }
+                );
+              } else if (contexto !== "init") {
+                notify_(
+                  `Monitor actualizado correctamente (${total} registros).`,
+                  "success",
+                  1800,
+                  {
+                    title: "Actualización completada",
+                    sound: false
+                  }
+                );
+              } else {
+                notifyOnce_(
+                  "monitor-reab-interno",
+                  "La vista de reabastecimiento quedó actualizada.",
+                  "success",
+                  1500,
+                  {
+                    title: "Vista lista",
+                    sound: false
+                  },
+                  12000
+                );
+              }
+            })
+            .withFailureHandler((err) => {
+              console.error("❌ [MonitorReabastecimiento] Error consultando controller:", err);
+              setRegistros([]);
+              setResumen({});
+              setLoading(false);
+
+              notify_(
+                (err && err.message) ? err.message : 'No se pudo consultar MonitorReabastecimientoController.',
+                "error",
+                4200,
+                {
+                  title: contexto === "init" ? "Error de carga" : "Error de sincronización",
+                  sound: true
+                }
+              );
+            })
+            .MonitorReabastecimientoController_getVista();
+
+        } else {
+          setTimeout(() => {
+            const mock = [
+              {
+                idproducto: 158,
+                codigo: "T5S-1/4X31/2",
+                descripcion: "TORNILLO GRADO 5 ESTANDAR DE 1/4 X 3 1/2",
+                ubicacionsurtido: "B1-P05-A2",
+                bodegakey: "B1",
+                bodegalabel: "Bodega 1",
+                existenciaactual: 8,
+                minimo: 10,
+                maximo: 30,
+                excedentebodega: 25,
+                excedentecasablanca: 0,
+                excedentetotal: 25,
+                statussemaforo: "ROJO",
+                substatusambar: "",
+                accionoperativa: "RELLENO URGENTE",
+                prioridadorden: 2,
+                prioridadetiqueta: "URGENTE",
+                cantidadobjetivorelleno: 22,
+                rellenoposibleconexcedente: 22,
+                rellenocompleto: true,
+                observacion: "Atender con relleno urgente desde excedente",
+                sobreobjetivo: false,
+                sinubicacion: false,
+                sinmaxmin: false
+              }
+            ];
+
+            setRegistros(mock);
+            setResumen({
+              totalRegistros: 1,
+              verdes: 0,
+              rellenosPreventivos: 0,
+              rellenosUrgentes: 1,
+              casosCompras: 0,
+              bodega1: 1,
+              bodega2: 0,
+              bodega3: 0,
+              cuartoAltoRiesgo: 0,
+              mostrador: 0,
+              sinUbicacionSegmento: 0,
+              otroSegmento: 0
+            });
+            setLoading(false);
+
+            notify_("Vista cargada con datos simulados.", "info", 1800, {
+              title: "Modo mock activo",
+              sound: false
+            });
+          }, 800);
+        }
+      }, []);
+
+      useEffect(() => {
+        fetchDatabase("init");
+      }, [fetchDatabase]);
+
+      useEffect(() => {
+        setCurrentPage(1);
+        setActiveRow(null);
+      }, [searchQuery, filterStatus, sortBy, filterBodega]);
+
+      const metrics = useMemo(() => {
+        return {
+          totalRegistros: resumen?.totalRegistros || 0,
+          verdes: resumen?.verdes || 0,
+          rellenosPreventivos: resumen?.rellenosPreventivos || 0,
+          rellenosUrgentes: resumen?.rellenosUrgentes || 0,
+          casosCompras: resumen?.casosCompras || 0,
+          bodega1: resumen?.bodega1 || 0,
+          bodega2: resumen?.bodega2 || 0,
+          bodega3: resumen?.bodega3 || 0
+        };
+      }, [resumen]);
+
+      const getBodegaLabel = (key) => {
+        const map = {
+          TODAS: "Todas",
+          B1: "Bodega 1",
+          B2: "Bodega 2",
+          B3: "Bodega 3",
+          CU: "Cuarto Alto Riesgo",
+          MO: "Mostrador",
+          SIN_UBICACION: "Sin ubicación",
+          OTRO: "Otro"
+        };
+
+        return map[key] || "Todas";
+      };
+
+      const recordsFiltered = useMemo(() => {
+        return (registros || []).filter(item => {
+          const codigo = String(item.codigo || "").toLowerCase();
+          const descripcion = String(item.descripcion || "").toLowerCase();
+          const ubicacion = String(item.ubicacionsurtido || "").toLowerCase();
+          const accion = String(item.accionoperativa || "").toUpperCase();
+          const status = String(item.statussemaforo || "").toUpperCase();
+          const bodegaKey = String(item.bodegakey || "").toUpperCase();
+
+          const q = searchQuery.toLowerCase().trim();
+
+          const matchText =
+            !q ||
+            codigo.includes(q) ||
+            descripcion.includes(q) ||
+            ubicacion.includes(q);
+
+          if (!matchText) return false;
+
+          if (filterBodega !== "TODAS" && bodegaKey !== filterBodega) {
+            return false;
+          }
+
+          if (filterStatus === "ALL") {
+            return accion !== "SIN ACCION";
+          }
+
+          if (filterStatus === "VERDE") {
+            return status === "VERDE";
+          }
+
+          if (filterStatus === "PREVENTIVO") {
+            return accion === "RELLENO PREVENTIVO";
+          }
+
+          if (filterStatus === "URGENTE") {
+            return accion === "RELLENO URGENTE";
+          }
+
+          if (filterStatus === "COMPRAS") {
+            return accion === "REPORTAR A COMPRAS";
+          }
+
+          return true;
+        });
+      }, [registros, searchQuery, filterStatus, filterBodega]);
+
+      const openHoverMenu = (menuName) => {
+        if (closeMenuTimeout.current) {
+          clearTimeout(closeMenuTimeout.current);
+          closeMenuTimeout.current = null;
+        }
+        setHoverMenu(menuName);
+      };
+
+      const closeHoverMenuWithDelay = () => {
+        if (closeMenuTimeout.current) {
+          clearTimeout(closeMenuTimeout.current);
+        }
+
+        closeMenuTimeout.current = setTimeout(() => {
+          setHoverMenu(null);
+        }, 180);
+      };
+
+      const cancelCloseHoverMenu = () => {
+        if (closeMenuTimeout.current) {
+          clearTimeout(closeMenuTimeout.current);
+          closeMenuTimeout.current = null;
+        }
+      };
+
+      const recordsFinal = useMemo(() => {
+        const salida = [...recordsFiltered];
+
+        if (sortBy === "PRIORIDAD") {
+          salida.sort((a, b) => {
+            const pA = Number(a.prioridadorden || 999);
+            const pB = Number(b.prioridadorden || 999);
+            if (pA !== pB) return pA - pB;
+            return String(a.codigo || "").localeCompare(String(b.codigo || ""), "es", {
+              sensitivity: "base",
+              numeric: true
+            });
+          });
+        }
+
+        if (sortBy === "CODIGO_ASC") {
+          salida.sort((a, b) =>
+            String(a.codigo || "").localeCompare(String(b.codigo || ""), "es", {
+              sensitivity: "base",
+              numeric: true
+            })
+          );
+        }
+
+        if (sortBy === "CODIGO_DESC") {
+          salida.sort((a, b) =>
+            String(b.codigo || "").localeCompare(String(a.codigo || ""), "es", {
+              sensitivity: "base",
+              numeric: true
+            })
+          );
+        }
+
+        if (sortBy === "UBICACION_ASC") {
+          salida.sort((a, b) =>
+            String(a.ubicacionsurtido || "").localeCompare(String(b.ubicacionsurtido || ""), "es", {
+              sensitivity: "base",
+              numeric: true
+            })
+          );
+        }
+
+        if (sortBy === "UBICACION_DESC") {
+          salida.sort((a, b) =>
+            String(b.ubicacionsurtido || "").localeCompare(String(a.ubicacionsurtido || ""), "es", {
+              sensitivity: "base",
+              numeric: true
+            })
+          );
+        }
+
+        if (sortBy === "EXISTENCIA_ASC") {
+          salida.sort((a, b) => Number(a.existenciaactual || 0) - Number(b.existenciaactual || 0));
+        }
+
+        if (sortBy === "EXCEDENTE_DESC") {
+          salida.sort((a, b) => Number(b.excedentetotal || 0) - Number(a.excedentetotal || 0));
+        }
+
+        return salida;
+      }, [recordsFiltered, sortBy]);
+
+      const totalPages = useMemo(() => {
+        return Math.max(1, Math.ceil(recordsFinal.length / PAGE_SIZE));
+      }, [recordsFinal]);
+
+      const paginatedRecords = useMemo(() => {
+        const start = (currentPage - 1) * PAGE_SIZE;
+        const end = start + PAGE_SIZE;
+        return recordsFinal.slice(start, end);
+      }, [recordsFinal, currentPage]);
+
+      const openDetalle = (item) => {
+        Swal.fire({
+          title: 'Detalle de Reabastecimiento',
+          html: `
+            <div class="text-left text-sm space-y-4 p-1 text-slate-700">
+              <div>
+                <p class="text-base font-extrabold text-slate-900">${item.codigo}</p>
+                <p class="text-xs text-slate-500 uppercase mt-1">${item.descripcion || 'SIN DESCRIPCIÓN'}</p>
+              </div>
+
+              <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                <div class="flex justify-between">
+                  <span>Ubicación surtido:</span>
+                  <strong>${item.ubicacionsurtido || 'SIN ASIGNAR'}</strong>
+                </div>
+                <div class="flex justify-between">
+                  <span>Zona / Bodega:</span>
+                  <strong>${item.bodegalabel || 'Sin ubicación'}</strong>
+                </div>
+                <div class="flex justify-between">
+                  <span>Existencia actual:</span>
+                  <strong>${Number(item.existenciaactual || 0)} PZAS</strong>
+                </div>
+                <div class="flex justify-between">
+                  <span>Mínimo declarado:</span>
+                  <strong>${Number(item.minimo || 0)} PZAS</strong>
+                </div>
+                <div class="flex justify-between">
+                  <span>Máximo declarado:</span>
+                  <strong>${Number(item.maximo || 0)} PZAS</strong>
+                </div>
+                <div class="flex justify-between">
+                  <span>Excedente Bodega:</span>
+                  <strong>${Number(item.excedentebodega || 0)} PZAS</strong>
+                </div>
+                <div class="flex justify-between">
+                  <span>Excedente Casa Blanca:</span>
+                  <strong>${Number(item.excedentecasablanca || 0)} PZAS</strong>
+                </div>
+                <div class="flex justify-between">
+                  <span>Total excedente:</span>
+                  <strong>${Number(item.excedentetotal || 0)} PZAS</strong>
+                </div>
+                <div class="flex justify-between">
+                  <span>Objetivo de relleno:</span>
+                  <strong>${Number(item.cantidadobjetivorelleno || 0)} PZAS</strong>
+                </div>
+                <div class="flex justify-between">
+                  <span>Relleno posible:</span>
+                  <strong>${Number(item.rellenoposibleconexcedente || 0)} PZAS</strong>
+                </div>
+              </div>
+
+              <div class="p-4 rounded-2xl border border-slate-200 bg-white">
+                <p class="text-xs uppercase tracking-wider font-black text-slate-500 mb-2">Acción Operativa</p>
+                <p class="font-extrabold text-slate-900">${item.accionoperativa || 'SIN DEFINIR'}</p>
+                <p class="text-xs text-slate-500 mt-2">${item.observacion || ''}</p>
+              </div>
+            </div>
+          `,
+          background: '#ffffff',
+          confirmButtonColor: '#d93025',
+          confirmButtonText: 'Cerrar',
+          customClass: {
+            popup: 'rounded-[1.5rem]',
+            confirmButton: 'rounded-xl px-5 py-3'
+          }
+        });
+      };
+
+      return (
+        <div className="space-y-6 fade-in-up">
+          <header className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 bg-white border border-[#dadce0] rounded-3xl p-6 shadow-sm">
+            <div className="space-y-1 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                <h1 className="text-3xl font-extrabold tracking-tight text-[#1c1d1f]">
+                  Monitor de Reabastecimiento
+                </h1>
+              </div>
+
+              <p className="text-[#5f6368] text-sm font-medium">
+                Salud operativa del surtido y trabajo pendiente real para abastecedores.
+              </p>
+            </div>
+
+            <div className="relative flex-1 min-w-0 xl:max-w-2xl">
+              <LocalIcon
+                name="search"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                size={18}
+              />
+              <input
+                type="text"
+                placeholder="Filtrar por código, descripción o ubicación..."
+                className="w-full bg-slate-50 border border-[#dadce0] focus:border-[#d93025] focus:bg-white rounded-2xl pl-12 pr-4 py-3 text-sm text-[#1c1d1f] font-semibold placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#d93025]/30 transition-all"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center gap-3 w-full xl:w-auto shrink-0">
+              <button
+                onClick={() => fetchDatabase("manual")}
+                disabled={loading}
+                className="w-full xl:w-auto flex items-center justify-center gap-2 px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl transition-all shadow-sm active:scale-95 disabled:opacity-50"
+              >
+                <LocalIcon
+                  name="refresh-cw"
+                  className={loading ? "animate-spin" : ""}
+                  size={16}
+                />
+                {loading ? "Sincronizando..." : "Forzar Actualización"}
+              </button>
+            </div>
+          </header>
+
+          {/* MÉTRICOS PRINCIPALES */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            <KPIBlock
+              title="Inventario Saludable"
+              value={metrics.verdes}
+              unit="SKU'S"
+              iconName="badge-check"
+              indicatorColor="green"
+              trend={{ text: "Existencia saludable", type: "green" }}
+            />
+
+            <KPIBlock
+              title="Rellenos Preventivos"
+              value={metrics.rellenosPreventivos}
+              unit="SKU'S"
+              iconName="package-plus"
+              indicatorColor="amber"
+              trend={{ text: "Cuentan con excedente", type: "amber" }}
+            />
+
+            <KPIBlock
+              title="Reabastecimientos Urgentes"
+              value={metrics.rellenosUrgentes}
+              unit="SKU'S"
+              iconName="flame"
+              indicatorColor="red"
+              trend={{ text: "Existencia insuficiente", type: "red" }}
+            />
+
+            <KPIBlock
+              title="Reportar a Compras"
+              value={metrics.casosCompras}
+              unit="SKU'S"
+              iconName="shopping-cart"
+              indicatorColor="slate"
+              trend={{ text: "Sin excedente para reabastecimiento", type: "slate" }}
+            />
+          </div>
+
+          {/* MÉTRICOS POR BODEGA */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <KPIBlock
+              title="Bodega 1"
+              value={metrics.bodega1}
+              unit="SKU'S"
+              iconName="warehouse"
+              indicatorColor="slate"
+              trend={{ text: "Ubicaciones B1", type: "slate" }}
+            />
+
+            <KPIBlock
+              title="Bodega 2"
+              value={metrics.bodega2}
+              unit="SKU'S"
+              iconName="warehouse"
+              indicatorColor="slate"
+              trend={{ text: "Ubicaciones B2", type: "slate" }}
+            />
+
+            <KPIBlock
+              title="Bodega 3"
+              value={metrics.bodega3}
+              unit="SKU'S"
+              iconName="warehouse"
+              indicatorColor="slate"
+              trend={{ text: "Ubicaciones B3", type: "slate" }}
+            />
+          </div>
+
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+            {/* FILTROS OPERATIVOS */}
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { id: 'ALL', label: 'Pendientes', count: null },
+                { id: 'VERDE', label: 'Saludables', count: metrics.verdes },
+                { id: 'PREVENTIVO', label: 'Preventivos', count: metrics.rellenosPreventivos },
+                { id: 'URGENTE', label: 'Urgentes', count: metrics.rellenosUrgentes },
+                { id: 'COMPRAS', label: 'Compras', count: metrics.casosCompras }
+              ].map(btn => (
+                <button
+                  key={btn.id}
+                  onClick={() => setFilterStatus(btn.id)}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                    filterStatus === btn.id
+                      ? 'bg-[#d93025] text-white shadow-sm'
+                      : 'bg-slate-50 text-slate-500 border border-[#dadce0] hover:bg-slate-100'
+                  }`}
+                >
+                  {btn.label}{btn.count !== null ? ` (${btn.count || 0})` : ''}
+                </button>
+              ))}
+            </div>
+
+            {/* SEGMENTACIÓN / ORDEN */}
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              {/* BODEGA CON SUBMENÚ */}
+              <div
+                className="relative"
+                onMouseEnter={() => openHoverMenu("BODEGA")}
+                onMouseLeave={closeHoverMenuWithDelay}
+              >
+                <button
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                    filterBodega !== "TODAS"
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                  }`}
+                >
+                  {`Bodega: ${getBodegaLabel(filterBodega)}`}
+                </button>
+
+                {hoverMenu === "BODEGA" && (
+                  <div
+                    className="absolute top-full left-0 pt-2 w-56 z-50"
+                    onMouseEnter={cancelCloseHoverMenu}
+                    onMouseLeave={closeHoverMenuWithDelay}
+                  >
+                    <div className="bg-white border border-[#dadce0] rounded-2xl shadow-lg overflow-hidden">
+                      {[
+                        { key: "TODAS", label: "Todas" },
+                        { key: "B1", label: "Bodega 1" },
+                        { key: "B2", label: "Bodega 2" },
+                        { key: "B3", label: "Bodega 3" },
+                        { key: "CU", label: "Cuarto Alto Riesgo" },
+                        { key: "MO", label: "Mostrador" },
+                        { key: "SIN_UBICACION", label: "Sin ubicación" }
+                      ].map((opt, index) => (
+                        <button
+                          key={opt.key}
+                          onClick={() => {
+                            setFilterBodega(opt.key);
+                            setHoverMenu(null);
+                          }}
+                          className={`w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 ${
+                            index > 0 ? 'border-t border-[#dadce0]' : ''
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* PRIORIDAD */}
+              <button
+                onClick={() => setSortBy("PRIORIDAD")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  sortBy === "PRIORIDAD"
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                }`}
+              >
+                Prioridad
+              </button>
+
+              {/* CÓDIGO CON SUBMENÚ */}
+              <div
+                className="relative"
+                onMouseEnter={() => openHoverMenu("CODIGO")}
+                onMouseLeave={closeHoverMenuWithDelay}
+              >
+                <button
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                    sortBy === "CODIGO_ASC" || sortBy === "CODIGO_DESC"
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                  }`}
+                >
+                  Código
+                </button>
+
+                {hoverMenu === "CODIGO" && (
+                  <div
+                    className="absolute top-full left-0 pt-2 w-44 z-50"
+                    onMouseEnter={cancelCloseHoverMenu}
+                    onMouseLeave={closeHoverMenuWithDelay}
+                  >
+                    <div className="bg-white border border-[#dadce0] rounded-2xl shadow-lg overflow-hidden">
+                      <button
+                        onClick={() => {
+                          setSortBy("CODIGO_ASC");
+                          setHoverMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                      >
+                        Código A-Z
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setSortBy("CODIGO_DESC");
+                          setHoverMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 border-t border-[#dadce0]"
+                      >
+                        Código Z-A
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* UBICACIÓN CON SUBMENÚ */}
+              <div
+                className="relative"
+                onMouseEnter={() => openHoverMenu("UBICACION")}
+                onMouseLeave={closeHoverMenuWithDelay}
+              >
+                <button
+                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                    sortBy === "UBICACION_ASC" || sortBy === "UBICACION_DESC"
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                  }`}
+                >
+                  Ubicación
+                </button>
+
+                {hoverMenu === "UBICACION" && (
+                  <div
+                    className="absolute top-full left-0 pt-2 w-44 z-50"
+                    onMouseEnter={cancelCloseHoverMenu}
+                    onMouseLeave={closeHoverMenuWithDelay}
+                  >
+                    <div className="bg-white border border-[#dadce0] rounded-2xl shadow-lg overflow-hidden">
+                      <button
+                        onClick={() => {
+                          setSortBy("UBICACION_ASC");
+                          setHoverMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                      >
+                        Ubicación A-Z
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setSortBy("UBICACION_DESC");
+                          setHoverMenu(null);
+                        }}
+                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 border-t border-[#dadce0]"
+                      >
+                        Ubicación Z-A
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* EXISTENCIA */}
+              <button
+                onClick={() => setSortBy("EXISTENCIA_ASC")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  sortBy === "EXISTENCIA_ASC"
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                }`}
+              >
+                Existencia ↑
+              </button>
+
+              {/* EXCEDENTE */}
+              <button
+                onClick={() => setSortBy("EXCEDENTE_DESC")}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  sortBy === "EXCEDENTE_DESC"
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                }`}
+              >
+                Excedente ↓
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white border border-[#dadce0] rounded-[1.5rem] overflow-hidden shadow-sm">
+            <div className="overflow-auto custom-scroll max-h-[68vh]">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-[#f8f9fa] border-b border-[#dadce0] sticky top-0 z-10">
+                  <tr>
+                    <th className="px-6 py-4 font-black uppercase tracking-tight text-[#1c1d1f] text-center min-w-[240px]">
+                      Identificación SKU
+                    </th>
+                    <th className="px-4 py-4 font-black uppercase tracking-tight text-[#1c1d1f] text-center min-w-[220px]">
+                      Ubicación Surtido
+                    </th>
+                    <th className="px-4 py-4 font-black uppercase tracking-tight text-[#1c1d1f] text-center min-w-[210px]">
+                      Parámetros Operativos
+                    </th>
+                    <th className="px-4 py-4 font-black uppercase tracking-tight text-[#1c1d1f] text-center min-w-[160px]">
+                      Existencia Actual
+                    </th>
+                    <th className="px-4 py-4 font-black uppercase tracking-tight text-[#1c1d1f] text-center min-w-[200px]">
+                      Respaldo Excedentes
+                    </th>
+                    <th className="px-4 py-4 font-black uppercase tracking-tight text-[#1c1d1f] text-center min-w-[140px]">
+                      Semáforo
+                    </th>
+                    <th className="px-6 py-4 font-black uppercase tracking-tight text-[#1c1d1f] text-center min-w-[230px]">
+                      Acción Operativa
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-[#dadce0]">
+                  {paginatedRecords.map((item, idx) => (
+                    <tr
+                      key={`${item.codigo || 'row'}-${idx}-${currentPage}`}
+                      onClick={() => setActiveRow(activeRow === idx ? null : idx)}
+                      className={`group hover:bg-slate-50/50 transition-colors cursor-pointer ${
+                        activeRow === idx ? 'bg-slate-50/80' : ''
+                      }`}
+                    >
+                      <td className="px-6 py-6 max-w-sm align-middle">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-slate-900 font-extrabold text-[22px] tracking-tight font-mono-premium group-hover:text-[#d93025] transition-colors">
+                              {item.codigo}
+                            </span>
+
+                            <span className="text-[12px] font-extrabold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                              ID: {item.idproducto || 'N/A'}
+                            </span>
+
+                            {item.sobreobjetivo && (
+                              <span className="text-[10px] font-black uppercase text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded-lg">
+                                Sobre objetivo
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-[#5f6368] text-[14px] font-semibold leading-snug uppercase group-hover:text-slate-800 transition-colors">
+                            {item.descripcion || 'SIN DESCRIPCIÓN'}
+                          </p>
+
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            <span className="text-[11px] px-2 py-1 rounded-lg bg-slate-100 text-slate-600 font-bold uppercase">
+                              Prioridad: {item.prioridadetiqueta || 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-6 text-center align-middle">
+                        <div className="flex items-center justify-center h-full">
+                          {item.ubicacionsurtido ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-slate-100 border border-slate-200/80 text-slate-700 text-[14px] font-bold font-mono-premium">
+                                {item.ubicacionsurtido}
+                              </div>
+
+                              <span className="text-[11px] px-2 py-1 rounded-lg bg-slate-100 text-slate-600 font-bold uppercase">
+                                {item.bodegalabel || 'Sin ubicación'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-[12px] font-black uppercase tracking-wide">
+                                Sin asignar
+                              </div>
+
+                              <span className="text-[11px] px-2 py-1 rounded-lg bg-slate-100 text-slate-600 font-bold uppercase">
+                                {item.bodegalabel || 'Sin ubicación'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-6 text-center align-middle">
+                        {item.sinmaxmin ? (
+                          <div className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-[12px] font-black uppercase tracking-wide">
+                            Sin parametrización
+                          </div>
+                        ) : (
+                          <div className="w-full max-w-[200px] mx-auto space-y-2">
+                            <div className="flex items-center justify-between text-[13px] font-bold text-slate-700">
+                              <span>Min: {Number(item.minimo || 0)}</span>
+                              <span>Max: {Number(item.maximo || 0)}</span>
+                            </div>
+
+                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-slate-900 transition-all duration-500"
+                                style={{
+                                  width: `${
+                                    Number(item.maximo || 0) > 0
+                                      ? Math.min((Number(item.existenciaactual || 0) / Number(item.maximo || 1)) * 100, 100)
+                                      : 0
+                                  }%`
+                                }}
+                              ></div>
+                            </div>
+
+                            <div className="text-center">
+                              <span className="text-[11px] font-bold uppercase text-slate-500">
+                                Umbral Preventivo: {Number(item.umbralpreventivo || 0)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-6 text-center align-middle">
+                        <div className="flex items-center justify-center h-full">
+                          <span className={`inline-flex items-center justify-center min-w-[110px] px-4 py-2 rounded-2xl font-black text-[22px] leading-none font-mono-premium border ${
+                            item.statussemaforo === 'ROJO'
+                              ? 'bg-red-50 border-red-200 text-red-600'
+                              : item.statussemaforo === 'AMBAR'
+                              ? 'bg-amber-50 border-amber-200 text-amber-700'
+                              : item.statussemaforo === 'VERDE'
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                              : 'bg-slate-100 border-slate-200 text-slate-700'
+                          }`}>
+                            {Number(item.existenciaactual || 0)}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-6 text-center align-middle">
+                        <div className="flex items-center justify-center h-full">
+                          <div className="w-full max-w-[220px] space-y-2">
+                            <div className="flex items-center justify-between text-[14px] font-bold">
+                              <span className="text-[#d93025]">
+                                B: {Number(item.excedentebodega || 0)}
+                              </span>
+
+                              <span className="text-slate-900">
+                                CB: {Number(item.excedentecasablanca || 0)}
+                              </span>
+                            </div>
+
+                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                              <div
+                                style={{
+                                  width: `${
+                                    Number(item.excedentetotal || 0) > 0
+                                      ? Math.min((Number(item.excedentebodega || 0) / Number(item.excedentetotal || 1)) * 100, 100)
+                                      : 0
+                                  }%`
+                                }}
+                                className="h-full bg-[#d93025] transition-all duration-500"
+                                title="Bodega"
+                              ></div>
+
+                              <div
+                                style={{
+                                  width: `${
+                                    Number(item.excedentetotal || 0) > 0
+                                      ? Math.min((Number(item.excedentecasablanca || 0) / Number(item.excedentetotal || 1)) * 100, 100)
+                                      : 0
+                                  }%`
+                                }}
+                                className="h-full bg-slate-900 transition-all duration-500"
+                                title="Casa Blanca"
+                              ></div>
+                            </div>
+
+                            <div className="text-center">
+                              <span className="text-[15px] font-extrabold text-slate-900">
+                                Total: {Number(item.excedentetotal || 0)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-6 text-center align-middle">
+                        <div className="flex items-center justify-center h-full">
+                          <StatusBadge status={item.statussemaforo} />
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-6 text-center align-middle">
+                        <div className="flex flex-col items-center justify-center gap-3 h-full">
+                          <ActionBadge action={item.accionoperativa} />
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openDetalle(item);
+                            }}
+                            className="inline-flex items-center justify-center px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-[#dadce0] rounded-xl text-[12px] font-black uppercase tracking-[0.08em] transition-all duration-200 active:scale-95"
+                          >
+                            Ver detalle
+                          </button>
+
+                          <p className="text-[11px] text-slate-500 font-semibold leading-snug max-w-[220px]">
+                            {item.observacion || ''}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {paginatedRecords.length === 0 && !loading && (
+                <div className="p-20 text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                    <LocalIcon name="search-x" size={28} />
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-slate-700 font-extrabold text-sm uppercase tracking-wider">
+                      Sin registros coincidentes
+                    </p>
+                    <p className="text-slate-400 text-xs">
+                      No se detectaron resultados para los filtros seleccionados.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {loading && (
+                <div className="p-28 flex flex-col items-center justify-center gap-4">
+                  <div className="w-10 h-10 border-4 border-slate-100 border-t-[#d93025] rounded-full animate-spin"></div>
+                  <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                    Extrayendo registros operativos...
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {!loading && recordsFinal.length > 0 && (
+              <div className="flex flex-col md:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-[#dadce0] bg-white">
+                <div className="text-sm text-slate-500 font-semibold">
+                  Mostrando {(currentPage - 1) * PAGE_SIZE + 1}
+                  {" - "}
+                  {Math.min(currentPage * PAGE_SIZE, recordsFinal.length)}
+                  {" de "}
+                  {recordsFinal.length} registros
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 rounded-xl border border-[#dadce0] bg-white text-slate-700 font-bold disabled:opacity-40"
+                  >
+                    Anterior
+                  </button>
+
+                  <span className="text-sm font-black text-slate-700 px-2">
+                    Página {currentPage} de {totalPages}
+                  </span>
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 rounded-xl border border-[#dadce0] bg-white text-slate-700 font-bold disabled:opacity-40"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // =========================================================
+    // CONTRATO CON EL SHELL
+    // =========================================================
+    const targetElement = document.getElementById('render-monitor-reabastecimiento');
+
+    if (!targetElement) {
+      notify_(
+        "No se encontró el contenedor principal del monitor de reabastecimiento.",
+        "error",
+        4200,
+        {
+          title: "Error de interfaz",
+          sound: true
+        }
+      );
+      console.warn("⚠️ [MonitorReabastecimiento] No se encontró #render-monitor-reabastecimiento");
+      return;
+    }
+
+    const yaInicializado = targetElement.dataset.mrMounted === "1";
+
+    if (window.__MONITOR_REABASTECIMIENTO_ROOT__) {
+      try {
+        window.__MONITOR_REABASTECIMIENTO_ROOT__.unmount();
+      } catch (e) {
+        console.warn("⚠️ Instancia previa retenida en memoria, liberando recursos:", e);
+        notifyOnceShell_(
+          "monitor-reab-root-previo",
+          "Se liberó una instancia previa del monitor de reabastecimiento.",
+          "warning",
+          1600,
+          {
+            title: "Reinicialización",
+            sound: false
+          },
+          10000
+        );
+      }
+      window.__MONITOR_REABASTECIMIENTO_ROOT__ = null;
+    }
+
+    try {
+      targetElement.dataset.mrMounted = "1";
+      window.__MONITOR_REABASTECIMIENTO_ROOT__ = ReactDOM.createRoot(targetElement);
+      window.__MONITOR_REABASTECIMIENTO_ROOT__.render(<MonitorReabastecimientoDashboard />);
+
+      if (!yaInicializado) {
+        notifyOnceShell_(
+          "monitor-reab-vista-montada",
+          "Vista de reabastecimiento lista para operar.",
+          "success",
+          1500,
+          {
+            title: "Vista cargada",
+            sound: false
+          },
+          12000
+        );
+      }
+    } catch (e) {
+      console.error("❌ [MonitorReabastecimiento] Error montando root React:", e);
+      notify_(
+        "Ocurrió un error al montar la vista de reabastecimiento.",
+        "error",
+        4200,
+        {
+          title: "Error de montaje",
+          sound: true
+        }
+      );
+    }
+  };
+
+  window.initVista = window.cargar_MonitorReabastecimiento;
+  console.log("🧩 [MonitorReabastecimiento] Vista inyectable inicializada y registrada.");
+</script>

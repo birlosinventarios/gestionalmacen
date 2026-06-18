@@ -11,7 +11,12 @@ const PrototipoTraspasosService = (() => {
       ACOMODO: "ACOMODO",
       SURTIDO: "SURTIDO"
     }),
-    STATUS_CERRADO_LOGICO: "CERRADO"
+    STATUS_CERRADO_LOGICO: "CERRADO",
+    STATUS_DISPONIBLE: "DISPONIBLE",
+    STATUS_ACOMODADO: "ACOMODADO",
+    STATUS_SURTIDO: "SURTIDO",
+    STATUS_PARCIAL: "PARCIAL",
+    STATUS_REMANENTE: "DISPONIBLE"
   });
 
   // =========================================================
@@ -54,6 +59,23 @@ const PrototipoTraspasosService = (() => {
     return new Set(_buildUsuarios_().map(u => u.nombre));
   }
 
+  function _buildBodegas_() {
+    const datos = UbicacionesExcedentesRepository.getBodegas()
+      .map(x => _toSafeUpper_(x))
+      .filter(Boolean);
+
+    return [...new Set(datos)].sort();
+  }
+
+  function _buildMapaUbicacionesExcedentes_() {
+    return UbicacionesExcedentesRepository.getAll()
+      .map(item => ({
+        bodega: _toSafeUpper_(item.bodega),
+        ubi: _toSafeUpper_(item.ubicacion)
+      }))
+      .filter(x => x.bodega && x.ubi);
+  }
+
   function _buildMapaCatalogo_() {
     return CatalogoRepository.getAll().reduce((acc, item) => {
       const codigo = _toSafeUpper_(item.codigo);
@@ -74,6 +96,10 @@ const PrototipoTraspasosService = (() => {
     return String(n).padStart(2, "0");
   }
 
+  function _pad3_(n) {
+    return String(n).padStart(3, "0");
+  }
+
   function _generarMarcaTiempoCompacta_(fecha) {
     return (
       fecha.getFullYear() +
@@ -81,7 +107,8 @@ const PrototipoTraspasosService = (() => {
       _pad2_(fecha.getDate()) +
       _pad2_(fecha.getHours()) +
       _pad2_(fecha.getMinutes()) +
-      _pad2_(fecha.getSeconds())
+      _pad2_(fecha.getSeconds()) +
+      _pad3_(fecha.getMilliseconds())
     );
   }
 
@@ -139,11 +166,12 @@ const PrototipoTraspasosService = (() => {
     if (values.length < 2) return null;
 
     const filas = values.slice(1);
+    const buscado = _toSafeStr_(idUnico);
 
     for (let i = 0; i < filas.length; i++) {
       const fila = filas[i];
       const valorId = _toSafeStr_(fila[COL.EXCEDENTES.IDUNICO]);
-      if (valorId === _toSafeStr_(idUnico)) {
+      if (valorId === buscado) {
         return {
           rowNumber: i + 2,
           raw: fila
@@ -154,36 +182,126 @@ const PrototipoTraspasosService = (() => {
     return null;
   }
 
-  function _obtenerEstadoFolios_() {
+  // =========================================================
+  // DATASETS POR TIPO
+  // =========================================================
+
+  /**
+   * ACOMODO:
+   * Solo IDs únicos que siguen en excedentes con saldo > 0
+   * y status exactamente DISPONIBLE.
+   */
+  function _obtenerFoliosParaAcomodo_() {
     return ExcedentesRepository.getAll()
-      .filter(item => _toSafeStr_(item.idunico) && Number(item.cantidad) > 0)
+      .filter(item =>
+        _toSafeStr_(item.idunico) &&
+        _toSafeNum_(item.cantidad) > 0 &&
+        _toSafeUpper_(item.status) === DOMAIN.STATUS_DISPONIBLE
+      )
       .map(item => ({
         idUnico: _toSafeStr_(item.idunico),
         sku: _toSafeUpper_(item.codigo),
         descripcion: _toSafeUpper_(item.descripcion),
-        ubicacionActual: _toSafeUpper_(item.status), // compatibilidad con tu modelo actual
+        ubicacionActual: _toSafeUpper_(item.status),
         balance: _toSafeNum_(item.cantidad)
-      }));
+      }))
+      .sort((a, b) =>
+        String(a.idUnico || "").localeCompare(
+          String(b.idUnico || ""),
+          "es",
+          { numeric: true, sensitivity: "base" }
+        )
+      );
   }
 
-  function _validarFolioExistente_(idUnico, estadoFolios) {
+  /**
+   * SURTIDO:
+   * Se alimenta del cálculo consolidado de GestorExcedentes.
+   * Solo IDs con saldo vigente y con ubicación.
+   */
+  function _obtenerFoliosParaSurtido_() {
+    return GestorExcedentesService.obtenerExcedentesConsolidados()
+      .filter(item =>
+        _toSafeStr_(item.eidUnico) &&
+        _toSafeNum_(item.esaldo) > 0 &&
+        item.conUbicacion === true
+      )
+      .map(item => ({
+        idUnico: _toSafeStr_(item.eidUnico),
+        sku: _toSafeUpper_(item.ecodigo),
+        descripcion: _toSafeUpper_(item.edescripcion),
+        ubicacionActual: _toSafeUpper_(item.eserie),
+        balance: _toSafeNum_(item.esaldo),
+        bodegaActual: _toSafeStr_(item.ebodegaActual)
+      }))
+      .sort((a, b) =>
+        String(a.idUnico || "").localeCompare(
+          String(b.idUnico || ""),
+          "es",
+          { numeric: true, sensitivity: "base" }
+        )
+      );
+  }
+
+  /**
+   * Compatibilidad / utilidad general
+   */
+  function _obtenerEstadoFolios_() {
+    return {
+      acomodo: _obtenerFoliosParaAcomodo_(),
+      surtido: _obtenerFoliosParaSurtido_()
+    };
+  }
+
+  function _validarFolioPorTipo_(idUnico, tipo, foliosAcomodo, foliosSurtido) {
     const id = _toSafeStr_(idUnico);
+    const tipoUpper = _toSafeUpper_(tipo);
+
     if (!id) {
       throw new Error("No se recibió un ID único válido.");
     }
 
-    const encontrado = estadoFolios.find(f => _toSafeStr_(f.idUnico) === id);
-    if (!encontrado) {
-      throw new Error(`El folio "${id}" no existe o ya no tiene saldo disponible.`);
+    let encontrado = null;
+
+    if (tipoUpper === DOMAIN.TIPOS.ACOMODO) {
+      encontrado = foliosAcomodo.find(f => _toSafeStr_(f.idUnico) === id);
+
+      if (!encontrado) {
+        throw new Error(`El folio "${id}" no está disponible para Acomodo.`);
+      }
+
+      return encontrado;
     }
 
-    return encontrado;
+    if (tipoUpper === DOMAIN.TIPOS.SURTIDO) {
+      encontrado = foliosSurtido.find(f => _toSafeStr_(f.idUnico) === id);
+
+      if (!encontrado) {
+        throw new Error(`El folio "${id}" no está disponible para Surtido.`);
+      }
+
+      return encontrado;
+    }
+
+    throw new Error(`No se pudo validar el folio "${id}" para el tipo "${tipo}".`);
   }
 
   function _buildBootstrap() {
+    const usuarios = _buildUsuarios_();
+    const bodegas = _buildBodegas_();
+    const mapaUbicacionesExcedentes = _buildMapaUbicacionesExcedentes_();
+    const estadoFoliosAcomodo = _obtenerFoliosParaAcomodo_();
+    const estadoFoliosSurtido = _obtenerFoliosParaSurtido_();
+
     return {
-      usuarios: _buildUsuarios_(),
-      estadoFolios: _obtenerEstadoFolios_()
+      usuarios,
+      bodegas,
+      mapaUbicacionesExcedentes,
+      estadoFoliosAcomodo,
+      estadoFoliosSurtido,
+
+      // compatibilidad temporal
+      estadoFolios: estadoFoliosAcomodo
     };
   }
 
@@ -311,22 +429,46 @@ const PrototipoTraspasosService = (() => {
       const config = _obtenerContextoTemporal_(ssExcedentes);
 
       const solicitantesSet = _buildSolicitantesSet_();
+
+      // Catálogo solo se usa como apoyo para surtido parcial/remanentes.
       const mapaCatalogo = _buildMapaCatalogo_();
-      const estadoFolios = _obtenerEstadoFolios_();
+
+      const foliosAcomodo = _obtenerFoliosParaAcomodo_();
+      const foliosSurtido = _obtenerFoliosParaSurtido_();
 
       const movimientosTraspaso = [];
       const remanentesGenerados = [];
 
-      cola.forEach(item => {
+      cola.forEach((item, index) => {
         const tipo = _validarTipo_(item.tipo);
         const solicitante = _validarSolicitante_(item.solicitante, solicitantesSet);
 
-        const idUnicoEscaneado = _toSafeStr_(item.codigo || item.idUnico || (item.idSeleccionado && item.idSeleccionado.idUnico));
-        const folioActual = _validarFolioExistente_(idUnicoEscaneado, estadoFolios);
+        const idUnicoEscaneado = _toSafeStr_(
+          item.codigo ||
+          item.idUnico ||
+          (item.idSeleccionado && item.idSeleccionado.idUnico)
+        );
 
-        const sku = _toSafeUpper_(item.sku || (item.idSeleccionado && item.idSeleccionado.sku) || folioActual.sku);
-        const descripcion = _toSafeUpper_(item.descripcion || (item.idSeleccionado && item.idSeleccionado.descripcion) || folioActual.descripcion);
-        const idproducto = _toSafeStr_((mapaCatalogo[sku] && mapaCatalogo[sku].idproducto) || "");
+        const folioActual = _validarFolioPorTipo_(
+          idUnicoEscaneado,
+          tipo,
+          foliosAcomodo,
+          foliosSurtido
+        );
+
+        // Para ambos tipos tomamos SKU/Descripción desde el folio vigente
+        // o desde el payload si el frontend los mandó.
+        const sku = _toSafeUpper_(
+          item.sku ||
+          (item.idSeleccionado && item.idSeleccionado.sku) ||
+          folioActual.sku
+        );
+
+        const descripcion = _toSafeUpper_(
+          item.descripcion ||
+          (item.idSeleccionado && item.idSeleccionado.descripcion) ||
+          folioActual.descripcion
+        );
 
         if (!sku) {
           throw new Error(`El folio "${idUnicoEscaneado}" no tiene SKU asociado.`);
@@ -336,12 +478,21 @@ const PrototipoTraspasosService = (() => {
           throw new Error(`El folio "${idUnicoEscaneado}" no tiene descripción asociada.`);
         }
 
-        if (!idproducto) {
-          throw new Error(`El SKU "${sku}" no tiene ID producto en catálogo.`);
-        }
-
         const saldoDisponible = Number(folioActual.balance || 0);
-        const cantidadSolicitada = _validarCantidad_(item.cantidad, saldoDisponible);
+
+        let cantidadSolicitada = 0;
+
+        if (tipo === DOMAIN.TIPOS.ACOMODO) {
+          // En acomodo siempre se usa la cantidad completa del idUnico/folio vigente
+          cantidadSolicitada = saldoDisponible;
+
+          const cantidadCapturada = _toSafeNum_(item.cantidad || 0);
+          if (cantidadCapturada > 0 && cantidadCapturada !== saldoDisponible) {
+            console.warn(`⚠️ [Acomodo] Se ignoró cantidad capturada (${cantidadCapturada}) y se usó saldo completo (${saldoDisponible}) para el folio ${idUnicoEscaneado}.`);
+          }
+        } else {
+          cantidadSolicitada = _validarCantidad_(item.cantidad, saldoDisponible);
+        }
 
         const ubicacionActual = _toSafeUpper_(folioActual.ubicacionActual);
         const filaExcedente = _obtenerFilaExcedentePorIdUnico_(idUnicoEscaneado);
@@ -350,6 +501,9 @@ const PrototipoTraspasosService = (() => {
           throw new Error(`No se encontró la fila física del folio "${idUnicoEscaneado}" en BD-EXCEDENTES.`);
         }
 
+        // =====================================================
+        // ACOMODO
+        // =====================================================
         if (tipo === DOMAIN.TIPOS.ACOMODO) {
           const nuevaUbicacion = _toSafeUpper_(item.ubicacion);
 
@@ -357,12 +511,12 @@ const PrototipoTraspasosService = (() => {
             throw new Error(`Debes indicar una ubicación destino para el acomodo del folio "${idUnicoEscaneado}".`);
           }
 
-          // 1) Actualizar ubicación del mismo excedente
+          // 1) Marcar el excedente como estado lógico ACOMODADO
           _actualizarExcedenteExistente_(filaExcedente.rowNumber, {
-            ubicacionActual: nuevaUbicacion
+            ubicacionActual: DOMAIN.STATUS_ACOMODADO
           });
 
-          // 2) Registrar traspaso
+          // 2) Registrar traspaso de acomodo con la ubicación física real
           movimientosTraspaso.push({
             tipo: "Acomodo",
             serie: nuevaUbicacion,
@@ -376,16 +530,26 @@ const PrototipoTraspasosService = (() => {
             cantidad: Math.abs(cantidadSolicitada),
             idUnicoBase: idUnicoEscaneado
           });
+
+          return; // importante: en acomodo no hay remanente ni catálogo obligatorio
         }
 
+        // =====================================================
+        // SURTIDO
+        // =====================================================
         if (tipo === DOMAIN.TIPOS.SURTIDO) {
-          // 1) Consumir folio original (lo cerramos lógicamente)
+          const remanente = saldoDisponible - cantidadSolicitada;
+          const esParcial = remanente > 0;
+          const nuevoStatusOriginal = esParcial
+            ? DOMAIN.STATUS_PARCIAL
+            : DOMAIN.STATUS_SURTIDO;
+
+          // 1) Marcar el registro original SOLO por status
           _actualizarExcedenteExistente_(filaExcedente.rowNumber, {
-            cantidad: 0,
-            ubicacionActual: ubicacionActual || DOMAIN.STATUS_CERRADO_LOGICO
+            ubicacionActual: nuevoStatusOriginal
           });
 
-          // 2) Registrar movimiento de salida
+          // 2) Registrar movimiento de salida en TRASPASOS
           movimientosTraspaso.push({
             tipo: "Surtido",
             serie: ubicacionActual,
@@ -400,11 +564,17 @@ const PrototipoTraspasosService = (() => {
             idUnicoBase: idUnicoEscaneado
           });
 
-          // 3) Si hubo remanente, crear nuevo excedente y preparar impresión
-          const remanente = saldoDisponible - cantidadSolicitada;
+          // 3) Solo si fue parcial, crear nuevo ID remanente
+          if (esParcial) {
+            const idproducto = _toSafeStr_(
+              (mapaCatalogo[sku] && mapaCatalogo[sku].idproducto) || ""
+            );
 
-          if (remanente > 0) {
-            const nuevoIdUnico = `${_generarMarcaTiempoCompacta_(config.ahora)}${idproducto}R`;
+            if (!idproducto) {
+              throw new Error(`El SKU "${sku}" no tiene ID producto en catálogo.`);
+            }
+
+            const nuevoIdUnico = `${_generarMarcaTiempoCompacta_(config.ahora)}${idproducto}R${index + 1}`;
 
             const nuevoRemanente = {
               idUnico: nuevoIdUnico,
@@ -412,7 +582,7 @@ const PrototipoTraspasosService = (() => {
               codigo: sku,
               descripcion: descripcion,
               cantidad: remanente,
-              ubicacionActual: ubicacionActual
+              ubicacionActual: DOMAIN.STATUS_REMANENTE
             };
 
             _insertarNuevoExcedente_(nuevoRemanente, config);
@@ -440,7 +610,8 @@ const PrototipoTraspasosService = (() => {
         ok: true,
         totalProcesados: cola.length,
         remanentesGenerados: remanentesGenerados.length,
-        htmlImpresion: _crearHtmlRemanentes_(remanentesGenerados, config)
+        htmlImpresion: _crearHtmlRemanentes_(remanentesGenerados, config),
+        estadoFolios: _obtenerEstadoFolios_()
       };
 
     } catch (error) {

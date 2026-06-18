@@ -1,3 +1,6 @@
+/**PruebasImpresion.gs 
+ * */
+
 function probarImpresionFija() {
   // 1. TU TUNEL PERMANENTE RECIÉN CREADO
   const URL_IMPRESORA = "https://trowel-narrow-collector.ngrok-free.dev/print"; 

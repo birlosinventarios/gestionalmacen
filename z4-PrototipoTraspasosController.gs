@@ -14,3 +14,4 @@ function PrototipoTraspasosController_obtenerEstadoFolios() {
 function PrototipoTraspasosController_procesarMovimientosFinal(cola) {
   return PrototipoTraspasosService.procesarMovimientosFinal(cola);
 }
+
