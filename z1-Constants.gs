@@ -1,3 +1,4 @@
+
 /**
  * CONSTANTS.gs
  * Configuración central de archivos fuente, hojas y columnas
@@ -19,95 +20,85 @@ const FILES = {
 
 /* Nombres de las hojas por archivo */
 const SHEETS = {
-
+  
   CATALOGO: {
-    file: "GESTION",
-    name: "CATALOGO"
-  },
+      file: "GESTION",
+      name: "CATALOGO"
+    },
 
   ETIQUETAS: {
-    file: "GESTION",
-    name: "ETIQUETAS"
-  },
+      file: "GESTION",
+      name: "ETIQUETAS"
+    }, 
 
   EXCEDENTES: {
-    file: "GESTION",
-    name: "BD-EXCEDENTES"
-  },
+      file: "GESTION",
+      name: "BD-EXCEDENTES"
+    }, 
 
   TRASPASOS: {
-    file: "GESTION",
-    name: "Bitacora-TRASPASOS"
-  },
+      file: "GESTION",
+      name: "Bitacora-TRASPASOS"
+    },
 
   UBICACIONES_EXCEDENTES: {
-    file: "GESTION",
-    name: "UBICACIONES"
-  },
+      file: "GESTION",
+      name: "UBICACIONES"
+    },  
 
   UBICACIONES_SURTIDO: {
-    file: "GESTION",
-    name: "UBICACIONES_SURTIDO"
-  },
+      file: "GESTION",
+      name: "UBICACIONES_SURTIDO"
+    },  
 
   USUARIOS: {
-    file: "GESTION",
-    name: "USUARIOS"
-  },
+      file: "GESTION",
+      name: "USUARIOS"
+    },
 
   EXISTENCIAS: {
-    file: "GESTION",
-    name: "EXISTENCIAS"
-  },
+      file: "GESTION",
+      name: "EXISTENCIAS"
+    },
 
   MAXMIN: {
-    file: "GESTION",
-    name: "MAXMIN"
-  },
-
-  AUDITORIA_EXCEDENTES: {
-    file: "GESTION",
-    name: "AUDITORIAEXCEDENTES"
-  },
-
-  AUDITORIA_EXCEDENTES_DETALLE: {
-    file: "GESTION",
-    name: "AUDITORIAEXCEDENTESDETALLE"
-  }
+      file: "GESTION",
+      name: "MAXMIN"
+    }
 };
 
 
-/** Índices de columnas
+/** Indices de columnas
  * A = 0
  */
 const COL = {
 
   CATALOGO: {
-    IDPRODUCTO: 0,
-    CODIGO: 1,
+    IDPRODUCTO: 0,          
+    CODIGO: 1,     
     DESCRIPCION: 2,
-    STATUS: 3
+    STATUS: 3   
   },
 
-  USUARIOS: {
+  USUARIOS:{
     IDUSUARIOS: 0,
     NOMBRE: 1,
     ROL: 2
   },
 
-  ETIQUETAS: {
+  ETIQUETAS:{
     NOMBRE: 0,
     ANCHO: 1,
     ALTO: 2
   },
 
-  UBICACIONES_EXCEDENTES: {
+  UBICACIONES_EXCEDENTES:{
     IDUBICACIONES_EXCEDENTES: 0,
     BODEGA: 1,
     UBICACION: 2
   },
 
-  UBICACIONES_SURTIDO: {
+  UBICACIONES_SURTIDO:{
     IDUBICACION: 0,
     CODIGO: 1,
     BODEGA: 2,
@@ -117,8 +108,8 @@ const COL = {
     IDPRODUCTO: 6,
     UBICACION: 7
   },
-
-  EXCEDENTES: {
+    
+  EXCEDENTES:{
     IDUNICO: 0,
     FECHA: 1,
     HORA: 2,
@@ -129,7 +120,7 @@ const COL = {
     STATUS: 7
   },
 
-  TRASPASOS: {
+  TRASPASOS:{
     FECHA: 0,
     HORA: 1,
     TIPOMOVIMIENTO: 2,
@@ -147,7 +138,7 @@ const COL = {
     IDUNICO: 14
   },
 
-  EXISTENCIAS: {
+  EXISTENCIAS:{
     IDPRODUCTO: 0,
     CODIGO: 1,
     DESCRIPCION: 2,
@@ -156,47 +147,9 @@ const COL = {
     EXCEDENTECASABLANCA: 5
   },
 
-  MAXMIN: {
+  MAXMIN:{
     CODIGO: 0,
     MINIMO: 1,
     MAXIMO: 2
   },
-
-  AUDITORIA_EXCEDENTES: {
-    IDAUDITORIA: 0,
-    FECHA: 1,
-    HORAINICIO: 2,
-    HORAFIN: 3,
-    DURACIONMIN: 4,
-    AUDITOR: 5,
-    TIPOAUDITORIA: 6,
-    BODEGAOBJETIVO: 7,
-    ESTATUS: 8,
-    UBICACIONESAUDITADAS: 9,
-    UBICACIONESCONDIFERENCIA: 10,
-    IDUNICOS_ESPERADOS_TOTALES: 11,
-    IDUNICOS_ESCANEADOS_TOTALES: 12,
-    IDUNICOS_CORRECTOS_TOTALES: 13,
-    IDUNICOS_FALTANTES_TOTALES: 14,
-    IDUNICOS_SOBRANTES_TOTALES: 15,
-    CONFIABILIDADTOTAL: 16,
-    OBSERVACIONES: 17
-  },
-
-  AUDITORIA_EXCEDENTES_DETALLE: {
-    IDAUDITORIA: 0,
-    SECUENCIAUBICACION: 1,
-    BODEGA: 2,
-    UBICACION: 3,
-    HORAINICIOUBICACION: 4,
-    HORAFINUBICACION: 5,
-    IDUNICO: 6,
-    CODIGO: 7,
-    DESCRIPCION: 8,
-    HORAESCANEOIDUNICO: 9,
-    ESCORRECTO: 10,
-    ESFALTANTE: 11,
-    ESSOBRANTE: 12,
-    OBSERVACIONES: 13
-  }
-};
+}; 

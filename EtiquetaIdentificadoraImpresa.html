@@ -1,162 +1,189 @@
 <script>/** EtiquetaIdentificadoraImpresa.html */</script>
+<?
+  var LOGO_QR_URL = 'https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png';
+
+  function construirQr_(texto) {
+    var params = [
+      'text=' + encodeURIComponent(String(texto || '')),
+      'size=800',
+      'margin=3',
+      'ecLevel=H',
+      'dark=000000',
+      'light=FFFFFF',
+      'dotStyle=dot',
+      'finderStyle=rounded',
+      'finderDotStyle=rounded',
+      'finderColor=000000',
+      'centerImageUrl=' + encodeURIComponent(LOGO_QR_URL),
+      'centerImageSizeRatio=0.28'
+    ];
+
+    return 'https://quickchart.io/qr?' + params.join('&');
+  }
+
+  function construirQrFallback_(texto) {
+    return 'https://api.qrserver.com/v1/create-qr-code/?'
+      + 'size=800x800'
+      + '&data=' + encodeURIComponent(String(texto || ''))
+      + '&ecc=H'
+      + '&margin=3'
+      + '&color=000000'
+      + '&bgcolor=FFFFFF';
+  }
+?>
 
 <!DOCTYPE html>
 <html>
 <head>
   <base target="_top">
   <style>
-        :root {
-          --ancho-papel: 10cm; /* Un poco más que el alto original para dar margen */
-          --alto-papel: 15.5cm;  /* Un poco más que el ancho original */
-
-          /* Estas son las dimensiones de tu DISEÑO */
-          --ancho-diseno: 15.6cm;
-          --alto-diseno: 9.5cm;
-        }
+    :root {
+      --ancho-papel: 10cm;
+      --alto-papel: 15.5cm;
+      --ancho-diseno: 15.6cm;
+      --alto-diseno: 9.5cm;
+    }
             
-            * { box-sizing: border-box; }
+    * { box-sizing: border-box; }
 
-        @page {
-          size: letter; /* Hoja tamaño carta */
-        
-        } 
+    @page {
+      size: letter;
+    } 
 
-        body {
-          margin: 0; padding: 0;
-          font-family: "Century Gothic", AppleGothic, sans-serif;
-          background-color: #f0f0f0; /* Gris para verlas en pantalla, blanco al imprimir */
-        }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: "Century Gothic", AppleGothic, sans-serif;
+      background-color: #f0f0f0;
+    }
 
-        .contenedor-pagina {
-          width: 100%;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-        }
+    .contenedor-pagina {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
 
-        .etiqueta {
-          /* FORZAMOS DIMENSIONES REALES */
-          width: var(--ancho-diseno);
-          height: var(--alto-diseno);
-          border: 2px solid black;
-          padding: 30px;
-          display: flex;
-          flex-direction: column;
-          position: relative;
-          overflow: hidden;
-          page-break-inside: avoid; /* No se rompe entre hojas */
-          transform: rotate(90deg) translate(1.8mm, calc(-1 * var(--ancho-diseno) + 34.2mm));
-          transform-origin: top left;
-          background: white;
-        }
+    .etiqueta {
+      width: var(--ancho-diseno);
+      height: var(--alto-diseno);
+      border: 2px solid black;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      page-break-inside: avoid;
+      transform: rotate(90deg) translate(1.8mm, calc(-1 * var(--ancho-diseno) + 34.2mm));
+      transform-origin: top left;
+      background: white;
+    }
 
-        .marca-agua {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 80%;
-          opacity: 0.07;
-          z-index: -1;
-          filter: grayscale(100%);
-        }
+    .marca-agua {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80%;
+      opacity: 0.07;
+      z-index: -1;
+      filter: grayscale(100%);
+    }
 
-        .header {
-          display: flex;
-          justify-content: space-between;
-          border-bottom: 4px solid black;
-          padding-bottom: 5px;
-          margin-bottom: 10px;
-          align-items: center;
-        }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 4px solid black;
+      padding-bottom: 5px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
 
-        .codigo-titulo {
-          font-weight: 20pt;
-          margin: 0;
-        }
+    .codigo-titulo {
+      font-weight: 20pt;
+      margin: 0;
+    }
 
-        .tipo-badge {
-          font-size: 11pt; /* Un poco más grande para compensar que ya no tiene recuadro */
-          font-weight: bold;
-          color: #000; /* Negro sólido */
-          padding: 0;
-          border-radius: 0;
-          background: none; /* Quitamos el relleno negro */
-          text-align: right;
-          align-items: center;
-        }
+    .tipo-badge {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #000;
+      padding: 0;
+      border-radius: 0;
+      background: none;
+      text-align: right;
+      align-items: center;
+    }
 
-        .cuerpo {
-          display: flex;
-          flex: 1;
-          justify-content: space-between;
-          align-items: stretch;
-        }
+    .cuerpo {
+      display: flex;
+      flex: 1;
+      justify-content: space-between;
+      align-items: stretch;
+    }
 
-        .info {
-          width: 55%;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-        }
+    .info {
+      width: 55%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
 
-        .descripcion {
-          font-weight: bold;
-          font-size: 25pt;
-          color: #333;
-          line-height: 1.1;
-          text-transform: uppercase;
-          margin-bottom: 5px;
-        }
+    .descripcion {
+      font-weight: bold;
+      font-size: 25pt;
+      color: #333;
+      line-height: 1.1;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
 
-        .qr-container {
-          width: 200px;
-          height: 200px;
-          border: 1px solid #ddd;
-          background: white;
-          margin-bottom: 5px;
-          display:flex;
-          justify-content: center;
-          align-items: center;
-        }
+    .qr-container {
+      width: 200px;
+      height: 200px;
+      border: 1px solid #ddd;
+      background: white;
+      margin-bottom: 5px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
 
-        .qr-container img {
-          width: 90%;
-          height: 90%;
-        }
+    .qr-container img {
+      width: 90%;
+      height: 90%;
+      object-fit: contain;
+    }
 
-        @media print {
-          .etiqueta { page-break-inside: avoid; }
-        }
-
+    @media print {
+      .etiqueta { page-break-inside: avoid; }
+    }
   </style>
-
 </head>
 
 <body>
   <div class="contenedor-pagina">
     <? 
-       // 1. Variable para rastrear el cambio de tamaño
-       var tipoAnterior = ""; 
+      var tipoAnterior = ""; 
        
-       lote.forEach(function(item, index) { 
-         // Calculamos la escala individual
-         var miEscala = item.alto / 7.5; 
+      lote.forEach(function(item, index) { 
+        var miEscala = item.alto / 7.5; 
 
-         // 2. Si NO es la primera etiqueta Y el tipo cambió, forzamos salto de página
-         if (index > 0 && item.tipo !== tipoAnterior) { 
+        if (index > 0 && item.tipo !== tipoAnterior) { 
     ?>
-           <div style="page-break-after: always; height: 0; margin: 0; padding: 0;"></div>
+          <div style="page-break-after: always; height: 0; margin: 0; padding: 0;"></div>
     <?   
-         } 
-         // Actualizamos el rastreador para la siguiente vuelta
-         tipoAnterior = item.tipo; 
+        } 
+
+        tipoAnterior = item.tipo; 
     ?>
       <div class="etiqueta" style="--escala: <?= miEscala ?>; --ancho-cm: <?= item.ancho ?>cm; --alto-cm: <?= item.alto ?>cm;">
 
-          <img src="https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png" 
-          class="marca-agua" 
-          onload="verificarCarga()">      
+        <img
+          src="https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png"
+          class="marca-agua"
+          onload="verificarCarga()"
+        >      
 
         <div class="header">
           <h1 class="codigo-titulo"><?= item.codigo ?></h1>
@@ -169,19 +196,21 @@
           </div>
 
           <div class="qr-container">
-            <img src="https://quickchart.io/qr?text=<?= encodeURIComponent(item.id) ?>&size=250&margin=1"
-                 onload="verificarCarga()"
-                 onerror="this.src='https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=<?= encodeURIComponent(item.id) ?>'">
+            <img
+              src="<?= construirQr_(item.id) ?>"
+              onload="verificarCarga()"
+              onerror="this.onerror=null; this.src='<?= construirQrFallback_(item.id) ?>';"
+              alt="QR <?= item.id ?>"
+            >
           </div>
         </div>
       </div>
     <? }); ?>
-</div>
+  </div>
 
   <script>
     let imagenesCargadas = 0;
-    // Multiplicamos por 2 porque ahora hay 2 imágenes (Logo + QR) por etiqueta
-    const totalImagenesEsperadas = <?= lote.length ?> * 2; 
+    const totalImagenesEsperadas = <?= lote.length ?> * 2;
     let impresionLanzada = false;
 
     function lanzarImpresion() {
@@ -193,18 +222,14 @@
 
     function verificarCarga() {
       imagenesCargadas++;
-      // Solo imprime cuando el logo y el QR de todas las etiquetas estén listos
       if (imagenesCargadas >= totalImagenesEsperadas) {
         setTimeout(lanzarImpresion, 500);
       }
     }
 
     window.onload = function() {
-      // Aumentamos el Plan B a 5 segundos por si el logo externo es lento
       setTimeout(lanzarImpresion, 5000);
     };
   </script> 
-
 </body>
-
 </html>

@@ -1,16 +1,46 @@
 <script>/** EtiquetaExcedentesImpresa.html */</script>
 
+<? 
+  var LOGO_QR_URL = 'https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png';
+
+  function construirQrBonito_(texto) {
+    var params = [
+      'text=' + encodeURIComponent(String(texto || '')),
+      'size=220',
+      'margin=3',
+      'ecLevel=H',
+      'dark=000000',
+      'light=FFFFFF',
+      'dotStyle=dot',
+      'finderStyle=rounded',
+      'finderDotStyle=rounded',
+      'finderColor=000000',
+      'centerImageUrl=' + encodeURIComponent(LOGO_QR_URL),
+      'centerImageSizeRatio=0.24'
+    ];
+
+    return 'https://quickchart.io/qr?' + params.join('&');
+  }
+
+  function construirQrFallback_(texto) {
+    return 'https://api.qrserver.com/v1/create-qr-code/?'
+      + 'size=220x220'
+      + '&data=' + encodeURIComponent(String(texto || ''))
+      + '&ecc=H'
+      + '&margin=3'
+      + '&color=000000'
+      + '&bgcolor=FFFFFF';
+  }
+?>
+
 <!DOCTYPE html>
 <html>
 <head>
   <base target="_top">
   <style>
-    /* VARIABLES DE ESCALA PARA 12.5x8 (Compensado a 13x8.4) */
     :root {
-      --ancho-papel: 9.5cm; /* Un poco más que el alto original para dar margen */
-      --alto-papel: 15cm;  /* Un poco más que el ancho original */
-
-      /* Estas son las dimensiones de tu DISEÑO */
+      --ancho-papel: 9.5cm;
+      --alto-papel: 15cm;
       --ancho-diseno: 15cm;
       --alto-diseno: 9.5cm;
     }
@@ -18,17 +48,15 @@
     * { box-sizing: border-box; }
 
     @page {
-      size: letter; /* Hoja tamaño carta */
-     
+      size: letter;
     }
 
     body {
       margin: 0; padding: 0;
       font-family: "Century Gothic", AppleGothic, sans-serif;
-      background-color: #f0f0f0; /* Gris para verlas en pantalla, blanco al imprimir */
+      background-color: #f0f0f0;
     }
 
-    /* El contenedor ahora permite que las etiquetas fluyan */
     .contenedor-impresion {
       width: 100%;
       display: flex;
@@ -36,9 +64,7 @@
       align-items: center;
     }
 
-
     .etiqueta {
-      /* FORZAMOS DIMENSIONES REALES */
       width: var(--ancho-diseno);
       height: var(--alto-diseno);
       border: 2px solid black;
@@ -47,7 +73,7 @@
       flex-direction: column;
       position: relative;
       overflow: hidden;
-      page-break-inside: avoid; /* No se rompe entre hojas */
+      page-break-inside: avoid;
       transform: rotate(90deg) translate(0, calc(-1 * var(--ancho-diseno) + 26.5mm));
       transform-origin: top left;
       background: white;
@@ -84,12 +110,12 @@
     }
    
     .fecha-badge {
-      font-size: 11pt; /* Un poco más grande para compensar que ya no tiene recuadro */
+      font-size: 11pt;
       font-weight: bold;
-      color: #000; /* Negro sólido */
+      color: #000;
       padding: 0;
       border-radius: 0;
-      background: none; /* Quitamos el relleno negro */
+      background: none;
       text-align: right;
     }
    
@@ -155,10 +181,11 @@
     .qr-container img {
       width: 90%;
       height: 90%;
+      object-fit: contain;
     }
    
     .excedentes-label {
-        font-size: 10pt;
+      font-size: 10pt;
       font-weight: 900;
       text-align: right;
       width: 140px;
@@ -172,38 +199,36 @@
       font-weight: bold;
       font-family: monospace;
     }
-
   </style>
 </head>
 <body>
- 
-    <div class="contenedor-impresion">
+  <div class="contenedor-impresion">
     <? lote.forEach(function(item) { ?>
       <div class="etiqueta">
         <img src="https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png" class="marca-agua" onload="verificarCarga()">
 
         <div class="header">
-            <h1 class="codigo-titulo"><?= item.codigo ?></h1>
-            <span class="fecha-badge"><?= fechaHora ?></span>
+          <h1 class="codigo-titulo"><?= item.codigo ?></h1>
+          <span class="fecha-badge"><?= fechaHora ?></span>
         </div>
 
         <div class="cuerpo">
-            <div class="info">
-                <div class="descripcion"><?= item.descripcion ?></div>
-                <div class="pzas-container">
-                  <span class="pzas-valor"><?= item.cantidad ?></span>
-                  <span class="pzas-label">PZAS</span>
-                </div>
+          <div class="info">
+            <div class="descripcion"><?= item.descripcion ?></div>
+            <div class="pzas-container">
+              <span class="pzas-valor"><?= item.cantidad ?></span>
+              <span class="pzas-label">PZAS</span>
             </div>
+          </div>
 
-            <div class="qr-seccion">
-                <div class="qr-container">
-                    <img src="https://quickchart.io/qr?text=<?= encodeURIComponent(item.idUnico) ?>&size=200&margin=1"
-                         onload="verificarCarga()"
-                         onerror="this.src='https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=<?= encodeURIComponent(item.idUnico) ?>'">
-                </div>
-                <div class="excedentes-label">EXCEDENTES</div>
+          <div class="qr-seccion">
+            <div class="qr-container">
+              <img src="<?= construirQrBonito_(item.idUnico) ?>"
+                   onload="verificarCarga()"
+                   onerror="this.onerror=null; this.src='<?= construirQrFallback_(item.idUnico) ?>';">
             </div>
+            <div class="excedentes-label">EXCEDENTES</div>
+          </div>
         </div>
 
         <div class="footer-datos">
@@ -211,10 +236,10 @@
         </div>
       </div>
     <? }); ?>
+  </div>
 
   <script>
     let imagenesCargadas = 0;
-    // Multiplicamos por 2 (Logo + QR). Si no hay lote, evitamos error con || 0
     const totalImagenesEsperadas = (parseInt("<?= lote.length ?>") || 0) * 2;
     let impresionLanzada = false;
 
@@ -228,14 +253,11 @@
 
     function verificarCarga() {
       imagenesCargadas++;
-      // Si ya cargaron todas las que esperábamos, imprimimos
       if (imagenesCargadas >= totalImagenesEsperadas) {
         lanzarImpresion();
       }
     }
 
-    // SEGURO DE VIDA: Si después de 3.5 segundos las imágenes no han avisado,
-    // imprimimos lo que haya para no bloquear al usuario Fito.
     window.onload = function() {
       setTimeout(lanzarImpresion, 3500);
     };
