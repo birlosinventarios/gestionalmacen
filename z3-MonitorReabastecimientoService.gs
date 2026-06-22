@@ -1,24 +1,5 @@
 /**
  * MonitorReabastecimientoService.gs
- * Service específico para la vista MonitorReabastecimiento.html
- *
- * V2 OPERATIVA
- * ------------------------------------------------------------
- * Supuestos de esta versión:
- * 1) EXISTENCIAS.almacenbirlos se toma como el saldo operativo del surtido.
- * 2) MAXMIN define niveles objetivo operativos (no capacidad física real).
- * 3) UBICACIONES_SURTIDO se sanea para conservar una sola ubicación válida por SKU.
- * 4) El saldo disponible para reabasto interno se toma desde:
- *    - EXISTENCIAS.excedentebodega
- *    - EXISTENCIAS.excedentecasablanca
- * 5) BD-EXCEDENTES se usa como apoyo para métricos de IDs vigentes / pendientes.
- * 6) La segmentación por bodega se construye a partir del prefijo de la ubicación surtido:
- *    - B1 = Bodega 1
- *    - B2 = Bodega 2
- *    - B3 = Bodega 3
- *    - CU = Cuarto Alto Riesgo
- *    - MO = Mostrador
- *    - vacío = Sin ubicación
  */
 
 const MonitorReabastecimientoService = (() => {

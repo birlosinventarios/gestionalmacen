@@ -4,7 +4,7 @@
   var LOGO_QR_URL = 'https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png';
 
   var QR_CONFIG = {
-    size: 220,
+    size: 800,                    // ← subido para alta resolución
     margin: 3,
     ecLevel: 'H',
     dark: '000000',
@@ -37,13 +37,15 @@
 
   function construirQrFallback_(texto) {
     return 'https://api.qrserver.com/v1/create-qr-code/?'
-      + 'size=220x220'
+      + 'size=800x800'
       + '&data=' + encodeURIComponent(String(texto || ''))
       + '&ecc=H'
       + '&margin=3'
       + '&color=000000'
       + '&bgcolor=FFFFFF';
   }
+
+  var TOTAL_IMAGENES_ESPERADAS = (lote && lote.length) ? lote.length * 2 : 0;
 ?>
 
 <!DOCTYPE html>
@@ -51,6 +53,7 @@
 <head>
   <base target="_top">
   <style>
+    /* VARIABLES DE ESCALA PARA 12.5x8 (Compensado a 13x8.4) */
     :root {
       --ancho-papel: 9.5cm;
       --alto-papel: 15cm;
@@ -109,7 +112,7 @@
       z-index: -1;
       filter: grayscale(100%);
     }
-   
+
     .header {
       display: flex;
       justify-content: space-between;
@@ -117,34 +120,37 @@
       padding-bottom: 5px;
       margin-bottom: 10px;
     }
-   
+
     .codigo-titulo {
       font-size: 16pt;
       font-weight: 700;
       margin: 0;
     }
-   
+
     .fecha-badge {
       font-size: 11pt;
       font-weight: bold;
       color: #000;
+      padding: 0;
+      border-radius: 0;
+      background: none;
       text-align: right;
     }
-   
+
     .cuerpo {
       display: flex;
       flex: 1;
       justify-content: space-between;
       align-items: stretch;
     }
-   
+
     .info {
       width: 55%;
       display: flex;
       flex-direction: column;
       justify-content: center;
     }
-   
+
     .descripcion {
       font-weight: bold;
       font-size: 16pt;
@@ -153,24 +159,24 @@
       text-transform: uppercase;
       margin-bottom: 5px;
     }
-   
+
     .pzas-container {
       display: flex;
       align-items: baseline;
       gap: 8px;
     }
-   
+
     .pzas-valor {
       font-size: 28pt;
       font-weight: 900;
       line-height: 0.8;
     }
-   
+
     .pzas-label {
       font-size: 12pt;
       font-weight: bold;
     }
-   
+
     .qr-seccion {
       width: 40%;
       display: flex;
@@ -178,24 +184,25 @@
       align-items: flex-end;
       justify-content: flex-end;
     }
-   
+
     .qr-container {
       width: 170px;
       height: 170px;
       border: 1px solid #ddd;
       background: white;
       margin-bottom: 5px;
-      display:flex;
+      display: flex;
       justify-content: center;
       align-items: center;
     }
-   
+
     .qr-container img {
       width: 90%;
       height: 90%;
       object-fit: contain;
+      display: block;
     }
-   
+
     .excedentes-label {
       font-size: 10pt;
       font-weight: 900;
@@ -204,7 +211,7 @@
       border-top: 3px solid black;
       padding-top: 3px;
     }
-   
+
     .footer-datos {
       margin-top: 5px;
       font-size: 8pt;
@@ -213,7 +220,6 @@
     }
   </style>
 </head>
-
 <body>
 
 <? if (!lote || !lote.length) { ?>
@@ -222,61 +228,59 @@
   </div>
 <? } else { ?>
 
-<div class="contenedor-impresion">
-  <? lote.forEach(function(item) { ?>
-  
-  <div class="etiqueta">
+  <div class="contenedor-impresion">
+    <? lote.forEach(function(item) { ?>
+      <div class="etiqueta">
 
-    <img
-      src="<?= LOGO_QR_URLmarca-agua"
-      alt=""
-      aria-hidden="true"
-      onload="registrarImagenLista()"
-      onerror="registrarImagenLista()"
-    >
+        <img
+          src="<?= LOGO_QR_URL ?>"
+          class="marca-agua"
+          alt=""
+          aria-hidden="true"
+          onload="registrarCarga()"
+          onerror="registrarCarga()"
+        >
 
-    <div class="header">
-      <h1 class="codigo-titulo"><?= item.codigo ?></h1>
-      <span class="fecha-badge"><?= fechaHora ?></span>
-    </div>
-
-    <div class="cuerpo">
-      <div class="info">
-        <div class="descripcion"><?= item.descripcion ?></div>
-
-        <div class="pzas-container">
-          <span class="pzas-valor"><?= item.cantidad ?></span>
-          <span class="pzas-label">PZAS</span>
-        </div>
-      </div>
-
-      <div class="qr-seccion">
-        <div class="qr-container">
-           ?>"
-            onload="registrarImagenLista()"
-            onerror="this.onerror=null; this.src='<?= construirQrFallback_(item.idUnico) ?>'; registrarImagenLista();"
-            alt="QR <?= item.idUnico ?>"
-          >
+        <div class="header">
+          <h1 class="codigo-titulo"><?= item.codigo ?></h1>
+          <span class="fecha-badge"><?= fechaHora ?></span>
         </div>
 
-        <div class="excedentes-label">EXCEDENTES</div>
+        <div class="cuerpo">
+          <div class="info">
+            <div class="descripcion"><?= item.descripcion ?></div>
+            <div class="pzas-container">
+              <span class="pzas-valor"><?= item.cantidad ?></span>
+              <span class="pzas-label">PZAS</span>
+            </div>
+          </div>
+
+          <div class="qr-seccion">
+            <div class="qr-container">
+              <img
+                src="<?= construirQr_(item.idUnico) ?>"
+                onload="registrarCarga()"
+                onerror="this.onerror=null; this.src='<?= construirQrFallback_(item.idUnico) ?>'; registrarCarga();"
+                alt="QR <?= item.idUnico ?>"
+              >
+            </div>
+            <div class="excedentes-label">EXCEDENTES</div>
+          </div>
+        </div>
+
+        <div class="footer-datos">
+          <span><?= item.idUnico ?></span>
+        </div>
+
       </div>
-    </div>
-
-    <div class="footer-datos">
-      <span><?= item.idUnico ?></span>
-    </div>
-
+    <? }); ?>
   </div>
-
-  <? }); ?>
-</div>
 
 <? } ?>
 
 <script>
   let imagenesCargadas = 0;
-  const totalImagenesEsperadas = (Number("<?= lote.length ?>") || 0) * 2;
+  const totalImagenesEsperadas = <?= TOTAL_IMAGENES_ESPERADAS ?>;
   let impresionLanzada = false;
 
   function lanzarImpresion() {
@@ -287,14 +291,14 @@
     }
   }
 
-  function registrarImagenLista() {
+  function registrarCarga() {
     imagenesCargadas++;
     if (imagenesCargadas >= totalImagenesEsperadas) {
       lanzarImpresion();
     }
   }
 
-  window.onload = function() {
+  window.onload = function () {
     if (totalImagenesEsperadas === 0) return;
     setTimeout(lanzarImpresion, 3500);
   };
