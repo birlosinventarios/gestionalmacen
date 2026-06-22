@@ -21,149 +21,150 @@
   <?= HtmlService.createHtmlOutputFromFile('z0-Utilidades_XLSX').getContent(); ?>
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <style>
-    <?= HtmlService.createHtmlOutputFromFile('Estilos_Globales').getContent(); ?>
+<style>
+  <?= HtmlService.createHtmlOutputFromFile('Estilos_Globales').getContent(); ?>
 
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
 
-    :root {
-      --primary: #d93025;
-      --bg-color: #f8f9fa;
-      --text-main: #1c1d1f;
+  :root {
+    --primary: #d93025;
+    --bg-color: #f8f9fa;
+    --text-main: #1c1d1f;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    width: 100vw;
+    background-color: var(--bg-color);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .main-wrapper {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-color);
+  }
+
+  .scrollable-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--secondary) transparent;
+  }
+
+  .sidebar-transition {
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar-mini { width: 80px; }
+  .sidebar-visible { width: 280px; }
+
+  .sidebar-trigger {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 20px;
+    height: 100vh;
+    z-index: 50;
+  }
+
+  .overlay-fade {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(2px);
+    z-index: 30;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .logo-container {
+    background: white;
+    padding: 4px;
+    border-radius: 7.5px;
+    width: 50px;
+    height: 50px;
+  }
+
+  .custom-scroll::-webkit-scrollbar { width: 4px; }
+  .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+  .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
+
+  /* =========================================================
+     ANIMACIONES IGUALES A PROTOTIPOTRASPASOS
+  ========================================================= */
+  @keyframes toastInProto {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
     }
-
-    body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      width: 100vw;
-      background-color: var(--bg-color);
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      overflow: hidden;
-      -webkit-font-smoothing: antialiased;
+    to {
+      transform: translateX(0);
+      opacity: 1;
     }
+  }
 
-    .main-wrapper {
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      background-color: var(--bg-color);
+  @keyframes toastOutProto {
+    from {
+      transform: translateX(0);
+      opacity: 1;
     }
-
-    .scrollable-content {
-      flex: 1;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      padding: 20px;
-      scrollbar-width: thin;
-      scrollbar-color: var(--secondary) transparent;
+    to {
+      transform: translateX(100%);
+      opacity: 0;
     }
+  }
 
-    .sidebar-transition {
-      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    }
+  .animate-toast-in {
+    animation: toastInProto 0.35s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
 
-    .sidebar-mini { width: 80px; }
-    .sidebar-visible { width: 280px; }
+  .animate-toast-out {
+    animation: toastOutProto 0.25s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
 
-    .sidebar-trigger {
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 20px;
-      height: 100vh;
-      z-index: 50;
-    }
+  /* =========================================================
+     TOASTS GLOBALES HOMOLOGADOS CON PROTOTIPOTRASPASOS
+  ========================================================= */
+  .swal2-popup.swal2-toast {
+    backdrop-filter: blur(8px);
+    background: #1c1d1f !important;
+    color: #ffffff !important;
+    border-left: 4px solid #d93025 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22) !important;
+  }
 
-    .overlay-fade {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.3);
-      backdrop-filter: blur(2px);
-      z-index: 30;
-      animation: fadeIn 0.3s ease;
-    }
+  .swal2-popup.swal2-toast .swal2-title {
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    letter-spacing: 0.02em;
+  }
 
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
+  .swal2-popup.swal2-toast .swal2-html-container,
+  .swal2-popup.swal2-toast .swal2-text {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #ffffff !important;
+  }
 
-    .logo-container {
-      background: white;
-      padding: 4px;
-      border-radius: 7.5px;
-      width: 50px;
-      height: 50px;
-    }
+  .swal2-timer-progress-bar {
+    background: #d93025 !important;
+  }
+</style>
 
-    .custom-scroll::-webkit-scrollbar { width: 4px; }
-    .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
-    .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
-
-    /* =========================================================
-       ANIMACIONES IGUALES A PROTOTIPOTRASPASOS
-    ========================================================= */
-    @keyframes toastInProto {
-      from {
-        transform: translateX(100%);
-        opacity: 0;
-      }
-      to {
-        transform: translateX(0);
-        opacity: 1;
-      }
-    }
-
-    @keyframes toastOutProto {
-      from {
-        transform: translateX(0);
-        opacity: 1;
-      }
-      to {
-        transform: translateX(100%);
-        opacity: 0;
-      }
-    }
-
-    .animate-toast-in {
-      animation: toastInProto 0.35s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-    }
-
-    .animate-toast-out {
-      animation: toastOutProto 0.25s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-    }
-
-    /* =========================================================
-       TOASTS GLOBALES HOMOLOGADOS CON PROTOTIPOTRASPASOS
-    ========================================================= */
-    .swal2-popup.swal2-toast {
-      backdrop-filter: blur(8px);
-      background: #1c1d1f !important;
-      color: #ffffff !important;
-      border-left: 4px solid #d93025 !important;
-      border-radius: 14px !important;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22) !important;
-    }
-
-    .swal2-popup.swal2-toast .swal2-title {
-      font-size: 14px !important;
-      font-weight: 800 !important;
-      color: #ffffff !important;
-      letter-spacing: 0.02em;
-    }
-
-    .swal2-popup.swal2-toast .swal2-html-container,
-    .swal2-popup.swal2-toast .swal2-text {
-      font-size: 13px !important;
-      font-weight: 600 !important;
-      color: #ffffff !important;
-    }
-
-    .swal2-timer-progress-bar {
-      background: #d93025 !important;
-    }
-  </style>
 </head>
 <body>
 
@@ -264,7 +265,8 @@
         category: 'Auditoría'
       },
 
-      // Cuando ya exista AuditoriaExcedentesDetalle.html, descomenta:
+      // OPCIONAL:
+      // descomenta esta entrada cuando ya exista AuditoriaExcedentesDetalle.html
       /*
       {
         id: 'AuditoriaExcedentesDetalle',
@@ -577,6 +579,7 @@
     // =========================================================
     // HELPERS DE SHELL
     // =========================================================
+
     function getSwalPopup_() {
       try {
         return typeof Swal !== 'undefined' && typeof Swal.getPopup === 'function'
@@ -609,6 +612,7 @@
         const popup = getSwalPopup_();
         const esToast = !!(popup && popup.classList.contains('swal2-toast'));
 
+        // Solo cerramos si NO es toast o si explícitamente queremos cerrarlo
         if (!esToast || cerrarToast) {
           Swal.close();
         }
@@ -675,12 +679,7 @@
           preview: (scriptContent || "").substring(0, 120)
         });
 
-        if (
-          originalType === "text/template" ||
-          originalType === "text/x-template" ||
-          originalType === "application/json" ||
-          originalType === "application/ld+json"
-        ) {
+        if (originalType === "text/template" || originalType === "text/x-template" || originalType === "application/json" || originalType === "application/ld+json") {
           console.log("⏭️ [Shell] Script omitido por ser plantilla/datos:", originalType);
           continue;
         }
@@ -711,11 +710,7 @@
           continue;
         }
 
-        if (
-          originalType === "" ||
-          originalType === "text/javascript" ||
-          originalType === "application/javascript"
-        ) {
+        if (originalType === "" || originalType === "text/javascript" || originalType === "application/javascript") {
           try {
             ejecutarScriptInline(scriptContent, "text/javascript");
             console.log("✅ [Shell] Script JS ejecutado");
@@ -750,6 +745,7 @@
           const t0 = performance.now();
           console.log(`[BOOT][CLIENTE] Inicio inicializarMegaData: ${t0.toFixed(2)} ms`);
 
+          // Paso A: avisar al usuario
           window.notificar("Sincronizando base de datos...", "info", 4200, {
             title: "Sincronización",
             sound: false
@@ -759,6 +755,7 @@
             `[BOOT][CLIENTE] Toast solicitado en: ${(performance.now() - t0).toFixed(2)} ms`
           );
 
+          // Paso B: darle tiempo al navegador para pintar el toast
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
               const tDispatch = performance.now();
@@ -906,10 +903,7 @@
       );
 
       return e("div", { className: "flex h-screen w-full overflow-hidden" },
-        e("div", {
-          className: "sidebar-trigger",
-          onMouseEnter: () => setIsSidebarOpen(true)
-        }),
+        e("div", { className: "sidebar-trigger", onMouseEnter: () => setIsSidebarOpen(true) }),
 
         e("aside", {
           onMouseEnter: () => setIsSidebarOpen(true),
@@ -990,9 +984,7 @@
         ),
 
         e("main", { className: "flex-1 flex flex-col relative bg-[#f8f9fa]" },
-          isSidebarOpen
-            ? e("div", { className: "overlay-fade", onClick: () => setIsSidebarOpen(false) })
-            : null,
+          isSidebarOpen ? e("div", { className: "overlay-fade", onClick: () => setIsSidebarOpen(false) }) : null,
 
           e("header", {
             className: "h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10"
@@ -1013,10 +1005,7 @@
               ? e("div", { className: "flex items-center justify-center h-full" },
                   e(Icon, { name: "loader-2", className: "animate-spin text-[#d93025]", size: 40 })
                 )
-              : e("div", {
-                  ref: containerRef,
-                  dangerouslySetInnerHTML: { __html: viewContent }
-                })
+              : e("div", { ref: containerRef, dangerouslySetInnerHTML: { __html: viewContent } })
           )
         )
       );
