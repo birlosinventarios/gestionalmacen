@@ -1,21 +1,35 @@
 <script>/** EtiquetaIdentificadoraImpresa.html */</script>
+
 <?
   var LOGO_QR_URL = 'https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png';
+
+  var QR_CONFIG = {
+    size: 800,
+    margin: 3,
+    ecLevel: 'H',
+    dark: '000000',
+    light: 'FFFFFF',
+    dotStyle: 'dot',
+    finderStyle: 'rounded',
+    finderDotStyle: 'rounded',
+    finderColor: '000000',
+    centerImageSizeRatio: 0.28
+  };
 
   function construirQr_(texto) {
     var params = [
       'text=' + encodeURIComponent(String(texto || '')),
-      'size=800',
-      'margin=3',
-      'ecLevel=H',
-      'dark=000000',
-      'light=FFFFFF',
-      'dotStyle=dot',
-      'finderStyle=rounded',
-      'finderDotStyle=rounded',
-      'finderColor=000000',
+      'size=' + QR_CONFIG.size,
+      'margin=' + QR_CONFIG.margin,
+      'ecLevel=' + QR_CONFIG.ecLevel,
+      'dark=' + QR_CONFIG.dark,
+      'light=' + QR_CONFIG.light,
+      'dotStyle=' + QR_CONFIG.dotStyle,
+      'finderStyle=' + QR_CONFIG.finderStyle,
+      'finderDotStyle=' + QR_CONFIG.finderDotStyle,
+      'finderColor=' + QR_CONFIG.finderColor,
       'centerImageUrl=' + encodeURIComponent(LOGO_QR_URL),
-      'centerImageSizeRatio=0.28'
+      'centerImageSizeRatio=' + QR_CONFIG.centerImageSizeRatio
     ];
 
     return 'https://quickchart.io/qr?' + params.join('&');
@@ -33,7 +47,7 @@
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
   <base target="_top">
   <style>
@@ -43,12 +57,12 @@
       --ancho-diseno: 15.6cm;
       --alto-diseno: 9.5cm;
     }
-            
+
     * { box-sizing: border-box; }
 
     @page {
       size: letter;
-    } 
+    }
 
     body {
       margin: 0;
@@ -74,6 +88,7 @@
       position: relative;
       overflow: hidden;
       page-break-inside: avoid;
+      break-inside: avoid;
       transform: rotate(90deg) translate(1.8mm, calc(-1 * var(--ancho-diseno) + 34.2mm));
       transform-origin: top left;
       background: white;
@@ -100,7 +115,8 @@
     }
 
     .codigo-titulo {
-      font-weight: 20pt;
+      font-size: 20pt;
+      font-weight: 700;
       margin: 0;
     }
 
@@ -108,11 +124,7 @@
       font-size: 11pt;
       font-weight: bold;
       color: #000;
-      padding: 0;
-      border-radius: 0;
-      background: none;
       text-align: right;
-      align-items: center;
     }
 
     .cuerpo {
@@ -143,7 +155,6 @@
       height: 200px;
       border: 1px solid #ddd;
       background: white;
-      margin-bottom: 5px;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -156,80 +167,98 @@
     }
 
     @media print {
-      .etiqueta { page-break-inside: avoid; }
+      .etiqueta {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
     }
   </style>
 </head>
 
 <body>
-  <div class="contenedor-pagina">
-    <? 
-      var tipoAnterior = ""; 
-       
-      lote.forEach(function(item, index) { 
-        var miEscala = item.alto / 7.5; 
 
-        if (index > 0 && item.tipo !== tipoAnterior) { 
-    ?>
-          <div style="page-break-after: always; height: 0; margin: 0; padding: 0;"></div>
-    <?   
-        } 
+<? if (!lote || !lote.length) { ?>
+  <div style="padding:20px; text-align:center;">
+    <b>No hay registros para imprimir</b>
+  </div>
+<? } else { ?>
 
-        tipoAnterior = item.tipo; 
-    ?>
-      <div class="etiqueta" style="--escala: <?= miEscala ?>; --ancho-cm: <?= item.ancho ?>cm; --alto-cm: <?= item.alto ?>cm;">
+<div class="contenedor-pagina">
+  <?
+    var tipoAnterior = "";
 
-        <img
-          src="https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png"
-          class="marca-agua"
-          onload="verificarCarga()"
-        >      
+    lote.forEach(function(item, index) {
 
-        <div class="header">
-          <h1 class="codigo-titulo"><?= item.codigo ?></h1>
-          <span class="tipo-badge"><?= fechaHora ?></span>
-        </div>
+      if (index > 0 && item.tipo !== tipoAnterior) {
+  ?>
+        <div style="page-break-after: always;"></div>
+  <?
+      }
 
-        <div class="cuerpo">
-          <div class="info">
-            <div class="descripcion"><?= item.descripcion ?></div>
-          </div>
+      tipoAnterior = item.tipo;
+  ?>
 
-          <div class="qr-container">
-            <img
-              src="<?= construirQr_(item.id) ?>"
-              onload="verificarCarga()"
-              onerror="this.onerror=null; this.src='<?= construirQrFallback_(item.id) ?>';"
-              alt="QR <?= item.id ?>"
-            >
-          </div>
-        </div>
+  <div class="etiqueta">
+
+    <img
+      src="https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png"
+      class="marca-agua"
+      alt=""
+      aria-hidden="true"
+      onload="registrarImagenLista()"
+      onerror="registrarImagenLista()"
+    >
+
+    <div class="header">
+      <h1 class="codigo-titulo"><?= item.codigo ?></h1>
+      <span class="tipo-badge"><?= fechaHora ?></span>
+    </div>
+
+    <div class="cuerpo">
+      <div class="info">
+        <div class="descripcion"><?= item.descripcion ?></div>
       </div>
-    <? }); ?>
+
+      <div class="qr-container">
+        <img
+          src="<?= construirQr_(item.id) ?>"
+         error="this.onerror=null; this.src='<?= construirQrFallback_(item.id) ?>'; registrarImagenLista();"
+          alt="QR <?= item.id ?>"
+        >
+      </div>
+    </div>
+
   </div>
 
-  <script>
-    let imagenesCargadas = 0;
-    const totalImagenesEsperadas = <?= lote.length ?> * 2;
-    let impresionLanzada = false;
+  <? }); ?>
+</div>
 
-    function lanzarImpresion() {
-      if (!impresionLanzada) {
-        impresionLanzada = true;
-        window.print();
-      }
+<? } ?>
+
+<script>
+  let imagenesCargadas = 0;
+  const totalImagenesEsperadas = (Number("<?= lote.length ?>") || 0) * 2;
+  let impresionLanzada = false;
+
+  function lanzarImpresion() {
+    if (!impresionLanzada) {
+      impresionLanzada = true;
+      window.print();
     }
+  }
 
-    function verificarCarga() {
-      imagenesCargadas++;
-      if (imagenesCargadas >= totalImagenesEsperadas) {
-        setTimeout(lanzarImpresion, 500);
-      }
+  function registrarImagenLista() {
+    imagenesCargadas++;
+    if (imagenesCargadas >= totalImagenesEsperadas) {
+      setTimeout(lanzarImpresion, 500);
     }
+  }
 
-    window.onload = function() {
-      setTimeout(lanzarImpresion, 5000);
-    };
-  </script> 
+  window.onload = function () {
+    if (totalImagenesEsperadas === 0) return;
+    setTimeout(lanzarImpresion, 5000);
+  };
+</script>
+
 </body>
 </html>
