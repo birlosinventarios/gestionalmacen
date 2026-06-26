@@ -1,9 +1,1958 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <base target="_top">
-  </head>
-  <body>
-    
-  </body>
-</html>
+<script>/** AuditoriaExcedentesCaptura.html */</script>
+
+<style>
+  #render-auditoria-excedentes-captura {
+    --aec-critical: var(--primary);
+    --aec-critical-dark: var(--primary-dark, #a50e0e);
+    --aec-critical-light: var(--primary-light, rgba(217, 48, 37, 0.18));
+
+    --aec-warning: #d97706;
+    --aec-warning-dark: #b45309;
+    --aec-warning-light: rgba(217, 119, 6, 0.14);
+
+    --aec-success: #1e8e3e;
+    --aec-success-dark: #157337;
+    --aec-success-light: rgba(30, 142, 62, 0.14);
+
+    --aec-slate: #1c1d1f;
+    --aec-slate-light: rgba(28, 29, 31, 0.08);
+
+    --aec-bg: var(--bg-color, #f8f9fa);
+    --aec-white: #ffffff;
+    --aec-text-main: var(--text-main, #1c1d1f);
+    --aec-text-secondary: var(--text-secondary, #5f6368);
+    --aec-border: var(--border-color, #dadce0);
+    --aec-shadow-soft: var(--shadow-soft, 0 10px 25px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04));
+    --aec-shadow-red: var(--shadow-red, 0 6px 16px rgba(217, 48, 37, 0.15));
+  }
+
+  #render-auditoria-excedentes-captura {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  #render-auditoria-excedentes-captura::-webkit-scrollbar {
+    display: none;
+  }
+
+  #render-auditoria-excedentes-captura .custom-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  #render-auditoria-excedentes-captura .custom-scroll::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.03);
+  }
+
+  #render-auditoria-excedentes-captura .custom-scroll::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.18);
+    border-radius: 999px;
+  }
+
+  #render-auditoria-excedentes-captura .custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+  }
+
+  @keyframes aecFadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  #render-auditoria-excedentes-captura .fade-in-up {
+    animation: aecFadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes aecFlashRow {
+    0%   { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.28); }
+    70%  { box-shadow: 0 0 0 8px rgba(217, 48, 37, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0); }
+  }
+
+  #render-auditoria-excedentes-captura .flash-row {
+    animation: aecFlashRow 1s ease-in-out 2;
+  }
+
+  #render-auditoria-excedentes-captura .aec-card {
+    background: var(--aec-white);
+    border: 1px solid var(--aec-border);
+    border-radius: 1.5rem;
+    box-shadow: var(--aec-shadow-soft);
+  }
+
+  #render-auditoria-excedentes-captura .aec-panel {
+    background: var(--aec-white);
+    border: 1px solid var(--aec-border);
+    border-radius: 1.5rem;
+    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
+  }
+
+  #render-auditoria-excedentes-captura .aec-kpi {
+    background: var(--aec-white);
+    border: 1px solid var(--aec-border);
+    border-radius: 1.15rem;
+    padding: 1rem 1.1rem;
+    position: relative;
+    overflow: hidden;
+    min-height: 118px;
+  }
+
+  #render-auditoria-excedentes-captura .aec-kpi-topbar {
+    position: absolute;
+    inset: 0 auto auto 0;
+    height: 5px;
+    width: 100%;
+  }
+
+  #render-auditoria-excedentes-captura .aec-kpi-topbar.red { background: var(--aec-critical); }
+  #render-auditoria-excedentes-captura .aec-kpi-topbar.amber { background: var(--aec-warning); }
+  #render-auditoria-excedentes-captura .aec-kpi-topbar.emerald { background: var(--aec-success); }
+  #render-auditoria-excedentes-captura .aec-kpi-topbar.slate { background: var(--aec-slate); }
+
+  #render-auditoria-excedentes-captura .aec-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  #render-auditoria-excedentes-captura .aec-chip-red {
+    background: var(--aec-critical-light);
+    color: var(--aec-critical-dark);
+    border-color: rgba(217, 48, 37, 0.25);
+  }
+
+  #render-auditoria-excedentes-captura .aec-chip-amber {
+    background: var(--aec-warning-light);
+    color: var(--aec-warning-dark);
+    border-color: rgba(217, 119, 6, 0.25);
+  }
+
+  #render-auditoria-excedentes-captura .aec-chip-emerald {
+    background: var(--aec-success-light);
+    color: var(--aec-success-dark);
+    border-color: rgba(30, 142, 62, 0.24);
+  }
+
+  #render-auditoria-excedentes-captura .aec-chip-slate {
+    background: var(--aec-slate-light);
+    color: var(--aec-text-main);
+    border-color: rgba(28, 29, 31, 0.12);
+  }
+
+  #render-auditoria-excedentes-captura .aec-chip-open {
+    background: var(--aec-critical-light);
+    color: var(--aec-critical-dark);
+    border-color: rgba(217, 48, 37, 0.22);
+  }
+
+  #render-auditoria-excedentes-captura .aec-chip-closed {
+    background: var(--aec-success-light);
+    color: var(--aec-success-dark);
+    border-color: rgba(30, 142, 62, 0.24);
+  }
+
+  #render-auditoria-excedentes-captura .aec-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--aec-text-secondary);
+  }
+
+  #render-auditoria-excedentes-captura .aec-input,
+  #render-auditoria-excedentes-captura .aec-select,
+  #render-auditoria-excedentes-captura .aec-textarea {
+    width: 100%;
+    border: 1px solid var(--aec-border);
+    background: #f8f9fa;
+    border-radius: 14px;
+    outline: none;
+    transition: all 0.22s ease;
+    color: var(--aec-text-main);
+    font-weight: 800;
+  }
+
+  #render-auditoria-excedentes-captura .aec-input,
+  #render-auditoria-excedentes-captura .aec-select {
+    min-height: 54px;
+    padding: 0 16px;
+    font-size: 14px;
+  }
+
+  #render-auditoria-excedentes-captura .aec-textarea {
+    min-height: 96px;
+    padding: 14px 16px;
+    font-size: 14px;
+    resize: vertical;
+  }
+
+  #render-auditoria-excedentes-captura .aec-input:focus,
+  #render-auditoria-excedentes-captura .aec-select:focus,
+  #render-auditoria-excedentes-captura .aec-textarea:focus {
+    border-color: var(--primary);
+    background: #fff;
+    box-shadow: var(--aec-shadow-red);
+  }
+
+  #render-auditoria-excedentes-captura .aec-input.scanner {
+    background: #fff;
+    border: 2px solid var(--primary);
+    box-shadow: var(--aec-shadow-red);
+  }
+
+  #render-auditoria-excedentes-captura .aec-input.locked {
+    background: #f1f3f4;
+    color: #9aa0a6;
+    cursor: not-allowed;
+  }
+
+  #render-auditoria-excedentes-captura .aec-btn-primary,
+  #render-auditoria-excedentes-captura .aec-btn-dark,
+  #render-auditoria-excedentes-captura .aec-btn-soft,
+  #render-auditoria-excedentes-captura .aec-btn-danger {
+    min-height: 50px;
+    border-radius: 14px;
+    padding: 0 18px;
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    transition: all 0.2s ease;
+  }
+
+  #render-auditoria-excedentes-captura .aec-btn-primary {
+    border: none;
+    background: var(--primary);
+    color: white;
+  }
+
+  #render-auditoria-excedentes-captura .aec-btn-primary:hover {
+    background: var(--primary-dark, #a50e0e);
+  }
+
+  #render-auditoria-excedentes-captura .aec-btn-dark {
+    border: none;
+    background: var(--aec-slate);
+    color: white;
+  }
+
+  #render-auditoria-excedentes-captura .aec-btn-dark:hover {
+    filter: brightness(0.92);
+  }
+
+  #render-auditoria-excedentes-captura .aec-btn-soft {
+    background: #fff;
+    color: var(--aec-text-secondary);
+    border: 1px solid var(--aec-border);
+  }
+
+  #render-auditoria-excedentes-captura .aec-btn-soft:hover {
+    color: var(--primary);
+    border-color: rgba(217, 48, 37, 0.35);
+  }
+
+  #render-auditoria-excedentes-captura .aec-btn-danger {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+  }
+
+  #render-auditoria-excedentes-captura .aec-btn-danger:hover {
+    background: #fecaca;
+  }
+
+  #render-auditoria-excedentes-captura .aec-btn-primary:disabled,
+  #render-auditoria-excedentes-captura .aec-btn-dark:disabled,
+  #render-auditoria-excedentes-captura .aec-btn-soft:disabled,
+  #render-auditoria-excedentes-captura .aec-btn-danger:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  #render-auditoria-excedentes-captura .aec-table-wrap {
+    max-height: 68vh;
+    overflow: auto;
+  }
+
+  #render-auditoria-excedentes-captura .aec-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  #render-auditoria-excedentes-captura .aec-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(248, 249, 250, 0.96);
+    backdrop-filter: blur(8px);
+    padding: 14px 16px;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--aec-text-secondary);
+    border-bottom: 1px solid var(--aec-border);
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  #render-auditoria-excedentes-captura .aec-table tbody td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #eef1f4;
+    background: var(--aec-white);
+    vertical-align: middle;
+  }
+
+  #render-auditoria-excedentes-captura .aec-row:hover td {
+    background: #fcfcfd;
+  }
+
+  #render-auditoria-excedentes-captura .aec-row.row-correcto td {
+    background: rgba(30, 142, 62, 0.035);
+  }
+
+  #render-auditoria-excedentes-captura .aec-row.row-faltante td {
+    background: rgba(217, 119, 6, 0.045);
+  }
+
+  #render-auditoria-excedentes-captura .aec-row.row-sobrante td {
+    background: rgba(217, 48, 37, 0.05);
+  }
+
+  #render-auditoria-excedentes-captura .aec-row.row-highlight td {
+    background: rgba(217, 48, 37, 0.10);
+  }
+
+  #render-auditoria-excedentes-captura .aec-code,
+  #render-auditoria-excedentes-captura .aec-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    color: var(--aec-text-main);
+  }
+
+  #render-auditoria-excedentes-captura .aec-subtle {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--aec-text-secondary);
+  }
+
+  #render-auditoria-excedentes-captura .aec-empty-state {
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    color: #9ca3af;
+  }
+
+  #render-auditoria-excedentes-captura .aec-last-result {
+    border-radius: 1rem;
+    padding: 14px 16px;
+    border: 1px solid transparent;
+  }
+
+  #render-auditoria-excedentes-captura .aec-last-result.ok {
+    background: var(--aec-success-light);
+    border-color: rgba(30, 142, 62, 0.18);
+    color: var(--aec-success-dark);
+  }
+
+  #render-auditoria-excedentes-captura .aec-last-result.warn {
+    background: var(--aec-warning-light);
+    border-color: rgba(217, 119, 6, 0.18);
+    color: var(--aec-warning-dark);
+  }
+
+  #render-auditoria-excedentes-captura .aec-last-result.err {
+    background: var(--aec-critical-light);
+    border-color: rgba(217, 48, 37, 0.18);
+    color: var(--aec-critical-dark);
+  }
+
+  #render-auditoria-excedentes-captura .aec-sticky-focus {
+    position: sticky;
+    top: 0;
+    z-index: 15;
+    background: linear-gradient(to bottom, rgba(248,249,250,0.96), rgba(248,249,250,0.90));
+    backdrop-filter: blur(8px);
+  }
+</style>
+
+<div
+  id="render-auditoria-excedentes-captura"
+  class="h-full w-full flex flex-col bg-[var(--bg-color)] overflow-y-auto p-4 md:p-8"
+></div>
+
+<script type="text/babel">
+  window.cargar_AuditoriaExcedentesCaptura = () => {
+    const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+    // =========================================================
+    // CONFIGURACIÓN DE HEURÍSTICA DE ESCÁNER
+    // =========================================================
+    const SCAN_RULES = {
+      location: {
+        minLength: 3,
+        maxTotalMs: 450,
+        maxAvgMs: 65
+      },
+      id: {
+        minLength: 8,
+        maxTotalMs: 700,
+        maxAvgMs: 60
+      }
+    };
+
+    // =========================================================
+    // HELPERS GLOBALES
+    // =========================================================
+    const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
+      const fn = window.notificar || window.lanzarNotificacion;
+      if (typeof fn === "function") {
+        fn(mensaje, tipo, timer, options);
+      }
+    };
+
+    const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 7000) => {
+      const now = Date.now();
+      const last = ref.current[key] || 0;
+      if (now - last < cooldown) return;
+      ref.current[key] = now;
+      notify_(mensaje, tipo, timer, options);
+    };
+
+    const shellNotifyStateRef = { current: {} };
+    const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
+
+    function toStr_(value) {
+      return String(value == null ? "" : value).trim();
+    }
+
+    function toUpper_(value) {
+      return toStr_(value).toUpperCase();
+    }
+
+    function toNum_(value) {
+      if (value === "" || value == null) return 0;
+      const n = Number(value);
+      return isNaN(n) ? 0 : n;
+    }
+
+    function _esDateValida_(d) {
+      return d instanceof Date && !isNaN(d.getTime());
+    }
+
+    function _parseFechaFlexible_(value) {
+      if (!value) return null;
+
+      if (value instanceof Date) {
+        return _esDateValida_(value) ? value : null;
+      }
+
+      const str = String(value).trim();
+      if (!str) return null;
+
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+        const parts = str.split("/");
+        const day = Number(parts[0]);
+        const month = Number(parts[1]);
+        const year = Number(parts[2]);
+        const d = new Date(year, month - 1, day, 0, 0, 0, 0);
+        return _esDateValida_(d) ? d : null;
+      }
+
+      const parsed = new Date(str);
+      return _esDateValida_(parsed) ? parsed : null;
+    }
+
+    function _parseHoraFlexible_(value) {
+      if (!value) return null;
+
+      if (value instanceof Date) {
+        return _esDateValida_(value) ? value : null;
+      }
+
+      const str = String(value).trim();
+      if (!str) return null;
+
+      if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+        const parts = str.split(":");
+        const hh = Number(parts[0] || 0);
+        const mm = Number(parts[1] || 0);
+        const ss = Number(parts[2] || 0);
+        const d = new Date(2000, 0, 1, hh, mm, ss, 0);
+        return _esDateValida_(d) ? d : null;
+      }
+
+      const parsed = new Date(str);
+      return _esDateValida_(parsed) ? parsed : null;
+    }
+
+    function formatearFecha_(value) {
+      const d = _parseFechaFlexible_(value);
+      if (!d) return "Sin fecha";
+      return d.toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      });
+    }
+
+    function formatearHora_(value) {
+      const d = _parseHoraFlexible_(value);
+      if (!d) return "--";
+      return d.toLocaleTimeString("es-MX", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      });
+    }
+
+    function construirResumenFechaHora_(item) {
+      return `${formatearFecha_(item.fecha)} • ${formatearHora_(item.horainicio)} - ${formatearHora_(item.horafin)}`;
+    }
+
+    function getConfiabilidadVisual_(valor) {
+      const n = Number(valor || 0);
+
+      if (n < 90) {
+        return {
+          label: "Crítica",
+          className: "aec-chip aec-chip-red",
+          tone: "red"
+        };
+      }
+
+      if (n >= 97) {
+        return {
+          label: "Controlada",
+          className: "aec-chip aec-chip-emerald",
+          tone: "emerald"
+        };
+      }
+
+      return {
+        label: "Atención",
+        className: "aec-chip aec-chip-amber",
+        tone: "amber"
+      };
+    }
+
+    function getEstadoFilaVisual_(row) {
+      const estado = toUpper_(row.estado);
+
+      if (estado === "CORRECTO") {
+        return {
+          className: "aec-chip aec-chip-emerald",
+          rowClass: "row-correcto",
+          text: "Correcto"
+        };
+      }
+
+      if (estado === "FALTANTE") {
+        return {
+          className: "aec-chip aec-chip-amber",
+          rowClass: "row-faltante",
+          text: "Faltante"
+        };
+      }
+
+      if (estado === "SOBRANTE") {
+        return {
+          className: "aec-chip aec-chip-red",
+          rowClass: "row-sobrante",
+          text: "Sobrante"
+        };
+      }
+
+      return {
+        className: "aec-chip aec-chip-slate",
+        rowClass: "",
+        text: "Pendiente"
+      };
+    }
+
+    function filaEsEsperada_(row) {
+      return toUpper_(row.estado) !== "SOBRANTE";
+    }
+
+    // =========================================================
+    // ICONO LOCAL
+    // =========================================================
+    const LocalIcon = ({ name, size = 18, className = "" }) => {
+      const iconRef = useRef(null);
+
+      useEffect(() => {
+        if (window.lucide && iconRef.current) {
+          iconRef.current.innerHTML = "";
+          const i = document.createElement("i");
+          i.setAttribute("data-lucide", name.toLowerCase());
+          i.style.width = `${size}px`;
+          i.style.height = `${size}px`;
+          if (className) i.className = className;
+          iconRef.current.appendChild(i);
+          window.lucide.createIcons();
+        }
+      }, [name, size, className]);
+
+      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+    };
+
+    // =========================================================
+    // COMPONENTE PRINCIPAL
+    // =========================================================
+    const AuditoriaExcedentesCapturaView = () => {
+      const [loading, setLoading] = useState(true);
+      const [busyRefresh, setBusyRefresh] = useState(false);
+
+      const [bootstrapData, setBootstrapData] = useState({
+        usuarios: [],
+        bodegas: [],
+        auditoriasAbiertas: []
+      });
+
+      const [auditId, setAuditId] = useState(
+        window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ ||
+        window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ ||
+        ""
+      );
+
+      const [auditHeader, setAuditHeader] = useState(null);
+      const [auditResumen, setAuditResumen] = useState({});
+      const [locationState, setLocationState] = useState({
+        ubicacion: "",
+        abierta: false,
+        detalle: [],
+        resumen: {
+          esperados: 0,
+          escaneados: 0,
+          correctos: 0,
+          faltantes: 0,
+          sobrantes: 0
+        }
+      });
+
+      const [locationInput, setLocationInput] = useState("");
+      const [idInput, setIdInput] = useState("");
+      const [lastResult, setLastResult] = useState(null);
+      const [highlightId, setHighlightId] = useState("");
+
+      const [processingLocation, setProcessingLocation] = useState(false);
+      const [processingId, setProcessingId] = useState(false);
+      const [processingCloseLocation, setProcessingCloseLocation] = useState(false);
+      const [processingCloseAudit, setProcessingCloseAudit] = useState(false);
+      const [auditCloseNotes, setAuditCloseNotes] = useState("");
+
+      const [strictScannerMode] = useState(true);
+
+      const firstLoadDoneRef = useRef(false);
+      const locationInputRef = useRef(null);
+      const idInputRef = useRef(null);
+
+      const scanMetaRef = useRef({
+        location: { startedAt: 0, lastAt: 0, count: 0 },
+        id: { startedAt: 0, lastAt: 0, count: 0 }
+      });
+
+      // -------------------------------------------------------
+      // HEURÍSTICA DE ESCÁNER
+      // -------------------------------------------------------
+      function resetScanMeta_(kind) {
+        scanMetaRef.current[kind] = { startedAt: 0, lastAt: 0, count: 0 };
+      }
+
+      function trackScanKey_(kind, event) {
+        if (!strictScannerMode) return;
+
+        const key = event.key || "";
+        const printable =
+          key.length === 1 &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey;
+
+        if (!printable) return;
+
+        const now = Date.now();
+        const meta = scanMetaRef.current[kind];
+
+        if (!meta.startedAt) {
+          meta.startedAt = now;
+        }
+
+        meta.lastAt = now;
+        meta.count += 1;
+      }
+
+      function validateScannerLikeInput_(kind, value) {
+        if (!strictScannerMode) return true;
+
+        const rule = SCAN_RULES[kind];
+        const val = toStr_(value);
+        const meta = scanMetaRef.current[kind];
+
+        if (!rule) return true;
+        if (!val) return false;
+        if (val.length < rule.minLength) return false;
+        if (!meta.startedAt || !meta.lastAt || meta.count < 2) return false;
+
+        const totalMs = meta.lastAt - meta.startedAt;
+        const avgMs = totalMs / Math.max(meta.count - 1, 1);
+
+        return totalMs <= rule.maxTotalMs && avgMs <= rule.maxAvgMs;
+      }
+
+      function rejectIfManual_(kind, value, friendlyLabel) {
+        const ok = validateScannerLikeInput_(kind, value);
+        resetScanMeta_(kind);
+
+        if (!ok) {
+          notify_(
+            `Se detectó captura manual en ${friendlyLabel}. Debes usar el escáner.`,
+            "warning",
+            3200,
+            {
+              title: "Escaneo obligatorio",
+              sound: true
+            }
+          );
+          return true;
+        }
+
+        return false;
+      }
+
+      // -------------------------------------------------------
+      // CARGAS BASE
+      // -------------------------------------------------------
+      const cargarBootstrapCaptura_ = useCallback(() => {
+        setLoading(true);
+
+        google.script.run
+          .withSuccessHandler((resp) => {
+            const safe = resp || {};
+
+            setBootstrapData({
+              usuarios: Array.isArray(safe.usuarios) ? safe.usuarios : [],
+              bodegas: Array.isArray(safe.bodegas) ? safe.bodegas : [],
+              auditoriasAbiertas: Array.isArray(safe.auditoriasAbiertas) ? safe.auditoriasAbiertas : []
+            });
+
+            if (!auditId && Array.isArray(safe.auditoriasAbiertas) && safe.auditoriasAbiertas.length > 0) {
+              const defaultId = safe.auditoriasAbiertas[0].idauditoria;
+              setAuditId(defaultId);
+              window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ = defaultId;
+            }
+
+            setLoading(false);
+
+            if (!firstLoadDoneRef.current) {
+              firstLoadDoneRef.current = true;
+              notify_(
+                `Captura lista. Auditorías abiertas: ${Array.isArray(safe.auditoriasAbiertas) ? safe.auditoriasAbiertas.length : 0}.`,
+                "success",
+                1800,
+                {
+                  title: "Módulo de captura listo",
+                  sound: false
+                }
+              );
+            }
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentesCaptura] Error bootstrap captura:", err);
+            setLoading(false);
+            notify_(
+              err && err.message ? err.message : "No se pudo cargar el módulo de captura.",
+              "error",
+              4200,
+              {
+                title: "Error de carga",
+                sound: true
+              }
+            );
+          })
+          .AuditoriaExcedentesCapturaController_obtenerBootstrapCaptura();
+      }, [auditId]);
+
+      const cargarAuditoriaActiva_ = useCallback((idauditoria) => {
+        if (!idauditoria) {
+          setAuditHeader(null);
+          setAuditResumen({});
+          return;
+        }
+
+        setBusyRefresh(true);
+
+        google.script.run
+          .withSuccessHandler((resp) => {
+            const safe = resp || {};
+            setAuditHeader(safe.auditoria || null);
+            setAuditResumen(safe.resumen || {});
+            setBusyRefresh(false);
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentesCaptura] Error obteniendo auditoría activa:", err);
+            setBusyRefresh(false);
+            notify_(
+              err && err.message ? err.message : "No se pudo cargar la auditoría activa.",
+              "error",
+              4200,
+              {
+                title: "Error de auditoría",
+                sound: true
+              }
+            );
+          })
+          .AuditoriaExcedentesController_obtenerAuditoriaActiva(idauditoria);
+      }, []);
+
+      const cargarEstadoUbicacion_ = useCallback((idauditoria, ubicacion) => {
+        if (!idauditoria || !ubicacion) {
+          setLocationState({
+            ubicacion: "",
+            abierta: false,
+            detalle: [],
+            resumen: {
+              esperados: 0,
+              escaneados: 0,
+              correctos: 0,
+              faltantes: 0,
+              sobrantes: 0
+            }
+          });
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler((resp) => {
+            const safe = resp || {};
+            setLocationState({
+              ubicacion: toUpper_(safe.ubicacion || ubicacion),
+              abierta: !!safe.abierta,
+              detalle: Array.isArray(safe.detalle) ? safe.detalle : [],
+              resumen: safe.resumen || {
+                esperados: 0,
+                escaneados: 0,
+                correctos: 0,
+                faltantes: 0,
+                sobrantes: 0
+              }
+            });
+
+            setTimeout(() => {
+              idInputRef.current?.focus();
+            }, 50);
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentesCaptura] Error obteniendo estado de ubicación:", err);
+            notify_(
+              err && err.message ? err.message : "No se pudo cargar el estado de la ubicación.",
+              "error",
+              4200,
+              {
+                title: "Error de ubicación",
+                sound: true
+              }
+            );
+          })
+          .AuditoriaExcedentesCapturaController_obtenerEstadoUbicacion({
+            idauditoria: idauditoria,
+            ubicacion: ubicacion
+          });
+      }, []);
+
+      useEffect(() => {
+        if (typeof google === "undefined" || !google.script || !google.script.run) {
+          notify_("google.script.run no está disponible en este contexto.", "error", 4200, {
+            title: "Entorno inválido",
+            sound: true
+          });
+          setLoading(false);
+          return;
+        }
+
+        notify_("Inicializando captura operativa...", "info", 1400, {
+          title: "Preparando escáner",
+          sound: false
+        });
+
+        cargarBootstrapCaptura_();
+      }, [cargarBootstrapCaptura_]);
+
+      useEffect(() => {
+        if (auditId) {
+          cargarAuditoriaActiva_(auditId);
+          window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ = auditId;
+        } else {
+          setAuditHeader(null);
+          setAuditResumen({});
+        }
+      }, [auditId, cargarAuditoriaActiva_]);
+
+      // -------------------------------------------------------
+      // ACCIONES OPERATIVAS
+      // -------------------------------------------------------
+      const procesarEscaneoUbicacion_ = () => {
+        const ubic = toUpper_(locationInput);
+
+        if (!auditId) {
+          notify_("Debes seleccionar una auditoría abierta.", "warning", 2800, {
+            title: "Auditoría requerida",
+            sound: true
+          });
+          return;
+        }
+
+        if (!ubic) {
+          notify_("Debes escanear una ubicación válida.", "warning", 2800, {
+            title: "Ubicación requerida",
+            sound: true
+          });
+          return;
+        }
+
+        if (rejectIfManual_("location", ubic, "la ubicación")) {
+          setLocationInput("");
+          setTimeout(() => locationInputRef.current?.focus(), 60);
+          return;
+        }
+
+        setProcessingLocation(true);
+
+        google.script.run
+          .withSuccessHandler((resp) => {
+            const safe = resp || {};
+
+            setProcessingLocation(false);
+            setLocationInput(toUpper_(safe.ubicacion || ubic));
+            setIdInput("");
+            setLastResult({
+              tipoResultado: "UBICACION_ABIERTA",
+              mensaje: safe.mensaje || "Ubicación abierta correctamente.",
+              detalle: {
+                ubicacion: toUpper_(safe.ubicacion || ubic)
+              }
+            });
+
+            setLocationState({
+              ubicacion: toUpper_(safe.ubicacion || ubic),
+              abierta: !!safe.abierta || true,
+              detalle: Array.isArray(safe.detalle) ? safe.detalle : [],
+              resumen: safe.resumen || {
+                esperados: 0,
+                escaneados: 0,
+                correctos: 0,
+                faltantes: 0,
+                sobrantes: 0
+              }
+            });
+
+            notify_(
+              safe.mensaje || `Ubicación ${toUpper_(safe.ubicacion || ubic)} abierta.`,
+              "success",
+              1600,
+              {
+                title: "Ubicación activa",
+                sound: false
+              }
+            );
+
+            cargarAuditoriaActiva_(auditId);
+            setTimeout(() => idInputRef.current?.focus(), 80);
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentesCaptura] Error abriendo ubicación:", err);
+            setProcessingLocation(false);
+            setLocationInput("");
+            notify_(
+              err && err.message ? err.message : "No se pudo abrir la ubicación escaneada.",
+              "error",
+              4200,
+              {
+                title: "Error al abrir ubicación",
+                sound: true
+              }
+            );
+            setTimeout(() => locationInputRef.current?.focus(), 80);
+          })
+          .AuditoriaExcedentesCapturaController_abrirUbicacionPorEscaneo({
+            idauditoria: auditId,
+            identificadorUbicacion: ubic
+          });
+      };
+
+      const procesarEscaneoId_ = () => {
+        const idunico = toUpper_(idInput);
+        const ubic = toUpper_(locationState.ubicacion || locationInput);
+
+        if (!auditId) {
+          notify_("Debes seleccionar una auditoría abierta.", "warning", 2800, {
+            title: "Auditoría requerida",
+            sound: true
+          });
+          return;
+        }
+
+        if (!ubic) {
+          notify_("Debes escanear primero la ubicación.", "warning", 2800, {
+            title: "Flujo inválido",
+            sound: true
+          });
+          return;
+        }
+
+        if (!idunico) {
+          notify_("Debes escanear un IdUnico válido.", "warning", 2800, {
+            title: "IdUnico requerido",
+            sound: true
+          });
+          return;
+        }
+
+        if (rejectIfManual_("id", idunico, "el IdUnico")) {
+          setIdInput("");
+          setTimeout(() => idInputRef.current?.focus(), 60);
+          return;
+        }
+
+        setProcessingId(true);
+
+        google.script.run
+          .withSuccessHandler((resp) => {
+            const safe = resp || {};
+            const tipo = toUpper_(safe.tipoResultado);
+            const detalle = safe.detalle || null;
+
+            setProcessingId(false);
+            setIdInput("");
+            setLastResult(safe);
+
+            if (tipo === "DUPLICADO_EN_UBICACION" || tipo === "DUPLICADO_EN_AUDITORIA") {
+              const dupId = toUpper_(detalle && detalle.idunico);
+              if (dupId) {
+                setHighlightId(dupId);
+                setTimeout(() => setHighlightId(""), 2200);
+              }
+
+              notify_(
+                safe.mensaje || "Escaneo duplicado detectado.",
+                "warning",
+                2600,
+                {
+                  title: "Duplicado",
+                  sound: true
+                }
+              );
+            } else if (tipo === "SOBRANTE") {
+              notify_(
+                safe.mensaje || "El IdUnico no pertenece a esta ubicación.",
+                "warning",
+                2600,
+                {
+                  title: "Sobrante detectado",
+                  sound: true
+                }
+              );
+            } else if (tipo === "CORRECTO") {
+              notify_(
+                safe.mensaje || "Escaneo correcto.",
+                "success",
+                1200,
+                {
+                  title: "Correcto",
+                  sound: false
+                }
+              );
+            } else {
+              notify_(
+                safe.mensaje || "Escaneo procesado.",
+                "info",
+                1600,
+                {
+                  title: "Resultado",
+                  sound: false
+                }
+              );
+            }
+
+            cargarAuditoriaActiva_(auditId);
+            cargarEstadoUbicacion_(auditId, ubic);
+            setTimeout(() => idInputRef.current?.focus(), 60);
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentesCaptura] Error registrando escaneo:", err);
+            setProcessingId(false);
+
+            notify_(
+              err && err.message ? err.message : "No se pudo registrar el escaneo.",
+              "error",
+              4200,
+              {
+                title: "Error de escaneo",
+                sound: true
+              }
+            );
+
+            setIdInput("");
+            setTimeout(() => idInputRef.current?.focus(), 60);
+          })
+          .AuditoriaExcedentesCapturaController_registrarEscaneoIdUnico({
+            idauditoria: auditId,
+            ubicacion: ubic,
+            idunico: idunico
+          });
+      };
+
+      const cerrarUbicacion_ = () => {
+        const ubi = toUpper_(locationState.ubicacion || locationInput);
+
+        if (!auditId || !ubi) {
+          notify_("No hay ubicación activa para cerrar.", "warning", 2600, {
+            title: "Ubicación requerida",
+            sound: true
+          });
+          return;
+        }
+
+        const ejecutar = () => {
+          setProcessingCloseLocation(true);
+
+          google.script.run
+            .withSuccessHandler((resp) => {
+              const safe = resp || {};
+              setProcessingCloseLocation(false);
+
+              setLocationState({
+                ubicacion: toUpper_(safe.ubicacion || ""),
+                abierta: false,
+                detalle: Array.isArray(safe.detalle) ? safe.detalle : [],
+                resumen: safe.resumen || {
+                  esperados: 0,
+                  escaneados: 0,
+                  correctos: 0,
+                  faltantes: 0,
+                  sobrantes: 0
+                }
+              });
+
+              setIdInput("");
+              setLastResult({
+                tipoResultado: "UBICACION_CERRADA",
+                mensaje: safe.mensaje || "Ubicación cerrada correctamente.",
+                detalle: {
+                  ubicacion: toUpper_(safe.ubicacion || ubi)
+                }
+              });
+
+              notify_(
+                safe.mensaje || `Ubicación ${ubi} cerrada correctamente.`,
+                "success",
+                1800,
+                {
+                  title: "Ubicación cerrada",
+                  sound: true
+                }
+              );
+
+              cargarAuditoriaActiva_(auditId);
+              setTimeout(() => locationInputRef.current?.focus(), 80);
+            })
+            .withFailureHandler((err) => {
+              console.error("❌ [AuditoriaExcedentesCaptura] Error cerrando ubicación:", err);
+              setProcessingCloseLocation(false);
+              notify_(
+                err && err.message ? err.message : "No se pudo cerrar la ubicación.",
+                "error",
+                4200,
+                {
+                  title: "Error al cerrar ubicación",
+                  sound: true
+                }
+              );
+            })
+            .AuditoriaExcedentesCapturaController_cerrarUbicacion({
+              idauditoria: auditId,
+              ubicacion: ubi
+            });
+        };
+
+        if (typeof window.confirmarSistema === "function") {
+          window.confirmarSistema({
+            tipo: "warning",
+            title: "Cerrar ubicación",
+            text: `¿Deseas cerrar la ubicación ${ubi}? Los pendientes se marcarán como faltantes.`,
+            confirmText: "Cerrar ubicación",
+            cancelText: "Cancelar"
+          }).then((result) => {
+            if (result.isConfirmed) ejecutar();
+          });
+          return;
+        }
+
+        ejecutar();
+      };
+
+      const cerrarAuditoria_ = () => {
+        if (!auditId) {
+          notify_("No hay auditoría activa para cerrar.", "warning", 2600, {
+            title: "Auditoría requerida",
+            sound: true
+          });
+          return;
+        }
+
+        const ejecutar = () => {
+          setProcessingCloseAudit(true);
+
+          google.script.run
+            .withSuccessHandler((resp) => {
+              setProcessingCloseAudit(false);
+
+              notify_(
+                `Auditoría ${auditId} cerrada correctamente.`,
+                "success",
+                2200,
+                {
+                  title: "Auditoría cerrada",
+                  sound: true
+                }
+              );
+
+              setAuditCloseNotes("");
+              setLocationInput("");
+              setIdInput("");
+              setLastResult(null);
+              setHighlightId("");
+              setLocationState({
+                ubicacion: "",
+                abierta: false,
+                detalle: [],
+                resumen: {
+                  esperados: 0,
+                  escaneados: 0,
+                  correctos: 0,
+                  faltantes: 0,
+                  sobrantes: 0
+                }
+              });
+
+              window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ = "";
+              setAuditId("");
+              cargarBootstrapCaptura_();
+            })
+            .withFailureHandler((err) => {
+              console.error("❌ [AuditoriaExcedentesCaptura] Error cerrando auditoría:", err);
+              setProcessingCloseAudit(false);
+              notify_(
+                err && err.message ? err.message : "No se pudo cerrar la auditoría.",
+                "error",
+                4200,
+                {
+                  title: "Error al cerrar auditoría",
+                  sound: true
+                }
+              );
+            })
+            .AuditoriaExcedentesCapturaController_cerrarAuditoria({
+              idauditoria: auditId,
+              observaciones: auditCloseNotes || "",
+              cerrarUbicacionesAbiertas: true
+            });
+        };
+
+        if (typeof window.confirmarSistema === "function") {
+          window.confirmarSistema({
+            tipo: "warning",
+            title: "Cerrar auditoría",
+            text: `¿Deseas cerrar la auditoría ${auditId}?`,
+            confirmText: "Cerrar auditoría",
+            cancelText: "Cancelar"
+          }).then((result) => {
+            if (result.isConfirmed) ejecutar();
+          });
+          return;
+        }
+
+        ejecutar();
+      };
+
+      // -------------------------------------------------------
+      // DERIVADOS
+      // -------------------------------------------------------
+      const confAudit = getConfiabilidadVisual_(auditResumen.confiabilidadtotal);
+      const currentRows = Array.isArray(locationState.detalle) ? locationState.detalle : [];
+      const expectedRows = currentRows.filter(filaEsEsperada_);
+      const sobranteRows = currentRows.filter((x) => toUpper_(x.estado) === "SOBRANTE");
+
+      const openAudits = Array.isArray(bootstrapData.auditoriasAbiertas)
+        ? bootstrapData.auditoriasAbiertas
+        : [];
+
+      const selectedAuditRow = openAudits.find((x) => toStr_(x.idauditoria) === toStr_(auditId)) || auditHeader || {};
+
+      const canScanIds = !!auditId && !!locationState.ubicacion && !!locationState.abierta && !processingLocation;
+      const canCloseLocation = !!auditId && !!locationState.ubicacion && !!locationState.abierta;
+
+      const statusLastResultClass =
+        !lastResult
+          ? "aec-last-result ok"
+          : toUpper_(lastResult.tipoResultado).indexOf("CORRECTO") !== -1 || toUpper_(lastResult.tipoResultado) === "UBICACION_ABIERTA" || toUpper_(lastResult.tipoResultado) === "UBICACION_CERRADA"
+          ? "aec-last-result ok"
+          : toUpper_(lastResult.tipoResultado).indexOf("DUPLICADO") !== -1 || toUpper_(lastResult.tipoResultado) === "SOBRANTE"
+          ? "aec-last-result warn"
+          : "aec-last-result err";
+
+      return (
+        <div className="space-y-6 fade-in-up">
+          {/* CABECERA */}
+          <div className="aec-panel p-5">
+            <div className="flex flex-col 2xl:flex-row 2xl:items-start 2xl:justify-between gap-5">
+              <div className="space-y-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+                  Captura operativa de auditoría
+                </p>
+
+                <h2 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[28px] font-black tracking-tight">
+                  {auditHeader?.idauditoria || "SIN AUDITORÍA ACTIVA"}
+                </h2>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="aec-subtle">
+                    {auditHeader?.idauditoria
+                      ? construirResumenFechaHora_(auditHeader)
+                      : "Selecciona una auditoría abierta"}
+                  </span>
+
+                  {auditHeader?.estatus && (
+                    <span className={`aec-chip ${toUpper_(auditHeader.estatus) === "ABIERTA" ? "aec-chip-open" : "aec-chip-closed"}`}>
+                      {auditHeader.estatus}
+                    </span>
+                  )}
+
+                  {auditHeader?.confiabilidadtotal != null && (
+                    <span className={confAudit.className}>
+                      {Number(auditHeader.confiabilidadtotal || 0).toFixed(2)}% • {confAudit.label}
+                    </span>
+                  )}
+
+                  {busyRefresh && (
+                    <span className="aec-chip aec-chip-slate">
+                      Actualizando...
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full 2xl:w-auto 2xl:min-w-[620px]">
+                <div className="aec-kpi">
+                  <div className="aec-kpi-topbar slate"></div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Esperados audit.</div>
+                  <div className="text-[26px] font-black text-[var(--text-main)] mt-2">
+                    {Number(auditResumen.idunicosesperadostotales || 0)}
+                  </div>
+                </div>
+
+                <div className="aec-kpi">
+                  <div className="aec-kpi-topbar emerald"></div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Correctos audit.</div>
+                  <div className="text-[26px] font-black text-[var(--text-main)] mt-2">
+                    {Number(auditResumen.idunicoscorrectostotales || 0)}
+                  </div>
+                </div>
+
+                <div className="aec-kpi">
+                  <div className="aec-kpi-topbar amber"></div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Faltantes audit.</div>
+                  <div className="text-[26px] font-black text-[var(--text-main)] mt-2">
+                    {Number(auditResumen.idunicosfaltantestotales || 0)}
+                  </div>
+                </div>
+
+                <div className="aec-kpi">
+                  <div className="aec-kpi-topbar red"></div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Sobrantes audit.</div>
+                  <div className="text-[26px] font-black text-[var(--text-main)] mt-2">
+                    {Number(auditResumen.idunicossobrantestotales || 0)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* TOOLBAR PRINCIPAL */}
+          <div className="grid grid-cols-1 2xl:grid-cols-[430px_minmax(0,1fr)] gap-6">
+            {/* COLUMNA IZQUIERDA */}
+            <div className="space-y-6">
+              {/* SELECCIÓN DE AUDITORÍA */}
+              <div className="aec-panel p-5 space-y-4">
+                <div>
+                  <label className="aec-label">Auditoría abierta</label>
+                  <select
+                    className="aec-select"
+                    value={auditId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setAuditId(id);
+                      window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ = id;
+                      setLocationInput("");
+                      setIdInput("");
+                      setLastResult(null);
+                      setHighlightId("");
+                      setLocationState({
+                        ubicacion: "",
+                        abierta: false,
+                        detalle: [],
+                        resumen: {
+                          esperados: 0,
+                          escaneados: 0,
+                          correctos: 0,
+                          faltantes: 0,
+                          sobrantes: 0
+                        }
+                      });
+                    }}
+                  >
+                    <option value="">Selecciona una auditoría</option>
+                    {openAudits.map((item, index) => (
+                      <option key={`${item.idauditoria}-${index}`} value={item.idauditoria}>
+                        {item.idauditoria}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="aec-kpi !min-h-[110px]">
+                    <div className="aec-kpi-topbar slate"></div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Abiertas</div>
+                    <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                      {openAudits.length}
+                    </div>
+                  </div>
+
+                  <div className="aec-kpi !min-h-[110px]">
+                    <div className="aec-kpi-topbar slate"></div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Ubi. audit.</div>
+                    <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                      {Number(auditResumen.ubicacionesauditadas || 0)}
+                    </div>
+                  </div>
+
+                  <div className="aec-kpi !min-h-[110px]">
+                    <div className="aec-kpi-topbar red"></div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Dif. ubi</div>
+                    <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                      {Number(auditResumen.ubicacionescondiferencia || 0)}
+                    </div>
+                  </div>
+                </div>
+
+                {selectedAuditRow?.auditor && (
+                  <div className="aec-card p-4">
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-1">
+                      Auditor responsable
+                    </div>
+                    <div className="text-[14px] font-black uppercase tracking-[0.10em] text-[var(--text-main)]">
+                      {selectedAuditRow.auditor}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ESCANEO UBICACIÓN */}
+              <div className="aec-panel p-5 space-y-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+                      Paso 1 · Escanea la ubicación
+                    </div>
+                    <div className="text-[18px] font-black text-[var(--text-main)] mt-1">
+                      Apertura obligatoria por escáner
+                    </div>
+                  </div>
+
+                  <span className="aec-chip aec-chip-red">
+                    Modo estricto
+                  </span>
+                </div>
+
+                <div>
+                  <label className="aec-label">Escáner de ubicación</label>
+                  <input
+                    ref={locationInputRef}
+                    type="text"
+                    inputMode="none"
+                    autoComplete="off"
+                    spellCheck="false"
+                    placeholder="Escanea el identificador de ubicación"
+                    className={`aec-input scanner font-mono-premium ${processingLocation ? "locked" : ""}`}
+                    value={locationInput}
+                    onChange={(e) => setLocationInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Tab") return;
+                      if (e.ctrlKey || e.metaKey || e.altKey) {
+                        e.preventDefault();
+                        return;
+                      }
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        procesarEscaneoUbicacion_();
+                        return;
+                      }
+                      trackScanKey_("location", e);
+                    }}
+                    onPaste={(e) => e.preventDefault()}
+                    disabled={!auditId || processingLocation}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="aec-btn-primary w-full"
+                  onClick={procesarEscaneoUbicacion_}
+                  disabled={!auditId || !locationInput || processingLocation}
+                >
+                  {processingLocation ? "Abriendo ubicación..." : "Procesar ubicación escaneada"}
+                </button>
+
+                <div className="aec-card p-4">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-2">
+                    Ubicación activa
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="aec-id text-[18px]">
+                        {locationState.ubicacion || "SIN UBICACIÓN ABIERTA"}
+                      </div>
+                      <div className="aec-subtle mt-1">
+                        {locationState.abierta
+                          ? "Lista para escanear IdUnicos"
+                          : "Escanea una ubicación para comenzar"}
+                      </div>
+                    </div>
+
+                    <span className={`aec-chip ${locationState.abierta ? "aec-chip-red" : "aec-chip-slate"}`}>
+                      {locationState.abierta ? "Operando" : "Inactiva"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ESCANEO IDUNICO */}
+              <div className="aec-panel p-5 space-y-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+                      Paso 2 · Escanea IdUnicos
+                    </div>
+                    <div className="text-[18px] font-black text-[var(--text-main)] mt-1">
+                      Captura operativa de material
+                    </div>
+                  </div>
+
+                  {canScanIds ? (
+                    <span className="aec-chip aec-chip-emerald">
+                      Escaneo habilitado
+                    </span>
+                  ) : (
+                    <span className="aec-chip aec-chip-slate">
+                      Esperando ubicación
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <label className="aec-label">Escáner de IdUnico</label>
+                  <input
+                    ref={idInputRef}
+                    type="text"
+                    inputMode="none"
+                    autoComplete="off"
+                    spellCheck="false"
+                    placeholder={canScanIds ? "Escanea el IdUnico" : "Primero escanea una ubicación"}
+                    className={`aec-input scanner font-mono-premium ${!canScanIds || processingId ? "locked" : ""}`}
+                    value={idInput}
+                    onChange={(e) => setIdInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Tab") return;
+                      if (e.ctrlKey || e.metaKey || e.altKey) {
+                        e.preventDefault();
+                        return;
+                      }
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        procesarEscaneoId_();
+                        return;
+                      }
+                      trackScanKey_("id", e);
+                    }}
+                    onPaste={(e) => e.preventDefault()}
+                    disabled={!canScanIds || processingId}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="aec-btn-dark w-full"
+                  onClick={procesarEscaneoId_}
+                  disabled={!canScanIds || !idInput || processingId}
+                >
+                  {processingId ? "Procesando escaneo..." : "Procesar IdUnico escaneado"}
+                </button>
+
+                <div className={statusLastResultClass}>
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] mb-1">
+                    Último resultado
+                  </div>
+
+                  {!lastResult ? (
+                    <div className="text-[13px] font-semibold">
+                      Sin eventos registrados todavía.
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="text-[13px] font-black uppercase tracking-[0.06em]">
+                        {lastResult.tipoResultado || "RESULTADO"}
+                      </div>
+
+                      <div className="text-[13px] font-semibold leading-relaxed">
+                        {lastResult.mensaje || "Sin mensaje."}
+                      </div>
+
+                      {lastResult.detalle?.idunico && (
+                        <div className="text-[12px] font-mono-premium font-bold">
+                          {lastResult.detalle.idunico}
+                        </div>
+                      )}
+
+                      {lastResult.detalle?.ubicacion && (
+                        <div className="text-[11px] font-black uppercase tracking-[0.12em]">
+                          Ubicación: {lastResult.detalle.ubicacion}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    className="aec-btn-danger"
+                    onClick={cerrarUbicacion_}
+                    disabled={!canCloseLocation || processingCloseLocation}
+                  >
+                    {processingCloseLocation ? "Cerrando ubicación..." : "Cerrar ubicación"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="aec-btn-soft"
+                    onClick={() => {
+                      setIdInput("");
+                      resetScanMeta_("id");
+                      setTimeout(() => idInputRef.current?.focus(), 50);
+                    }}
+                    disabled={!canScanIds}
+                  >
+                    Limpiar escaneo
+                  </button>
+                </div>
+              </div>
+
+              {/* CIERRE DE AUDITORÍA */}
+              <div className="aec-panel p-5 space-y-4">
+                <div>
+                  <label className="aec-label">Observaciones de cierre</label>
+                  <textarea
+                    className="aec-textarea"
+                    placeholder="Notas finales de auditoría..."
+                    value={auditCloseNotes}
+                    onChange={(e) => setAuditCloseNotes(e.target.value)}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="aec-btn-primary w-full"
+                  onClick={cerrarAuditoria_}
+                  disabled={!auditId || processingCloseAudit}
+                >
+                  {processingCloseAudit ? "Cerrando auditoría..." : "Cerrar auditoría"}
+                </button>
+              </div>
+            </div>
+
+            {/* COLUMNA DERECHA */}
+            <div className="space-y-6">
+              {/* RESUMEN DE UBICACIÓN */}
+              <div className="aec-panel p-5">
+                <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
+                      Ubicación en operación
+                    </p>
+                    <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[24px] font-black tracking-tight font-mono-premium">
+                      {locationState.ubicacion || "SIN UBICACIÓN"}
+                    </h3>
+                    <div className="mt-2">
+                      <span className={`aec-chip ${locationState.abierta ? "aec-chip-red" : "aec-chip-slate"}`}>
+                        {locationState.abierta ? "Abierta / capturando" : "Sin apertura activa"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 w-full xl:w-auto xl:min-w-[680px]">
+                    <div className="aec-kpi">
+                      <div className="aec-kpi-topbar slate"></div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Esperados</div>
+                      <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                        {Number(locationState.resumen?.esperados || 0)}
+                      </div>
+                    </div>
+
+                    <div className="aec-kpi">
+                      <div className="aec-kpi-topbar slate"></div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Escaneados</div>
+                      <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                        {Number(locationState.resumen?.escaneados || 0)}
+                      </div>
+                    </div>
+
+                    <div className="aec-kpi">
+                      <div className="aec-kpi-topbar emerald"></div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Correctos</div>
+                      <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                        {Number(locationState.resumen?.correctos || 0)}
+                      </div>
+                    </div>
+
+                    <div className="aec-kpi">
+                      <div className="aec-kpi-topbar amber"></div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Faltantes</div>
+                      <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                        {Number(locationState.resumen?.faltantes || 0)}
+                      </div>
+                    </div>
+
+                    <div className="aec-kpi">
+                      <div className="aec-kpi-topbar red"></div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Sobrantes</div>
+                      <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                        {Number(locationState.resumen?.sobrantes || 0)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* TABLA OPERATIVA */}
+              <div className="aec-panel overflow-hidden">
+                <div className="aec-sticky-focus px-5 pt-5 pb-3 flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
+                      Material esperado y conciliación
+                    </p>
+                    <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[22px] font-black tracking-tight">
+                      Ubicación auditada
+                    </h3>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="aec-chip aec-chip-slate">
+                      {expectedRows.length} esperados
+                    </span>
+                    <span className="aec-chip aec-chip-red">
+                      {sobranteRows.length} sobrantes
+                    </span>
+                  </div>
+                </div>
+
+                <div className="aec-table-wrap custom-scroll">
+                  <table className="aec-table">
+                    <thead>
+                      <tr>
+                        <th>IdUnico</th>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th>Estado</th>
+                        <th>Hora</th>
+                        <th>Observaciones</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {currentRows.map((row, idx) => {
+                        const estadoVisual = getEstadoFilaVisual_(row);
+                        const rowId = toUpper_(row.idunico);
+                        const highlight = rowId && highlightId && rowId === highlightId;
+
+                        return (
+                          <tr
+                            key={`${row.idunico || "SIN-ID"}-${idx}`}
+                            className={`aec-row ${estadoVisual.rowClass} ${highlight ? "row-highlight flash-row" : ""}`}
+                          >
+                            <td>
+                              <span className="aec-id text-[14px]">
+                                {row.idunico || "—"}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className="aec-code text-[13px]">
+                                {row.codigo || "—"}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className="text-[12px] font-semibold uppercase text-[var(--text-secondary)] leading-snug">
+                                {row.descripcion || "Sin descripción"}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className={estadoVisual.className}>
+                                {estadoVisual.text}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className="aec-code text-[12px]">
+                                {formatearHora_(row.hora)}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className="text-[12px] font-semibold text-[var(--text-secondary)]">
+                                {row.observaciones || "—"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {!loading && currentRows.length === 0 && (
+                    <div className="aec-empty-state">
+                      <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                        <LocalIcon name="scan-line" size={28} />
+                      </div>
+
+                      <span className="text-[13px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                        Sin ubicación cargada
+                      </span>
+
+                      <span className="text-[11px] text-slate-400 font-semibold">
+                        Escanea la ubicación para cargar el universo esperado.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // =========================================================
+    // MONTAJE
+    // =========================================================
+    const targetElement = document.getElementById("render-auditoria-excedentes-captura");
+
+    if (!targetElement) {
+      notify_(
+        "No se encontró el contenedor principal de captura.",
+        "error",
+        4200,
+        {
+          title: "Error de interfaz",
+          sound: true
+        }
+      );
+      console.warn("⚠️ [AuditoriaExcedentesCaptura] No se encontró #render-auditoria-excedentes-captura");
+      return;
+    }
+
+    const yaInicializado = targetElement.dataset.aecMounted === "1";
+
+    if (window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__) {
+      try {
+        window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__.unmount();
+      } catch (e) {
+        console.warn("⚠️ [AuditoriaExcedentesCaptura] No se pudo desmontar root previo:", e);
+        notifyOnceShell_(
+          "auditoria-captura-root-previo",
+          "Se liberó una instancia previa de captura.",
+          "warning",
+          1600,
+          {
+            title: "Reinicialización",
+            sound: false
+          },
+          10000
+        );
+      }
+      window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__ = null;
+    }
+
+    try {
+      targetElement.dataset.aecMounted = "1";
+      window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__ = ReactDOM.createRoot(targetElement);
+      window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__.render(<AuditoriaExcedentesCapturaView />);
+
+      if (!yaInicializado) {
+        notifyOnceShell_(
+          "auditoria-captura-vista-montada",
+          "Vista de captura lista para operar.",
+          "success",
+          1500,
+          {
+            title: "Vista cargada",
+            sound: false
+          },
+          12000
+        );
+      }
+    } catch (e) {
+      console.error("❌ [AuditoriaExcedentesCaptura] Error montando root React:", e);
+      notify_(
+        "Ocurrió un error al montar la vista de captura.",
+        "error",
+        4200,
+        {
+          title: "Error de montaje",
+          sound: true
+        }
+      );
+    }
+  };
+
+  window.initVista = window.cargar_AuditoriaExcedentesCaptura;
+  console.log("🧩 [AuditoriaExcedentesCaptura] Vista inyectable inicializada y registrada.");
+</script>

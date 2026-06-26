@@ -25,148 +25,140 @@
   <style>
     <?!= incluir('Estilos_Globales'); ?>
 
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
 
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
-
-  :root {
-    --primary: #d93025;
-    --bg-color: #f8f9fa;
-    --text-main: #1c1d1f;
-  }
-
-  body {
-    margin: 0;
-    padding: 0;
-    height: 100vh;
-    width: 100vw;
-    background-color: var(--bg-color);
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    overflow: hidden;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  .main-wrapper {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    background-color: var(--bg-color);
-  }
-
-  .scrollable-content {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 20px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--secondary) transparent;
-  }
-
-  .sidebar-transition {
-    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .sidebar-mini { width: 80px; }
-  .sidebar-visible { width: 280px; }
-
-  .sidebar-trigger {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 20px;
-    height: 100vh;
-    z-index: 50;
-  }
-
-  .overlay-fade {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.3);
-    backdrop-filter: blur(2px);
-    z-index: 30;
-    animation: fadeIn 0.3s ease;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  .logo-container {
-    background: white;
-    padding: 4px;
-    border-radius: 7.5px;
-    width: 50px;
-    height: 50px;
-  }
-
-  .custom-scroll::-webkit-scrollbar { width: 4px; }
-  .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
-  .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
-
-  /* =========================================================
-     ANIMACIONES IGUALES A PROTOTIPOTRASPASOS
-  ========================================================= */
-  @keyframes toastInProto {
-    from {
-      transform: translateX(100%);
-      opacity: 0;
+    :root {
+      --primary: #d93025;
+      --bg-color: #f8f9fa;
+      --text-main: #1c1d1f;
     }
-    to {
-      transform: translateX(0);
-      opacity: 1;
+
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      width: 100vw;
+      background-color: var(--bg-color);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
     }
-  }
 
-  @keyframes toastOutProto {
-    from {
-      transform: translateX(0);
-      opacity: 1;
+    .main-wrapper {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg-color);
     }
-    to {
-      transform: translateX(100%);
-      opacity: 0;
+
+    .scrollable-content {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 20px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--secondary) transparent;
     }
-  }
 
-  .animate-toast-in {
-    animation: toastInProto 0.35s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-  }
+    .sidebar-transition {
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
 
-  .animate-toast-out {
-    animation: toastOutProto 0.25s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-  }
+    .sidebar-mini { width: 80px; }
+    .sidebar-visible { width: 280px; }
 
-  /* =========================================================
-     TOASTS GLOBALES HOMOLOGADOS CON PROTOTIPOTRASPASOS
-  ========================================================= */
-  .swal2-popup.swal2-toast {
-    backdrop-filter: blur(8px);
-    background: #1c1d1f !important;
-    color: #ffffff !important;
-    border-left: 4px solid #d93025 !important;
-    border-radius: 14px !important;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22) !important;
-  }
+    .sidebar-trigger {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 20px;
+      height: 100vh;
+      z-index: 50;
+    }
 
-  .swal2-popup.swal2-toast .swal2-title {
-    font-size: 14px !important;
-    font-weight: 800 !important;
-    color: #ffffff !important;
-    letter-spacing: 0.02em;
-  }
+    .overlay-fade {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.3);
+      backdrop-filter: blur(2px);
+      z-index: 30;
+      animation: fadeIn 0.3s ease;
+    }
 
-  .swal2-popup.swal2-toast .swal2-html-container,
-  .swal2-popup.swal2-toast .swal2-text {
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    color: #ffffff !important;
-  }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
 
-  .swal2-timer-progress-bar {
-    background: #d93025 !important;
-  }
-</style>
+    .logo-container {
+      background: white;
+      padding: 4px;
+      border-radius: 7.5px;
+      width: 50px;
+      height: 50px;
+    }
 
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+    .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
+
+    @keyframes toastInProto {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes toastOutProto {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+    }
+
+    .animate-toast-in {
+      animation: toastInProto 0.35s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    }
+
+    .animate-toast-out {
+      animation: toastOutProto 0.25s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    }
+
+    .swal2-popup.swal2-toast {
+      backdrop-filter: blur(8px);
+      background: #1c1d1f !important;
+      color: #ffffff !important;
+      border-left: 4px solid #d93025 !important;
+      border-radius: 14px !important;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22) !important;
+    }
+
+    .swal2-popup.swal2-toast .swal2-title {
+      font-size: 14px !important;
+      font-weight: 800 !important;
+      color: #ffffff !important;
+      letter-spacing: 0.02em;
+    }
+
+    .swal2-popup.swal2-toast .swal2-html-container,
+    .swal2-popup.swal2-toast .swal2-text {
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      color: #ffffff !important;
+    }
+
+    .swal2-timer-progress-bar {
+      background: #d93025 !important;
+    }
+  </style>
 </head>
 <body>
 
@@ -232,21 +224,39 @@
     };
 
     // =========================================================
-    // MENÚ DE HERRAMIENTAS
+    // MENÚ DE HERRAMIENTAS VISIBLES
     // =========================================================
     const TOOLS = [
       { id: 'FormularioTraspasos', name: 'Registrar Traspasos', icon: 'arrow-right-left', category: 'Procesos' },
       { id: 'MonitorTraspasos', name: 'Traspasos Pendientes', icon: 'clipboard-list', category: 'Procesos' },
+
       { id: 'FormularioEtiquetasIdentificadoras', name: 'Etiquetas Identificadoras', icon: 'tag', category: 'Etiquetado' },
       { id: 'FormularioEtiquetasExcedentes', name: 'Etiquetas Excedentes', icon: 'tag', category: 'Etiquetado' },
       { id: 'FormularioEtiquetasExcedentesReimpresion', name: 'Reimpresión Excedentes', icon: 'printer', category: 'Etiquetado' },
+
       { id: 'HistorialTraspasos', name: 'Historial Traspasos', icon: 'history', category: 'Consultas' },
       { id: 'GestorExcedentes', name: 'Control de excedentes', icon: 'settings', category: 'Consultas' },
       { id: 'NegativosBirlos', name: 'Negativos en Almacén', icon: 'alert-triangle', category: 'Consultas' },
       { id: 'MonitorReabastecimiento', name: 'Monitor de Reabastecimiento', icon: 'package-plus', category: 'Consultas' },
-      { id: 'AuditoriaExcedentes', name: 'Auditoria de excedentes', icon: 'package-plus', category: 'Auditorias' },
+
+      { id: 'AuditoriaExcedentes', name: 'Auditoría de excedentes', icon: 'shield-check', category: 'Auditorías' },
+
       { id: 'PrototipoTraspasos', name: 'Prueba Traspasos', icon: 'cloud-alert', category: 'Pruebas' }
     ];
+
+    // =========================================================
+    // VISTAS OCULTAS (NO MENÚ)
+    // =========================================================
+    const HIDDEN_VIEW_LABELS = {
+      AuditoriaExcedentesCaptura: "Captura Auditoría",
+      AuditoriaExcedentesDetalle: "Detalle Auditoría"
+    };
+
+    function getViewTitle_(id) {
+      const visible = TOOLS.find(t => t.id === id);
+      if (visible) return visible.name;
+      return HIDDEN_VIEW_LABELS[id] || id || "Vista";
+    }
 
     // =========================================================
     // SISTEMA GLOBAL DE NOTIFICACIONES + SONIDO
@@ -392,7 +402,7 @@
     };
 
     // =========================================================
-    // TOAST GLOBAL HOMOLOGADO CON PROTOTIPOTRASPASOS
+    // TOAST GLOBAL
     // =========================================================
     const Toast = Swal.mixin({
       toast: true,
@@ -418,8 +428,6 @@
     });
 
     window.notificar = (mensaje, tipo = 'info', customTimer = 3000, options = {}) => {
-      const meta = NOTIFY_META[tipo] || NOTIFY_META.info;
-
       const title = options.title || mensaje;
       const text = options.title ? mensaje : (options.text || '');
 
@@ -485,11 +493,9 @@
 
     inicializarAudioNotificaciones_();
 
-
     // =========================================================
     // HELPERS DE SHELL
     // =========================================================
-
     function getSwalPopup_() {
       try {
         return typeof Swal !== 'undefined' && typeof Swal.getPopup === 'function'
@@ -522,7 +528,6 @@
         const popup = getSwalPopup_();
         const esToast = !!(popup && popup.classList.contains('swal2-toast'));
 
-        // Solo cerramos si NO es toast o si explícitamente queremos cerrarlo
         if (!esToast || cerrarToast) {
           Swal.close();
         }
@@ -530,7 +535,7 @@
 
       window.escribiendo = false;
       window.lanzarNotificacion = window.notificar;
-    } 
+    }
 
     async function cargarScriptExternoSeguro(oldScript) {
       const src = oldScript.getAttribute("src");
@@ -589,7 +594,12 @@
           preview: (scriptContent || "").substring(0, 120)
         });
 
-        if (originalType === "text/template" || originalType === "text/x-template" || originalType === "application/json" || originalType === "application/ld+json") {
+        if (
+          originalType === "text/template" ||
+          originalType === "text/x-template" ||
+          originalType === "application/json" ||
+          originalType === "application/ld+json"
+        ) {
           console.log("⏭️ [Shell] Script omitido por ser plantilla/datos:", originalType);
           continue;
         }
@@ -620,7 +630,11 @@
           continue;
         }
 
-        if (originalType === "" || originalType === "text/javascript" || originalType === "application/javascript") {
+        if (
+          originalType === "" ||
+          originalType === "text/javascript" ||
+          originalType === "application/javascript"
+        ) {
           try {
             ejecutarScriptInline(scriptContent, "text/javascript");
             console.log("✅ [Shell] Script JS ejecutado");
@@ -645,90 +659,52 @@
       const [loading, setLoading] = useState(false);
       const containerRef = useRef(null);
 
-    window.inicializarMegaData = () => {
-      if (window.DATA_ALMACEN_CACHE) {
-        console.log("⚡ [MegaData] Datos leídos desde memoria local. No se consulta al servidor.");
-        return Promise.resolve(window.DATA_ALMACEN_CACHE);
-      }
+      window.inicializarMegaData = () => {
+        if (window.DATA_ALMACEN_CACHE) {
+          console.log("⚡ [MegaData] Datos leídos desde memoria local. No se consulta al servidor.");
+          return Promise.resolve(window.DATA_ALMACEN_CACHE);
+        }
 
-      return new Promise((resolve, reject) => {
-        const t0 = performance.now();
-        console.log(`[BOOT][CLIENTE] Inicio inicializarMegaData: ${t0.toFixed(2)} ms`);
+        return new Promise((resolve, reject) => {
+          const t0 = performance.now();
+          console.log(`[BOOT][CLIENTE] Inicio inicializarMegaData: ${t0.toFixed(2)} ms`);
 
-        // Paso A: avisar al usuario
-        window.notificar("Sincronizando base de datos...", "info", 4200, {
-          title: "Sincronización",
-          sound: false
-        });
+          window.notificar("Sincronizando base de datos...", "info", 4200, {
+            title: "Sincronización",
+            sound: false
+          });
 
-        console.log(
-          `[BOOT][CLIENTE] Toast solicitado en: ${(performance.now() - t0).toFixed(2)} ms`
-        );
-
-        // Paso B: darle tiempo al navegador para pintar el toast
-        requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            const tDispatch = performance.now();
+            requestAnimationFrame(() => {
+              google.script.run
+                .withSuccessHandler((megaData) => {
+                  window.DATA_ALMACEN_CACHE = megaData;
+                  window.usuariosGlobal = megaData.usuarios || [];
+                  window.bodegasGlobal = megaData.bodegas || [];
+                  window.codigosGlobal = megaData.codigos || [];
+                  window.mapaCatalogoGlobal = megaData.mapaCatalogo || megaData.mapaProductos || {};
+                  window.mapaUbicacionesExcedentesGlobal =
+                    megaData.mapaUbicacionesExcedentes || megaData.mapaUbicaciones || [];
 
-            console.log(
-              `[BOOT][CLIENTE] Despachando APPALMACENController_getBootstrap en: ${(tDispatch - t0).toFixed(2)} ms`
-            );
+                  window.notificar("Base de datos sincronizada exitosamente", "success", 3200, {
+                    title: "Sistema listo",
+                    sound: true
+                  });
 
-            google.script.run
-              .withSuccessHandler((megaData) => {
-                const tSuccess = performance.now();
-
-                console.log(
-                  `[BOOT][CLIENTE] Respuesta bootstrap recibida en: ${(tSuccess - t0).toFixed(2)} ms`
-                );
-
-                window.DATA_ALMACEN_CACHE = megaData;
-                window.usuariosGlobal = megaData.usuarios || [];
-                window.bodegasGlobal = megaData.bodegas || [];
-                window.codigosGlobal = megaData.codigos || [];
-                window.mapaCatalogoGlobal = megaData.mapaCatalogo || megaData.mapaProductos || {};
-                window.mapaUbicacionesExcedentesGlobal =
-                  megaData.mapaUbicacionesExcedentes || megaData.mapaUbicaciones || [];
-
-                console.log("[BOOT][CLIENTE] Resumen bootstrap:", {
-                  usuarios: window.usuariosGlobal.length,
-                  bodegas: window.bodegasGlobal.length,
-                  codigos: window.codigosGlobal.length,
-                  ubicaciones: window.mapaUbicacionesExcedentesGlobal.length
-                });
-
-                window.notificar("Base de datos sincronizada exitosamente", "success", 3200, {
-                  title: "Sistema listo",
-                  sound: true
-                });
-
-                console.log("📦 [MegaData Cache] Datos sincronizados por primera vez:", megaData);
-                console.log(
-                  `[BOOT][CLIENTE] Finalizó inicializarMegaData en: ${(performance.now() - t0).toFixed(2)} ms`
-                );
-
-                resolve(megaData);
-              })
-              .withFailureHandler((error) => {
-                const tFail = performance.now();
-
-                console.error(
-                  `[BOOT][CLIENTE] Error bootstrap recibido en: ${(tFail - t0).toFixed(2)} ms`,
-                  error
-                );
-
-                window.notificar("Error al descargar el catálogo", "error", 4200, {
-                  title: "Sincronización fallida",
-                  sound: true
-                });
-
-                reject(error);
-              })
-              .APPALMACENController_getBootstrap();
+                  resolve(megaData);
+                })
+                .withFailureHandler((error) => {
+                  window.notificar("Error al descargar el catálogo", "error", 4200, {
+                    title: "Sincronización fallida",
+                    sound: true
+                  });
+                  reject(error);
+                })
+                .APPALMACENController_getBootstrap();
+            });
           });
         });
-      });
-    };
+      };
 
       const seleccionarVista = (id, fileName) => {
         limpiarRecursosDeVistaAnterior({ cerrarToast: false });
@@ -750,6 +726,40 @@
             });
           })
           .APPALMACENController_obtenerContenidoVista(fileName);
+      };
+
+      // =========================================================
+      // NAVEGACIÓN GLOBAL DEL SHELL
+      // =========================================================
+      window.__APP_SELECT_VIEW__ = seleccionarVista;
+
+      window.irAVistaShell = function (id, fileName, payload) {
+        try {
+          if (payload && typeof payload === "object") {
+            Object.keys(payload).forEach((key) => {
+              window[key] = payload[key];
+            });
+          }
+
+          if (typeof window.__APP_SELECT_VIEW__ === "function") {
+            window.__APP_SELECT_VIEW__(id, fileName);
+            return;
+          }
+
+          console.warn("⚠️ [Shell] __APP_SELECT_VIEW__ no está disponible.");
+          if (window.notificar) {
+            window.notificar("No se pudo navegar a la vista solicitada.", "error", 3200, {
+              title: "Navegación no disponible"
+            });
+          }
+        } catch (error) {
+          console.error("❌ [Shell] Error en irAVistaShell:", error);
+          if (window.notificar) {
+            window.notificar("Error al intentar navegar entre vistas.", "error", 3200, {
+              title: "Error de navegación"
+            });
+          }
+        }
       };
 
       useEffect(() => {
@@ -775,17 +785,11 @@
 
         (async () => {
           try {
-            console.log("📄 [Shell] viewContent cargado para:", activeTool);
-            console.log("🧪 [Shell] typeof window.initVista ANTES:", typeof window.initVista);
-
             await ejecutarScriptsDeVista(containerRef.current);
 
             if (cancelado) return;
 
-            console.log("🧪 [Shell] typeof window.initVista DESPUÉS:", typeof window.initVista);
-
             if (typeof window.initVista === "function") {
-              console.log("🚀 [Shell] Ejecutando initVista:", window.initVista.name || "(anónima)");
               window.initVista();
             } else {
               console.warn("⚠️ [Shell] No existe window.initVista para la vista actual");
@@ -810,6 +814,7 @@
 
       return e("div", { className: "flex h-screen w-full overflow-hidden" },
         e("div", { className: "sidebar-trigger", onMouseEnter: () => setIsSidebarOpen(true) }),
+
         e("aside", {
           onMouseEnter: () => setIsSidebarOpen(true),
           onMouseLeave: () => setIsSidebarOpen(false),
@@ -817,22 +822,41 @@
         },
           e("div", { className: "p-4 flex flex-col items-center" },
             e("div", { className: "logo-container flex items-center justify-center shadow-md" },
-              e("img", { src: "https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png", alt: "Logo", className: "w-full h-full object-contain" })
+              e("img", {
+                src: "https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png",
+                alt: "Logo",
+                className: "w-full h-full object-contain"
+              })
             ),
-            e("div", { className: `mt-4 text-center transition-all duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}` },
-              e("span", { className: "block text-white font-black uppercase text-[15px] tracking-[0.05em]" }, "Gestión de Almacén"),
-              e("span", { className: "text-[#d93025] font-bold text-[12px] uppercase tracking-[0.20em]" }, "Birlos y Tornillos")
+            e("div", {
+              className: `mt-4 text-center transition-all duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`
+            },
+              e("span", {
+                className: "block text-white font-black uppercase text-[15px] tracking-[0.05em]"
+              }, "Gestión de Almacén"),
+              e("span", {
+                className: "text-[#d93025] font-bold text-[12px] uppercase tracking-[0.20em]"
+              }, "Birlos y Tornillos")
             )
           ),
+
           e("div", { className: "flex justify-center my-2" },
-            e("div", { className: `h-[3px] bg-gray-700/50 transition-all duration-500 ${isSidebarOpen ? 'w-4/5' : 'w-1/2'}` })
+            e("div", {
+              className: `h-[3px] bg-gray-700/50 transition-all duration-500 ${isSidebarOpen ? 'w-4/5' : 'w-1/2'}`
+            })
           ),
+
           e("nav", { className: "flex-1 px-3 space-y-6 mt-4 custom-scroll overflow-y-auto" },
             Object.keys(toolsByCategory).map(category =>
               e("div", { key: category, className: "space-y-2" },
-                e("div", { className: `px-4 transition-all duration-300 ${isSidebarOpen ? 'opacity-100 h-auto mb-2' : 'opacity-0 h-0 overflow-hidden'}` },
-                  e("p", { className: "text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]" }, category)
+                e("div", {
+                  className: `px-4 transition-all duration-300 ${isSidebarOpen ? 'opacity-100 h-auto mb-2' : 'opacity-0 h-0 overflow-hidden'}`
+                },
+                  e("p", {
+                    className: "text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]"
+                  }, category)
                 ),
+
                 e("div", { className: "space-y-1" },
                   toolsByCategory[category].map(tool =>
                     e("button", {
@@ -846,27 +870,39 @@
                       e("span", {
                         className: `font-bold uppercase text-[11px] tracking-tight transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'}`
                       }, tool.name),
-                      activeTool === tool.id && isSidebarOpen ? e("div", { className: "absolute right-4 w-1.5 h-1.5 bg-white rounded-full" }) : null
+                      activeTool === tool.id && isSidebarOpen
+                        ? e("div", { className: "absolute right-4 w-1.5 h-1.5 bg-white rounded-full" })
+                        : null
                     )
                   )
                 ),
+
                 e("div", { className: "flex justify-center pb-2" },
-                  e("div", { className: `h-[3px] bg-gray-700/50 rounded-full transition-all duration-500 ${isSidebarOpen ? 'w-4/5 opacity-100' : 'w-0 opacity-0 overflow-hidden'}` })
+                  e("div", {
+                    className: `h-[3px] bg-gray-700/50 rounded-full transition-all duration-500 ${isSidebarOpen ? 'w-4/5 opacity-100' : 'w-0 opacity-0 overflow-hidden'}`
+                  })
                 )
               )
             )
           )
         ),
+
         e("main", { className: "flex-1 flex flex-col relative bg-[#f8f9fa]" },
           isSidebarOpen ? e("div", { className: "overlay-fade", onClick: () => setIsSidebarOpen(false) }) : null,
-          e("header", { className: "h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10" },
+
+          e("header", {
+            className: "h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10"
+          },
             e("div", null,
-              e("h1", { className: "text-xl font-black uppercase tracking-tighter" },
-                TOOLS.find(t => t.id === activeTool)?.name
-              )
+              e("h1", {
+                className: "text-xl font-black uppercase tracking-tighter"
+              }, getViewTitle_(activeTool))
             )
           ),
-          e("div", { className: "flex-1 overflow-auto bg-white m-4 rounded-2xl shadow-sm border border-[#dadce0]" },
+
+          e("div", {
+            className: "flex-1 overflow-auto bg-white m-4 rounded-2xl shadow-sm border border-[#dadce0]"
+          },
             loading
               ? e("div", { className: "flex items-center justify-center h-full" },
                   e(Icon, { name: "loader-2", className: "animate-spin text-[#d93025]", size: 40 })
