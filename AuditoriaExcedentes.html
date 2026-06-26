@@ -1,223 +1,594 @@
-<script>/** APPALMACEN.HTML */</script>
-
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistema de Gestión - Birlos y Tornillos</title>
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-  <?= HtmlService.createHtmlOutputFromFile('z0-Utilidades_XLSX').getContent(); ?>
-  <script src="https://unpkg.com/lucide@latest"></script>
+<script>/** AuditoriaExcedentes.html */</script>
 
 <style>
-  <?= HtmlService.createHtmlOutputFromFile('Estilos_Globales').getContent(); ?>
+  #render-auditoria-excedentes {
+    --ae-critical: var(--primary);
+    --ae-critical-dark: var(--primary-dark, #a50e0e);
+    --ae-critical-light: var(--primary-light, rgba(217, 48, 37, 0.20));
 
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
+    --ae-warning: #d97706;
+    --ae-warning-dark: #b45309;
+    --ae-warning-light: rgba(217, 119, 6, 0.14);
 
-  :root {
-    --primary: #d93025;
-    --bg-color: #f8f9fa;
-    --text-main: #1c1d1f;
+    --ae-success: #1e8e3e;
+    --ae-success-dark: #157337;
+    --ae-success-light: rgba(30, 142, 62, 0.14);
+
+    --ae-white: var(--white, #ffffff);
+    --ae-bg: var(--bg-color, #f8f9fa);
+    --ae-text-main: var(--text-main, #1c1d1f);
+    --ae-text-secondary: var(--text-secondary, #5f6368);
+    --ae-border: var(--border-color, #dadce0);
+    --ae-shadow-soft: var(--shadow-soft, 0 10px 25px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.05));
+    --ae-shadow-red: var(--shadow-red, 0 4px 10px rgba(217, 48, 37, 0.1));
   }
 
-  body {
-    margin: 0;
-    padding: 0;
-    height: 100vh;
-    width: 100vw;
-    background-color: var(--bg-color);
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  #render-auditoria-excedentes .font-mono-premium {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  #render-auditoria-excedentes .custom-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  #render-auditoria-excedentes .custom-scroll::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.03);
+  }
+
+  #render-auditoria-excedentes .custom-scroll::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.15);
+    border-radius: 99px;
+  }
+
+  #render-auditoria-excedentes .custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+  }
+
+  #render-auditoria-excedentes {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  #render-auditoria-excedentes::-webkit-scrollbar {
+    display: none;
+  }
+
+  @keyframes aeFadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  #render-auditoria-excedentes .fade-in-up {
+    animation: aeFadeInUp 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes aePulseCritical {
+    0% { box-shadow: 0 0 0 0px rgba(217, 48, 37, 0.25); }
+    70% { box-shadow: 0 0 0 8px rgba(217, 48, 37, 0); }
+    100% { box-shadow: 0 0 0 0px rgba(217, 48, 37, 0); }
+  }
+
+  #render-auditoria-excedentes .pulse-critical {
+    animation: aePulseCritical 2s infinite ease-in-out;
+  }
+
+  @keyframes aeFabIn {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  #render-auditoria-excedentes .animate-fab-in {
+    animation: aeFabIn 0.25s ease-out;
+  }
+
+  @keyframes aeSlideLeft {
+    from {
+      opacity: 0;
+      transform: translateX(40px) scale(0.92);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+
+  #render-auditoria-excedentes .animate-slide-left {
+    animation: aeSlideLeft 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  #render-auditoria-excedentes .ae-card {
+    background: var(--ae-white);
+    border: 1px solid var(--ae-border);
+    border-radius: 1.5rem;
+    box-shadow: var(--ae-shadow-soft);
+  }
+
+  #render-auditoria-excedentes .ae-kpi-card {
+    background: var(--ae-white);
+    border: 1px solid var(--ae-border);
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
+    position: relative;
     overflow: hidden;
-    -webkit-font-smoothing: antialiased;
+    min-height: 170px;
+    transition: all 0.28s ease;
   }
 
-  .main-wrapper {
-    height: 100vh;
+  #render-auditoria-excedentes .ae-kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--ae-shadow-soft);
+  }
+
+  #render-auditoria-excedentes .ae-kpi-topbar {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: 6px;
+  }
+
+  #render-auditoria-excedentes .ae-topbar-red { background: var(--ae-critical); }
+  #render-auditoria-excedentes .ae-topbar-amber { background: var(--ae-warning); }
+  #render-auditoria-excedentes .ae-topbar-emerald { background: var(--ae-success); }
+  #render-auditoria-excedentes .ae-topbar-slate { background: var(--ae-text-main); }
+
+  #render-auditoria-excedentes .ae-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  #render-auditoria-excedentes .ae-chip-red {
+    background: var(--ae-critical-light);
+    color: var(--ae-critical-dark);
+    border-color: rgba(217, 48, 37, 0.25);
+  }
+
+  #render-auditoria-excedentes .ae-chip-amber {
+    background: var(--ae-warning-light);
+    color: var(--ae-warning-dark);
+    border-color: rgba(217, 119, 6, 0.22);
+  }
+
+  #render-auditoria-excedentes .ae-chip-emerald {
+    background: var(--ae-success-light);
+    color: var(--ae-success-dark);
+    border-color: rgba(30, 142, 62, 0.24);
+  }
+
+  #render-auditoria-excedentes .ae-chip-slate {
+    background: rgba(28, 29, 31, 0.08);
+    color: var(--ae-text-main);
+    border-color: rgba(28, 29, 31, 0.12);
+  }
+
+  #render-auditoria-excedentes .ae-status-open {
+    background: var(--ae-critical-light);
+    color: var(--ae-critical-dark);
+    border-color: rgba(217, 48, 37, 0.20);
+  }
+
+  #render-auditoria-excedentes .ae-status-closed {
+    background: var(--ae-success-light);
+    color: var(--ae-success-dark);
+    border-color: rgba(30, 142, 62, 0.24);
+  }
+
+  #render-auditoria-excedentes .ae-mini-card {
+    background: #f8f9fa;
+    border: 1px solid var(--ae-border);
+    border-radius: 1rem;
+    padding: 1rem;
+  }
+
+  #render-auditoria-excedentes .ae-filter-btn {
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border: 1px solid var(--ae-border);
+    transition: all 0.2s ease;
+  }
+
+  #render-auditoria-excedentes .ae-filter-btn.active-primary {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    box-shadow: var(--ae-shadow-red);
+  }
+
+  #render-auditoria-excedentes .ae-filter-btn.active-dark {
+    background: var(--ae-text-main);
+    color: white;
+    border-color: var(--ae-text-main);
+  }
+
+  #render-auditoria-excedentes .ae-filter-btn.idle {
+    background: var(--ae-white);
+    color: var(--ae-text-secondary);
+  }
+
+  #render-auditoria-excedentes .ae-filter-btn.idle:hover {
+    background: #f3f4f6;
+  }
+
+  #render-auditoria-excedentes .ae-form-label {
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ae-text-secondary);
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  #render-auditoria-excedentes .ae-form-input,
+  #render-auditoria-excedentes .ae-form-select,
+  #render-auditoria-excedentes .ae-form-textarea {
+    width: 100%;
+    border: 1px solid var(--ae-border);
+    background: #f8f9fa;
+    border-radius: 14px;
+    outline: none;
+    transition: all 0.22s ease;
+    color: var(--ae-text-main);
+    font-weight: 700;
+  }
+
+  #render-auditoria-excedentes .ae-form-input,
+  #render-auditoria-excedentes .ae-form-select {
+    min-height: 52px;
+    padding: 0 16px;
+    font-size: 14px;
+  }
+
+  #render-auditoria-excedentes .ae-form-textarea {
+    min-height: 110px;
+    padding: 14px 16px;
+    font-size: 14px;
+    resize: vertical;
+  }
+
+  #render-auditoria-excedentes .ae-form-input:focus,
+  #render-auditoria-excedentes .ae-form-select:focus,
+  #render-auditoria-excedentes .ae-form-textarea:focus {
+    border-color: var(--primary);
+    background: white;
+    box-shadow: var(--ae-shadow-red);
+  }
+
+  #render-auditoria-excedentes .ae-btn-primary {
+    width: 100%;
+    min-height: 54px;
+    border: none;
+    border-radius: 16px;
+    background: var(--primary);
+    color: white;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    transition: all 0.22s ease;
+  }
+
+  #render-auditoria-excedentes .ae-btn-primary:hover {
+    background: var(--primary-dark, #a50e0e);
+  }
+
+  #render-auditoria-excedentes .ae-btn-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  #render-auditoria-excedentes .ae-search-input {
+    width: 380px;
+    max-width: calc(100vw - 120px);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(8px);
+    border: 2px solid var(--primary);
+    border-radius: 1.25rem;
+    padding: 16px 20px;
+    box-shadow: 0 20px 50px rgba(217, 48, 37, 0.15);
+    outline: none;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--ae-text-main);
+  }
+
+  #render-auditoria-excedentes .ae-search-input::placeholder {
+    color: #9ca3af;
+  }
+
+  #render-auditoria-excedentes .ae-fab-main,
+  #render-auditoria-excedentes .ae-fab-action {
+    width: 64px;
+    height: 64px;
+    border-radius: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.28s ease;
+  }
+
+  #render-auditoria-excedentes .ae-fab-main {
+    background: rgba(217, 48, 37, 0.12);
+    color: var(--primary);
+    border: 1px solid rgba(217, 48, 37, 0.30);
+    box-shadow: var(--ae-shadow-soft);
+  }
+
+  #render-auditoria-excedentes .ae-fab-main:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    box-shadow: 0 12px 30px rgba(217, 48, 37, 0.28);
+  }
+
+  #render-auditoria-excedentes .ae-fab-main.open {
+    background: var(--ae-text-main);
+    color: white;
+    border-color: var(--ae-text-main);
+  }
+
+  #render-auditoria-excedentes .ae-fab-action {
+    background: white;
+    color: var(--ae-text-secondary);
+    border: 1px solid var(--ae-border);
+    box-shadow: var(--ae-shadow-soft);
+  }
+
+  #render-auditoria-excedentes .ae-fab-action:hover {
+    color: var(--primary);
+    border-color: rgba(217, 48, 37, 0.35);
+    transform: scale(1.04);
+  }
+
+  #render-auditoria-excedentes .ae-fab-action.primary {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+
+  #render-auditoria-excedentes .ae-table-wrap {
+    max-height: 68vh;
+    overflow: auto;
+  }
+
+  #render-auditoria-excedentes .ae-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  #render-auditoria-excedentes .ae-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(248, 249, 250, 0.96);
+    backdrop-filter: blur(8px);
+    padding: 16px 18px;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--ae-text-secondary);
+    border-bottom: 1px solid var(--ae-border);
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  #render-auditoria-excedentes .ae-row td {
+    padding: 16px 18px;
+    border-bottom: 1px solid #eef1f4;
+    vertical-align: middle;
+    background: var(--ae-white);
+    transition: background-color 0.18s ease;
+  }
+
+  #render-auditoria-excedentes .ae-row:hover td {
+    background: #fcfcfd;
+  }
+
+  #render-auditoria-excedentes .ae-row.active td {
+    background: #fafafa;
+  }
+
+  #render-auditoria-excedentes .ae-folio-main {
+    font-size: 16px;
+    font-weight: 900;
+    color: var(--ae-text-main);
+    letter-spacing: 0.04em;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1.15;
+  }
+
+  #render-auditoria-excedentes .ae-folio-sub {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ae-text-secondary);
+  }
+
+  #render-auditoria-excedentes .ae-folio-desc {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #9ca3af;
+    line-height: 1.3;
+    text-transform: uppercase;
+    max-width: 360px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #render-auditoria-excedentes .ae-empty-state {
+    min-height: 260px;
     display: flex;
     flex-direction: column;
-    background-color: var(--bg-color);
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    color: #9ca3af;
   }
 
-  .scrollable-content {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 20px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--secondary) transparent;
-  }
-
-  .sidebar-transition {
-    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .sidebar-mini { width: 80px; }
-  .sidebar-visible { width: 280px; }
-
-  .sidebar-trigger {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 20px;
-    height: 100vh;
-    z-index: 50;
-  }
-
-  .overlay-fade {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.3);
-    backdrop-filter: blur(2px);
-    z-index: 30;
-    animation: fadeIn 0.3s ease;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  .logo-container {
-    background: white;
-    padding: 4px;
-    border-radius: 7.5px;
-    width: 50px;
-    height: 50px;
-  }
-
-  .custom-scroll::-webkit-scrollbar { width: 4px; }
-  .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
-  .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
-
-  /* =========================================================
-     ANIMACIONES IGUALES A PROTOTIPOTRASPASOS
-  ========================================================= */
-  @keyframes toastInProto {
-    from {
-      transform: translateX(100%);
-      opacity: 0;
-    }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-
-  @keyframes toastOutProto {
-    from {
-      transform: translateX(0);
-      opacity: 1;
-    }
-    to {
-      transform: translateX(100%);
-      opacity: 0;
-    }
-  }
-
-  .animate-toast-in {
-    animation: toastInProto 0.35s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-  }
-
-  .animate-toast-out {
-    animation: toastOutProto 0.25s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-  }
-
-  /* =========================================================
-     TOASTS GLOBALES HOMOLOGADOS CON PROTOTIPOTRASPASOS
-  ========================================================= */
-  .swal2-popup.swal2-toast {
-    backdrop-filter: blur(8px);
-    background: #1c1d1f !important;
-    color: #ffffff !important;
-    border-left: 4px solid #d93025 !important;
-    border-radius: 14px !important;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22) !important;
-  }
-
-  .swal2-popup.swal2-toast .swal2-title {
-    font-size: 14px !important;
-    font-weight: 800 !important;
-    color: #ffffff !important;
-    letter-spacing: 0.02em;
-  }
-
-  .swal2-popup.swal2-toast .swal2-html-container,
-  .swal2-popup.swal2-toast .swal2-text {
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    color: #ffffff !important;
-  }
-
-  .swal2-timer-progress-bar {
-    background: #d93025 !important;
+  #render-auditoria-excedentes .ae-offcanvas .offcanvas-header {
+    border-bottom: 1px solid var(--ae-border);
   }
 </style>
 
-</head>
-<body>
+<div
+  id="render-auditoria-excedentes"
+  class="h-full w-full flex flex-col bg-[var(--bg-color)] overflow-y-auto p-4 md:p-8"
+></div>
 
-  <div id="boot-splash" style="
-    height:100vh;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-family:Arial,sans-serif;
-    color:#5f6368;
-    background:#f8f9fa;
-  ">
-    Cargando sistema...
-  </div>
-
-  <div id="root"></div>
-
-  <script>
-    const { useState, useEffect, useRef } = React;
-    const e = React.createElement;
+<script type="text/babel">
+  window.cargar_AuditoriaExcedentes = () => {
+    const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
     // =========================================================
-    // CACHE GLOBAL
+    // HELPERS DE NOTIFICACIÓN
     // =========================================================
-    window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || null;
-    window.usuariosGlobal = window.usuariosGlobal || [];
-    window.bodegasGlobal = window.bodegasGlobal || [];
-    window.mapaUbicacionesGlobal = window.mapaUbicacionesGlobal || [];
-    window.catalogoGlobal = window.catalogoGlobal || [];
+    const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
+      const fn = window.notificar || window.lanzarNotificacion;
+      if (typeof fn === "function") {
+        fn(mensaje, tipo, timer, options);
+      }
+    };
+
+    const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
+      const now = Date.now();
+      const last = ref.current[key] || 0;
+      if (now - last < cooldown) return;
+      ref.current[key] = now;
+      notify_(mensaje, tipo, timer, options);
+    };
+
+    const shellNotifyStateRef = { current: {} };
+    const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
 
     // =========================================================
-    // HELPERS GENERALES
+    // UTILIDADES DE FECHA / HORA
     // =========================================================
-    function escapeHtml_(value) {
-      return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    function _esDateValida_(d) {
+      return d instanceof Date && !isNaN(d.getTime());
+    }
+
+    function _parseFechaFlexible_(value) {
+      if (!value) return null;
+
+      if (value instanceof Date) {
+        return _esDateValida_(value) ? value : null;
+      }
+
+      const str = String(value).trim();
+      if (!str) return null;
+
+      // dd/MM/yyyy
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+        const parts = str.split("/");
+        const day = Number(parts[0]);
+        const month = Number(parts[1]);
+        const year = Number(parts[2]);
+        const d = new Date(year, month - 1, day, 0, 0, 0, 0);
+        return _esDateValida_(d) ? d : null;
+      }
+
+      // ISO o cualquier formato parseable
+      const parsed = new Date(str);
+      return _esDateValida_(parsed) ? parsed : null;
+    }
+
+    function _parseHoraFlexible_(value) {
+      if (!value) return null;
+
+      if (value instanceof Date) {
+        return _esDateValida_(value) ? value : null;
+      }
+
+      const str = String(value).trim();
+      if (!str) return null;
+
+      // HH:mm o HH:mm:ss
+      if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+        const parts = str.split(":");
+        const hh = Number(parts[0] || 0);
+        const mm = Number(parts[1] || 0);
+        const ss = Number(parts[2] || 0);
+        const d = new Date(2000, 0, 1, hh, mm, ss, 0);
+        return _esDateValida_(d) ? d : null;
+      }
+
+      // Fechas de Sheets tipo 1899-12-30T23:16:36.000Z
+      const parsed = new Date(str);
+      return _esDateValida_(parsed) ? parsed : null;
+    }
+
+    function formatearFecha_(value) {
+      const d = _parseFechaFlexible_(value);
+      if (!d) return "Sin fecha";
+
+      return d.toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      });
+    }
+
+    function formatearHora_(value) {
+      const d = _parseHoraFlexible_(value);
+      if (!d) return "--";
+
+      return d.toLocaleTimeString("es-MX", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      });
+    }
+
+    function construirResumenFechaHora_(item) {
+      return `${formatearFecha_(item.fecha)} • ${formatearHora_(item.horainicio)} - ${formatearHora_(item.horafin)}`;
     }
 
     // =========================================================
-    // ICONO LUCIDE
+    // ICONO LOCAL
     // =========================================================
-    const Icon = ({ name, size = 20, className = "" }) => {
+    const LocalIcon = ({ name, size = 18, className = "" }) => {
       const iconRef = useRef(null);
 
       useEffect(() => {
         if (window.lucide && iconRef.current) {
-          iconRef.current.innerHTML = '';
-          const i = document.createElement('i');
-          i.setAttribute('data-lucide', name);
+          iconRef.current.innerHTML = "";
+          const i = document.createElement("i");
+          i.setAttribute("data-lucide", name.toLowerCase());
           i.style.width = `${size}px`;
           i.style.height = `${size}px`;
           if (className) i.className = className;
@@ -226,795 +597,1214 @@
         }
       }, [name, size, className]);
 
-      return e("span", { ref: iconRef, className: "inline-flex items-center" });
+      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
     };
 
     // =========================================================
-    // MENÚ DE HERRAMIENTAS
+    // HELPERS VISUALES
     // =========================================================
-    const TOOLS = [
-      // =========================================================
-      // PROCESOS
-      // =========================================================
-      {
-        id: 'FormularioTraspasos',
-        name: 'Registrar Traspasos',
-        icon: 'arrow-right-left',
-        category: 'Procesos'
-      },
-      {
-        id: 'MonitorTraspasos',
-        name: 'Traspasos Pendientes',
-        icon: 'clipboard-list',
-        category: 'Procesos'
-      },
-      {
-        id: 'HistorialTraspasos',
-        name: 'Historial Traspasos',
-        icon: 'history',
-        category: 'Procesos'
-      },
+    const getConfiabilidadVisual = (valor) => {
+      const n = Number(valor || 0);
 
-      // =========================================================
-      // AUDITORÍA
-      // =========================================================
-      {
-        id: 'AuditoriaExcedentes',
-        name: 'Auditoría Excedentes',
-        icon: 'shield-check',
-        category: 'Auditoría'
-      },
-
-      // OPCIONAL:
-      // descomenta esta entrada cuando ya exista AuditoriaExcedentesDetalle.html
-      /*
-      {
-        id: 'AuditoriaExcedentesDetalle',
-        name: 'Detalle Auditoría',
-        icon: 'scan-search',
-        category: 'Auditoría'
-      },
-      */
-
-      // =========================================================
-      // ETIQUETADO
-      // =========================================================
-      {
-        id: 'FormularioEtiquetasIdentificadoras',
-        name: 'Etiquetas Identificadoras',
-        icon: 'tag',
-        category: 'Etiquetado'
-      },
-      {
-        id: 'FormularioEtiquetasExcedentes',
-        name: 'Etiquetas Excedentes',
-        icon: 'badge-plus',
-        category: 'Etiquetado'
-      },
-      {
-        id: 'FormularioEtiquetasExcedentesReimpresion',
-        name: 'Reimpresión Excedentes',
-        icon: 'printer',
-        category: 'Etiquetado'
-      },
-
-      // =========================================================
-      // CONTROL
-      // =========================================================
-      {
-        id: 'GestorExcedentes',
-        name: 'Control de Excedentes',
-        icon: 'boxes',
-        category: 'Control'
-      },
-      {
-        id: 'NegativosBirlos',
-        name: 'Negativos en Almacén',
-        icon: 'alert-triangle',
-        category: 'Control'
-      },
-      {
-        id: 'MonitorReabastecimiento',
-        name: 'Monitor de Reabastecimiento',
-        icon: 'package-plus',
-        category: 'Control'
-      },
-
-      // =========================================================
-      // PRUEBAS
-      // =========================================================
-      {
-        id: 'PrototipoTraspasos',
-        name: 'Prueba Traspasos',
-        icon: 'flask-conical',
-        category: 'Pruebas'
+      if (n < 90) {
+        return {
+          level: "RED",
+          label: "Crítica",
+          className: "ae-chip ae-chip-red",
+          tone: "red"
+        };
       }
-    ];
 
-    const CATEGORY_ORDER = [
-      'Procesos',
-      'Auditoría',
-      'Etiquetado',
-      'Control',
-      'Pruebas'
-    ];
-
-    // =========================================================
-    // SISTEMA GLOBAL DE NOTIFICACIONES + SONIDO
-    // =========================================================
-    const NOTIFY_META = {
-      success: {
-        accent: '#d93025',
-        title: 'Operación exitosa',
-        icon: 'success'
-      },
-      warning: {
-        accent: '#696160',
-        title: 'Revisión necesaria',
-        icon: 'warning'
-      },
-      error: {
-        accent: '#a50e0e',
-        title: 'Error del sistema',
-        icon: 'error'
-      },
-      info: {
-        accent: '#454040',
-        title: 'Notificación',
-        icon: 'info'
+      if (n >= 97) {
+        return {
+          level: "EMERALD",
+          label: "Controlada",
+          className: "ae-chip ae-chip-emerald",
+          tone: "emerald"
+        };
       }
-    };
 
-    window.NOTIFY_STATE = window.NOTIFY_STATE || {
-      soundEnabled: true,
-      audioUnlocked: false,
-      audioContext: null,
-      audioUnlockBound: false
-    };
-
-    function inicializarAudioNotificaciones_() {
-      if (window.NOTIFY_STATE.audioUnlockBound) return;
-      window.NOTIFY_STATE.audioUnlockBound = true;
-
-      const unlock = async () => {
-        try {
-          const AC = window.AudioContext || window.webkitAudioContext;
-          if (!AC) return;
-
-          if (!window.NOTIFY_STATE.audioContext) {
-            window.NOTIFY_STATE.audioContext = new AC();
-          }
-
-          if (window.NOTIFY_STATE.audioContext.state === 'suspended') {
-            await window.NOTIFY_STATE.audioContext.resume();
-          }
-
-          window.NOTIFY_STATE.audioUnlocked = true;
-        } catch (err) {
-          console.warn("⚠️ [Notify] No se pudo desbloquear el audio:", err);
-        } finally {
-          document.removeEventListener('pointerdown', unlock, true);
-          document.removeEventListener('keydown', unlock, true);
-          document.removeEventListener('touchstart', unlock, true);
-        }
+      return {
+        level: "AMBER",
+        label: "Atención",
+        className: "ae-chip ae-chip-amber",
+        tone: "amber"
       };
-
-      document.addEventListener('pointerdown', unlock, true);
-      document.addEventListener('keydown', unlock, true);
-      document.addEventListener('touchstart', unlock, true);
-    }
-
-    function tocarSonidoNotificacion_(tipo = 'info') {
-      try {
-        const state = window.NOTIFY_STATE;
-        if (!state.soundEnabled || !state.audioUnlocked) return;
-        const ctx = state.audioContext;
-        if (!ctx) return;
-
-        if (ctx.state === 'suspended') {
-          ctx.resume().catch(() => {});
-        }
-
-        const now = ctx.currentTime;
-        const master = ctx.createGain();
-        master.gain.setValueAtTime(0.0001, now);
-        master.connect(ctx.destination);
-
-        const configs = {
-          success: {
-            notes: [880, 1174],
-            durations: [0.08, 0.12],
-            spacing: 0.09,
-            type: 'sine',
-            volume: 0.05
-          },
-          warning: {
-            notes: [622, 740],
-            durations: [0.10, 0.10],
-            spacing: 0.10,
-            type: 'triangle',
-            volume: 0.045
-          },
-          error: {
-            notes: [392, 311],
-            durations: [0.11, 0.14],
-            spacing: 0.10,
-            type: 'sawtooth',
-            volume: 0.04
-          },
-          info: {
-            notes: [784],
-            durations: [0.08],
-            spacing: 0,
-            type: 'sine',
-            volume: 0.035
-          }
-        };
-
-        const cfg = configs[tipo] || configs.info;
-
-        cfg.notes.forEach((freq, index) => {
-          const start = now + (index * cfg.spacing);
-          const end = start + cfg.durations[index];
-
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-
-          osc.type = cfg.type;
-          osc.frequency.setValueAtTime(freq, start);
-
-          gain.gain.setValueAtTime(0.0001, start);
-          gain.gain.exponentialRampToValueAtTime(cfg.volume, start + 0.01);
-          gain.gain.exponentialRampToValueAtTime(0.0001, end);
-
-          osc.connect(gain);
-          gain.connect(master);
-
-          osc.start(start);
-          osc.stop(end + 0.02);
-        });
-      } catch (err) {
-        console.warn("⚠️ [Notify] No se pudo reproducir el sonido:", err);
-      }
-    }
-
-    window.configurarSonidoNotificaciones = (enabled = true) => {
-      window.NOTIFY_STATE.soundEnabled = !!enabled;
     };
 
-    // =========================================================
-    // TOAST GLOBAL HOMOLOGADO CON PROTOTIPOTRASPASOS
-    // =========================================================
-    const Toast = Swal.mixin({
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 3000,
-      timerProgressBar: true,
-      background: '#1c1d1f',
-      color: '#ffffff',
-      iconColor: '#d93025',
-      showClass: {
-        popup: 'animate-toast-in'
-      },
-      hideClass: {
-        popup: 'animate-toast-out'
-      },
-      didOpen: (toast) => {
-        toast.addEventListener('mouseenter', Swal.stopTimer);
-        toast.addEventListener('mouseleave', Swal.resumeTimer);
-        const progress = toast.querySelector('.swal2-timer-progress-bar');
-        if (progress) progress.style.backgroundColor = '#d93025';
-      }
-    });
-
-    window.notificar = (mensaje, tipo = 'info', customTimer = 3000, options = {}) => {
-      const meta = NOTIFY_META[tipo] || NOTIFY_META.info;
-
-      const title = options.title || mensaje;
-      const text = options.title ? mensaje : (options.text || '');
-
-      Toast.fire({
-        icon: tipo,
-        title,
-        text,
-        timer: customTimer,
-        background: options.background || '#1c1d1f',
-        color: options.color || '#ffffff',
-        iconColor: options.iconColor || '#d93025'
-      });
-
-      const shouldSound = options.sound !== false && (options.sound === true || tipo !== 'info');
-      if (shouldSound) {
-        tocarSonidoNotificacion_(tipo);
-      }
+    const getStatusChipClass = (estatus) => {
+      const e = String(estatus || "").toUpperCase();
+      return e === "ABIERTA" ? "ae-chip ae-status-open" : "ae-chip ae-status-closed";
     };
 
-    window.lanzarNotificacion = window.notificar;
-
-    // =========================================================
-    // MODAL DEL SISTEMA
-    // =========================================================
-    window.modalSistema = ({
-      tipo = 'info',
-      title = null,
-      text = '',
-      confirmText = 'Aceptar',
-      cancelText = 'Cancelar',
-      showCancelButton = false,
-      reverseButtons = true
-    } = {}) => {
-      return Swal.fire({
-        icon: tipo,
-        title: title || 'Mensaje del sistema',
-        html: escapeHtml_(text),
-        showCancelButton,
-        reverseButtons,
-        confirmButtonText: confirmText,
-        cancelButtonText: cancelText,
-        background: '#1c1d1f',
-        color: '#ffffff',
-        confirmButtonColor: '#d93025',
-        cancelButtonColor: '#454040',
-        didOpen: () => {
-          tocarSonidoNotificacion_(tipo === 'info' ? 'warning' : tipo);
-        }
-      });
+    const getTipoChipClass = (tipo) => {
+      const t = String(tipo || "").toUpperCase();
+      return t === "POR_BODEGA" ? "ae-chip ae-chip-amber" : "ae-chip ae-chip-slate";
     };
 
-    window.confirmarSistema = (config = {}) => {
-      return window.modalSistema({
-        tipo: config.tipo || 'warning',
-        title: config.title || 'Confirmar acción',
-        text: config.text || '¿Deseas continuar?',
-        confirmText: config.confirmText || 'Continuar',
-        cancelText: config.cancelText || 'Cancelar',
-        showCancelButton: true,
-        reverseButtons: true
-      });
+    const getKpiTopBarClass = (tone) => {
+      if (tone === "red") return "ae-topbar-red";
+      if (tone === "amber") return "ae-topbar-amber";
+      if (tone === "emerald") return "ae-topbar-emerald";
+      return "ae-topbar-slate";
     };
 
-    inicializarAudioNotificaciones_();
+    const getKpiIconClass = (tone) => {
+      if (tone === "red") return "bg-red-50 text-red-600 border border-red-100";
+      if (tone === "amber") return "bg-amber-50 text-amber-600 border border-amber-100";
+      if (tone === "emerald") return "bg-emerald-50 text-emerald-600 border border-emerald-100";
+      return "bg-slate-100 text-slate-900 border border-slate-200";
+    };
+
+    function obtenerNombreUsuario_(u) {
+      if (!u) return "";
+      if (typeof u === "string") return u.toUpperCase();
+      return String(u.nombre || u.name || u.usuario || "").toUpperCase();
+    }
 
     // =========================================================
-    // HELPERS DE SHELL
+    // KPI
     // =========================================================
+    const KPIBlock = ({ title, value, unit, iconName, tone = "slate", trend }) => (
+      <div className="ae-kpi-card">
+        <div className={`ae-kpi-topbar ${getKpiTopBarClass(tone)}`}></div>
 
-    function getSwalPopup_() {
-      try {
-        return typeof Swal !== 'undefined' && typeof Swal.getPopup === 'function'
-          ? Swal.getPopup()
-          : document.querySelector('.swal2-popup');
-      } catch (e) {
-        return document.querySelector('.swal2-popup');
-      }
-    }
+        <div className="h-full flex flex-col pt-2">
+          <div className="mb-1">
+            <p className="text-[17px] font-extrabold uppercase tracking-[0.14em] text-[var(--text-secondary)] leading-tight">
+              {title}
+            </p>
+          </div>
 
-    function esToastVisible_() {
-      const popup = getSwalPopup_();
-      return !!(popup && popup.classList.contains('swal2-toast'));
-    }
+          <div className="grid grid-cols-[1fr_auto] items-end h-full gap-4">
+            <div className="flex flex-col justify-between h-full min-w-0">
+              <div className="flex items-end gap-2 flex-wrap">
+                <h3 className="text-5xl font-black tracking-tight text-[var(--text-main)] leading-none m-0 p-0 bg-transparent border-none">
+                  {typeof value === "number" ? value.toLocaleString() : value}
+                </h3>
 
-    function limpiarRecursosDeVistaAnterior({ cerrarToast = false } = {}) {
-      window.initVista = null;
+                {unit && (
+                  <span className="text-[16px] font-bold text-[var(--text-secondary)] uppercase leading-none pb-1">
+                    {unit}
+                  </span>
+                )}
+              </div>
 
-      if (window.temporizadorActualizacion) {
-        clearInterval(window.temporizadorActualizacion);
-        window.temporizadorActualizacion = null;
-      }
+              {trend && (
+                <div className="mt-4 flex items-center gap-2 flex-wrap">
+                  <span className={trend.className || "ae-chip ae-chip-slate"}>
+                    {trend.text}
+                  </span>
 
-      if (window.intervaloReimpresion) {
-        clearInterval(window.intervaloReimpresion);
-        window.intervaloReimpresion = null;
-      }
+                  {trend.sub && (
+                    <span className="text-xs font-semibold text-[var(--text-secondary)]">
+                      {trend.sub}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
 
-      if (typeof Swal !== 'undefined' && Swal.isVisible()) {
-        const popup = getSwalPopup_();
-        const esToast = !!(popup && popup.classList.contains('swal2-toast'));
+            <div className="self-end justify-self-end">
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${getKpiIconClass(tone)}`}>
+                <LocalIcon name={iconName} size={34} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
 
-        // Solo cerramos si NO es toast o si explícitamente queremos cerrarlo
-        if (!esToast || cerrarToast) {
-          Swal.close();
-        }
-      }
-
-      window.escribiendo = false;
-      window.lanzarNotificacion = window.notificar;
-    }
-
-    async function cargarScriptExternoSeguro(oldScript) {
-      const src = oldScript.getAttribute("src");
-      if (!src) return;
-
-      const yaExiste = document.querySelector(`script[data-shell-src="${src}"]`);
-      if (yaExiste) {
-        console.log("♻️ [Shell] Script externo ya cargado, se reutiliza:", src);
-        return;
-      }
-
-      await new Promise((resolve, reject) => {
-        const externalScript = document.createElement("script");
-        externalScript.src = src;
-        externalScript.async = false;
-        externalScript.dataset.shellSrc = src;
-
-        Array.from(oldScript.attributes).forEach(attr => {
-          if (attr.name !== "src" && attr.name !== "type") {
-            externalScript.setAttribute(attr.name, attr.value);
-          }
-        });
-
-        externalScript.onload = () => {
-          console.log("✅ [Shell] Script externo cargado:", src);
-          resolve();
-        };
-
-        externalScript.onerror = (err) => {
-          console.error("❌ [Shell] Error cargando script externo:", src, err);
-          reject(new Error(`No se pudo cargar el script externo: ${src}`));
-        };
-
-        document.body.appendChild(externalScript);
+    // =========================================================
+    // DASHBOARD
+    // =========================================================
+    const AuditoriaExcedentesDashboard = () => {
+      const [bootstrapData, setBootstrapData] = useState({
+        usuarios: [],
+        bodegas: [],
+        auditoriasAbiertas: [],
+        auditoriasCerradas: []
       });
-    }
 
-    function ejecutarScriptInline(scriptContent, scriptType = "text/javascript") {
-      const runtimeScript = document.createElement("script");
-      runtimeScript.type = scriptType;
-      runtimeScript.text = scriptContent;
-      document.body.appendChild(runtimeScript);
-      document.body.removeChild(runtimeScript);
-    }
+      const [dashboard, setDashboard] = useState({
+        fechaCorte: {},
+        resumenGlobal: {},
+        destacados: {},
+        porBodega: []
+      });
 
-    async function ejecutarScriptsDeVista(container) {
-      const scripts = Array.from(container.querySelectorAll("script"));
+      const [auditorias, setAuditorias] = useState([]);
+      const [loading, setLoading] = useState(true);
 
-      for (const oldScript of scripts) {
-        const originalType = (oldScript.getAttribute("type") || "").toLowerCase().trim();
-        const scriptContent = oldScript.textContent || "";
+      const [searchQuery, setSearchQuery] = useState("");
+      const [filterStatus, setFilterStatus] = useState("TODAS");
+      const [filterTipo, setFilterTipo] = useState("TODOS");
+      const [filterBodega, setFilterBodega] = useState("TODAS");
+      const [sortBy, setSortBy] = useState("FECHA_DESC");
+      const [activeRow, setActiveRow] = useState(null);
 
-        console.log("🔍 [Shell] Analizando script:", {
-          type: originalType || "(vacío)",
-          src: oldScript.src || "(inline)",
-          preview: (scriptContent || "").substring(0, 120)
-        });
+      const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+      const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
 
-        if (originalType === "text/template" || originalType === "text/x-template" || originalType === "application/json" || originalType === "application/ld+json") {
-          console.log("⏭️ [Shell] Script omitido por ser plantilla/datos:", originalType);
-          continue;
-        }
+      const [formNuevaAuditoria, setFormNuevaAuditoria] = useState({
+        auditor: "",
+        tipoauditoria: "GLOBAL",
+        bodegaobjetivo: "TODAS",
+        observaciones: ""
+      });
 
-        if (originalType === "module") {
-          console.warn("⚠️ [Shell] Script type='module' omitido por incompatibilidad con HtmlService.");
-          continue;
-        }
+      const firstLoadDoneRef = useRef(false);
+      const searchInputRef = useRef(null);
 
-        if (oldScript.src) {
-          await cargarScriptExternoSeguro(oldScript);
-          continue;
-        }
-
-        if (originalType === "text/babel" || originalType === "text/jsx") {
-          try {
-            const transpiled = Babel.transform(scriptContent, {
-              presets: [["react", { runtime: "classic" }]],
-              sourceType: "script"
-            }).code;
-
-            ejecutarScriptInline(transpiled, "text/javascript");
-            console.log("✅ [Shell] Script Babel transpildado y ejecutado");
-          } catch (err) {
-            console.error("❌ [Shell] Error transpiling Babel script:", err);
-            throw err;
-          }
-          continue;
-        }
-
-        if (originalType === "" || originalType === "text/javascript" || originalType === "application/javascript") {
-          try {
-            ejecutarScriptInline(scriptContent, "text/javascript");
-            console.log("✅ [Shell] Script JS ejecutado");
-          } catch (err) {
-            console.error("❌ [Shell] Error ejecutando script JS:", err);
-            throw err;
-          }
-          continue;
-        }
-
-        console.warn("⚠️ [Shell] Tipo de script no manejado, se omite:", originalType);
-      }
-    }
-
-    // =========================================================
-    // APP PRINCIPAL
-    // =========================================================
-    const App = () => {
-      const [activeTool, setActiveTool] = useState('FormularioTraspasos');
-      const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-      const [viewContent, setViewContent] = useState("");
-      const [loading, setLoading] = useState(false);
-      const containerRef = useRef(null);
-
-      window.inicializarMegaData = () => {
-        if (window.DATA_ALMACEN_CACHE) {
-          console.log("⚡ [MegaData] Datos leídos desde memoria local. No se consulta al servidor.");
-          return Promise.resolve(window.DATA_ALMACEN_CACHE);
-        }
-
-        return new Promise((resolve, reject) => {
-          const t0 = performance.now();
-          console.log(`[BOOT][CLIENTE] Inicio inicializarMegaData: ${t0.toFixed(2)} ms`);
-
-          // Paso A: avisar al usuario
-          window.notificar("Sincronizando base de datos...", "info", 4200, {
-            title: "Sincronización",
-            sound: false
-          });
-
-          console.log(
-            `[BOOT][CLIENTE] Toast solicitado en: ${(performance.now() - t0).toFixed(2)} ms`
-          );
-
-          // Paso B: darle tiempo al navegador para pintar el toast
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              const tDispatch = performance.now();
-
-              console.log(
-                `[BOOT][CLIENTE] Despachando APPALMACENController_getBootstrap en: ${(tDispatch - t0).toFixed(2)} ms`
-              );
-
-              google.script.run
-                .withSuccessHandler((megaData) => {
-                  const tSuccess = performance.now();
-
-                  console.log(
-                    `[BOOT][CLIENTE] Respuesta bootstrap recibida en: ${(tSuccess - t0).toFixed(2)} ms`
-                  );
-
-                  window.DATA_ALMACEN_CACHE = megaData;
-                  window.usuariosGlobal = megaData.usuarios || [];
-                  window.bodegasGlobal = megaData.bodegas || [];
-                  window.codigosGlobal = megaData.codigos || [];
-                  window.mapaCatalogoGlobal = megaData.mapaCatalogo || megaData.mapaProductos || {};
-                  window.mapaUbicacionesExcedentesGlobal =
-                    megaData.mapaUbicacionesExcedentes || megaData.mapaUbicaciones || [];
-
-                  console.log("[BOOT][CLIENTE] Resumen bootstrap:", {
-                    usuarios: window.usuariosGlobal.length,
-                    bodegas: window.bodegasGlobal.length,
-                    codigos: window.codigosGlobal.length,
-                    ubicaciones: window.mapaUbicacionesExcedentesGlobal.length
-                  });
-
-                  window.notificar("Base de datos sincronizada exitosamente", "success", 3200, {
-                    title: "Sistema listo",
-                    sound: true
-                  });
-
-                  console.log("📦 [MegaData Cache] Datos sincronizados por primera vez:", megaData);
-                  console.log(
-                    `[BOOT][CLIENTE] Finalizó inicializarMegaData en: ${(performance.now() - t0).toFixed(2)} ms`
-                  );
-
-                  resolve(megaData);
-                })
-                .withFailureHandler((error) => {
-                  const tFail = performance.now();
-
-                  console.error(
-                    `[BOOT][CLIENTE] Error bootstrap recibido en: ${(tFail - t0).toFixed(2)} ms`,
-                    error
-                  );
-
-                  window.notificar("Error al descargar el catálogo", "error", 4200, {
-                    title: "Sincronización fallida",
-                    sound: true
-                  });
-
-                  reject(error);
-                })
-                .APPALMACENController_getBootstrap();
-            });
-          });
-        });
-      };
-
-      const seleccionarVista = (id, fileName) => {
-        limpiarRecursosDeVistaAnterior({ cerrarToast: false });
-        console.log("🧹 [Shell] Preparando carga de vista:", fileName);
-        setViewContent("");
-        setActiveTool(id);
+      // ---------------------------------------------------------
+      // CARGA
+      // ---------------------------------------------------------
+      const refrescarDatos = useCallback((contexto = "init") => {
         setLoading(true);
 
+        if (typeof google === "undefined" || !google.script || !google.script.run) {
+          notify_("google.script.run no está disponible en este contexto.", "error", 4200, {
+            title: "Entorno inválido",
+            sound: true
+          });
+          setLoading(false);
+          return;
+        }
+
+        if (contexto === "init") {
+          notify_("Cargando auditorías de excedentes...", "info", 1600, {
+            title: "Inicializando módulo",
+            sound: false
+          });
+        } else {
+          notify_("Actualizando auditorías de excedentes...", "info", 1400, {
+            title: "Sincronizando",
+            sound: false
+          });
+        }
+
         google.script.run
-          .withSuccessHandler((html) => {
-            setViewContent(html);
-            setLoading(false);
+          .withSuccessHandler((bootstrapResp) => {
+            const bootstrapSafe = bootstrapResp || {};
+            setBootstrapData({
+              usuarios: Array.isArray(bootstrapSafe.usuarios) ? bootstrapSafe.usuarios : [],
+              bodegas: Array.isArray(bootstrapSafe.bodegas) ? bootstrapSafe.bodegas : [],
+              auditoriasAbiertas: Array.isArray(bootstrapSafe.auditoriasAbiertas) ? bootstrapSafe.auditoriasAbiertas : [],
+              auditoriasCerradas: Array.isArray(bootstrapSafe.auditoriasCerradas) ? bootstrapSafe.auditoriasCerradas : []
+            });
+
+            google.script.run
+              .withSuccessHandler((dashboardResp) => {
+                const dash = dashboardResp || {};
+                setDashboard({
+                  fechaCorte: dash.fechaCorte || {},
+                  resumenGlobal: dash.resumenGlobal || {},
+                  destacados: dash.destacados || {},
+                  porBodega: Array.isArray(dash.porBodega) ? dash.porBodega : []
+                });
+
+                google.script.run
+                  .withSuccessHandler((auditoriasResp) => {
+                    const lista = Array.isArray(auditoriasResp) ? auditoriasResp : [];
+                    setAuditorias(lista);
+                    setLoading(false);
+
+                    if (!firstLoadDoneRef.current) {
+                      firstLoadDoneRef.current = true;
+                      notify_(
+                        `Se cargaron ${lista.length} auditorías.`,
+                        "success",
+                        2200,
+                        {
+                          title: "Dashboard listo",
+                          sound: false
+                        }
+                      );
+                    } else if (contexto !== "init") {
+                      notify_(
+                        `Datos actualizados correctamente (${lista.length} auditorías).`,
+                        "success",
+                        1800,
+                        {
+                          title: "Actualización completada",
+                          sound: false
+                        }
+                      );
+                    }
+                  })
+                  .withFailureHandler((err) => {
+                    console.error("❌ [AuditoriaExcedentes] Error listando auditorías:", err);
+                    setLoading(false);
+                    notify_(
+                      err && err.message ? err.message : "No se pudo listar auditorías.",
+                      "error",
+                      4200,
+                      {
+                        title: "Error de auditorías",
+                        sound: true
+                      }
+                    );
+                  })
+                  .AuditoriaExcedentesController_listarAuditorias({});
+              })
+              .withFailureHandler((err) => {
+                console.error("❌ [AuditoriaExcedentes] Error en obtenerDashboardMetricos:", err);
+                setLoading(false);
+                notify_(
+                  err && err.message ? err.message : "No se pudo obtener el dashboard de auditoría.",
+                  "error",
+                  4200,
+                  {
+                    title: "Error de métricos",
+                    sound: true
+                  }
+                );
+              })
+              .AuditoriaExcedentesController_obtenerDashboardMetricos();
           })
           .withFailureHandler((err) => {
-            console.error("❌ [Shell] Error al cargar la vista:", err);
+            console.error("❌ [AuditoriaExcedentes] Error en obtenerBootstrap:", err);
             setLoading(false);
-            window.notificar("Error al cargar la vista", "error", 4200, {
-              title: "Carga fallida"
-            });
+            notify_(
+              err && err.message ? err.message : "No se pudo cargar el módulo de auditoría.",
+              "error",
+              4200,
+              {
+                title: "Error de carga",
+                sound: true
+              }
+            );
           })
-          .APPALMACENController_obtenerContenidoVista(fileName);
-      };
-
-      useEffect(() => {
-        window.inicializarMegaData()
-          .then(() => {
-            console.log("✅ [Shell] MegaData lista. Cargando vista inicial...");
-            seleccionarVista('FormularioTraspasos', 'FormularioTraspasos');
-          })
-          .catch((error) => {
-            console.error("🚨 [Shell] No se pudo inicializar MegaData:", error);
-            window.notificar("Error al sincronizar base de datos. Reintenta.", "error", 4500, {
-              title: "Inicialización incompleta",
-              badge: "Error"
-            });
-            setLoading(false);
-          });
+          .AuditoriaExcedentesController_obtenerBootstrap();
       }, []);
 
       useEffect(() => {
-        if (!containerRef.current || !viewContent) return;
+        refrescarDatos("init");
+      }, [refrescarDatos]);
 
-        let cancelado = false;
+      // ---------------------------------------------------------
+      // NUEVA AUDITORÍA
+      // ---------------------------------------------------------
+      const abrirPanelNuevaAuditoria = () => {
+        const panel = document.getElementById("panelNuevaAuditoriaExcedentes");
+        if (!panel) {
+          notify_("No se encontró el panel de nueva auditoría.", "error", 3200, {
+            title: "Panel no disponible",
+            sound: true
+          });
+          return;
+        }
 
-        (async () => {
-          try {
-            console.log("📄 [Shell] viewContent cargado para:", activeTool);
-            console.log("🧪 [Shell] typeof window.initVista ANTES:", typeof window.initVista);
+        if (typeof bootstrap === "undefined" || !bootstrap.Offcanvas) {
+          notify_("Bootstrap Offcanvas no está disponible.", "error", 3200, {
+            title: "Bootstrap no disponible",
+            sound: true
+          });
+          return;
+        }
 
-            await ejecutarScriptsDeVista(containerRef.current);
+        const instancia = bootstrap.Offcanvas.getOrCreateInstance(panel);
+        instancia.show();
+      };
 
-            if (cancelado) return;
+      const submitNuevaAuditoria = () => {
+        const payload = {
+          auditor: String(formNuevaAuditoria.auditor || "").toUpperCase().trim(),
+          tipoauditoria: String(formNuevaAuditoria.tipoauditoria || "GLOBAL").toUpperCase().trim(),
+          bodegaobjetivo:
+            String(formNuevaAuditoria.tipoauditoria || "GLOBAL").toUpperCase().trim() === "POR_BODEGA"
+              ? String(formNuevaAuditoria.bodegaobjetivo || "").toUpperCase().trim()
+              : "TODAS",
+          observaciones: String(formNuevaAuditoria.observaciones || "").trim()
+        };
 
-            console.log("🧪 [Shell] typeof window.initVista DESPUÉS:", typeof window.initVista);
+        if (!payload.auditor) {
+          notify_("Debes seleccionar un auditor válido.", "warning", 2800, {
+            title: "Auditor requerido",
+            sound: true
+          });
+          return;
+        }
 
-            if (typeof window.initVista === "function") {
-              console.log("🚀 [Shell] Ejecutando initVista:", window.initVista.name || "(anónima)");
-              window.initVista();
-            } else {
-              console.warn("⚠️ [Shell] No existe window.initVista para la vista actual");
+        if (payload.tipoauditoria === "POR_BODEGA" && !payload.bodegaobjetivo) {
+          notify_("Debes seleccionar una bodega objetivo.", "warning", 2800, {
+            title: "Bodega requerida",
+            sound: true
+          });
+          return;
+        }
+
+        notify_("Abriendo auditoría...", "info", 1400, {
+          title: "Procesando",
+          sound: false
+        });
+
+        google.script.run
+          .withSuccessHandler((resp) => {
+            const id = resp?.auditoria?.idauditoria || "NUEVA AUDITORÍA";
+
+            notify_(
+              `Auditoría creada correctamente: ${id}`,
+              "success",
+              2400,
+              {
+                title: "Auditoría abierta",
+                sound: true
+              }
+            );
+
+            const panel = document.getElementById("panelNuevaAuditoriaExcedentes");
+            if (panel && typeof bootstrap !== "undefined" && bootstrap.Offcanvas) {
+              const instancia = bootstrap.Offcanvas.getOrCreateInstance(panel);
+              instancia.hide();
             }
-          } catch (err) {
-            console.error("❌ [Shell] Error inicializando vista:", err);
-            window.notificar("Error al inicializar la vista", "error", 4500, {
-              title: "Inicialización fallida",
-              badge: "Crítico"
+
+            setFormNuevaAuditoria({
+              auditor: "",
+              tipoauditoria: "GLOBAL",
+              bodegaobjetivo: "TODAS",
+              observaciones: ""
             });
+
+            refrescarDatos("manual");
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentes] Error abriendo auditoría:", err);
+            notify_(
+              err && err.message ? err.message : "No se pudo abrir la auditoría.",
+              "error",
+              4200,
+              {
+                title: "Error al abrir auditoría",
+                sound: true
+              }
+            );
+          })
+          .AuditoriaExcedentesController_abrirAuditoria(payload);
+      };
+
+      // ---------------------------------------------------------
+      // DETALLE
+      // ---------------------------------------------------------
+      const abrirDetalleAuditoria = (item) => {
+        if (typeof window.cargar_AuditoriaExcedentesDetalle === "function") {
+          window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = item.idauditoria;
+          window.cargar_AuditoriaExcedentesDetalle();
+          return;
+        }
+
+        notify_(
+          `Auditoría seleccionada: ${item.idauditoria}`,
+          "info",
+          2200,
+          {
+            title: "Detalle pendiente",
+            sound: false
           }
-        })();
+        );
+      };
 
-        return () => { cancelado = true; };
-      }, [viewContent, activeTool]);
+      // ---------------------------------------------------------
+      // DERIVADOS
+      // ---------------------------------------------------------
+      const resumenGlobal = dashboard.resumenGlobal || {};
+      const destacados = dashboard.destacados || {};
+      const porBodega = Array.isArray(dashboard.porBodega) ? dashboard.porBodega : [];
 
-      const toolsByCategory = TOOLS.reduce((acc, tool) => {
-        if (!acc[tool.category]) acc[tool.category] = [];
-        acc[tool.category].push(tool);
-        return acc;
-      }, {});
+      const auditoriasFiltradas = useMemo(() => {
+        let salida = [...auditorias];
 
-      const orderedCategories = CATEGORY_ORDER.filter(
-        cat => Array.isArray(toolsByCategory[cat]) && toolsByCategory[cat].length > 0
-      );
+        if (filterStatus !== "TODAS") {
+          salida = salida.filter(item => String(item.estatus || "").toUpperCase() === filterStatus);
+        }
 
-      return e("div", { className: "flex h-screen w-full overflow-hidden" },
-        e("div", { className: "sidebar-trigger", onMouseEnter: () => setIsSidebarOpen(true) }),
+        if (filterTipo !== "TODOS") {
+          salida = salida.filter(item => String(item.tipoauditoria || "").toUpperCase() === filterTipo);
+        }
 
-        e("aside", {
-          onMouseEnter: () => setIsSidebarOpen(true),
-          onMouseLeave: () => setIsSidebarOpen(false),
-          className: `bg-[#1c1d1f] flex flex-col z-40 sidebar-transition relative shadow-xl ${isSidebarOpen ? 'sidebar-visible' : 'sidebar-mini'}`
-        },
-          e("div", { className: "p-4 flex flex-col items-center" },
-            e("div", { className: "logo-container flex items-center justify-center shadow-md" },
-              e("img", {
-                src: "https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png",
-                alt: "Logo",
-                className: "w-full h-full object-contain"
-              })
-            ),
-            e("div", {
-              className: `mt-4 text-center transition-all duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`
-            },
-              e("span", {
-                className: "block text-white font-black uppercase text-[15px] tracking-[0.05em]"
-              }, "Gestión de Almacén"),
-              e("span", {
-                className: "text-[#d93025] font-bold text-[12px] uppercase tracking-[0.20em]"
-              }, "Birlos y Tornillos")
-            )
-          ),
+        if (filterBodega !== "TODAS") {
+          salida = salida.filter(item => String(item.bodegaobjetivo || "").toUpperCase() === filterBodega);
+        }
 
-          e("div", { className: "flex justify-center my-2" },
-            e("div", {
-              className: `h-[3px] bg-gray-700/50 transition-all duration-500 ${isSidebarOpen ? 'w-4/5' : 'w-1/2'}`
-            })
-          ),
+        const q = String(searchQuery || "").trim().toLowerCase();
+        if (q) {
+          salida = salida.filter(item =>
+            String(item.idauditoria || "").toLowerCase().includes(q) ||
+            String(item.auditor || "").toLowerCase().includes(q) ||
+            String(item.tipoauditoria || "").toLowerCase().includes(q) ||
+            String(item.bodegaobjetivo || "").toLowerCase().includes(q)
+          );
+        }
 
-          e("nav", { className: "flex-1 px-3 space-y-6 mt-4 custom-scroll overflow-y-auto" },
-            orderedCategories.map(category =>
-              e("div", { key: category, className: "space-y-2" },
-                e("div", {
-                  className: `px-4 transition-all duration-300 ${isSidebarOpen ? 'opacity-100 h-auto mb-2' : 'opacity-0 h-0 overflow-hidden'}`
-                },
-                  e("p", {
-                    className: "text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]"
-                  }, category)
-                ),
+        if (sortBy === "FECHA_ASC") {
+          salida.sort((a, b) => String(a.fecha || "").localeCompare(String(b.fecha || ""), "es", { sensitivity: "base", numeric: true }));
+        }
 
-                e("div", { className: "space-y-1" },
-                  toolsByCategory[category].map(tool =>
-                    e("button", {
-                      key: tool.id,
-                      onClick: () => seleccionarVista(tool.id, tool.id),
-                      className: `w-full h-11 flex items-center rounded-xl transition-all group relative ${
-                        activeTool === tool.id
-                          ? 'bg-[#d93025] text-white shadow-lg shadow-red-900/20'
-                          : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                      }`
-                    },
-                      e("div", { className: "min-w-[50px] flex items-center justify-center" },
-                        e(Icon, { name: tool.icon, size: 18 })
-                      ),
-                      e("span", {
-                        className: `font-bold uppercase text-[11px] tracking-tight transition-opacity duration-300 ${
-                          isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'
-                        }`
-                      }, tool.name),
-                      activeTool === tool.id && isSidebarOpen
-                        ? e("div", { className: "absolute right-4 w-1.5 h-1.5 bg-white rounded-full" })
-                        : null
-                    )
-                  )
-                ),
+        if (sortBy === "FECHA_DESC") {
+          salida.sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || ""), "es", { sensitivity: "base", numeric: true }));
+        }
 
-                e("div", { className: "flex justify-center pb-2" },
-                  e("div", {
-                    className: `h-[3px] bg-gray-700/50 rounded-full transition-all duration-500 ${isSidebarOpen ? 'w-4/5 opacity-100' : 'w-0 opacity-0 overflow-hidden'}`
-                  })
-                )
-              )
-            )
-          )
-        ),
+        if (sortBy === "CONFIABILIDAD_DESC") {
+          salida.sort((a, b) => Number(b.confiabilidadtotal || 0) - Number(a.confiabilidadtotal || 0));
+        }
 
-        e("main", { className: "flex-1 flex flex-col relative bg-[#f8f9fa]" },
-          isSidebarOpen ? e("div", { className: "overlay-fade", onClick: () => setIsSidebarOpen(false) }) : null,
+        if (sortBy === "CONFIABILIDAD_ASC") {
+          salida.sort((a, b) => Number(a.confiabilidadtotal || 0) - Number(b.confiabilidadtotal || 0));
+        }
 
-          e("header", {
-            className: "h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10"
-          },
-            e("div", null,
-              e("h1", {
-                className: "text-xl font-black uppercase tracking-tighter"
-              },
-                TOOLS.find(t => t.id === activeTool)?.name
-              )
-            )
-          ),
+        return salida;
+      }, [auditorias, filterStatus, filterTipo, filterBodega, searchQuery, sortBy]);
 
-          e("div", {
-            className: "flex-1 overflow-auto bg-white m-4 rounded-2xl shadow-sm border border-[#dadce0]"
-          },
-            loading
-              ? e("div", { className: "flex items-center justify-center h-full" },
-                  e(Icon, { name: "loader-2", className: "animate-spin text-[#d93025]", size: 40 })
-                )
-              : e("div", { ref: containerRef, dangerouslySetInnerHTML: { __html: viewContent } })
-          )
-        )
+      const confSemanalGlobal = getConfiabilidadVisual(resumenGlobal.confiabilidadSemanalActualEjercicio);
+      const confMensualGlobal = getConfiabilidadVisual(resumenGlobal.confiabilidadMensualActualEjercicio);
+
+      const criticaSemana = destacados.bodegaMasCriticaSemana || null;
+      const mejorSemana = destacados.bodegaMejorSemana || null;
+
+      return (
+        <div className="space-y-6 fade-in-up relative">
+          {/* KPI */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <KPIBlock
+              title="Auditorías abiertas"
+              value={Number(resumenGlobal.auditoriasAbiertas || 0)}
+              unit="eventos"
+              iconName="folder-open"
+              tone="red"
+              trend={{
+                text: "Operación viva",
+                className: "ae-chip ae-chip-red"
+              }}
+            />
+
+            <KPIBlock
+              title="Ubicaciones abiertas"
+              value={Number(resumenGlobal.ubicacionesAbiertas || 0)}
+              unit="ubic."
+              iconName="map"
+              tone="amber"
+              trend={{
+                text: "Pendientes por cerrar",
+                className: "ae-chip ae-chip-amber"
+              }}
+            />
+
+            <KPIBlock
+              title="Confiabilidad semanal"
+              value={Number(resumenGlobal.confiabilidadSemanalActualEjercicio || 0).toFixed(2)}
+              unit="%"
+              iconName="shield-check"
+              tone={confSemanalGlobal.tone}
+              trend={{
+                text: confSemanalGlobal.label,
+                className: confSemanalGlobal.className
+              }}
+            />
+
+            <KPIBlock
+              title="Faltantes semana actual"
+              value={Number(resumenGlobal.faltantesSemanaActual || 0)}
+              unit="ids"
+              iconName="triangle-alert"
+              tone="red"
+              trend={{
+                text: "Diferencia física",
+                className: "ae-chip ae-chip-red"
+              }}
+            />
+
+            <KPIBlock
+              title="Sobrantes semana actual"
+              value={Number(resumenGlobal.sobrantesSemanaActual || 0)}
+              unit="ids"
+              iconName="plus-circle"
+              tone="amber"
+              trend={{
+                text: "Fuera de ubicación",
+                className: "ae-chip ae-chip-amber"
+              }}
+            />
+
+            <KPIBlock
+              title="Confiabilidad mensual"
+              value={Number(resumenGlobal.confiabilidadMensualActualEjercicio || 0).toFixed(2)}
+              unit="%"
+              iconName="gauge"
+              tone={confMensualGlobal.tone}
+              trend={{
+                text: confMensualGlobal.label,
+                className: confMensualGlobal.className
+              }}
+            />
+          </div>
+
+          {/* Destacados */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="ae-card p-5">
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
+                    Bodega más crítica / semana
+                  </p>
+                  <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[22px] font-black tracking-tight">
+                    {criticaSemana?.bodega || "Sin datos"}
+                  </h3>
+                </div>
+
+                <div className={getConfiabilidadVisual(criticaSemana?.semanalActual?.confiabilidad).className}>
+                  {Number(criticaSemana?.semanalActual?.confiabilidad || 0).toFixed(2)}%
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="ae-mini-card">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                    Faltantes
+                  </div>
+                  <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
+                    {Number(criticaSemana?.semanalActual?.faltantes || 0)}
+                  </div>
+                </div>
+
+                <div className="ae-mini-card">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                    Sobrantes
+                  </div>
+                  <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
+                    {Number(criticaSemana?.semanalActual?.sobrantes || 0)}
+                  </div>
+                </div>
+
+                <div className="ae-mini-card">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                    Dif. ubi
+                  </div>
+                  <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
+                    {Number(criticaSemana?.semanalActual?.ubicacionesConDiferencia || 0)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="ae-card p-5">
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
+                    Mejor bodega / semana
+                  </p>
+                  <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[22px] font-black tracking-tight">
+                    {mejorSemana?.bodega || "Sin datos"}
+                  </h3>
+                </div>
+
+                <div className={getConfiabilidadVisual(mejorSemana?.semanalActual?.confiabilidad).className}>
+                  {Number(mejorSemana?.semanalActual?.confiabilidad || 0).toFixed(2)}%
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="ae-mini-card">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                    Correctos
+                  </div>
+                  <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
+                    {Number(mejorSemana?.semanalActual?.correctos || 0)}
+                  </div>
+                </div>
+
+                <div className="ae-mini-card">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                    Esperados
+                  </div>
+                  <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
+                    {Number(mejorSemana?.semanalActual?.esperados || 0)}
+                  </div>
+                </div>
+
+                <div className="ae-mini-card">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                    Dif. ubi
+                  </div>
+                  <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
+                    {Number(mejorSemana?.semanalActual?.ubicacionesConDiferencia || 0)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Filtros */}
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { id: "TODAS", label: "Todas" },
+                { id: "ABIERTA", label: "Abiertas" },
+                { id: "CERRADA", label: "Cerradas" }
+              ].map(btn => (
+                <button
+                  key={btn.id}
+                  onClick={() => setFilterStatus(btn.id)}
+                  className={`ae-filter-btn ${filterStatus === btn.id ? "active-primary" : "idle"}`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+
+              {[
+                { id: "TODOS", label: "Todos los tipos" },
+                { id: "GLOBAL", label: "Global" },
+                { id: "POR_BODEGA", label: "Por bodega" }
+              ].map(btn => (
+                <button
+                  key={btn.id}
+                  onClick={() => setFilterTipo(btn.id)}
+                  className={`ae-filter-btn ${filterTipo === btn.id ? "active-dark" : "idle"}`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <select
+                className="ae-form-select !min-h-[44px] !text-[12px] !font-black !uppercase !tracking-[0.12em] !bg-white"
+                value={filterBodega}
+                onChange={(e) => setFilterBodega(e.target.value)}
+                style={{ width: "220px" }}
+              >
+                <option value="TODAS">Todas las bodegas</option>
+                {(bootstrapData.bodegas || []).map((bodega, index) => (
+                  <option key={`${bodega}-${index}`} value={String(bodega || "").toUpperCase()}>
+                    {bodega}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                className="ae-form-select !min-h-[44px] !text-[12px] !font-black !uppercase !tracking-[0.12em] !bg-white"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                style={{ width: "220px" }}
+              >
+                <option value="FECHA_DESC">Fecha descendente</option>
+                <option value="FECHA_ASC">Fecha ascendente</option>
+                <option value="CONFIABILIDAD_DESC">Confiabilidad mayor</option>
+                <option value="CONFIABILIDAD_ASC">Confiabilidad menor</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Tabla principal */}
+          <div className="ae-card overflow-hidden">
+            <div className="ae-table-wrap custom-scroll">
+              <table className="ae-table">
+                <thead>
+                  <tr>
+                    <th>Evento / Identificador</th>
+                    <th>Tipo</th>
+                    <th>Auditor</th>
+                    <th>Bodega objetivo</th>
+                    <th>Estado</th>
+                    <th>Confiabilidad</th>
+                    <th>Ubicaciones</th>
+                    <th>Diferencias</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {auditoriasFiltradas.map((item, idx) => {
+                    const conf = getConfiabilidadVisual(item.confiabilidadtotal);
+
+                    return (
+                      <tr
+                        key={item.idauditoria || idx}
+                        className={`ae-row ${activeRow === idx ? "active" : ""}`}
+                        onClick={() => setActiveRow(activeRow === idx ? null : idx)}
+                      >
+                        <td>
+                          <div className="flex flex-col">
+                            <span className="ae-folio-main">{item.idauditoria}</span>
+
+                            <span className="ae-folio-sub">
+                              {construirResumenFechaHora_(item)}
+                            </span>
+
+                            <span className="ae-folio-desc">
+                              {item.observaciones || "Sin observaciones registradas"}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td>
+                          <span className={getTipoChipClass(item.tipoauditoria)}>
+                            {item.tipoauditoria === "POR_BODEGA" ? "POR BODEGA" : "GLOBAL"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className="text-[13px] font-black uppercase tracking-[0.10em] text-[var(--text-main)]">
+                            {item.auditor || "SIN AUDITOR"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className="text-[13px] font-black uppercase tracking-[0.10em] text-[var(--text-main)]">
+                            {item.bodegaobjetivo || "TODAS"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className={getStatusChipClass(item.estatus)}>
+                            {item.estatus || "SIN ESTATUS"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className={`${conf.className} ${conf.level === "RED" ? "pulse-critical" : ""}`}>
+                            {Number(item.confiabilidadtotal || 0).toFixed(2)}% • {conf.label}
+                          </span>
+                        </td>
+
+                        <td>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[18px] font-black text-[var(--text-main)]">
+                              {Number(item.ubicacionesauditadas || 0)}
+                            </span>
+                            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                              auditadas
+                            </span>
+                          </div>
+                        </td>
+
+                        <td>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[18px] font-black text-[var(--primary)]">
+                              {Number(item.ubicacionescondiferencia || 0)}
+                            </span>
+                            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                              con diferencia
+                            </span>
+                          </div>
+                        </td>
+
+                        <td>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              abrirDetalleAuditoria(item);
+                            }}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-[12px] font-black uppercase tracking-[0.10em] transition-all duration-200"
+                          >
+                            <LocalIcon name="arrow-up-right" size={14} />
+                            Ver detalle
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {auditoriasFiltradas.length === 0 && !loading && (
+                <div className="ae-empty-state">
+                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                    <LocalIcon name="search-x" size={28} />
+                  </div>
+
+                  <span className="text-[13px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                    Sin auditorías coincidentes
+                  </span>
+
+                  <span className="text-[11px] text-slate-400 font-semibold">
+                    Ajusta la búsqueda o los filtros operativos.
+                  </span>
+                </div>
+              )}
+
+              {loading && (
+                <div className="p-28 flex flex-col items-center justify-center gap-4">
+                  <div className="w-10 h-10 border-4 border-slate-100 border-t-[var(--primary)] rounded-full animate-spin"></div>
+                  <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                    Cargando auditorías de excedentes...
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Resumen por bodega */}
+          <div className="ae-card p-5">
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
+                  Confiabilidad actual por bodega
+                </p>
+                <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[22px] font-black tracking-tight">
+                  Semana y mes actual
+                </h3>
+              </div>
+
+              <span className="ae-chip ae-chip-slate">
+                {Array.isArray(porBodega) ? porBodega.length : 0} bodegas
+              </span>
+            </div>
+
+            <div className="overflow-auto custom-scroll">
+              <table className="ae-table">
+                <thead>
+                  <tr>
+                    <th>Bodega</th>
+                    <th>Semanal</th>
+                    <th>Mensual</th>
+                    <th>Faltantes sem.</th>
+                    <th>Sobrantes sem.</th>
+                    <th>Dif. ubic sem.</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {porBodega.map((item, idx) => {
+                    const semanalVis = getConfiabilidadVisual(item?.semanalActual?.confiabilidad);
+                    const mensualVis = getConfiabilidadVisual(item?.mensualActual?.confiabilidad);
+
+                    return (
+                      <tr key={`${item.bodega}-${idx}`} className="ae-row">
+                        <td>
+                          <span className="text-[14px] font-black uppercase tracking-[0.10em] text-[var(--text-main)]">
+                            {item.bodega}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className={semanalVis.className}>
+                            {Number(item?.semanalActual?.confiabilidad || 0).toFixed(2)}%
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className={mensualVis.className}>
+                            {Number(item?.mensualActual?.confiabilidad || 0).toFixed(2)}%
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className="text-[16px] font-black text-[var(--primary)]">
+                            {Number(item?.semanalActual?.faltantes || 0)}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className="text-[16px] font-black text-amber-700">
+                            {Number(item?.semanalActual?.sobrantes || 0)}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className="text-[16px] font-black text-[var(--text-main)]">
+                            {Number(item?.semanalActual?.ubicacionesConDiferencia || 0)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {!loading && porBodega.length === 0 && (
+                <div className="ae-empty-state !min-h-[200px]">
+                  <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                    <LocalIcon name="warehouse" size={24} />
+                  </div>
+                  <span className="text-[12px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                    Sin métricos por bodega
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* FAB */}
+          <div className="fixed bottom-10 right-10 z-[999] flex flex-col items-end gap-3">
+            {isFabMenuOpen && isSearchExpanded && (
+              <div className="flex items-center gap-3 animate-slide-left">
+                <input
+                  ref={searchInputRef}
+                  autoFocus
+                  type="text"
+                  placeholder="Busca por ID, auditor, tipo o bodega..."
+                  className="ae-search-input"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            )}
+
+            {isFabMenuOpen && (
+              <div className="flex flex-col items-end gap-3 animate-fab-in">
+                <button
+                  onClick={() => {
+                    const nuevoEstado = !isSearchExpanded;
+                    setIsSearchExpanded(nuevoEstado);
+
+                    if (nuevoEstado) {
+                      setTimeout(() => searchInputRef.current?.focus(), 120);
+                    } else {
+                      setSearchQuery("");
+                    }
+                  }}
+                  className="ae-fab-action"
+                  title={isSearchExpanded ? "Cerrar buscador" : "Buscar auditoría"}
+                >
+                  <LocalIcon name={isSearchExpanded ? "x" : "search"} size={24} />
+                </button>
+
+                <button
+                  onClick={() => refrescarDatos("manual")}
+                  disabled={loading}
+                  className="ae-fab-action"
+                  title="Actualizar tablero"
+                >
+                  <LocalIcon
+                    name="refresh-cw"
+                    size={24}
+                    className={loading ? "animate-spin text-[var(--primary)]" : ""}
+                  />
+                </button>
+
+                <button
+                  onClick={abrirPanelNuevaAuditoria}
+                  className="ae-fab-action primary"
+                  title="Nueva auditoría"
+                >
+                  <LocalIcon name="folder-plus" size={24} />
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                const nuevoEstado = !isFabMenuOpen;
+                setIsFabMenuOpen(nuevoEstado);
+
+                if (!nuevoEstado) {
+                  setIsSearchExpanded(false);
+                  setSearchQuery("");
+                }
+              }}
+              className={`ae-fab-main ${isFabMenuOpen ? "open" : ""}`}
+              title={isFabMenuOpen ? "Cerrar acciones" : "Abrir acciones"}
+            >
+              <LocalIcon name={isFabMenuOpen ? "x" : "ellipsis-vertical"} size={26} />
+            </button>
+          </div>
+
+          {/* OFFCANVAS NUEVA AUDITORÍA */}
+          <div
+            className="offcanvas offcanvas-end ae-offcanvas"
+            tabIndex="-1"
+            id="panelNuevaAuditoriaExcedentes"
+            aria-labelledby="panelNuevaAuditoriaExcedentesLabel"
+          >
+            <div className="offcanvas-header">
+              <div>
+                <h5
+                  id="panelNuevaAuditoriaExcedentesLabel"
+                  className="mb-1 fw-bold"
+                  style={{ color: "var(--text-main)" }}
+                >
+                  Nueva Auditoría de Excedentes
+                </h5>
+                <p className="mb-0 text-muted" style={{ fontSize: "13px" }}>
+                  Configura y abre un nuevo evento de auditoría.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="btn-close text-reset"
+                data-bs-dismiss="offcanvas"
+                aria-label="Cerrar"
+              ></button>
+            </div>
+
+            <div className="offcanvas-body d-flex flex-column gap-4">
+              <div>
+                <label className="ae-form-label">Auditor responsable</label>
+                <input
+                  list="lista-usuarios-auditoria-excedentes"
+                  className="ae-form-input"
+                  placeholder="Escribe o selecciona auditor"
+                  value={formNuevaAuditoria.auditor}
+                  onChange={(e) =>
+                    setFormNuevaAuditoria(prev => ({
+                      ...prev,
+                      auditor: e.target.value.toUpperCase()
+                    }))
+                  }
+                />
+                <datalist id="lista-usuarios-auditoria-excedentes">
+                  {(bootstrapData.usuarios || []).map((u, index) => (
+                    <option key={index} value={obtenerNombreUsuario_(u)} />
+                  ))}
+                </datalist>
+              </div>
+
+              <div>
+                <label className="ae-form-label">Tipo de auditoría</label>
+                <select
+                  className="ae-form-select"
+                  value={formNuevaAuditoria.tipoauditoria}
+                  onChange={(e) =>
+                    setFormNuevaAuditoria(prev => ({
+                      ...prev,
+                      tipoauditoria: e.target.value,
+                      bodegaobjetivo: e.target.value === "POR_BODEGA" ? "" : "TODAS"
+                    }))
+                  }
+                >
+                  <option value="GLOBAL">GLOBAL</option>
+                  <option value="POR_BODEGA">POR_BODEGA</option>
+                </select>
+              </div>
+
+              {String(formNuevaAuditoria.tipoauditoria || "").toUpperCase() === "POR_BODEGA" && (
+                <div>
+                  <label className="ae-form-label">Bodega objetivo</label>
+                  <select
+                    className="ae-form-select"
+                    value={formNuevaAuditoria.bodegaobjetivo}
+                    onChange={(e) =>
+                      setFormNuevaAuditoria(prev => ({
+                        ...prev,
+                        bodegaobjetivo: e.target.value.toUpperCase()
+                      }))
+                    }
+                  >
+                    <option value="">Selecciona una bodega</option>
+                    {(bootstrapData.bodegas || []).map((bodega, index) => (
+                      <option key={`${bodega}-${index}`} value={String(bodega || "").toUpperCase()}>
+                        {bodega}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="ae-form-label">Observaciones</label>
+                <textarea
+                  className="ae-form-textarea"
+                  placeholder="Notas iniciales de la auditoría..."
+                  value={formNuevaAuditoria.observaciones}
+                  onChange={(e) =>
+                    setFormNuevaAuditoria(prev => ({
+                      ...prev,
+                      observaciones: e.target.value
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="ae-mini-card">
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-2">
+                  Alcance esperado
+                </div>
+
+                <div className="text-[13px] font-semibold text-[var(--text-main)] leading-relaxed">
+                  {String(formNuevaAuditoria.tipoauditoria || "").toUpperCase() === "POR_BODEGA"
+                    ? `La auditoría se abrirá solo para la bodega ${formNuevaAuditoria.bodegaobjetivo || "SIN DEFINIR"}.`
+                    : "La auditoría se abrirá a nivel ejercicio, considerando todas las bodegas auditables."}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="ae-btn-primary mt-auto"
+                onClick={submitNuevaAuditoria}
+              >
+                Abrir auditoría
+              </button>
+            </div>
+          </div>
+        </div>
       );
     };
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(e(App));
+    // =========================================================
+    // MONTAJE
+    // =========================================================
+    const targetElement = document.getElementById("render-auditoria-excedentes");
 
-    document.getElementById('boot-splash').style.display = 'none';
-  </script>
-</body>
-</html>
+    if (!targetElement) {
+      notify_(
+        "No se encontró el contenedor principal de la vista de auditorías.",
+        "error",
+        4200,
+        {
+          title: "Error de interfaz",
+          sound: true
+        }
+      );
+      console.warn("⚠️ [AuditoriaExcedentes] No se encontró #render-auditoria-excedentes");
+      return;
+    }
+
+    const yaInicializado = targetElement.dataset.aeMounted === "1";
+
+    if (window.__AUDITORIA_EXCEDENTES_ROOT__) {
+      try {
+        window.__AUDITORIA_EXCEDENTES_ROOT__.unmount();
+      } catch (e) {
+        console.warn("⚠️ [AuditoriaExcedentes] No se pudo desmontar root previo:", e);
+        notifyOnceShell_(
+          "auditoria-root-previo",
+          "Se liberó una instancia previa de la vista de auditorías.",
+          "warning",
+          1600,
+          {
+            title: "Reinicialización",
+            sound: false
+          },
+          10000
+        );
+      }
+      window.__AUDITORIA_EXCEDENTES_ROOT__ = null;
+    }
+
+    try {
+      targetElement.dataset.aeMounted = "1";
+      window.__AUDITORIA_EXCEDENTES_ROOT__ = ReactDOM.createRoot(targetElement);
+      window.__AUDITORIA_EXCEDENTES_ROOT__.render(<AuditoriaExcedentesDashboard />);
+
+      if (!yaInicializado) {
+        notifyOnceShell_(
+          "auditoria-vista-montada",
+          "Vista de auditorías lista para operar.",
+          "success",
+          1500,
+          {
+            title: "Vista cargada",
+            sound: false
+          },
+          12000
+        );
+      }
+    } catch (e) {
+      console.error("❌ [AuditoriaExcedentes] Error montando root React:", e);
+      notify_(
+        "Ocurrió un error al montar la vista de auditorías.",
+        "error",
+        4200,
+        {
+          title: "Error de montaje",
+          sound: true
+        }
+      );
+    }
+  };
+
+  window.initVista = window.cargar_AuditoriaExcedentes;
+  console.log("🧩 [AuditoriaExcedentes] Vista inyectable inicializada y registrada.");
+</script>

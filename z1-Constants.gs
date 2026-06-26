@@ -73,7 +73,7 @@ const SHEETS = {
 
   AUDITORIA_EXCEDENTES_DETALLE: {
       file: "GESTION",
-      name: "aAUDITORIAEXCEDENTESDETALLE"
+      name: "AUDITORIAEXCEDENTESDETALLE"
     }
 
 };

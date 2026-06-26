@@ -1,0 +1,1799 @@
+<script>/** AuditoriaExcedentesDetalle.html */</script>
+
+<style>
+  #render-auditoria-excedentes-detalle {
+    --aed-critical: var(--primary);
+    --aed-critical-dark: var(--primary-dark, #a50e0e);
+    --aed-critical-light: var(--primary-light, rgba(217, 48, 37, 0.20));
+
+    --aed-warning: #d97706;
+    --aed-warning-dark: #b45309;
+    --aed-warning-light: rgba(217, 119, 6, 0.14);
+
+    --aed-success: #1e8e3e;
+    --aed-success-dark: #157337;
+    --aed-success-light: rgba(30, 142, 62, 0.14);
+
+    --aed-white: var(--white, #ffffff);
+    --aed-bg: var(--bg-color, #f8f9fa);
+    --aed-text-main: var(--text-main, #1c1d1f);
+    --aed-text-secondary: var(--text-secondary, #5f6368);
+    --aed-border: var(--border-color, #dadce0);
+    --aed-shadow-soft: var(--shadow-soft, 0 10px 25px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.05));
+    --aed-shadow-red: var(--shadow-red, 0 4px 10px rgba(217, 48, 37, 0.1));
+  }
+
+  #render-auditoria-excedentes-detalle .font-mono-premium {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  #render-auditoria-excedentes-detalle .custom-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  #render-auditoria-excedentes-detalle .custom-scroll::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.03);
+  }
+
+  #render-auditoria-excedentes-detalle .custom-scroll::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.15);
+    border-radius: 999px;
+  }
+
+  #render-auditoria-excedentes-detalle .custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+  }
+
+  #render-auditoria-excedentes-detalle {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  #render-auditoria-excedentes-detalle::-webkit-scrollbar {
+    display: none;
+  }
+
+  @keyframes aedFadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  #render-auditoria-excedentes-detalle .fade-in-up {
+    animation: aedFadeInUp 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes aedPulseRed {
+    0% { box-shadow: 0 0 0 0px rgba(217, 48, 37, 0.24); }
+    70% { box-shadow: 0 0 0 8px rgba(217, 48, 37, 0); }
+    100% { box-shadow: 0 0 0 0px rgba(217, 48, 37, 0); }
+  }
+
+  #render-auditoria-excedentes-detalle .pulse-red {
+    animation: aedPulseRed 2s infinite ease-in-out;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-card {
+    background: var(--aed-white);
+    border: 1px solid var(--aed-border);
+    border-radius: 1.5rem;
+    box-shadow: var(--aed-shadow-soft);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-panel {
+    background: var(--aed-white);
+    border: 1px solid var(--aed-border);
+    border-radius: 1.5rem;
+    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-kpi {
+    background: var(--aed-white);
+    border: 1px solid var(--aed-border);
+    border-radius: 1.25rem;
+    padding: 1rem 1.1rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-kpi-topbar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-kpi-topbar.red { background: var(--aed-critical); }
+  #render-auditoria-excedentes-detalle .aed-kpi-topbar.amber { background: var(--aed-warning); }
+  #render-auditoria-excedentes-detalle .aed-kpi-topbar.emerald { background: var(--aed-success); }
+  #render-auditoria-excedentes-detalle .aed-kpi-topbar.slate { background: var(--aed-text-main); }
+
+  #render-auditoria-excedentes-detalle .aed-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-chip-red {
+    background: var(--aed-critical-light);
+    color: var(--aed-critical-dark);
+    border-color: rgba(217, 48, 37, 0.25);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-chip-amber {
+    background: var(--aed-warning-light);
+    color: var(--aed-warning-dark);
+    border-color: rgba(217, 119, 6, 0.22);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-chip-emerald {
+    background: var(--aed-success-light);
+    color: var(--aed-success-dark);
+    border-color: rgba(30, 142, 62, 0.24);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-chip-slate {
+    background: rgba(28, 29, 31, 0.07);
+    color: var(--aed-text-main);
+    border-color: rgba(28, 29, 31, 0.12);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-status-open {
+    background: var(--aed-critical-light);
+    color: var(--aed-critical-dark);
+    border-color: rgba(217, 48, 37, 0.20);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-status-closed {
+    background: var(--aed-success-light);
+    color: var(--aed-success-dark);
+    border-color: rgba(30, 142, 62, 0.24);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-input,
+  #render-auditoria-excedentes-detalle .aed-select,
+  #render-auditoria-excedentes-detalle .aed-textarea {
+    width: 100%;
+    border: 1px solid var(--aed-border);
+    background: #f8f9fa;
+    border-radius: 14px;
+    outline: none;
+    transition: all 0.22s ease;
+    color: var(--aed-text-main);
+    font-weight: 700;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-input,
+  #render-auditoria-excedentes-detalle .aed-select {
+    min-height: 52px;
+    padding: 0 16px;
+    font-size: 14px;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-textarea {
+    min-height: 96px;
+    padding: 14px 16px;
+    font-size: 14px;
+    resize: vertical;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-input:focus,
+  #render-auditoria-excedentes-detalle .aed-select:focus,
+  #render-auditoria-excedentes-detalle .aed-textarea:focus {
+    border-color: var(--primary);
+    background: white;
+    box-shadow: var(--aed-shadow-red);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--aed-text-secondary);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-btn-primary,
+  #render-auditoria-excedentes-detalle .aed-btn-dark,
+  #render-auditoria-excedentes-detalle .aed-btn-soft,
+  #render-auditoria-excedentes-detalle .aed-btn-danger {
+    min-height: 50px;
+    border: none;
+    border-radius: 14px;
+    padding: 0 18px;
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    transition: all 0.2s ease;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-btn-primary {
+    background: var(--primary);
+    color: white;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-btn-primary:hover {
+    background: var(--primary-dark, #a50e0e);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-btn-dark {
+    background: var(--aed-text-main);
+    color: white;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-btn-dark:hover {
+    filter: brightness(0.92);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-btn-soft {
+    background: white;
+    color: var(--aed-text-secondary);
+    border: 1px solid var(--aed-border);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-btn-soft:hover {
+    border-color: rgba(217, 48, 37, 0.35);
+    color: var(--primary);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-btn-danger {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-btn-danger:hover {
+    background: #fecaca;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-btn-primary:disabled,
+  #render-auditoria-excedentes-detalle .aed-btn-dark:disabled,
+  #render-auditoria-excedentes-detalle .aed-btn-soft:disabled,
+  #render-auditoria-excedentes-detalle .aed-btn-danger:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-table-wrap {
+    max-height: 64vh;
+    overflow: auto;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(248, 249, 250, 0.96);
+    backdrop-filter: blur(8px);
+    padding: 14px 16px;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--aed-text-secondary);
+    border-bottom: 1px solid var(--aed-border);
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-table tbody td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #eef1f4;
+    background: var(--aed-white);
+    vertical-align: middle;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-row:hover td {
+    background: #fcfcfd;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-list-item {
+    border: 1px solid var(--aed-border);
+    background: white;
+    border-radius: 1rem;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-list-item:hover {
+    border-color: rgba(217, 48, 37, 0.25);
+    box-shadow: var(--aed-shadow-red);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-list-item.active {
+    border-color: var(--primary);
+    background: rgba(217, 48, 37, 0.04);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-empty-state {
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    color: #9ca3af;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-meta-main {
+    font-size: 16px;
+    font-weight: 900;
+    color: var(--aed-text-main);
+    letter-spacing: 0.04em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-meta-sub {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--aed-text-secondary);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-state-correcto {
+    background: var(--aed-success-light);
+    color: var(--aed-success-dark);
+    border-color: rgba(30, 142, 62, 0.24);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-state-faltante {
+    background: var(--aed-warning-light);
+    color: var(--aed-warning-dark);
+    border-color: rgba(217, 119, 6, 0.22);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-state-sobrante {
+    background: var(--aed-critical-light);
+    color: var(--aed-critical-dark);
+    border-color: rgba(217, 48, 37, 0.22);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-state-pendiente {
+    background: rgba(28, 29, 31, 0.06);
+    color: var(--aed-text-main);
+    border-color: rgba(28, 29, 31, 0.12);
+  }
+</style>
+
+<div
+  id="render-auditoria-excedentes-detalle"
+  class="h-full w-full flex flex-col bg-[var(--bg-color)] overflow-y-auto p-4 md:p-8"
+></div>
+
+<script type="text/babel">
+  window.cargar_AuditoriaExcedentesDetalle = () => {
+    const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+    // =========================================================
+    // HELPERS DE NOTIFICACIÓN
+    // =========================================================
+    const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
+      const fn = window.notificar || window.lanzarNotificacion;
+      if (typeof fn === "function") {
+        fn(mensaje, tipo, timer, options);
+      }
+    };
+
+    const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
+      const now = Date.now();
+      const last = ref.current[key] || 0;
+      if (now - last < cooldown) return;
+      ref.current[key] = now;
+      notify_(mensaje, tipo, timer, options);
+    };
+
+    const shellNotifyStateRef = { current: {} };
+    const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
+
+    // =========================================================
+    // UTILIDADES DE FECHA / HORA
+    // =========================================================
+    function _esDateValida_(d) {
+      return d instanceof Date && !isNaN(d.getTime());
+    }
+
+    function _parseFechaFlexible_(value) {
+      if (!value) return null;
+
+      if (value instanceof Date) {
+        return _esDateValida_(value) ? value : null;
+      }
+
+      const str = String(value).trim();
+      if (!str) return null;
+
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+        const parts = str.split("/");
+        const day = Number(parts[0]);
+        const month = Number(parts[1]);
+        const year = Number(parts[2]);
+        const d = new Date(year, month - 1, day, 0, 0, 0, 0);
+        return _esDateValida_(d) ? d : null;
+      }
+
+      const parsed = new Date(str);
+      return _esDateValida_(parsed) ? parsed : null;
+    }
+
+    function _parseHoraFlexible_(value) {
+      if (!value) return null;
+
+      if (value instanceof Date) {
+        return _esDateValida_(value) ? value : null;
+      }
+
+      const str = String(value).trim();
+      if (!str) return null;
+
+      if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
+        const parts = str.split(":");
+        const hh = Number(parts[0] || 0);
+        const mm = Number(parts[1] || 0);
+        const ss = Number(parts[2] || 0);
+        const d = new Date(2000, 0, 1, hh, mm, ss, 0);
+        return _esDateValida_(d) ? d : null;
+      }
+
+      const parsed = new Date(str);
+      return _esDateValida_(parsed) ? parsed : null;
+    }
+
+    function formatearFecha_(value) {
+      const d = _parseFechaFlexible_(value);
+      if (!d) return "Sin fecha";
+
+      return d.toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      });
+    }
+
+    function formatearHora_(value) {
+      const d = _parseHoraFlexible_(value);
+      if (!d) return "--";
+
+      return d.toLocaleTimeString("es-MX", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      });
+    }
+
+    function resumenFechaHora_(item) {
+      return `${formatearFecha_(item.fecha)} • ${formatearHora_(item.horainicio)} - ${formatearHora_(item.horafin)}`;
+    }
+
+    // =========================================================
+    // ICONO LOCAL
+    // =========================================================
+    const LocalIcon = ({ name, size = 18, className = "" }) => {
+      const iconRef = useRef(null);
+
+      useEffect(() => {
+        if (window.lucide && iconRef.current) {
+          iconRef.current.innerHTML = "";
+          const i = document.createElement("i");
+          i.setAttribute("data-lucide", name.toLowerCase());
+          i.style.width = `${size}px`;
+          i.style.height = `${size}px`;
+          if (className) i.className = className;
+          iconRef.current.appendChild(i);
+          window.lucide.createIcons();
+        }
+      }, [name, size, className]);
+
+      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+    };
+
+    // =========================================================
+    // HELPERS DE MODELO
+    // =========================================================
+    function toStr_(value) {
+      return String(value == null ? "" : value).trim();
+    }
+
+    function toUpper_(value) {
+      return toStr_(value).toUpperCase();
+    }
+
+    function toNum_(value) {
+      if (value === "" || value == null) return 0;
+      const n = Number(value);
+      return isNaN(n) ? 0 : n;
+    }
+
+    function getConfiabilidadVisual(valor) {
+      const n = Number(valor || 0);
+
+      if (n < 90) {
+        return {
+          label: "Crítica",
+          className: "aed-chip aed-chip-red",
+          tone: "red"
+        };
+      }
+
+      if (n >= 97) {
+        return {
+          label: "Controlada",
+          className: "aed-chip aed-chip-emerald",
+          tone: "emerald"
+        };
+      }
+
+      return {
+        label: "Atención",
+        className: "aed-chip aed-chip-amber",
+        tone: "amber"
+      };
+    }
+
+    function getEstadoFilaVisual(row) {
+      if (row.escorrecto === true) {
+        return {
+          text: "Correcto",
+          className: "aed-chip aed-state-correcto"
+        };
+      }
+
+      if (row.esfaltante === true) {
+        return {
+          text: "Faltante",
+          className: "aed-chip aed-state-faltante"
+        };
+      }
+
+      if (row.essobrante === true) {
+        return {
+          text: "Sobrante",
+          className: "aed-chip aed-state-sobrante"
+        };
+      }
+
+      return {
+        text: "Pendiente",
+        className: "aed-chip aed-state-pendiente"
+      };
+    }
+
+    function normalizarDetalleUbicacionResponse_(resp, fallbackUbicacion = "") {
+      if (!resp) {
+        return {
+          ubicacion: fallbackUbicacion,
+          detalle: [],
+          resumen: {
+            esperados: 0,
+            escaneados: 0,
+            correctos: 0,
+            faltantes: 0,
+            sobrantes: 0
+          }
+        };
+      }
+
+      const detalle = Array.isArray(resp)
+        ? resp
+        : Array.isArray(resp.detalle)
+        ? resp.detalle
+        : Array.isArray(resp.rows)
+        ? resp.rows
+        : [];
+
+      const correctos = detalle.filter(x => x.escorrecto === true).length;
+      const faltantes = detalle.filter(x => x.esfaltante === true).length;
+      const sobrantes = detalle.filter(x => x.essobrante === true).length;
+      const escaneados = detalle.filter(x => x.idunico && x.esfaltante !== true).length;
+      const esperados = correctos + faltantes;
+
+      return {
+        ubicacion: toUpper_(resp.ubicacion || fallbackUbicacion || (detalle[0] && detalle[0].ubicacion) || ""),
+        detalle,
+        resumen: {
+          esperados,
+          escaneados,
+          correctos,
+          faltantes,
+          sobrantes
+        }
+      };
+    }
+
+    function normalizarUbicaciones_(auditResp) {
+      if (!auditResp) return [];
+
+      if (Array.isArray(auditResp.ubicaciones) && auditResp.ubicaciones.length) {
+        return auditResp.ubicaciones.map((u, index) => {
+          if (typeof u === "string") {
+            return {
+              key: `${u}-${index}`,
+              ubicacion: toUpper_(u),
+              bodega: "",
+              estado: "",
+              total: 0
+            };
+          }
+
+          return {
+            key: `${u.ubicacion || u.nombre || index}-${index}`,
+            ubicacion: toUpper_(u.ubicacion || u.nombre || ""),
+            bodega: toUpper_(u.bodega || ""),
+            estado: toUpper_(u.estatus || u.estado || ""),
+            total: toNum_(u.total || u.cantidad || 0)
+          };
+        });
+      }
+
+      const detalle = Array.isArray(auditResp.detalle) ? auditResp.detalle : [];
+      const map = {};
+
+      detalle.forEach((row) => {
+        const ubic = toUpper_(row.ubicacion);
+        if (!ubic) return;
+
+        if (!map[ubic]) {
+          map[ubic] = {
+            key: ubic,
+            ubicacion: ubic,
+            bodega: toUpper_(row.bodega || ""),
+            estado: "",
+            total: 0
+          };
+        }
+
+        map[ubic].total += 1;
+      });
+
+      return Object.values(map);
+    }
+
+    function nombreUsuario_(u) {
+      if (!u) return "";
+      if (typeof u === "string") return u.toUpperCase();
+      return String(u.nombre || u.name || u.usuario || "").toUpperCase();
+    }
+
+    // =========================================================
+    // COMPONENTE PRINCIPAL
+    // =========================================================
+    const AuditoriaExcedentesDetalleView = () => {
+      const [auditoriasAbiertas, setAuditoriasAbiertas] = useState([]);
+      const [auditId, setAuditId] = useState(window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ || "");
+      const [auditData, setAuditData] = useState(null);
+      const [ubicaciones, setUbicaciones] = useState([]);
+      const [ubicacionActiva, setUbicacionActiva] = useState("");
+      const [detalleUbicacion, setDetalleUbicacion] = useState({
+        ubicacion: "",
+        detalle: [],
+        resumen: {
+          esperados: 0,
+          escaneados: 0,
+          correctos: 0,
+          faltantes: 0,
+          sobrantes: 0
+        }
+      });
+
+      const [bootstrapUsers, setBootstrapUsers] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [loadingUbicacion, setLoadingUbicacion] = useState(false);
+      const [sendingScan, setSendingScan] = useState(false);
+
+      const [inputUbicacion, setInputUbicacion] = useState("");
+      const [inputIdUnico, setInputIdUnico] = useState("");
+      const [observacionesCierreAudit, setObservacionesCierreAudit] = useState("");
+
+      const idInputRef = useRef(null);
+      const ubicacionInputRef = useRef(null);
+      const firstLoadDoneRef = useRef(false);
+
+      // -------------------------------------------------------
+      // CARGA BASE
+      // -------------------------------------------------------
+      const cargarBootstrapYAuditorias = useCallback(() => {
+        setLoading(true);
+
+        google.script.run
+          .withSuccessHandler((boot) => {
+            const usuarios = Array.isArray(boot?.usuarios) ? boot.usuarios : [];
+            setBootstrapUsers(usuarios);
+
+            google.script.run
+              .withSuccessHandler((resp) => {
+                const abiertas = Array.isArray(resp) ? resp : [];
+                setAuditoriasAbiertas(abiertas);
+
+                let selectedId = auditId;
+                if (!selectedId && window.__AUDITORIA_EXCEDENTES_DETALLE_ID__) {
+                  selectedId = window.__AUDITORIA_EXCEDENTES_DETALLE_ID__;
+                }
+                if (!selectedId && abiertas.length > 0) {
+                  selectedId = abiertas[0].idauditoria;
+                }
+
+                setAuditId(selectedId || "");
+                setLoading(false);
+
+                if (!firstLoadDoneRef.current) {
+                  firstLoadDoneRef.current = true;
+                  notify_(
+                    `Se detectaron ${abiertas.length} auditorías abiertas.`,
+                    "success",
+                    1800,
+                    {
+                      title: "Detalle listo",
+                      sound: false
+                    }
+                  );
+                }
+              })
+              .withFailureHandler((err) => {
+                console.error("❌ [AuditoriaExcedentesDetalle] Error listando auditorías abiertas:", err);
+                setLoading(false);
+                notify_(
+                  err && err.message ? err.message : "No se pudieron cargar las auditorías abiertas.",
+                  "error",
+                  4200,
+                  {
+                    title: "Error de auditorías",
+                    sound: true
+                  }
+                );
+              })
+              .AuditoriaExcedentesController_listarAuditorias({ estatus: "ABIERTA" });
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentesDetalle] Error bootstrap:", err);
+            setLoading(false);
+            notify_(
+              err && err.message ? err.message : "No se pudo cargar el bootstrap de auditoría.",
+              "error",
+              4200,
+              {
+                title: "Error de carga",
+                sound: true
+              }
+            );
+          })
+          .AuditoriaExcedentesController_obtenerBootstrap();
+      }, [auditId]);
+
+      useEffect(() => {
+        if (typeof google === "undefined" || !google.script || !google.script.run) {
+          notify_("google.script.run no está disponible en este contexto.", "error", 4200, {
+            title: "Entorno inválido",
+            sound: true
+          });
+          setLoading(false);
+          return;
+        }
+
+        notify_("Cargando detalle de auditoría...", "info", 1400, {
+          title: "Inicializando detalle",
+          sound: false
+        });
+
+        cargarBootstrapYAuditorias();
+      }, [cargarBootstrapYAuditorias]);
+
+      // -------------------------------------------------------
+      // CARGA DE AUDITORÍA
+      // -------------------------------------------------------
+      const cargarAuditoria = useCallback((idauditoria, keepCurrentLocation = true) => {
+        if (!idauditoria) {
+          setAuditData(null);
+          setUbicaciones([]);
+          setDetalleUbicacion({
+            ubicacion: "",
+            detalle: [],
+            resumen: {
+              esperados: 0,
+              escaneados: 0,
+              correctos: 0,
+              faltantes: 0,
+              sobrantes: 0
+            }
+          });
+          return;
+        }
+
+        setLoading(true);
+
+        google.script.run
+          .withSuccessHandler((resp) => {
+            setAuditData(resp || null);
+
+            const listaUbicaciones = normalizarUbicaciones_(resp);
+            setUbicaciones(listaUbicaciones);
+
+            let nextUbicacion = keepCurrentLocation ? ubicacionActiva : "";
+            if (!nextUbicacion && listaUbicaciones.length > 0) {
+              nextUbicacion = listaUbicaciones[0].ubicacion;
+            }
+
+            setUbicacionActiva(nextUbicacion || "");
+            setInputUbicacion(nextUbicacion || "");
+            setLoading(false);
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentesDetalle] Error obteniendo detalle de auditoría:", err);
+            setLoading(false);
+            notify_(
+              err && err.message ? err.message : "No se pudo cargar la auditoría seleccionada.",
+              "error",
+              4200,
+              {
+                title: "Error de auditoría",
+                sound: true
+              }
+            );
+          })
+          .AuditoriaExcedentesController_obtenerDetalleAuditoria(idauditoria);
+      }, [ubicacionActiva]);
+
+      useEffect(() => {
+        if (auditId) {
+          cargarAuditoria(auditId, true);
+        }
+      }, [auditId, cargarAuditoria]);
+
+      // -------------------------------------------------------
+      // CARGA DETALLE UBICACIÓN
+      // -------------------------------------------------------
+      const cargarDetalleUbicacion = useCallback((idauditoria, ubicacion) => {
+        if (!idauditoria || !ubicacion) {
+          setDetalleUbicacion({
+            ubicacion: "",
+            detalle: [],
+            resumen: {
+              esperados: 0,
+              escaneados: 0,
+              correctos: 0,
+              faltantes: 0,
+              sobrantes: 0
+            }
+          });
+          return;
+        }
+
+        setLoadingUbicacion(true);
+
+        google.script.run
+          .withSuccessHandler((resp) => {
+            const normalizado = normalizarDetalleUbicacionResponse_(resp, ubicacion);
+            setDetalleUbicacion(normalizado);
+            setLoadingUbicacion(false);
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentesDetalle] Error obteniendo detalle de ubicación:", err);
+            setLoadingUbicacion(false);
+            notify_(
+              err && err.message ? err.message : "No se pudo cargar la ubicación seleccionada.",
+              "error",
+              4200,
+              {
+                title: "Error de ubicación",
+                sound: true
+              }
+            );
+          })
+          .AuditoriaExcedentesController_obtenerDetalleUbicacion(idauditoria, ubicacion);
+      }, []);
+
+      useEffect(() => {
+        if (auditId && ubicacionActiva) {
+          cargarDetalleUbicacion(auditId, ubicacionActiva);
+        }
+      }, [auditId, ubicacionActiva, cargarDetalleUbicacion]);
+
+      // -------------------------------------------------------
+      // ACCIONES
+      // -------------------------------------------------------
+      const abrirUbicacion = () => {
+        const ubicacion = toUpper_(inputUbicacion);
+        if (!auditId) {
+          notify_("Debes seleccionar una auditoría abierta.", "warning", 2800, {
+            title: "Auditoría requerida",
+            sound: true
+          });
+          return;
+        }
+
+        if (!ubicacion) {
+          notify_("Debes escribir una ubicación válida.", "warning", 2800, {
+            title: "Ubicación requerida",
+            sound: true
+          });
+          return;
+        }
+
+        notify_("Abriendo ubicación...", "info", 1200, {
+          title: "Procesando",
+          sound: false
+        });
+
+        google.script.run
+          .withSuccessHandler(() => {
+            setUbicacionActiva(ubicacion);
+            setInputUbicacion(ubicacion);
+
+            notify_(
+              `Ubicación ${ubicacion} abierta correctamente.`,
+              "success",
+              1800,
+              {
+                title: "Ubicación activa",
+                sound: false
+              }
+            );
+
+            cargarAuditoria(auditId, false);
+            setTimeout(() => {
+              cargarDetalleUbicacion(auditId, ubicacion);
+              idInputRef.current?.focus();
+            }, 80);
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentesDetalle] Error abriendo ubicación:", err);
+            notify_(
+              err && err.message ? err.message : "No se pudo abrir la ubicación.",
+              "error",
+              4200,
+              {
+                title: "Error al abrir ubicación",
+                sound: true
+              }
+            );
+          })
+          .AuditoriaExcedentesController_abrirUbicacion({
+            idauditoria: auditId,
+            ubicacion: ubicacion
+          });
+      };
+
+      const registrarEscaneo = () => {
+        const idunico = toUpper_(inputIdUnico);
+
+        if (!auditId) {
+          notify_("Debes seleccionar una auditoría abierta.", "warning", 2800, {
+            title: "Auditoría requerida",
+            sound: true
+          });
+          return;
+        }
+
+        if (!ubicacionActiva) {
+          notify_("Debes abrir o seleccionar una ubicación activa.", "warning", 2800, {
+            title: "Ubicación requerida",
+            sound: true
+          });
+          return;
+        }
+
+        if (!idunico) {
+          notify_("Debes capturar un IdUnico válido.", "warning", 2800, {
+            title: "IdUnico requerido",
+            sound: true
+          });
+          return;
+        }
+
+        setSendingScan(true);
+
+        google.script.run
+          .withSuccessHandler((resp) => {
+            setInputIdUnico("");
+            setSendingScan(false);
+
+            notify_(
+              `IdUnico procesado: ${idunico}`,
+              "success",
+              1200,
+              {
+                title: "Escaneo registrado",
+                sound: false
+              }
+            );
+
+            cargarAuditoria(auditId, true);
+            cargarDetalleUbicacion(auditId, ubicacionActiva);
+            setTimeout(() => idInputRef.current?.focus(), 50);
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentesDetalle] Error registrando escaneo:", err);
+            setSendingScan(false);
+            notify_(
+              err && err.message ? err.message : "No se pudo registrar el escaneo.",
+              "error",
+              4200,
+              {
+                title: "Error de escaneo",
+                sound: true
+              }
+            );
+            setTimeout(() => idInputRef.current?.focus(), 50);
+          })
+          .AuditoriaExcedentesController_registrarEscaneoIdUnico({
+            idauditoria: auditId,
+            ubicacion: ubicacionActiva,
+            idunico: idunico
+          });
+      };
+
+      const cerrarUbicacion = () => {
+        if (!auditId || !ubicacionActiva) {
+          notify_("No hay una ubicación activa para cerrar.", "warning", 2800, {
+            title: "Ubicación requerida",
+            sound: true
+          });
+          return;
+        }
+
+        if (typeof window.confirmarSistema === "function") {
+          window.confirmarSistema({
+            tipo: "warning",
+            title: "Cerrar ubicación",
+            text: `¿Deseas cerrar la ubicación ${ubicacionActiva}?`,
+            confirmText: "Cerrar ubicación",
+            cancelText: "Cancelar"
+          }).then((result) => {
+            if (result.isConfirmed) {
+              ejecutarCerrarUbicacion_();
+            }
+          });
+
+          return;
+        }
+
+        ejecutarCerrarUbicacion_();
+      };
+
+      const ejecutarCerrarUbicacion_ = () => {
+        google.script.run
+          .withSuccessHandler(() => {
+            notify_(
+              `Ubicación ${ubicacionActiva} cerrada correctamente.`,
+              "success",
+              1800,
+              {
+                title: "Ubicación cerrada",
+                sound: false
+              }
+            );
+
+            const old = ubicacionActiva;
+            setUbicacionActiva("");
+            setInputUbicacion("");
+            setDetalleUbicacion({
+              ubicacion: "",
+              detalle: [],
+              resumen: {
+                esperados: 0,
+                escaneados: 0,
+                correctos: 0,
+                faltantes: 0,
+                sobrantes: 0
+              }
+            });
+
+            cargarAuditoria(auditId, false);
+            setTimeout(() => ubicacionInputRef.current?.focus(), 80);
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentesDetalle] Error cerrando ubicación:", err);
+            notify_(
+              err && err.message ? err.message : "No se pudo cerrar la ubicación.",
+              "error",
+              4200,
+              {
+                title: "Error al cerrar ubicación",
+                sound: true
+              }
+            );
+          })
+          .AuditoriaExcedentesController_cerrarUbicacion({
+            idauditoria: auditId,
+            ubicacion: ubicacionActiva
+          });
+      };
+
+      const cerrarAuditoria = () => {
+        if (!auditId) {
+          notify_("No hay auditoría activa para cerrar.", "warning", 2800, {
+            title: "Auditoría requerida",
+            sound: true
+          });
+          return;
+        }
+
+        if (typeof window.confirmarSistema === "function") {
+          window.confirmarSistema({
+            tipo: "warning",
+            title: "Cerrar auditoría",
+            text: `¿Deseas cerrar la auditoría ${auditId}?`,
+            confirmText: "Cerrar auditoría",
+            cancelText: "Cancelar"
+          }).then((result) => {
+            if (result.isConfirmed) {
+              ejecutarCerrarAuditoria_();
+            }
+          });
+
+          return;
+        }
+
+        ejecutarCerrarAuditoria_();
+      };
+
+      const ejecutarCerrarAuditoria_ = () => {
+        google.script.run
+          .withSuccessHandler(() => {
+            notify_(
+              `Auditoría ${auditId} cerrada correctamente.`,
+              "success",
+              2200,
+              {
+                title: "Auditoría cerrada",
+                sound: true
+              }
+            );
+
+            setObservacionesCierreAudit("");
+            window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = "";
+            cargarBootstrapYAuditorias();
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ [AuditoriaExcedentesDetalle] Error cerrando auditoría:", err);
+            notify_(
+              err && err.message ? err.message : "No se pudo cerrar la auditoría.",
+              "error",
+              4200,
+              {
+                title: "Error al cerrar auditoría",
+                sound: true
+              }
+            );
+          })
+          .AuditoriaExcedentesController_cerrarAuditoria({
+            idauditoria: auditId,
+            observaciones: observacionesCierreAudit || "",
+            cerrarUbicacionesAbiertas: true
+          });
+      };
+
+      const seleccionarUbicacionDesdeLista = (ubic) => {
+        const u = toUpper_(ubic);
+        setUbicacionActiva(u);
+        setInputUbicacion(u);
+      };
+
+      // -------------------------------------------------------
+      // DERIVADOS
+      // -------------------------------------------------------
+      const auditHeader = auditData?.auditoria || auditData || {};
+      const auditResumen = auditData?.resumen || {};
+      const locationResumen = detalleUbicacion?.resumen || {};
+      const rowsDetalle = Array.isArray(detalleUbicacion?.detalle) ? detalleUbicacion.detalle : [];
+      const confAudit = getConfiabilidadVisual(auditResumen.confiabilidadtotal);
+
+      const totalAbiertas = auditoriasAbiertas.length;
+
+      const auditoriaSeleccionadaLabel = auditHeader?.idauditoria
+        ? `${auditHeader.idauditoria} • ${resumenFechaHora_(auditHeader)}`
+        : "Sin auditoría seleccionada";
+
+      return (
+        <div className="space-y-6 fade-in-up">
+          {/* Cabecera */}
+          <div className="aed-panel p-5">
+            <div className="flex flex-col 2xl:flex-row 2xl:items-start 2xl:justify-between gap-5">
+              <div className="space-y-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+                  Detalle operativo de auditoría
+                </p>
+
+                <h2 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[28px] font-black tracking-tight">
+                  {auditHeader?.idauditoria || "SIN AUDITORÍA ACTIVA"}
+                </h2>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="aed-meta-sub">
+                    {auditHeader?.idauditoria ? resumenFechaHora_(auditHeader) : "Selecciona una auditoría abierta"}
+                  </span>
+
+                  {auditHeader?.estatus && (
+                    <span className={`aed-chip ${String(auditHeader.estatus).toUpperCase() === "ABIERTA" ? "aed-status-open" : "aed-status-closed"}`}>
+                      {auditHeader.estatus}
+                    </span>
+                  )}
+
+                  {auditHeader?.confiabilidadtotal != null && (
+                    <span className={confAudit.className}>
+                      {Number(auditHeader.confiabilidadtotal || 0).toFixed(2)}% • {confAudit.label}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full 2xl:w-auto 2xl:min-w-[640px]">
+                <div className="aed-kpi">
+                  <div className="aed-kpi-topbar slate"></div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Esperados audit.</div>
+                  <div className="text-[26px] font-black text-[var(--text-main)] mt-2">
+                    {Number(auditResumen.idunicosesperadostotales || 0)}
+                  </div>
+                </div>
+
+                <div className="aed-kpi">
+                  <div className="aed-kpi-topbar emerald"></div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Correctos audit.</div>
+                  <div className="text-[26px] font-black text-[var(--text-main)] mt-2">
+                    {Number(auditResumen.idunicoscorrectostotales || 0)}
+                  </div>
+                </div>
+
+                <div className="aed-kpi">
+                  <div className="aed-kpi-topbar amber"></div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Faltantes audit.</div>
+                  <div className="text-[26px] font-black text-[var(--text-main)] mt-2">
+                    {Number(auditResumen.idunicosfaltantestotales || 0)}
+                  </div>
+                </div>
+
+                <div className="aed-kpi">
+                  <div className="aed-kpi-topbar red"></div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Sobrantes audit.</div>
+                  <div className="text-[26px] font-black text-[var(--text-main)] mt-2">
+                    {Number(auditResumen.idunicossobrantestotales || 0)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Layout principal */}
+          <div className="grid grid-cols-1 2xl:grid-cols-[420px_minmax(0,1fr)] gap-6">
+            {/* Columna izquierda */}
+            <div className="space-y-6">
+              {/* Selector de auditoría */}
+              <div className="aed-panel p-5 space-y-4">
+                <div>
+                  <label className="aed-label">Auditoría abierta</label>
+                  <select
+                    className="aed-select"
+                    value={auditId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setAuditId(id);
+                      window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = id;
+                    }}
+                  >
+                    <option value="">Selecciona una auditoría</option>
+                    {auditoriasAbiertas.map((item, index) => (
+                      <option key={`${item.idauditoria}-${index}`} value={item.idauditoria}>
+                        {item.idauditoria}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="aed-mini-card">
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                      Abiertas
+                    </div>
+                    <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
+                      {totalAbiertas}
+                    </div>
+                  </div>
+
+                  <div className="aed-mini-card">
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                      Ubi. audit.
+                    </div>
+                    <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
+                      {Number(auditResumen.ubicacionesauditadas || 0)}
+                    </div>
+                  </div>
+
+                  <div className="aed-mini-card">
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                      Dif. ubi
+                    </div>
+                    <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
+                      {Number(auditResumen.ubicacionescondiferencia || 0)}
+                    </div>
+                  </div>
+                </div>
+
+                {auditHeader?.auditor && (
+                  <div className="aed-mini-card">
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-1">
+                      Auditor responsable
+                    </div>
+                    <div className="text-[14px] font-black uppercase tracking-[0.10em] text-[var(--text-main)]">
+                      {auditHeader.auditor}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Apertura ubicación */}
+              <div className="aed-panel p-5 space-y-4">
+                <div>
+                  <label className="aed-label">Abrir o seleccionar ubicación</label>
+                  <input
+                    ref={ubicacionInputRef}
+                    type="text"
+                    className="aed-input font-mono-premium"
+                    placeholder="Ej. B1-19"
+                    value={inputUbicacion}
+                    onChange={(e) => setInputUbicacion(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        abrirUbicacion();
+                      }
+                    }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    className="aed-btn-primary"
+                    onClick={abrirUbicacion}
+                    disabled={!auditId}
+                  >
+                    Abrir ubicación
+                  </button>
+
+                  <button
+                    type="button"
+                    className="aed-btn-soft"
+                    onClick={() => {
+                      if (inputUbicacion) {
+                        seleccionarUbicacionDesdeLista(inputUbicacion);
+                      }
+                    }}
+                    disabled={!auditId || !inputUbicacion}
+                  >
+                    Seleccionar
+                  </button>
+                </div>
+
+                <div className="aed-mini-card">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-2">
+                    Ubicación activa
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="aed-meta-main">
+                        {ubicacionActiva || "SIN UBICACIÓN"}
+                      </div>
+                      <div className="aed-meta-sub mt-1">
+                        {auditHeader?.idauditoria ? auditoriaSeleccionadaLabel : "Abre una ubicación para comenzar"}
+                      </div>
+                    </div>
+
+                    {ubicacionActiva && (
+                      <span className="aed-chip aed-chip-slate font-mono-premium">
+                        {ubicacionActiva}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Escaneo */}
+              <div className="aed-panel p-5 space-y-4">
+                <div>
+                  <label className="aed-label">Escanear IdUnico</label>
+                  <input
+                    ref={idInputRef}
+                    type="text"
+                    className="aed-input font-mono-premium"
+                    placeholder="Escanea o captura el IdUnico"
+                    value={inputIdUnico}
+                    onChange={(e) => setInputIdUnico(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        registrarEscaneo();
+                      }
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="aed-btn-dark w-full"
+                  onClick={registrarEscaneo}
+                  disabled={!auditId || !ubicacionActiva || !inputIdUnico || sendingScan}
+                >
+                  {sendingScan ? "Procesando..." : "Registrar escaneo"}
+                </button>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    className="aed-btn-soft"
+                    onClick={() => {
+                      setInputIdUnico("");
+                      idInputRef.current?.focus();
+                    }}
+                  >
+                    Limpiar captura
+                  </button>
+
+                  <button
+                    type="button"
+                    className="aed-btn-danger"
+                    onClick={cerrarUbicacion}
+                    disabled={!auditId || !ubicacionActiva}
+                  >
+                    Cerrar ubicación
+                  </button>
+                </div>
+              </div>
+
+              {/* Cierre audit */}
+              <div className="aed-panel p-5 space-y-4">
+                <div>
+                  <label className="aed-label">Observaciones de cierre</label>
+                  <textarea
+                    className="aed-textarea"
+                    placeholder="Notas de cierre de auditoría..."
+                    value={observacionesCierreAudit}
+                    onChange={(e) => setObservacionesCierreAudit(e.target.value)}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="aed-btn-primary w-full"
+                  onClick={cerrarAuditoria}
+                  disabled={!auditId}
+                >
+                  Cerrar auditoría
+                </button>
+              </div>
+
+              {/* Lista ubicaciones */}
+              <div className="aed-panel p-5">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                      Ubicaciones detectadas
+                    </div>
+                    <div className="text-[18px] font-black text-[var(--text-main)]">
+                      {ubicaciones.length}
+                    </div>
+                  </div>
+
+                  <span className="aed-chip aed-chip-slate">
+                    Auditoría activa
+                  </span>
+                </div>
+
+                <div className="space-y-3 max-h-[340px] overflow-auto custom-scroll">
+                  {ubicaciones.length === 0 && (
+                    <div className="aed-empty-state !min-h-[140px]">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                        <LocalIcon name="map-pin-off" size={22} />
+                      </div>
+                      <span className="text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                        Sin ubicaciones todavía
+                      </span>
+                    </div>
+                  )}
+
+                  {ubicaciones.map((u) => (
+                    <div
+                      key={u.key}
+                      className={`aed-list-item ${toUpper_(u.ubicacion) === toUpper_(ubicacionActiva) ? "active" : ""}`}
+                      onClick={() => seleccionarUbicacionDesdeLista(u.ubicacion)}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="aed-meta-main text-[15px]">
+                            {u.ubicacion || "SIN UBICACIÓN"}
+                          </div>
+                          <div className="aed-meta-sub mt-1">
+                            {u.bodega || "SIN BODEGA"}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-[18px] font-black text-[var(--text-main)]">
+                            {Number(u.total || 0)}
+                          </div>
+                          <div className="aed-meta-sub">
+                            filas
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Columna derecha */}
+            <div className="space-y-6">
+              {/* Resumen ubicación */}
+              <div className="aed-panel p-5">
+                <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
+                      Ubicación en operación
+                    </p>
+                    <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[24px] font-black tracking-tight font-mono-premium">
+                      {detalleUbicacion.ubicacion || ubicacionActiva || "SIN UBICACIÓN"}
+                    </h3>
+                    <div className="mt-2">
+                      <span className={`aed-chip ${ubicacionActiva ? "aed-chip-red" : "aed-chip-slate"}`}>
+                        {ubicacionActiva ? "Abierta / operando" : "Sin apertura activa"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 w-full xl:w-auto xl:min-w-[680px]">
+                    <div className="aed-kpi">
+                      <div className="aed-kpi-topbar slate"></div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Esperados</div>
+                      <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                        {Number(locationResumen.esperados || 0)}
+                      </div>
+                    </div>
+
+                    <div className="aed-kpi">
+                      <div className="aed-kpi-topbar slate"></div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Escaneados</div>
+                      <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                        {Number(locationResumen.escaneados || 0)}
+                      </div>
+                    </div>
+
+                    <div className="aed-kpi">
+                      <div className="aed-kpi-topbar emerald"></div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Correctos</div>
+                      <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                        {Number(locationResumen.correctos || 0)}
+                      </div>
+                    </div>
+
+                    <div className="aed-kpi">
+                      <div className="aed-kpi-topbar amber"></div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Faltantes</div>
+                      <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                        {Number(locationResumen.faltantes || 0)}
+                      </div>
+                    </div>
+
+                    <div className="aed-kpi">
+                      <div className="aed-kpi-topbar red"></div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Sobrantes</div>
+                      <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                        {Number(locationResumen.sobrantes || 0)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabla viva */}
+              <div className="aed-panel overflow-hidden">
+                <div className="px-5 pt-5 pb-3 flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
+                      Detalle de ubicación
+                    </p>
+                    <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[22px] font-black tracking-tight">
+                      Escaneos y conciliación
+                    </h3>
+                  </div>
+
+                  <span className="aed-chip aed-chip-slate">
+                    {rowsDetalle.length} filas
+                  </span>
+                </div>
+
+                <div className="aed-table-wrap custom-scroll">
+                  <table className="aed-table">
+                    <thead>
+                      <tr>
+                        <th>IdUnico</th>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th>Estado</th>
+                        <th>Hora</th>
+                        <th>Observaciones</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {rowsDetalle.map((row, idx) => {
+                        const estado = getEstadoFilaVisual(row);
+
+                        return (
+                          <tr key={`${row.idunico || "SIN-ID"}-${idx}`} className="aed-row">
+                            <td>
+                              <span className="aed-meta-main text-[14px]">
+                                {row.idunico || "—"}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className="text-[13px] font-black uppercase tracking-[0.08em] text-[var(--text-main)]">
+                                {row.codigo || row.sku || "—"}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className="text-[12px] font-semibold uppercase text-[var(--text-secondary)] leading-snug">
+                                {row.descripcion || "Sin descripción"}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className={estado.className}>
+                                {estado.text}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className="text-[12px] font-black text-[var(--text-main)] font-mono-premium">
+                                {formatearHora_(row.hora || row.horaregistro || row.horaescaneo)}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className="text-[12px] font-semibold text-[var(--text-secondary)]">
+                                {row.observaciones || row.nota || row.mensaje || "—"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {!loadingUbicacion && rowsDetalle.length === 0 && (
+                    <div className="aed-empty-state">
+                      <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                        <LocalIcon name="scan-line" size={28} />
+                      </div>
+
+                      <span className="text-[13px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                        Sin registros en la ubicación
+                      </span>
+
+                      <span className="text-[11px] text-slate-400 font-semibold">
+                        Abre una ubicación y comienza a escanear IdUnicos.
+                      </span>
+                    </div>
+                  )}
+
+                  {loadingUbicacion && (
+                    <div className="p-24 flex flex-col items-center justify-center gap-4">
+                      <div className="w-10 h-10 border-4 border-slate-100 border-t-[var(--primary)] rounded-full animate-spin"></div>
+                      <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                        Cargando ubicación...
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // =========================================================
+    // MONTAJE
+    // =========================================================
+    const targetElement = document.getElementById("render-auditoria-excedentes-detalle");
+
+    if (!targetElement) {
+      notify_(
+        "No se encontró el contenedor principal del detalle de auditoría.",
+        "error",
+        4200,
+        {
+          title: "Error de interfaz",
+          sound: true
+        }
+      );
+      console.warn("⚠️ [AuditoriaExcedentesDetalle] No se encontró #render-auditoria-excedentes-detalle");
+      return;
+    }
+
+    const yaInicializado = targetElement.dataset.aedMounted === "1";
+
+    if (window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__) {
+      try {
+        window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__.unmount();
+      } catch (e) {
+        console.warn("⚠️ [AuditoriaExcedentesDetalle] No se pudo desmontar root previo:", e);
+        notifyOnceShell_(
+          "auditoria-detalle-root-previo",
+          "Se liberó una instancia previa del detalle de auditoría.",
+          "warning",
+          1600,
+          {
+            title: "Reinicialización",
+            sound: false
+          },
+          10000
+        );
+      }
+      window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__ = null;
+    }
+
+    try {
+      targetElement.dataset.aedMounted = "1";
+      window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__ = ReactDOM.createRoot(targetElement);
+      window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__.render(<AuditoriaExcedentesDetalleView />);
+
+      if (!yaInicializado) {
+        notifyOnceShell_(
+          "auditoria-detalle-vista-montada",
+          "Detalle de auditoría listo para operar.",
+          "success",
+          1500,
+          {
+            title: "Vista cargada",
+            sound: false
+          },
+          12000
+        );
+      }
+    } catch (e) {
+      console.error("❌ [AuditoriaExcedentesDetalle] Error montando root React:", e);
+      notify_(
+        "Ocurrió un error al montar el detalle de auditoría.",
+        "error",
+        4200,
+        {
+          title: "Error de montaje",
+          sound: true
+        }
+      );
+    }
+  };
+
+  window.initVista = window.cargar_AuditoriaExcedentesDetalle;
+  console.log("🧩 [AuditoriaExcedentesDetalle] Vista inyectable inicializada y registrada.");
+</script>
