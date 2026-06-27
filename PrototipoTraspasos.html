@@ -403,9 +403,9 @@
   window.cargar_PrototipoTraspasos = () => {
     const { useState, useEffect, useMemo, useRef } = React;
 
-    // =========================================================
+    // =============================
     // HELPERS DE NOTIFICACIÓN
-    // =========================================================
+    // =============================
     const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
       if (typeof fn === "function") {
@@ -424,9 +424,9 @@
     const shellNotifyStateRef = { current: {} };
     const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
 
-    // =========================================================
+    // =============================
     // ICONO LOCAL
-    // =========================================================
+    // =============================
     const LocalIcon = ({ name, size = 18, className = "" }) => {
       const iconRef = useRef(null);
 
@@ -446,9 +446,9 @@
       return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
     };
 
-    // =========================================================
+    // ==============================
     // COMPONENTE PRINCIPAL
-    // =========================================================
+    // ==============================
     const VistaPrototipo = () => {
       const [cola, setCola] = useState([]);
       const [procesando, setProcesando] = useState(false);
@@ -475,9 +475,9 @@
       const localNotifyRef = useRef({});
       const notifyOnce_ = createNotifyOnce_(localNotifyRef);
 
-      // =========================================================
+      // =============================
       // REFS PARA ESCANEO CONTINUO
-      // =========================================================
+      // =============================
       const qrInputRef = useRef(null);
       const bodegaInputRef = useRef(null);
       const ubicacionInputRef = useRef(null);
@@ -636,9 +636,9 @@
         });
       };
 
-      // ---------------------------------------------------------
+      // ---------------------
       // CARGA INICIAL
-      // ---------------------------------------------------------
+      // ---------------------
       useEffect(() => {
         const cargarBootstrap = () => {
           try {

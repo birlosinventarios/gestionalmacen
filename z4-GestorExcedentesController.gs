@@ -53,4 +53,3 @@ function GestorExcedentesController_pingVersion() {
     build: "PING-2026-06-22-01"
   };
 }
-``
