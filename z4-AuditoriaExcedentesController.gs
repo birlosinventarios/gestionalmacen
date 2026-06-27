@@ -1,15 +1,5 @@
 /**
  * AuditoriaExcedentesController.gs
- * ------------------------------------------------------------
- * Controller principal del módulo de auditoría de excedentes.
- *
- * RESPONSABILIDAD:
- * - exponer endpoints globales para google.script.run
- * - manejar errores controlados
- * - devolver respuestas consistentes al frontend
- *
- * DEPENDE DE:
- * - AuditoriaExcedentesService
  */
 
 function _aec_exec_(label, fn) {

@@ -1,15 +1,5 @@
 /**
  * GestorExcedentesService.gs
- * ------------------------------------------------------------
- * Servicio refactorizado para la vista GestorExcedentes
- *
- * FUENTE DE VERDAD:
- * - EstadoActualExcedentesService
- *
- * RESPONSABILIDAD:
- * - Adaptar el estado consolidado al shape esperado por la vista
- * - Mantener compatibilidad con tu HTML actual
- * - Exponer también una versión RAW para depuración
  */
 
 const GestorExcedentesService = (() => {

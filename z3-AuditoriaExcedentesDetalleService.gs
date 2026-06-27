@@ -1,20 +1,5 @@
 /**
  * AuditoriaExcedentesDetalleService.gs
- * ------------------------------------------------------------
- * Servicio operativo de detalle para auditorías de excedentes.
- *
- * RESPONSABILIDAD:
- * - abrir ubicación
- * - listar ubicaciones abiertas / cerradas
- * - obtener esperados por ubicación
- * - registrar escaneo de IdUnico
- * - cerrar ubicación
- * - obtener detalle de una ubicación
- *
- * DEPENDE DE:
- * - AuditoriaExcedentesRepository
- * - AuditoriaExcedentesDetalleRepository
- * - EstadoActualExcedentesService
  */
 
 const AuditoriaExcedentesDetalleService = (() => {
@@ -290,31 +275,44 @@ const AuditoriaExcedentesDetalleService = (() => {
     const audit = _getAuditoriaActivaOrThrow_(idauditoria);
 
     // Aseguramos que la ubicación esté abierta
-    const marker = _getMarcadorUbicacion_(idauditoria, ubicacion);
+    let marker = _getMarcadorUbicacion_(idauditoria, ubicacion);
     if (!marker || marker.horafinubicacion) {
       abrirUbicacion({
         idauditoria,
         ubicacion
       });
+      marker = _getMarcadorUbicacion_(idauditoria, ubicacion);
     }
 
     // No permitir duplicado dentro de toda la auditoría
     const already = AuditoriaExcedentesDetalleRepository.findEscaneo(idauditoria, idunico);
     if (already) {
+      const mismaUbicacion = _normalizeUbicacion_(already.ubicacion) === ubicacion;
+
       return {
         ok: false,
         duplicado: true,
-        mensaje: `El IdUnico ${idunico} ya fue escaneado dentro de la auditoría`,
-        registroExistente: already
+        tipoResultado: mismaUbicacion ? "DUPLICADO_EN_UBICACION" : "DUPLICADO_EN_AUDITORIA",
+        mensaje: mismaUbicacion
+          ? `El IdUnico ${idunico} ya fue escaneado en esta ubicación`
+          : `El IdUnico ${idunico} ya fue escaneado dentro de la auditoría`,
+        detalle: {
+          idunico,
+          ubicacion,
+          ubicacionExistente: _normalizeUbicacion_(already.ubicacion)
+        },
+        registroExistente: already,
+        resumen: _buildResumenUbicacion_(idauditoria, ubicacion)
       };
     }
 
     const actual = EstadoActualExcedentesService.getUnoPorIdUnico(idunico);
 
+    // NO ENCONTRADO = SOBRANTE
     if (!actual) {
       const regNoReconocido = AuditoriaExcedentesDetalleRepository.insert({
         idauditoria,
-        secuenciaubicacion: _getMarcadorUbicacion_(idauditoria, ubicacion)?.secuenciaubicacion || _getSecuenciaSiguiente_(idauditoria),
+        secuenciaubicacion: (marker && marker.secuenciaubicacion) || _getSecuenciaSiguiente_(idauditoria),
         bodega: _inferirBodegaPorUbicacion_(ubicacion),
         ubicacion,
         horainicioubicacion: "",
@@ -331,8 +329,13 @@ const AuditoriaExcedentesDetalleService = (() => {
 
       return {
         ok: true,
-        mensaje: "IdUnico no reconocido, registrado como sobrante",
-        clasificacion: "SOBRANTE_NO_RECONOCIDO",
+        tipoResultado: "SOBRANTE",
+        mensaje: `El IdUnico ${idunico} no existe en estado actual. Se registró como sobrante.`,
+        detalle: {
+          idunico,
+          ubicacion,
+          observacion: "SOBRANTE_NO_RECONOCIDO"
+        },
         registro: regNoReconocido,
         resumen: _buildResumenUbicacion_(idauditoria, ubicacion)
       };
@@ -341,16 +344,80 @@ const AuditoriaExcedentesDetalleService = (() => {
     const bodegaActual = _toUpper_(actual.bodegaActual);
     const ubicacionActual = _normalizeUbicacion_(actual.ubicacionActual);
 
+    // FUERA DEL ALCANCE = SOBRANTE
     if (!_esUbicacionDentroDelAlcance_(audit, ubicacionActual, bodegaActual)) {
-      throw new Error(`El IdUnico ${idunico} pertenece a una ubicación fuera del alcance de la auditoría`);
+      const regFueraAlcance = AuditoriaExcedentesDetalleRepository.insert({
+        idauditoria,
+        secuenciaubicacion: (marker && marker.secuenciaubicacion) || _getSecuenciaSiguiente_(idauditoria),
+        bodega: _inferirBodegaPorUbicacion_(ubicacion),
+        ubicacion,
+        horainicioubicacion: "",
+        horafinubicacion: "",
+        idunico,
+        codigo: actual.codigo || "",
+        descripcion: actual.descripcion || "",
+        horaescaneoidunico: _fmtTime_(),
+        escorrecto: false,
+        esfaltante: false,
+        essobrante: true,
+        observaciones: `FUERA DE ALCANCE. SISTEMA: ${ubicacionActual || "SIN UBICACIÓN"}`
+      });
+
+      return {
+        ok: true,
+        tipoResultado: "SOBRANTE",
+        mensaje: `El IdUnico ${idunico} está físicamente en ${ubicacion}, pero en sistema pertenece a una ubicación fuera del alcance de la auditoría.`,
+        detalle: {
+          idunico,
+          ubicacion,
+          ubicacionSistema: ubicacionActual || "",
+          observacion: "SOBRANTE_FUERA_DE_ALCANCE"
+        },
+        registro: regFueraAlcance,
+        actual,
+        resumen: _buildResumenUbicacion_(idauditoria, ubicacion)
+      };
     }
 
-    const esCorrecto = ubicacionActual === ubicacion;
-    const esSobrante = !esCorrecto;
+    // UBICACIÓN DISTINTA = SOBRANTE
+    if (ubicacionActual !== ubicacion) {
+      const regSobrante = AuditoriaExcedentesDetalleRepository.insert({
+        idauditoria,
+        secuenciaubicacion: (marker && marker.secuenciaubicacion) || _getSecuenciaSiguiente_(idauditoria),
+        bodega: _inferirBodegaPorUbicacion_(ubicacion),
+        ubicacion,
+        horainicioubicacion: "",
+        horafinubicacion: "",
+        idunico,
+        codigo: actual.codigo || "",
+        descripcion: actual.descripcion || "",
+        horaescaneoidunico: _fmtTime_(),
+        escorrecto: false,
+        esfaltante: false,
+        essobrante: true,
+        observaciones: `ESPERADO EN ${ubicacionActual || "SIN UBICACIÓN"}`
+      });
 
-    const reg = AuditoriaExcedentesDetalleRepository.insert({
+      return {
+        ok: true,
+        tipoResultado: "SOBRANTE",
+        mensaje: `El IdUnico ${idunico} está físicamente en ${ubicacion}, pero en sistema pertenece a ${ubicacionActual || "otra ubicación"}.`,
+        detalle: {
+          idunico,
+          ubicacion,
+          ubicacionSistema: ubicacionActual || "",
+          observacion: "SOBRANTE_UBICACION_DISTINTA"
+        },
+        registro: regSobrante,
+        actual,
+        resumen: _buildResumenUbicacion_(idauditoria, ubicacion)
+      };
+    }
+
+    // CORRECTO
+    const regCorrecto = AuditoriaExcedentesDetalleRepository.insert({
       idauditoria,
-      secuenciaubicacion: _getMarcadorUbicacion_(idauditoria, ubicacion)?.secuenciaubicacion || _getSecuenciaSiguiente_(idauditoria),
+      secuenciaubicacion: (marker && marker.secuenciaubicacion) || _getSecuenciaSiguiente_(idauditoria),
       bodega: _inferirBodegaPorUbicacion_(ubicacion),
       ubicacion,
       horainicioubicacion: "",
@@ -359,22 +426,22 @@ const AuditoriaExcedentesDetalleService = (() => {
       codigo: actual.codigo || "",
       descripcion: actual.descripcion || "",
       horaescaneoidunico: _fmtTime_(),
-      escorrecto: esCorrecto,
+      escorrecto: true,
       esfaltante: false,
-      essobrante: esSobrante,
-      observaciones: esCorrecto
-        ? ""
-        : `ESPERADO EN ${ubicacionActual || "SIN UBICACIÓN"}`
+      essobrante: false,
+      observaciones: ""
     });
 
     return {
       ok: true,
-      mensaje: esCorrecto
-        ? "Escaneo correcto"
-        : "Escaneo registrado como sobrante",
-      clasificacion: esCorrecto ? "CORRECTO" : "SOBRANTE",
-      registro: reg,
-      actual: actual,
+      tipoResultado: "CORRECTO",
+      mensaje: "Escaneo correcto",
+      detalle: {
+        idunico,
+        ubicacion
+      },
+      registro: regCorrecto,
+      actual,
       resumen: _buildResumenUbicacion_(idauditoria, ubicacion)
     };
   }

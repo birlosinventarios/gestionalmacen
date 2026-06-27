@@ -1,22 +1,5 @@
 /**
  * AuditoriaExcedentesRepository.gs
- * ------------------------------------------------------------
- * Repository de cabecera para la hoja:
- * - auditoriaexcedentes
- *
- * RESPONSABILIDAD:
- * - leer auditorías
- * - buscar por IdAuditoria
- * - listar abiertas / cerradas
- * - insertar
- * - actualizar
- * - upsert
- *
- * NOTAS:
- * - No aplica reglas de negocio complejas
- * - No calcula confiabilidad
- * - No decide estatus operativos
- * - Solo persiste / recupera datos
  */
 
 const AuditoriaExcedentesRepository = (() => {

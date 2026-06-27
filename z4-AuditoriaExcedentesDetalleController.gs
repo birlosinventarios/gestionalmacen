@@ -1,17 +1,5 @@
 /**
  * AuditoriaExcedentesDetalleController.gs
- * ------------------------------------------------------------
- * Controller especializado del detalle operativo de auditoría.
- *
- * RESPONSABILIDAD:
- * - abrir ubicación
- * - obtener esperados por ubicación
- * - registrar escaneos
- * - cerrar ubicación
- * - consultar detalle operativo
- *
- * DEPENDE DE:
- * - AuditoriaExcedentesDetalleService
  */
 
 function _aedc_exec_(label, fn) {

@@ -1,12 +1,5 @@
 /**
  * AuditoriaExcedentesCapturaController.gs
- * ------------------------------------------------------------
- * Controller de captura operativa para auditoría de excedentes.
- *
- * RESPONSABILIDAD:
- * - exponer endpoints globales para google.script.run
- * - encapsular manejo de errores
- * - delegar al service de captura
  */
 
 function _aecc_exec_(label, fn) {

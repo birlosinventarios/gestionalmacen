@@ -4,7 +4,7 @@
   #render-auditoria-excedentes-detalle {
     --aed-critical: var(--primary);
     --aed-critical-dark: var(--primary-dark, #a50e0e);
-    --aed-critical-light: var(--primary-light, rgba(217, 48, 37, 0.20));
+    --aed-critical-light: var(--primary-light, rgba(217, 48, 37, 0.18));
 
     --aed-warning: #d97706;
     --aed-warning-dark: #b45309;
@@ -14,17 +14,25 @@
     --aed-success-dark: #157337;
     --aed-success-light: rgba(30, 142, 62, 0.14);
 
-    --aed-white: var(--white, #ffffff);
+    --aed-slate: #1c1d1f;
+    --aed-slate-light: rgba(28, 29, 31, 0.08);
+
     --aed-bg: var(--bg-color, #f8f9fa);
+    --aed-white: #ffffff;
     --aed-text-main: var(--text-main, #1c1d1f);
     --aed-text-secondary: var(--text-secondary, #5f6368);
     --aed-border: var(--border-color, #dadce0);
-    --aed-shadow-soft: var(--shadow-soft, 0 10px 25px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.05));
-    --aed-shadow-red: var(--shadow-red, 0 4px 10px rgba(217, 48, 37, 0.1));
+    --aed-shadow-soft: var(--shadow-soft, 0 10px 25px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04));
+    --aed-shadow-red: var(--shadow-red, 0 4px 10px rgba(217, 48, 37, 0.12));
   }
 
-  #render-auditoria-excedentes-detalle .font-mono-premium {
-    font-family: 'JetBrains Mono', monospace;
+  #render-auditoria-excedentes-detalle {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  #render-auditoria-excedentes-detalle::-webkit-scrollbar {
+    display: none;
   }
 
   #render-auditoria-excedentes-detalle .custom-scroll::-webkit-scrollbar {
@@ -37,21 +45,12 @@
   }
 
   #render-auditoria-excedentes-detalle .custom-scroll::-webkit-scrollbar-thumb {
-    background: rgba(0,0,0,0.15);
+    background: rgba(0,0,0,0.16);
     border-radius: 999px;
   }
 
   #render-auditoria-excedentes-detalle .custom-scroll::-webkit-scrollbar-thumb:hover {
     background: var(--primary);
-  }
-
-  #render-auditoria-excedentes-detalle {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  #render-auditoria-excedentes-detalle::-webkit-scrollbar {
-    display: none;
   }
 
   @keyframes aedFadeInUp {
@@ -66,17 +65,7 @@
   }
 
   #render-auditoria-excedentes-detalle .fade-in-up {
-    animation: aedFadeInUp 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  @keyframes aedPulseRed {
-    0% { box-shadow: 0 0 0 0px rgba(217, 48, 37, 0.24); }
-    70% { box-shadow: 0 0 0 8px rgba(217, 48, 37, 0); }
-    100% { box-shadow: 0 0 0 0px rgba(217, 48, 37, 0); }
-  }
-
-  #render-auditoria-excedentes-detalle .pulse-red {
-    animation: aedPulseRed 2s infinite ease-in-out;
+    animation: aedFadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   #render-auditoria-excedentes-detalle .aed-card {
@@ -96,24 +85,24 @@
   #render-auditoria-excedentes-detalle .aed-kpi {
     background: var(--aed-white);
     border: 1px solid var(--aed-border);
-    border-radius: 1.25rem;
+    border-radius: 1.15rem;
     padding: 1rem 1.1rem;
     position: relative;
     overflow: hidden;
+    min-height: 118px;
   }
 
   #render-auditoria-excedentes-detalle .aed-kpi-topbar {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
+    inset: 0 auto auto 0;
     height: 5px;
+    width: 100%;
   }
 
   #render-auditoria-excedentes-detalle .aed-kpi-topbar.red { background: var(--aed-critical); }
   #render-auditoria-excedentes-detalle .aed-kpi-topbar.amber { background: var(--aed-warning); }
   #render-auditoria-excedentes-detalle .aed-kpi-topbar.emerald { background: var(--aed-success); }
-  #render-auditoria-excedentes-detalle .aed-kpi-topbar.slate { background: var(--aed-text-main); }
+  #render-auditoria-excedentes-detalle .aed-kpi-topbar.slate { background: var(--aed-slate); }
 
   #render-auditoria-excedentes-detalle .aed-chip {
     display: inline-flex;
@@ -150,18 +139,18 @@
   }
 
   #render-auditoria-excedentes-detalle .aed-chip-slate {
-    background: rgba(28, 29, 31, 0.07);
+    background: var(--aed-slate-light);
     color: var(--aed-text-main);
     border-color: rgba(28, 29, 31, 0.12);
   }
 
-  #render-auditoria-excedentes-detalle .aed-status-open {
+  #render-auditoria-excedentes-detalle .aed-chip-open {
     background: var(--aed-critical-light);
     color: var(--aed-critical-dark);
     border-color: rgba(217, 48, 37, 0.20);
   }
 
-  #render-auditoria-excedentes-detalle .aed-status-closed {
+  #render-auditoria-excedentes-detalle .aed-chip-closed {
     background: var(--aed-success-light);
     color: var(--aed-success-dark);
     border-color: rgba(30, 142, 62, 0.24);
@@ -214,10 +203,8 @@
 
   #render-auditoria-excedentes-detalle .aed-btn-primary,
   #render-auditoria-excedentes-detalle .aed-btn-dark,
-  #render-auditoria-excedentes-detalle .aed-btn-soft,
-  #render-auditoria-excedentes-detalle .aed-btn-danger {
+  #render-auditoria-excedentes-detalle .aed-btn-soft {
     min-height: 50px;
-    border: none;
     border-radius: 14px;
     padding: 0 18px;
     font-size: 12px;
@@ -228,6 +215,7 @@
   }
 
   #render-auditoria-excedentes-detalle .aed-btn-primary {
+    border: none;
     background: var(--primary);
     color: white;
   }
@@ -237,7 +225,8 @@
   }
 
   #render-auditoria-excedentes-detalle .aed-btn-dark {
-    background: var(--aed-text-main);
+    border: none;
+    background: var(--aed-slate);
     color: white;
   }
 
@@ -246,36 +235,25 @@
   }
 
   #render-auditoria-excedentes-detalle .aed-btn-soft {
-    background: white;
+    background: #fff;
     color: var(--aed-text-secondary);
     border: 1px solid var(--aed-border);
   }
 
   #render-auditoria-excedentes-detalle .aed-btn-soft:hover {
-    border-color: rgba(217, 48, 37, 0.35);
     color: var(--primary);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-btn-danger {
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-btn-danger:hover {
-    background: #fecaca;
+    border-color: rgba(217, 48, 37, 0.35);
   }
 
   #render-auditoria-excedentes-detalle .aed-btn-primary:disabled,
   #render-auditoria-excedentes-detalle .aed-btn-dark:disabled,
-  #render-auditoria-excedentes-detalle .aed-btn-soft:disabled,
-  #render-auditoria-excedentes-detalle .aed-btn-danger:disabled {
+  #render-auditoria-excedentes-detalle .aed-btn-soft:disabled {
     opacity: 0.55;
     cursor: not-allowed;
   }
 
   #render-auditoria-excedentes-detalle .aed-table-wrap {
-    max-height: 64vh;
+    max-height: 68vh;
     overflow: auto;
   }
 
@@ -470,7 +448,6 @@
     function formatearFecha_(value) {
       const d = _parseFechaFlexible_(value);
       if (!d) return "Sin fecha";
-
       return d.toLocaleDateString("es-MX", {
         day: "2-digit",
         month: "2-digit",
@@ -481,7 +458,6 @@
     function formatearHora_(value) {
       const d = _parseHoraFlexible_(value);
       if (!d) return "--";
-
       return d.toLocaleTimeString("es-MX", {
         hour: "2-digit",
         minute: "2-digit",
@@ -489,34 +465,12 @@
       });
     }
 
-    function resumenFechaHora_(item) {
+    function construirResumenFechaHora_(item) {
       return `${formatearFecha_(item.fecha)} • ${formatearHora_(item.horainicio)} - ${formatearHora_(item.horafin)}`;
     }
 
     // =========================================================
-    // ICONO LOCAL
-    // =========================================================
-    const LocalIcon = ({ name, size = 18, className = "" }) => {
-      const iconRef = useRef(null);
-
-      useEffect(() => {
-        if (window.lucide && iconRef.current) {
-          iconRef.current.innerHTML = "";
-          const i = document.createElement("i");
-          i.setAttribute("data-lucide", name.toLowerCase());
-          i.style.width = `${size}px`;
-          i.style.height = `${size}px`;
-          if (className) i.className = className;
-          iconRef.current.appendChild(i);
-          window.lucide.createIcons();
-        }
-      }, [name, size, className]);
-
-      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
-    };
-
-    // =========================================================
-    // HELPERS DE MODELO
+    // HELPERS GENERALES
     // =========================================================
     function toStr_(value) {
       return String(value == null ? "" : value).trim();
@@ -532,7 +486,19 @@
       return isNaN(n) ? 0 : n;
     }
 
-    function getConfiabilidadVisual(valor) {
+    function uniqueBy_(arr, mapper) {
+      const seen = new Set();
+      const out = [];
+      (arr || []).forEach((item) => {
+        const key = mapper(item);
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push(item);
+      });
+      return out;
+    }
+
+    function getConfiabilidadVisual_(valor) {
       const n = Number(valor || 0);
 
       if (n < 90) {
@@ -558,31 +524,33 @@
       };
     }
 
-    function getEstadoFilaVisual(row) {
-      if (row.escorrecto === true) {
+    function getEstadoFilaVisual_(row) {
+      const estado = toUpper_(row.estado || "");
+
+      if (estado === "CORRECTO" || row.escorrecto === true) {
         return {
-          text: "Correcto",
-          className: "aed-chip aed-state-correcto"
+          className: "aed-chip aed-state-correcto",
+          text: "Correcto"
         };
       }
 
-      if (row.esfaltante === true) {
+      if (estado === "FALTANTE" || row.esfaltante === true) {
         return {
-          text: "Faltante",
-          className: "aed-chip aed-state-faltante"
+          className: "aed-chip aed-state-faltante",
+          text: "Faltante"
         };
       }
 
-      if (row.essobrante === true) {
+      if (estado === "SOBRANTE" || row.essobrante === true) {
         return {
-          text: "Sobrante",
-          className: "aed-chip aed-state-sobrante"
+          className: "aed-chip aed-state-sobrante",
+          text: "Sobrante"
         };
       }
 
       return {
-        text: "Pendiente",
-        className: "aed-chip aed-state-pendiente"
+        className: "aed-chip aed-state-pendiente",
+        text: "Pendiente"
       };
     }
 
@@ -609,11 +577,15 @@
         ? resp.rows
         : [];
 
-      const correctos = detalle.filter(x => x.escorrecto === true).length;
-      const faltantes = detalle.filter(x => x.esfaltante === true).length;
-      const sobrantes = detalle.filter(x => x.essobrante === true).length;
-      const escaneados = detalle.filter(x => x.idunico && x.esfaltante !== true).length;
-      const esperados = correctos + faltantes;
+      const correctos = detalle.filter(x => toUpper_(x.estado) === "CORRECTO" || x.escorrecto === true).length;
+      const faltantes = detalle.filter(x => toUpper_(x.estado) === "FALTANTE" || x.esfaltante === true).length;
+      const sobrantes = detalle.filter(x => toUpper_(x.estado) === "SOBRANTE" || x.essobrante === true).length;
+      const escaneados = detalle.filter(x =>
+        (x.idunico && x.esfaltante !== true) || toUpper_(x.estado) === "CORRECTO" || toUpper_(x.estado) === "SOBRANTE"
+      ).length;
+      const esperados = detailHasExpectedRows_(detalle)
+        ? detalle.filter(x => toUpper_(x.estado) !== "SOBRANTE").length
+        : (correctos + faltantes);
 
       return {
         ubicacion: toUpper_(resp.ubicacion || fallbackUbicacion || (detalle[0] && detalle[0].ubicacion) || ""),
@@ -626,6 +598,14 @@
           sobrantes
         }
       };
+    }
+
+    function detailHasExpectedRows_(rows) {
+      return (rows || []).some(x =>
+        toUpper_(x.estado) === "PENDIENTE" ||
+        toUpper_(x.estado) === "CORRECTO" ||
+        toUpper_(x.estado) === "FALTANTE"
+      );
     }
 
     function normalizarUbicaciones_(auditResp) {
@@ -676,19 +656,39 @@
       return Object.values(map);
     }
 
-    function nombreUsuario_(u) {
-      if (!u) return "";
-      if (typeof u === "string") return u.toUpperCase();
-      return String(u.nombre || u.name || u.usuario || "").toUpperCase();
-    }
+    // =========================================================
+    // ICONO LOCAL
+    // =========================================================
+    const LocalIcon = ({ name, size = 18, className = "" }) => {
+      const iconRef = useRef(null);
+
+      useEffect(() => {
+        if (window.lucide && iconRef.current) {
+          iconRef.current.innerHTML = "";
+          const i = document.createElement("i");
+          i.setAttribute("data-lucide", name.toLowerCase());
+          i.style.width = `${size}px`;
+          i.style.height = `${size}px`;
+          if (className) i.className = className;
+          iconRef.current.appendChild(i);
+          window.lucide.createIcons();
+        }
+      }, [name, size, className]);
+
+      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+    };
 
     // =========================================================
     // COMPONENTE PRINCIPAL
     // =========================================================
     const AuditoriaExcedentesDetalleView = () => {
-      const [auditoriasAbiertas, setAuditoriasAbiertas] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [loadingLocation, setLoadingLocation] = useState(false);
+
       const [auditId, setAuditId] = useState(window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ || "");
+      const [auditList, setAuditList] = useState([]);
       const [auditData, setAuditData] = useState(null);
+
       const [ubicaciones, setUbicaciones] = useState([]);
       const [ubicacionActiva, setUbicacionActiva] = useState("");
       const [detalleUbicacion, setDetalleUbicacion] = useState({
@@ -703,88 +703,59 @@
         }
       });
 
-      const [bootstrapUsers, setBootstrapUsers] = useState([]);
-      const [loading, setLoading] = useState(true);
-      const [loadingUbicacion, setLoadingUbicacion] = useState(false);
-      const [sendingScan, setSendingScan] = useState(false);
+      const [searchDetalle, setSearchDetalle] = useState("");
 
-      const [inputUbicacion, setInputUbicacion] = useState("");
-      const [inputIdUnico, setInputIdUnico] = useState("");
-      const [observacionesCierreAudit, setObservacionesCierreAudit] = useState("");
-
-      const idInputRef = useRef(null);
-      const ubicacionInputRef = useRef(null);
       const firstLoadDoneRef = useRef(false);
 
       // -------------------------------------------------------
-      // CARGA BASE
+      // CARGA DE AUDITORÍAS
       // -------------------------------------------------------
-      const cargarBootstrapYAuditorias = useCallback(() => {
+      const cargarListadoAuditorias_ = useCallback(() => {
         setLoading(true);
 
         google.script.run
-          .withSuccessHandler((boot) => {
-            const usuarios = Array.isArray(boot?.usuarios) ? boot.usuarios : [];
-            setBootstrapUsers(usuarios);
+          .withSuccessHandler((resp) => {
+            const lista = Array.isArray(resp) ? resp : [];
+            setAuditList(lista);
 
-            google.script.run
-              .withSuccessHandler((resp) => {
-                const abiertas = Array.isArray(resp) ? resp : [];
-                setAuditoriasAbiertas(abiertas);
+            let selected = auditId || window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ || "";
+            if (!selected && lista.length > 0) {
+              selected = lista[0].idauditoria;
+            }
+            if (selected) {
+              setAuditId(selected);
+              window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = selected;
+            }
 
-                let selectedId = auditId;
-                if (!selectedId && window.__AUDITORIA_EXCEDENTES_DETALLE_ID__) {
-                  selectedId = window.__AUDITORIA_EXCEDENTES_DETALLE_ID__;
+            setLoading(false);
+
+            if (!firstLoadDoneRef.current) {
+              firstLoadDoneRef.current = true;
+              notify_(
+                `Detalle listo. Auditorías disponibles: ${lista.length}.`,
+                "success",
+                1800,
+                {
+                  title: "Vista lista",
+                  sound: false
                 }
-                if (!selectedId && abiertas.length > 0) {
-                  selectedId = abiertas[0].idauditoria;
-                }
-
-                setAuditId(selectedId || "");
-                setLoading(false);
-
-                if (!firstLoadDoneRef.current) {
-                  firstLoadDoneRef.current = true;
-                  notify_(
-                    `Se detectaron ${abiertas.length} auditorías abiertas.`,
-                    "success",
-                    1800,
-                    {
-                      title: "Detalle listo",
-                      sound: false
-                    }
-                  );
-                }
-              })
-              .withFailureHandler((err) => {
-                console.error("❌ [AuditoriaExcedentesDetalle] Error listando auditorías abiertas:", err);
-                setLoading(false);
-                notify_(
-                  err && err.message ? err.message : "No se pudieron cargar las auditorías abiertas.",
-                  "error",
-                  4200,
-                  {
-                    title: "Error de auditorías",
-                    sound: true
-                  }
-                );
-              })
-              .AuditoriaExcedentesController_listarAuditorias({ estatus: "ABIERTA" });
+              );
+            }
           })
           .withFailureHandler((err) => {
-            console.error("❌ [AuditoriaExcedentesDetalle] Error bootstrap:", err);
+            console.error("❌ [AuditoriaExcedentesDetalle] Error listando auditorías:", err);
             setLoading(false);
             notify_(
-              err && err.message ? err.message : "No se pudo cargar el bootstrap de auditoría.",
+              err && err.message ? err.message : "No se pudieron cargar las auditorías.",
               "error",
               4200,
               {
-                title: "Error de carga",
+                title: "Error de auditorías",
                 sound: true
               }
             );
           })
-          .AuditoriaExcedentesController_obtenerBootstrap();
+          .AuditoriaExcedentesController_listarAuditorias({});
       }, [auditId]);
 
       useEffect(() => {
@@ -802,16 +773,17 @@
           sound: false
         });
 
-        cargarBootstrapYAuditorias();
-      }, [cargarBootstrapYAuditorias]);
+        cargarListadoAuditorias_();
+      }, [cargarListadoAuditorias_]);
 
       // -------------------------------------------------------
-      // CARGA DE AUDITORÍA
+      // CARGA DETALLE AUDITORÍA
       // -------------------------------------------------------
-      const cargarAuditoria = useCallback((idauditoria, keepCurrentLocation = true) => {
+      const cargarDetalleAuditoria_ = useCallback((idauditoria) => {
         if (!idauditoria) {
           setAuditData(null);
           setUbicaciones([]);
+          setUbicacionActiva("");
           setDetalleUbicacion({
             ubicacion: "",
             detalle: [],
@@ -830,18 +802,18 @@
 
         google.script.run
           .withSuccessHandler((resp) => {
-            setAuditData(resp || null);
+            const safe = resp || {};
+            setAuditData(safe);
 
-            const listaUbicaciones = normalizarUbicaciones_(resp);
-            setUbicaciones(listaUbicaciones);
+            const locs = normalizarUbicaciones_(safe);
+            setUbicaciones(locs);
 
-            let nextUbicacion = keepCurrentLocation ? ubicacionActiva : "";
-            if (!nextUbicacion && listaUbicaciones.length > 0) {
-              nextUbicacion = listaUbicaciones[0].ubicacion;
-            }
+            const nextUbic =
+              ubicacionActiva && locs.some(x => toUpper_(x.ubicacion) === toUpper_(ubicacionActiva))
+                ? ubicacionActiva
+                : (locs[0] ? locs[0].ubicacion : "");
 
-            setUbicacionActiva(nextUbicacion || "");
-            setInputUbicacion(nextUbicacion || "");
+            setUbicacionActiva(nextUbic || "");
             setLoading(false);
           })
           .withFailureHandler((err) => {
@@ -862,14 +834,14 @@
 
       useEffect(() => {
         if (auditId) {
-          cargarAuditoria(auditId, true);
+          cargarDetalleAuditoria_(auditId);
         }
-      }, [auditId, cargarAuditoria]);
+      }, [auditId, cargarDetalleAuditoria_]);
 
       // -------------------------------------------------------
       // CARGA DETALLE UBICACIÓN
       // -------------------------------------------------------
-      const cargarDetalleUbicacion = useCallback((idauditoria, ubicacion) => {
+      const cargarDetalleUbicacion_ = useCallback((idauditoria, ubicacion) => {
         if (!idauditoria || !ubicacion) {
           setDetalleUbicacion({
             ubicacion: "",
@@ -885,17 +857,17 @@
           return;
         }
 
-        setLoadingUbicacion(true);
+        setLoadingLocation(true);
 
         google.script.run
           .withSuccessHandler((resp) => {
             const normalizado = normalizarDetalleUbicacionResponse_(resp, ubicacion);
             setDetalleUbicacion(normalizado);
-            setLoadingUbicacion(false);
+            setLoadingLocation(false);
           })
           .withFailureHandler((err) => {
             console.error("❌ [AuditoriaExcedentesDetalle] Error obteniendo detalle de ubicación:", err);
-            setLoadingUbicacion(false);
+            setLoadingLocation(false);
             notify_(
               err && err.message ? err.message : "No se pudo cargar la ubicación seleccionada.",
               "error",
@@ -911,289 +883,74 @@
 
       useEffect(() => {
         if (auditId && ubicacionActiva) {
-          cargarDetalleUbicacion(auditId, ubicacionActiva);
-        }
-      }, [auditId, ubicacionActiva, cargarDetalleUbicacion]);
-
-      // -------------------------------------------------------
-      // ACCIONES
-      // -------------------------------------------------------
-      const abrirUbicacion = () => {
-        const ubicacion = toUpper_(inputUbicacion);
-        if (!auditId) {
-          notify_("Debes seleccionar una auditoría abierta.", "warning", 2800, {
-            title: "Auditoría requerida",
-            sound: true
-          });
-          return;
-        }
-
-        if (!ubicacion) {
-          notify_("Debes escribir una ubicación válida.", "warning", 2800, {
-            title: "Ubicación requerida",
-            sound: true
-          });
-          return;
-        }
-
-        notify_("Abriendo ubicación...", "info", 1200, {
-          title: "Procesando",
-          sound: false
-        });
-
-        google.script.run
-          .withSuccessHandler(() => {
-            setUbicacionActiva(ubicacion);
-            setInputUbicacion(ubicacion);
-
-            notify_(
-              `Ubicación ${ubicacion} abierta correctamente.`,
-              "success",
-              1800,
-              {
-                title: "Ubicación activa",
-                sound: false
-              }
-            );
-
-            cargarAuditoria(auditId, false);
-            setTimeout(() => {
-              cargarDetalleUbicacion(auditId, ubicacion);
-              idInputRef.current?.focus();
-            }, 80);
-          })
-          .withFailureHandler((err) => {
-            console.error("❌ [AuditoriaExcedentesDetalle] Error abriendo ubicación:", err);
-            notify_(
-              err && err.message ? err.message : "No se pudo abrir la ubicación.",
-              "error",
-              4200,
-              {
-                title: "Error al abrir ubicación",
-                sound: true
-              }
-            );
-          })
-          .AuditoriaExcedentesController_abrirUbicacion({
-            idauditoria: auditId,
-            ubicacion: ubicacion
-          });
-      };
-
-      const registrarEscaneo = () => {
-        const idunico = toUpper_(inputIdUnico);
-
-        if (!auditId) {
-          notify_("Debes seleccionar una auditoría abierta.", "warning", 2800, {
-            title: "Auditoría requerida",
-            sound: true
-          });
-          return;
-        }
-
-        if (!ubicacionActiva) {
-          notify_("Debes abrir o seleccionar una ubicación activa.", "warning", 2800, {
-            title: "Ubicación requerida",
-            sound: true
-          });
-          return;
-        }
-
-        if (!idunico) {
-          notify_("Debes capturar un IdUnico válido.", "warning", 2800, {
-            title: "IdUnico requerido",
-            sound: true
-          });
-          return;
-        }
-
-        setSendingScan(true);
-
-        google.script.run
-          .withSuccessHandler((resp) => {
-            setInputIdUnico("");
-            setSendingScan(false);
-
-            notify_(
-              `IdUnico procesado: ${idunico}`,
-              "success",
-              1200,
-              {
-                title: "Escaneo registrado",
-                sound: false
-              }
-            );
-
-            cargarAuditoria(auditId, true);
-            cargarDetalleUbicacion(auditId, ubicacionActiva);
-            setTimeout(() => idInputRef.current?.focus(), 50);
-          })
-          .withFailureHandler((err) => {
-            console.error("❌ [AuditoriaExcedentesDetalle] Error registrando escaneo:", err);
-            setSendingScan(false);
-            notify_(
-              err && err.message ? err.message : "No se pudo registrar el escaneo.",
-              "error",
-              4200,
-              {
-                title: "Error de escaneo",
-                sound: true
-              }
-            );
-            setTimeout(() => idInputRef.current?.focus(), 50);
-          })
-          .AuditoriaExcedentesController_registrarEscaneoIdUnico({
-            idauditoria: auditId,
-            ubicacion: ubicacionActiva,
-            idunico: idunico
-          });
-      };
-
-      const cerrarUbicacion = () => {
-        if (!auditId || !ubicacionActiva) {
-          notify_("No hay una ubicación activa para cerrar.", "warning", 2800, {
-            title: "Ubicación requerida",
-            sound: true
-          });
-          return;
-        }
-
-        if (typeof window.confirmarSistema === "function") {
-          window.confirmarSistema({
-            tipo: "warning",
-            title: "Cerrar ubicación",
-            text: `¿Deseas cerrar la ubicación ${ubicacionActiva}?`,
-            confirmText: "Cerrar ubicación",
-            cancelText: "Cancelar"
-          }).then((result) => {
-            if (result.isConfirmed) {
-              ejecutarCerrarUbicacion_();
+          cargarDetalleUbicacion_(auditId, ubicacionActiva);
+        } else {
+          setDetalleUbicacion({
+            ubicacion: "",
+            detalle: [],
+            resumen: {
+              esperados: 0,
+              escaneados: 0,
+              correctos: 0,
+              faltantes: 0,
+              sobrantes: 0
             }
           });
-
-          return;
         }
+      }, [auditId, ubicacionActiva, cargarDetalleUbicacion_]);
 
-        ejecutarCerrarUbicacion_();
-      };
+      // -------------------------------------------------------
+      // NAVEGACIÓN
+      // -------------------------------------------------------
+      const continuarCaptura_ = () => {
+        const folio = toStr_(auditId);
+        const audit = auditData?.auditoria || auditData || {};
 
-      const ejecutarCerrarUbicacion_ = () => {
-        google.script.run
-          .withSuccessHandler(() => {
-            notify_(
-              `Ubicación ${ubicacionActiva} cerrada correctamente.`,
-              "success",
-              1800,
-              {
-                title: "Ubicación cerrada",
-                sound: false
-              }
-            );
-
-            const old = ubicacionActiva;
-            setUbicacionActiva("");
-            setInputUbicacion("");
-            setDetalleUbicacion({
-              ubicacion: "",
-              detalle: [],
-              resumen: {
-                esperados: 0,
-                escaneados: 0,
-                correctos: 0,
-                faltantes: 0,
-                sobrantes: 0
-              }
-            });
-
-            cargarAuditoria(auditId, false);
-            setTimeout(() => ubicacionInputRef.current?.focus(), 80);
-          })
-          .withFailureHandler((err) => {
-            console.error("❌ [AuditoriaExcedentesDetalle] Error cerrando ubicación:", err);
-            notify_(
-              err && err.message ? err.message : "No se pudo cerrar la ubicación.",
-              "error",
-              4200,
-              {
-                title: "Error al cerrar ubicación",
-                sound: true
-              }
-            );
-          })
-          .AuditoriaExcedentesController_cerrarUbicacion({
-            idauditoria: auditId,
-            ubicacion: ubicacionActiva
-          });
-      };
-
-      const cerrarAuditoria = () => {
-        if (!auditId) {
-          notify_("No hay auditoría activa para cerrar.", "warning", 2800, {
+        if (!folio) {
+          notify_("No hay auditoría seleccionada.", "warning", 2600, {
             title: "Auditoría requerida",
             sound: true
           });
           return;
         }
 
-        if (typeof window.confirmarSistema === "function") {
-          window.confirmarSistema({
-            tipo: "warning",
-            title: "Cerrar auditoría",
-            text: `¿Deseas cerrar la auditoría ${auditId}?`,
-            confirmText: "Cerrar auditoría",
-            cancelText: "Cancelar"
-          }).then((result) => {
-            if (result.isConfirmed) {
-              ejecutarCerrarAuditoria_();
+        if (toUpper_(audit.estatus) !== "ABIERTA") {
+          notify_(
+            `La auditoría ${folio} ya está cerrada.`,
+            "warning",
+            2600,
+            {
+              title: "Captura no disponible",
+              sound: true
             }
-          });
-
+          );
           return;
         }
 
-        ejecutarCerrarAuditoria_();
-      };
+        window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ = folio;
+        window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = folio;
 
-      const ejecutarCerrarAuditoria_ = () => {
-        google.script.run
-          .withSuccessHandler(() => {
-            notify_(
-              `Auditoría ${auditId} cerrada correctamente.`,
-              "success",
-              2200,
-              {
-                title: "Auditoría cerrada",
-                sound: true
-              }
-            );
+        if (typeof window.irAVistaShell === "function") {
+          window.irAVistaShell(
+            "AuditoriaExcedentesCaptura",
+            "AuditoriaExcedentesCaptura",
+            {
+              __AUDITORIA_EXCEDENTES_CAPTURA_ID__: folio,
+              __AUDITORIA_EXCEDENTES_DETALLE_ID__: folio
+            }
+          );
+          return;
+        }
 
-            setObservacionesCierreAudit("");
-            window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = "";
-            cargarBootstrapYAuditorias();
-          })
-          .withFailureHandler((err) => {
-            console.error("❌ [AuditoriaExcedentesDetalle] Error cerrando auditoría:", err);
-            notify_(
-              err && err.message ? err.message : "No se pudo cerrar la auditoría.",
-              "error",
-              4200,
-              {
-                title: "Error al cerrar auditoría",
-                sound: true
-              }
-            );
-          })
-          .AuditoriaExcedentesController_cerrarAuditoria({
-            idauditoria: auditId,
-            observaciones: observacionesCierreAudit || "",
-            cerrarUbicacionesAbiertas: true
-          });
-      };
-
-      const seleccionarUbicacionDesdeLista = (ubic) => {
-        const u = toUpper_(ubic);
-        setUbicacionActiva(u);
-        setInputUbicacion(u);
+        notify_(
+          `No se pudo abrir la captura para la auditoría ${folio}.`,
+          "error",
+          3200,
+          {
+            title: "Navegación no disponible",
+            sound: true
+          }
+        );
       };
 
       // -------------------------------------------------------
@@ -1201,93 +958,153 @@
       // -------------------------------------------------------
       const auditHeader = auditData?.auditoria || auditData || {};
       const auditResumen = auditData?.resumen || {};
-      const locationResumen = detalleUbicacion?.resumen || {};
-      const rowsDetalle = Array.isArray(detalleUbicacion?.detalle) ? detalleUbicacion.detalle : [];
-      const confAudit = getConfiabilidadVisual(auditResumen.confiabilidadtotal);
+      const conf = getConfiabilidadVisual_(auditResumen.confiabilidadtotal || auditHeader.confiabilidadtotal);
 
-      const totalAbiertas = auditoriasAbiertas.length;
+      const rowsFiltradas = useMemo(() => {
+        const rows = Array.isArray(detalleUbicacion.detalle) ? detalleUbicacion.detalle : [];
+        const q = toStr_(searchDetalle).toLowerCase();
 
-      const auditoriaSeleccionadaLabel = auditHeader?.idauditoria
-        ? `${auditHeader.idauditoria} • ${resumenFechaHora_(auditHeader)}`
-        : "Sin auditoría seleccionada";
+        if (!q) return rows;
+
+        return rows.filter((row) =>
+          toStr_(row.idunico).toLowerCase().includes(q) ||
+          toStr_(row.codigo || row.sku).toLowerCase().includes(q) ||
+          toStr_(row.descripcion).toLowerCase().includes(q) ||
+          toStr_(row.observaciones).toLowerCase().includes(q)
+        );
+      }, [detalleUbicacion.detalle, searchDetalle]);
+
+      const totalUbicaciones = ubicaciones.length;
 
       return (
         <div className="space-y-6 fade-in-up">
-          {/* Cabecera */}
+          {/* HEADER */}
           <div className="aed-panel p-5">
             <div className="flex flex-col 2xl:flex-row 2xl:items-start 2xl:justify-between gap-5">
               <div className="space-y-2">
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                  Detalle operativo de auditoría
+                  Detalle de auditoría de excedentes
                 </p>
 
                 <h2 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[28px] font-black tracking-tight">
-                  {auditHeader?.idauditoria || "SIN AUDITORÍA ACTIVA"}
+                  {auditHeader?.idauditoria || "SIN AUDITORÍA"}
                 </h2>
 
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="aed-meta-sub">
-                    {auditHeader?.idauditoria ? resumenFechaHora_(auditHeader) : "Selecciona una auditoría abierta"}
+                    {auditHeader?.idauditoria
+                      ? construirResumenFechaHora_(auditHeader)
+                      : "Selecciona una auditoría"}
                   </span>
 
                   {auditHeader?.estatus && (
-                    <span className={`aed-chip ${String(auditHeader.estatus).toUpperCase() === "ABIERTA" ? "aed-status-open" : "aed-status-closed"}`}>
+                    <span className={`aed-chip ${toUpper_(auditHeader.estatus) === "ABIERTA" ? "aed-chip-open" : "aed-chip-closed"}`}>
                       {auditHeader.estatus}
                     </span>
                   )}
 
-                  {auditHeader?.confiabilidadtotal != null && (
-                    <span className={confAudit.className}>
-                      {Number(auditHeader.confiabilidadtotal || 0).toFixed(2)}% • {confAudit.label}
+                  {(auditResumen.confiabilidadtotal != null || auditHeader.confiabilidadtotal != null) && (
+                    <span className={conf.className}>
+                      {Number(auditResumen.confiabilidadtotal || auditHeader.confiabilidadtotal || 0).toFixed(2)}% • {conf.label}
+                    </span>
+                  )}
+
+                  {auditHeader?.auditor && (
+                    <span className="aed-chip aed-chip-slate">
+                      {auditHeader.auditor}
+                    </span>
+                  )}
+
+                  {auditHeader?.tipoauditoria && (
+                    <span className="aed-chip aed-chip-amber">
+                      {toUpper_(auditHeader.tipoauditoria) === "POR_BODEGA" ? "POR BODEGA" : "GLOBAL"}
                     </span>
                   )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full 2xl:w-auto 2xl:min-w-[640px]">
-                <div className="aed-kpi">
-                  <div className="aed-kpi-topbar slate"></div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Esperados audit.</div>
-                  <div className="text-[26px] font-black text-[var(--text-main)] mt-2">
-                    {Number(auditResumen.idunicosesperadostotales || 0)}
-                  </div>
-                </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {toUpper_(auditHeader.estatus) === "ABIERTA" && (
+                  <button
+                    type="button"
+                    className="aed-btn-primary"
+                    onClick={continuarCaptura_}
+                  >
+                    Continuar captura
+                  </button>
+                )}
 
-                <div className="aed-kpi">
-                  <div className="aed-kpi-topbar emerald"></div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Correctos audit.</div>
-                  <div className="text-[26px] font-black text-[var(--text-main)] mt-2">
-                    {Number(auditResumen.idunicoscorrectostotales || 0)}
-                  </div>
-                </div>
-
-                <div className="aed-kpi">
-                  <div className="aed-kpi-topbar amber"></div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Faltantes audit.</div>
-                  <div className="text-[26px] font-black text-[var(--text-main)] mt-2">
-                    {Number(auditResumen.idunicosfaltantestotales || 0)}
-                  </div>
-                </div>
-
-                <div className="aed-kpi">
-                  <div className="aed-kpi-topbar red"></div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Sobrantes audit.</div>
-                  <div className="text-[26px] font-black text-[var(--text-main)] mt-2">
-                    {Number(auditResumen.idunicossobrantestotales || 0)}
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  className="aed-btn-soft"
+                  onClick={() => cargarDetalleAuditoria_(auditId)}
+                  disabled={!auditId}
+                >
+                  Actualizar
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Layout principal */}
+          {/* KPIS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div className="aed-kpi">
+              <div className="aed-kpi-topbar slate"></div>
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Ubicaciones auditadas</div>
+              <div className="text-[28px] font-black text-[var(--text-main)] mt-2">
+                {Number(auditResumen.ubicacionesauditadas || 0)}
+              </div>
+            </div>
+
+            <div className="aed-kpi">
+              <div className="aed-kpi-topbar red"></div>
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Ubic. con diferencia</div>
+              <div className="text-[28px] font-black text-[var(--text-main)] mt-2">
+                {Number(auditResumen.ubicacionescondiferencia || 0)}
+              </div>
+            </div>
+
+            <div className="aed-kpi">
+              <div className="aed-kpi-topbar slate"></div>
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Esperados totales</div>
+              <div className="text-[28px] font-black text-[var(--text-main)] mt-2">
+                {Number(auditResumen.idunicosesperadostotales || 0)}
+              </div>
+            </div>
+
+            <div className="aed-kpi">
+              <div className="aed-kpi-topbar emerald"></div>
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Correctos totales</div>
+              <div className="text-[28px] font-black text-[var(--text-main)] mt-2">
+                {Number(auditResumen.idunicoscorrectostotales || 0)}
+              </div>
+            </div>
+
+            <div className="aed-kpi">
+              <div className="aed-kpi-topbar amber"></div>
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Faltantes totales</div>
+              <div className="text-[28px] font-black text-[var(--text-main)] mt-2">
+                {Number(auditResumen.idunicosfaltantestotales || 0)}
+              </div>
+            </div>
+
+            <div className="aed-kpi">
+              <div className="aed-kpi-topbar red"></div>
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Sobrantes totales</div>
+              <div className="text-[28px] font-black text-[var(--text-main)] mt-2">
+                {Number(auditResumen.idunicossobrantestotales || 0)}
+              </div>
+            </div>
+          </div>
+
+          {/* LAYOUT */}
           <div className="grid grid-cols-1 2xl:grid-cols-[420px_minmax(0,1fr)] gap-6">
-            {/* Columna izquierda */}
+            {/* COLUMNA IZQUIERDA */}
             <div className="space-y-6">
-              {/* Selector de auditoría */}
+              {/* SELECTOR AUDITORÍA */}
               <div className="aed-panel p-5 space-y-4">
                 <div>
-                  <label className="aed-label">Auditoría abierta</label>
+                  <label className="aed-label">Selecciona auditoría</label>
                   <select
                     className="aed-select"
                     value={auditId}
@@ -1295,10 +1112,11 @@
                       const id = e.target.value;
                       setAuditId(id);
                       window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = id;
+                      setSearchDetalle("");
                     }}
                   >
                     <option value="">Selecciona una auditoría</option>
-                    {auditoriasAbiertas.map((item, index) => (
+                    {auditList.map((item, index) => (
                       <option key={`${item.idauditoria}-${index}`} value={item.idauditoria}>
                         {item.idauditoria}
                       </option>
@@ -1307,189 +1125,44 @@
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="aed-mini-card">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                      Abiertas
-                    </div>
-                    <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
-                      {totalAbiertas}
-                    </div>
-                  </div>
-
-                  <div className="aed-mini-card">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                      Ubi. audit.
-                    </div>
-                    <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
-                      {Number(auditResumen.ubicacionesauditadas || 0)}
+                  <div className="aed-kpi !min-h-[110px]">
+                    <div className="aed-kpi-topbar slate"></div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Auditorías</div>
+                    <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                      {auditList.length}
                     </div>
                   </div>
 
-                  <div className="aed-mini-card">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                      Dif. ubi
+                  <div className="aed-kpi !min-h-[110px]">
+                    <div className="aed-kpi-topbar slate"></div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Ubicaciones</div>
+                    <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
+                      {totalUbicaciones}
                     </div>
-                    <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
+                  </div>
+
+                  <div className="aed-kpi !min-h-[110px]">
+                    <div className="aed-kpi-topbar red"></div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Diferencias</div>
+                    <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
                       {Number(auditResumen.ubicacionescondiferencia || 0)}
                     </div>
                   </div>
                 </div>
 
-                {auditHeader?.auditor && (
-                  <div className="aed-mini-card">
+                {auditHeader?.bodegaobjetivo && (
+                  <div className="aed-card p-4">
                     <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-1">
-                      Auditor responsable
+                      Bodega objetivo
                     </div>
                     <div className="text-[14px] font-black uppercase tracking-[0.10em] text-[var(--text-main)]">
-                      {auditHeader.auditor}
+                      {auditHeader.bodegaobjetivo}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Apertura ubicación */}
-              <div className="aed-panel p-5 space-y-4">
-                <div>
-                  <label className="aed-label">Abrir o seleccionar ubicación</label>
-                  <input
-                    ref={ubicacionInputRef}
-                    type="text"
-                    className="aed-input font-mono-premium"
-                    placeholder="Ej. B1-19"
-                    value={inputUbicacion}
-                    onChange={(e) => setInputUbicacion(e.target.value.toUpperCase())}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        abrirUbicacion();
-                      }
-                    }}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    className="aed-btn-primary"
-                    onClick={abrirUbicacion}
-                    disabled={!auditId}
-                  >
-                    Abrir ubicación
-                  </button>
-
-                  <button
-                    type="button"
-                    className="aed-btn-soft"
-                    onClick={() => {
-                      if (inputUbicacion) {
-                        seleccionarUbicacionDesdeLista(inputUbicacion);
-                      }
-                    }}
-                    disabled={!auditId || !inputUbicacion}
-                  >
-                    Seleccionar
-                  </button>
-                </div>
-
-                <div className="aed-mini-card">
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-2">
-                    Ubicación activa
-                  </div>
-
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="aed-meta-main">
-                        {ubicacionActiva || "SIN UBICACIÓN"}
-                      </div>
-                      <div className="aed-meta-sub mt-1">
-                        {auditHeader?.idauditoria ? auditoriaSeleccionadaLabel : "Abre una ubicación para comenzar"}
-                      </div>
-                    </div>
-
-                    {ubicacionActiva && (
-                      <span className="aed-chip aed-chip-slate font-mono-premium">
-                        {ubicacionActiva}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Escaneo */}
-              <div className="aed-panel p-5 space-y-4">
-                <div>
-                  <label className="aed-label">Escanear IdUnico</label>
-                  <input
-                    ref={idInputRef}
-                    type="text"
-                    className="aed-input font-mono-premium"
-                    placeholder="Escanea o captura el IdUnico"
-                    value={inputIdUnico}
-                    onChange={(e) => setInputIdUnico(e.target.value.toUpperCase())}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        registrarEscaneo();
-                      }
-                    }}
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  className="aed-btn-dark w-full"
-                  onClick={registrarEscaneo}
-                  disabled={!auditId || !ubicacionActiva || !inputIdUnico || sendingScan}
-                >
-                  {sendingScan ? "Procesando..." : "Registrar escaneo"}
-                </button>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    className="aed-btn-soft"
-                    onClick={() => {
-                      setInputIdUnico("");
-                      idInputRef.current?.focus();
-                    }}
-                  >
-                    Limpiar captura
-                  </button>
-
-                  <button
-                    type="button"
-                    className="aed-btn-danger"
-                    onClick={cerrarUbicacion}
-                    disabled={!auditId || !ubicacionActiva}
-                  >
-                    Cerrar ubicación
-                  </button>
-                </div>
-              </div>
-
-              {/* Cierre audit */}
-              <div className="aed-panel p-5 space-y-4">
-                <div>
-                  <label className="aed-label">Observaciones de cierre</label>
-                  <textarea
-                    className="aed-textarea"
-                    placeholder="Notas de cierre de auditoría..."
-                    value={observacionesCierreAudit}
-                    onChange={(e) => setObservacionesCierreAudit(e.target.value)}
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  className="aed-btn-primary w-full"
-                  onClick={cerrarAuditoria}
-                  disabled={!auditId}
-                >
-                  Cerrar auditoría
-                </button>
-              </div>
-
-              {/* Lista ubicaciones */}
+              {/* LISTA DE UBICACIONES */}
               <div className="aed-panel p-5">
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <div>
@@ -1502,18 +1175,18 @@
                   </div>
 
                   <span className="aed-chip aed-chip-slate">
-                    Auditoría activa
+                    Navegación lateral
                   </span>
                 </div>
 
-                <div className="space-y-3 max-h-[340px] overflow-auto custom-scroll">
-                  {ubicaciones.length === 0 && (
-                    <div className="aed-empty-state !min-h-[140px]">
+                <div className="space-y-3 max-h-[520px] overflow-auto custom-scroll">
+                  {ubicaciones.length === 0 && !loading && (
+                    <div className="aed-empty-state !min-h-[160px]">
                       <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                         <LocalIcon name="map-pin-off" size={22} />
                       </div>
                       <span className="text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
-                        Sin ubicaciones todavía
+                        Sin ubicaciones registradas
                       </span>
                     </div>
                   )}
@@ -1522,7 +1195,10 @@
                     <div
                       key={u.key}
                       className={`aed-list-item ${toUpper_(u.ubicacion) === toUpper_(ubicacionActiva) ? "active" : ""}`}
-                      onClick={() => seleccionarUbicacionDesdeLista(u.ubicacion)}
+                      onClick={() => {
+                        setUbicacionActiva(u.ubicacion);
+                        setSearchDetalle("");
+                      }}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
@@ -1549,21 +1225,21 @@
               </div>
             </div>
 
-            {/* Columna derecha */}
+            {/* COLUMNA DERECHA */}
             <div className="space-y-6">
-              {/* Resumen ubicación */}
+              {/* RESUMEN UBICACIÓN */}
               <div className="aed-panel p-5">
                 <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
-                      Ubicación en operación
+                      Ubicación seleccionada
                     </p>
                     <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[24px] font-black tracking-tight font-mono-premium">
                       {detalleUbicacion.ubicacion || ubicacionActiva || "SIN UBICACIÓN"}
                     </h3>
                     <div className="mt-2">
-                      <span className={`aed-chip ${ubicacionActiva ? "aed-chip-red" : "aed-chip-slate"}`}>
-                        {ubicacionActiva ? "Abierta / operando" : "Sin apertura activa"}
+                      <span className="aed-chip aed-chip-slate">
+                        Consulta detallada
                       </span>
                     </div>
                   </div>
@@ -1573,7 +1249,7 @@
                       <div className="aed-kpi-topbar slate"></div>
                       <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Esperados</div>
                       <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
-                        {Number(locationResumen.esperados || 0)}
+                        {Number(detalleUbicacion.resumen?.esperados || 0)}
                       </div>
                     </div>
 
@@ -1581,7 +1257,7 @@
                       <div className="aed-kpi-topbar slate"></div>
                       <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Escaneados</div>
                       <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
-                        {Number(locationResumen.escaneados || 0)}
+                        {Number(detalleUbicacion.resumen?.escaneados || 0)}
                       </div>
                     </div>
 
@@ -1589,7 +1265,7 @@
                       <div className="aed-kpi-topbar emerald"></div>
                       <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Correctos</div>
                       <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
-                        {Number(locationResumen.correctos || 0)}
+                        {Number(detalleUbicacion.resumen?.correctos || 0)}
                       </div>
                     </div>
 
@@ -1597,7 +1273,7 @@
                       <div className="aed-kpi-topbar amber"></div>
                       <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Faltantes</div>
                       <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
-                        {Number(locationResumen.faltantes || 0)}
+                        {Number(detalleUbicacion.resumen?.faltantes || 0)}
                       </div>
                     </div>
 
@@ -1605,14 +1281,38 @@
                       <div className="aed-kpi-topbar red"></div>
                       <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Sobrantes</div>
                       <div className="text-[24px] font-black text-[var(--text-main)] mt-2">
-                        {Number(locationResumen.sobrantes || 0)}
+                        {Number(detalleUbicacion.resumen?.sobrantes || 0)}
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Tabla viva */}
+              {/* BUSCADOR DETALLE */}
+              <div className="aed-panel p-5 space-y-4">
+                <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-3 items-end">
+                  <div>
+                    <label className="aed-label">Buscar dentro de la ubicación</label>
+                    <input
+                      type="text"
+                      className="aed-input font-mono-premium"
+                      placeholder="Busca por IdUnico, código o descripción..."
+                      value={searchDetalle}
+                      onChange={(e) => setSearchDetalle(e.target.value)}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    className="aed-btn-soft"
+                    onClick={() => setSearchDetalle("")}
+                  >
+                    Limpiar búsqueda
+                  </button>
+                </div>
+              </div>
+
+              {/* TABLA DETALLE */}
               <div className="aed-panel overflow-hidden">
                 <div className="px-5 pt-5 pb-3 flex items-center justify-between gap-3 flex-wrap">
                   <div>
@@ -1620,12 +1320,12 @@
                       Detalle de ubicación
                     </p>
                     <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[22px] font-black tracking-tight">
-                      Escaneos y conciliación
+                      Esperados, faltantes y sobrantes
                     </h3>
                   </div>
 
                   <span className="aed-chip aed-chip-slate">
-                    {rowsDetalle.length} filas
+                    {rowsFiltradas.length} filas
                   </span>
                 </div>
 
@@ -1643,8 +1343,8 @@
                     </thead>
 
                     <tbody>
-                      {rowsDetalle.map((row, idx) => {
-                        const estado = getEstadoFilaVisual(row);
+                      {rowsFiltradas.map((row, idx) => {
+                        const estado = getEstadoFilaVisual_(row);
 
                         return (
                           <tr key={`${row.idunico || "SIN-ID"}-${idx}`} className="aed-row">
@@ -1673,7 +1373,7 @@
                             </td>
 
                             <td>
-                              <span className="text-[12px] font-black text-[var(--text-main)] font-mono-premium">
+                              <span className="text-[12px] font-black text-[var(--text-main)]">
                                 {formatearHora_(row.hora || row.horaregistro || row.horaescaneo)}
                               </span>
                             </td>
@@ -1689,23 +1389,23 @@
                     </tbody>
                   </table>
 
-                  {!loadingUbicacion && rowsDetalle.length === 0 && (
+                  {!loadingLocation && rowsFiltradas.length === 0 && (
                     <div className="aed-empty-state">
                       <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                        <LocalIcon name="scan-line" size={28} />
+                        <LocalIcon name="scan-search" size={28} />
                       </div>
 
                       <span className="text-[13px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
-                        Sin registros en la ubicación
+                        Sin detalle disponible
                       </span>
 
                       <span className="text-[11px] text-slate-400 font-semibold">
-                        Abre una ubicación y comienza a escanear IdUnicos.
+                        Selecciona una ubicación o ajusta la búsqueda.
                       </span>
                     </div>
                   )}
 
-                  {loadingUbicacion && (
+                  {loadingLocation && (
                     <div className="p-24 flex flex-col items-center justify-center gap-4">
                       <div className="w-10 h-10 border-4 border-slate-100 border-t-[var(--primary)] rounded-full animate-spin"></div>
                       <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">

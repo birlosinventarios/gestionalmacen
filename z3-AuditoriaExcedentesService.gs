@@ -1,25 +1,5 @@
 /**
  * AuditoriaExcedentesService.gs
- * ------------------------------------------------------------
- * Servicio principal del módulo de auditoría de excedentes.
- *
- * RESPONSABILIDAD:
- * - abrir auditoría
- * - obtener bootstrap
- * - listar auditorías
- * - obtener auditoría por ID
- * - recalcular resumen
- * - cerrar auditoría
- * - exponer atajos hacia detalle
- * - calcular dashboard métrico semanal / mensual actual
- * - calcular confiabilidad actual a nivel ejercicio y por bodega
- *
- * DEPENDE DE:
- * - EstadoActualExcedentesService
- * - AuditoriaExcedentesRepository
- * - AuditoriaExcedentesDetalleRepository
- * - AuditoriaExcedentesDetalleService
- * - UsuariosRepository (si existe)
  */
 
 const AuditoriaExcedentesService = (() => {

@@ -512,7 +512,6 @@
       const str = String(value).trim();
       if (!str) return null;
 
-      // dd/MM/yyyy
       if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
         const parts = str.split("/");
         const day = Number(parts[0]);
@@ -522,7 +521,6 @@
         return _esDateValida_(d) ? d : null;
       }
 
-      // ISO o cualquier formato parseable
       const parsed = new Date(str);
       return _esDateValida_(parsed) ? parsed : null;
     }
@@ -537,7 +535,6 @@
       const str = String(value).trim();
       if (!str) return null;
 
-      // HH:mm o HH:mm:ss
       if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
         const parts = str.split(":");
         const hh = Number(parts[0] || 0);
@@ -547,7 +544,6 @@
         return _esDateValida_(d) ? d : null;
       }
 
-      // Fechas de Sheets tipo 1899-12-30T23:16:36.000Z
       const parsed = new Date(str);
       return _esDateValida_(parsed) ? parsed : null;
     }
@@ -984,22 +980,100 @@
       };
 
       // ---------------------------------------------------------
-      // DETALLE
+      // NAVEGACIÓN
       // ---------------------------------------------------------
       const abrirDetalleAuditoria = (item) => {
-        if (typeof window.cargar_AuditoriaExcedentesDetalle === "function") {
-          window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = item.idauditoria;
-          window.cargar_AuditoriaExcedentesDetalle();
+        const folio = item && item.idauditoria ? String(item.idauditoria).trim() : "";
+
+        if (!folio) {
+          notify_(
+            "No se pudo identificar el folio de la auditoría seleccionada.",
+            "warning",
+            2600,
+            {
+              title: "Folio inválido",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = folio;
+
+        if (typeof window.irAVistaShell === "function") {
+          window.irAVistaShell(
+            "AuditoriaExcedentesDetalle",
+            "AuditoriaExcedentesDetalle",
+            {
+              __AUDITORIA_EXCEDENTES_DETALLE_ID__: folio
+            }
+          );
           return;
         }
 
         notify_(
-          `Auditoría seleccionada: ${item.idauditoria}`,
-          "info",
-          2200,
+          `No se pudo abrir el detalle de la auditoría ${folio}.`,
+          "error",
+          3200,
           {
-            title: "Detalle pendiente",
-            sound: false
+            title: "Navegación no disponible",
+            sound: true
+          }
+        );
+      };
+
+      const continuarAuditoria = (item) => {
+        const folio = item && item.idauditoria ? String(item.idauditoria).trim() : "";
+        const estatus = String(item && item.estatus ? item.estatus : "").toUpperCase();
+
+        if (!folio) {
+          notify_(
+            "No se pudo identificar el folio de la auditoría.",
+            "warning",
+            2600,
+            {
+              title: "Folio inválido",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        if (estatus !== "ABIERTA") {
+          notify_(
+            `La auditoría ${folio} ya no está abierta.`,
+            "warning",
+            2600,
+            {
+              title: "Auditoría no disponible",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ = folio;
+        window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = folio;
+
+        if (typeof window.irAVistaShell === "function") {
+          window.irAVistaShell(
+            "AuditoriaExcedentesCaptura",
+            "AuditoriaExcedentesCaptura",
+            {
+              __AUDITORIA_EXCEDENTES_CAPTURA_ID__: folio,
+              __AUDITORIA_EXCEDENTES_DETALLE_ID__: folio
+            }
+          );
+          return;
+        }
+
+        notify_(
+          `No se pudo abrir la captura para la auditoría ${folio}.`,
+          "error",
+          3200,
+          {
+            title: "Navegación no disponible",
+            sound: true
           }
         );
       };
@@ -1389,17 +1463,33 @@
                         </td>
 
                         <td>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              abrirDetalleAuditoria(item);
-                            }}
-                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-[12px] font-black uppercase tracking-[0.10em] transition-all duration-200"
-                          >
-                            <LocalIcon name="arrow-up-right" size={14} />
-                            Ver detalle
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {String(item.estatus || "").toUpperCase() === "ABIERTA" && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  continuarAuditoria(item);
+                                }}
+                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-[12px] font-black uppercase tracking-[0.10em] transition-all duration-200"
+                              >
+                                <LocalIcon name="play" size={14} />
+                                Continuar
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                abrirDetalleAuditoria(item);
+                              }}
+                              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1c1d1f] hover:bg-black text-white text-[12px] font-black uppercase tracking-[0.10em] transition-all duration-200"
+                            >
+                              <LocalIcon name="arrow-up-right" size={14} />
+                              Ver detalle
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

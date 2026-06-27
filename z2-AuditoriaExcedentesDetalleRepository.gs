@@ -1,21 +1,5 @@
 /**
  * AuditoriaExcedentesDetalleRepository.gs
- * ------------------------------------------------------------
- * Repository de detalle para la hoja:
- * - auditoriaexcedentesdetalle
- *
- * RESPONSABILIDAD:
- * - leer detalle
- * - filtrar por auditoría
- * - filtrar por ubicación
- * - insertar uno o varios registros
- * - detectar escaneos previos
- * - actualizar detalle por renglón
- * - borrar por auditoría (si se necesita rehacer)
- *
- * NOTAS:
- * - No decide correctos/faltantes/sobrantes por negocio
- * - Solo persiste / recupera
  */
 
 const AuditoriaExcedentesDetalleRepository = (() => {

@@ -1,49 +1,53 @@
 /**
  * EstadoActualExcedentesService.gs
- * ------------------------------------------------------------
- * Fuente oficial del estado actual consolidado de excedentes.
- *
- * OBJETIVO:
- * - Resolver el estado actual por IdUnico a partir de:
- *   - ExcedentesRepository (base)
- *   - TraspasosRepository (último movimiento)
- *
- * USOS FUTUROS:
- * - GestorExcedentesService
- * - AuditoriaExcedentesService
- * - Monitores / reportes / conciliación operativa
- *
- * NOTA:
- * Este service NO escribe nada en hojas.
- * Solo resuelve el estado consolidado actual.
  */
 
 const EstadoActualExcedentesService = (() => {
 
   const DOMAIN = Object.freeze({
-    STATUS_PENDIENTES: Object.freeze([
+    TIPO_AUDITORIA: Object.freeze({
+      GLOBAL: "GLOBAL",
+      POR_BODEGA: "POR_BODEGA"
+    }),
+
+    VALOR_TODAS: "TODAS",
+
+    BODEGA_FALLBACK: "PENDIENTE DE UBICACIÓN",
+
+    ESTATUS_LOGICOS: Object.freeze({
+      UBICADO: "UBICADO",
+      PENDIENTE_UBICACION: "PENDIENTE_UBICACION",
+      FUERA_DE_AUDITORIA: "FUERA_DE_AUDITORIA",
+      INVALIDO_BD: "INVALIDO_BD",
+      SIN_REGISTRO_BD: "SIN_REGISTRO_BD",
+      SIN_TRASPASOS: "SIN_TRASPASOS",
+      DESCONOCIDO: "DESCONOCIDO"
+    }),
+
+    /**
+     * AJUSTA ESTA LISTA si manejas otros valores válidos en BD-EXCEDENTES.
+     * Aquí se define qué STATUS permiten que el IdUnico entre al universo.
+     */
+    STATUS_BD_VALIDOS: Object.freeze([
       "",
+      "ACOMODADO",
       "DISPONIBLE",
       "PENDIENTE",
       "SIN UBICACION",
       "SIN UBICACIÓN"
     ]),
 
-    ESTATUS_LOGICOS: Object.freeze({
-      CERRADO: "CERRADO",
-      PENDIENTE_UBICACION: "PENDIENTE_UBICACION",
-      UBICADO: "UBICADO",
-      DESCONOCIDO: "DESCONOCIDO"
-    }),
-
-    BODEGA_FALLBACK: "PENDIENTE DE UBICACIÓN",
-
-    TIPO_AUDITORIA: Object.freeze({
-      GLOBAL: "GLOBAL",
-      POR_BODEGA: "POR_BODEGA"
-    }),
-
-    VALOR_TODAS: "TODAS"
+    /**
+     * AJUSTA ESTA LISTA si manejas otros valores terminales / inválidos.
+     */
+    STATUS_BD_INVALIDOS: Object.freeze([
+      "SURTIDO",
+      "CERRADO",
+      "CANCELADO",
+      "ELIMINADO",
+      "BAJA",
+      "INACTIVO"
+    ])
   });
 
   // =========================================================
@@ -97,15 +101,6 @@ const EstadoActualExcedentesService = (() => {
     return fecha + horaMs;
   }
 
-  function _esStatusPendiente_(status) {
-    const s = _toSafeUpper_(status);
-    return DOMAIN.STATUS_PENDIENTES.includes(s);
-  }
-
-  function _esVigente_(saldo) {
-    return Number(saldo || 0) > 0;
-  }
-
   function _esUbicacionFisica_(valor) {
     const v = _toSafeUpper_(valor);
 
@@ -138,300 +133,10 @@ const EstadoActualExcedentesService = (() => {
     return _toSafeUpper_(fallback) || DOMAIN.BODEGA_FALLBACK;
   }
 
-  // =========================================================
-  // INDEXACIÓN BASE
-  // =========================================================
-  function _indexarExcedentesPorIdUnico_() {
-    const rows = ExcedentesRepository.getAll()
-      .filter(item => _toSafeStr_(item.idunico));
-
-    /**
-     * Si por alguna razón existe más de una fila por IdUnico,
-     * tomamos la más reciente por fecha/hora.
-     */
-    return rows.reduce((acc, row) => {
-      const id = _toSafeStr_(row.idunico);
-      const ts = _timestampFromExcedente_(row);
-
-      if (!acc[id] || ts >= acc[id]._timestamp) {
-        acc[id] = {
-          idUnico: id,
-          codigo: _toSafeUpper_(row.codigo),
-          descripcion: _toSafeUpper_(row.descripcion),
-          saldoBase: _toSafeNum_(row.cantidad),
-          estatusRegistro: _toSafeUpper_(row.status),
-          idproducto: _toSafeStr_(row.idproducto),
-          fechaBase: formatDate_(row.fechaexcedente),
-          horaBase: formatTime_(row.horaexcedente),
-          _timestamp: ts
-        };
-      }
-
-      return acc;
-    }, {});
-  }
-
-  function _indexarUltimoMovimientoPorIdUnico_() {
-    const movimientos = TraspasosRepository.getAll()
-      .filter(m => _toSafeStr_(m.idunico));
-
-    return movimientos.reduce((acc, mov) => {
-      const id = _toSafeStr_(mov.idunico);
-      const ts = _timestampFromMovimiento_(mov);
-
-      if (!acc[id] || ts >= acc[id]._timestamp) {
-        acc[id] = {
-          idUnico: id,
-          ultimoTipo: _toSafeUpper_(mov.tipomovimiento),
-          ultimaSerie: _toSafeUpper_(mov.serie),
-          ultimaUbicacionEntrada: _toSafeUpper_(mov.ubicacionentrada),
-          ultimaUbicacionSalida: _toSafeUpper_(mov.ubicacionsalida),
-          ultimaBodegaEntrada: _toSafeUpper_(mov.bodegaentrada),
-          ultimaBodegaSalida: _toSafeUpper_(mov.bodegasalida),
-          cantidadMovimiento: _toSafeNum_(mov.cantidad),
-          ultimaFecha: formatDate_(mov.fechatraspaso),
-          ultimaHora: formatTime_(mov.horatraspaso),
-          _timestamp: ts
-        };
-      }
-
-      return acc;
-    }, {});
-  }
-
-  // =========================================================
-  // RESOLUCIÓN DE ESTADO ACTUAL
-  // =========================================================
-  function _resolverSaldoActual_(base, ultimoMov) {
-    const saldoBase = _toSafeNum_(base.saldoBase);
-    const tipoUltimo = _toSafeUpper_(ultimoMov ? ultimoMov.ultimoTipo : "");
-    const cantidadMovimiento = _toSafeNum_(ultimoMov ? ultimoMov.cantidadMovimiento : 0);
-
-    // Si ya no está vigente en BD-EXCEDENTES, no lo revivimos
-    if (!_esVigente_(saldoBase)) {
-      return saldoBase;
-    }
-
-    // Si el último movimiento fue acomodo o cambio de bodega,
-    // el saldo operativo visible de ese ID suele venir del movimiento.
-    if (
-      tipoUltimo === "ACOMODO" ||
-      tipoUltimo === "CAMBIO DE BODEGA"
-    ) {
-      return Math.abs(cantidadMovimiento || saldoBase);
-    }
-
-    // Si el último movimiento fue surtido, dejamos el saldo base resuelto
-    if (tipoUltimo === "SURTIDO") {
-      return saldoBase;
-    }
-
-    // Fallback
-    return saldoBase;
-  }
-
-  function _resolverUbicacionActual_(base, ultimoMov) {
-    const saldoBase = _toSafeNum_(base.saldoBase);
-    const statusBase = _toSafeUpper_(base.estatusRegistro);
-
-    const tipoUltimo = _toSafeUpper_(ultimoMov ? ultimoMov.ultimoTipo : "");
-    const ultimaUbicacionEntrada = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaUbicacionEntrada : "");
-    const ultimaUbicacionSalida = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaUbicacionSalida : "");
-    const ultimaSerie = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaSerie : "");
-
-    // Si el ID ya no está vigente, no tiene ubicación operativa auditable
-    if (!_esVigente_(saldoBase)) {
-      return "";
-    }
-
-    // Si último movimiento fue acomodo o cambio de bodega,
-    // la ubicación actual lógica debe salir de la ENTRADA.
-    if (
-      tipoUltimo === "ACOMODO" ||
-      tipoUltimo === "CAMBIO DE BODEGA"
-    ) {
-      if (_esUbicacionFisica_(ultimaUbicacionEntrada)) {
-        return ultimaUbicacionEntrada;
-      }
-
-      if (_esUbicacionFisica_(ultimaSerie)) {
-        return ultimaSerie;
-      }
-    }
-
-    // Si fue surtido y aún sigue vigente (remanente / caso especial)
-    if (tipoUltimo === "SURTIDO") {
-      if (_esUbicacionFisica_(ultimaUbicacionSalida)) {
-        return ultimaUbicacionSalida;
-      }
-
-      if (_esUbicacionFisica_(ultimaSerie)) {
-        return ultimaSerie;
-      }
-    }
-
-    // Fallback al status de BD-EXCEDENTES si ahí vive una ubicación física real
-    if (_esUbicacionFisica_(statusBase)) {
-      return statusBase;
-    }
-
-    return "";
-  }
-
-  function _resolverBodegaActual_(ubicacionActual, ultimoMov, base) {
-    const ubicacion = _toSafeUpper_(ubicacionActual);
-
-    if (_esUbicacionFisica_(ubicacion)) {
-      return _obtenerNombreBodegaPorSerie_(ubicacion, DOMAIN.BODEGA_FALLBACK);
-    }
-
-    // Si no se pudo inferir por ubicación, fallback opcional a última bodega de entrada/salida
-    const ultimaBodegaEntrada = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaBodegaEntrada : "");
-    const ultimaBodegaSalida = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaBodegaSalida : "");
-
-    if (ultimaBodegaEntrada && ultimaBodegaEntrada !== "1 - ALMACEN BIRLOS") {
-      return ultimaBodegaEntrada;
-    }
-
-    if (ultimaBodegaSalida && ultimaBodegaSalida !== "1 - ALMACEN BIRLOS") {
-      return ultimaBodegaSalida;
-    }
-
-    // Sin ubicación física -> pendiente
-    if (_esVigente_(base.saldoBase)) {
-      return DOMAIN.BODEGA_FALLBACK;
-    }
-
-    return "";
-  }
-
-  function _resolverEstatusLogico_(saldoActual, ubicacionActual, estatusRegistro, ultimoMov) {
-    const vigente = _esVigente_(saldoActual);
-    const tieneUbicacionFisica = _esUbicacionFisica_(ubicacionActual);
-    const statusBase = _toSafeUpper_(estatusRegistro);
-    const ultimoTipo = _toSafeUpper_(ultimoMov ? ultimoMov.ultimoTipo : "");
-
-    if (!vigente) {
-      return DOMAIN.ESTATUS_LOGICOS.CERRADO;
-    }
-
-    if (tieneUbicacionFisica) {
-      return DOMAIN.ESTATUS_LOGICOS.UBICADO;
-    }
-
-    if (_esStatusPendiente_(statusBase)) {
-      return DOMAIN.ESTATUS_LOGICOS.PENDIENTE_UBICACION;
-    }
-
-    if (ultimoTipo === "SURTIDO" && vigente && !tieneUbicacionFisica) {
-      return DOMAIN.ESTATUS_LOGICOS.PENDIENTE_UBICACION;
-    }
-
-    return DOMAIN.ESTATUS_LOGICOS.DESCONOCIDO;
-  }
-
-  // =========================================================
-  // CONSTRUCCIÓN DEL DATASET CONSOLIDADO
-  // =========================================================
-  function _construirEstado_() {
-    const mapaBase = _indexarExcedentesPorIdUnico_();
-    const mapaMov = _indexarUltimoMovimientoPorIdUnico_();
-
-    return Object.keys(mapaBase)
-      .map(id => {
-        const base = mapaBase[id];
-        const ultimoMov = mapaMov[id] || null;
-
-        const saldoActual = _resolverSaldoActual_(base, ultimoMov);
-        const ubicacionActual = _resolverUbicacionActual_(base, ultimoMov);
-        const bodegaActual = _resolverBodegaActual_(ubicacionActual, ultimoMov, base);
-        const estatusLogico = _resolverEstatusLogico_(saldoActual, ubicacionActual, base.estatusRegistro, ultimoMov);
-
-        const vigente = _esVigente_(saldoActual);
-        const conUbicacion = vigente && _esUbicacionFisica_(ubicacionActual);
-        const pendienteUbicacion = vigente && !conUbicacion;
-        const auditable = vigente && conUbicacion;
-
-        return {
-          // Identificación base
-          idUnico: base.idUnico,
-          codigo: base.codigo,
-          descripcion: base.descripcion,
-          idproducto: base.idproducto,
-
-          // Estado actual resuelto
-          saldoActual: saldoActual,
-          vigente: vigente,
-          ubicacionActual: ubicacionActual,
-          bodegaActual: bodegaActual,
-          estatusLogico: estatusLogico,
-
-          // Flags operativos
-          conUbicacion: conUbicacion,
-          pendienteUbicacion: pendienteUbicacion,
-          auditable: auditable,
-
-          // Base original
-          saldoBase: base.saldoBase,
-          estatusRegistro: base.estatusRegistro,
-          fechaBase: base.fechaBase,
-          horaBase: base.horaBase,
-
-          // Trazabilidad del último movimiento
-          ultimoMovimientoTipo: ultimoMov ? ultimoMov.ultimoTipo : "",
-          ultimaSerieMovimiento: ultimoMov ? ultimoMov.ultimaSerie : "",
-          ultimaUbicacionEntrada: ultimoMov ? ultimoMov.ultimaUbicacionEntrada : "",
-          ultimaUbicacionSalida: ultimoMov ? ultimoMov.ultimaUbicacionSalida : "",
-          ultimaBodegaEntrada: ultimoMov ? ultimoMov.ultimaBodegaEntrada : "",
-          ultimaBodegaSalida: ultimoMov ? ultimoMov.ultimaBodegaSalida : "",
-          ultimaFechaMovimiento: ultimoMov ? ultimoMov.ultimaFecha : "",
-          ultimaHoraMovimiento: ultimoMov ? ultimoMov.ultimaHora : ""
-        };
-      })
-      .sort((a, b) => {
-        const ubiA = _toSafeUpper_(a.ubicacionActual) || "ZZZZZZ";
-        const ubiB = _toSafeUpper_(b.ubicacionActual) || "ZZZZZZ";
-
-        const cmpUbi = ubiA.localeCompare(ubiB, "es", {
-          sensitivity: "base",
-          numeric: true
-        });
-
-        if (cmpUbi !== 0) return cmpUbi;
-
-        return _toSafeUpper_(a.codigo).localeCompare(_toSafeUpper_(b.codigo), "es", {
-          sensitivity: "base",
-          numeric: true
-        });
-      });
-  }
-
-  // =========================================================
-  // CACHE
-  // =========================================================
-  let cacheEstado_ = null;
-
-  function _getEstado_() {
-    if (cacheEstado_ === null) {
-      cacheEstado_ = _construirEstado_();
-      console.log("[CACHE] EstadoActualExcedentesService cargado", {
-        total: cacheEstado_.length
-      });
-    }
-
-    return cacheEstado_;
-  }
-
-  // =========================================================
-  // NORMALIZADORES DE FILTRO
-  // =========================================================
   function _normalizarConfigAuditoria_(config) {
-    // Permite:
-    // getAuditables("BODEGA 1")
-    // getAuditables({ tipoAuditoria: "POR_BODEGA", bodegaObjetivo: "BODEGA 1" })
-    // getAuditables()
     if (typeof config === "string") {
       const bodega = _toSafeUpper_(config);
+
       if (!bodega || bodega === DOMAIN.VALOR_TODAS) {
         return {
           tipoAuditoria: DOMAIN.TIPO_AUDITORIA.GLOBAL,
@@ -455,7 +160,10 @@ const EstadoActualExcedentesService = (() => {
       };
     }
 
-    if (tipoAuditoria === DOMAIN.TIPO_AUDITORIA.GLOBAL || bodegaObjetivo === DOMAIN.VALOR_TODAS) {
+    if (
+      tipoAuditoria === DOMAIN.TIPO_AUDITORIA.GLOBAL ||
+      bodegaObjetivo === DOMAIN.VALOR_TODAS
+    ) {
       return {
         tipoAuditoria: DOMAIN.TIPO_AUDITORIA.GLOBAL,
         bodegaObjetivo: DOMAIN.VALOR_TODAS
@@ -466,6 +174,323 @@ const EstadoActualExcedentesService = (() => {
       tipoAuditoria: DOMAIN.TIPO_AUDITORIA.POR_BODEGA,
       bodegaObjetivo: bodegaObjetivo || DOMAIN.VALOR_TODAS
     };
+  }
+
+  // =========================================================
+  // REGLAS DE VALIDACIÓN BD-EXCEDENTES
+  // =========================================================
+  function _esStatusBDValido_(status) {
+    const s = _toSafeUpper_(status);
+
+    if (DOMAIN.STATUS_BD_INVALIDOS.includes(s)) {
+      return false;
+    }
+
+    if (DOMAIN.STATUS_BD_VALIDOS.includes(s)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // =========================================================
+  // INDEXACIÓN BD-EXCEDENTES
+  // =========================================================
+  function _indexarExcedentesPorIdUnico_() {
+    const rows = ExcedentesRepository.getAll()
+      .filter(item => _toSafeStr_(item.idunico));
+
+    /**
+     * Si por alguna razón existe más de una fila por IdUnico,
+     * tomamos la más reciente por fecha/hora.
+     */
+    return rows.reduce((acc, row) => {
+      const id = _toSafeStr_(row.idunico);
+      const ts = _timestampFromExcedente_(row);
+
+      if (!acc[id] || ts >= acc[id]._timestamp) {
+        acc[id] = {
+          idUnico: id,
+          codigo: _toSafeUpper_(row.codigo),
+          descripcion: _toSafeUpper_(row.descripcion),
+          saldoBase: _toSafeNum_(row.cantidad),
+          estatusRegistro: _toSafeUpper_(row.status),
+          idproducto: _toSafeStr_(row.idproducto),
+          fechaBase: formatDate_(row.fechaexcedente),
+          horaBase: formatTime_(row.horaexcedente),
+          validoBD: _esStatusBDValido_(row.status),
+          _timestamp: ts
+        };
+      }
+
+      return acc;
+    }, {});
+  }
+
+  // =========================================================
+  // INDEXACIÓN TRASPASOS
+  // =========================================================
+  function _indexarUltimoMovimientoPorIdUnico_() {
+    const movimientos = TraspasosRepository.getAll()
+      .filter(m => _toSafeStr_(m.idunico));
+
+    return movimientos.reduce((acc, mov) => {
+      const id = _toSafeStr_(mov.idunico);
+      const ts = _timestampFromMovimiento_(mov);
+
+      if (!acc[id] || ts >= acc[id]._timestamp) {
+        acc[id] = {
+          idUnico: id,
+          ultimoTipo: _toSafeUpper_(mov.tipomovimiento),
+          ultimaSerie: _toSafeUpper_(mov.serie),
+          ultimaUbicacionEntrada: _toSafeUpper_(mov.ubicacionentrada),
+          ultimaUbicacionSalida: _toSafeUpper_(mov.ubicacionsalida),
+          ultimaBodegaEntrada: _toSafeUpper_(mov.bodegaentrada),
+          ultimaBodegaSalida: _toSafeUpper_(mov.bodegasalida),
+          cantidadMovimiento: _toSafeNum_(mov.cantidad),
+          codigoMovimiento: _toSafeUpper_(mov.codigo),
+          descripcionMovimiento: _toSafeUpper_(mov.descripcion),
+          ultimaFecha: formatDate_(mov.fechatraspaso),
+          ultimaHora: formatTime_(mov.horatraspaso),
+          _timestamp: ts
+        };
+      }
+
+      return acc;
+    }, {});
+  }
+
+  // =========================================================
+  // RESOLUCIÓN DE ESTADO ACTUAL DESDE TRASPASOS
+  // =========================================================
+  function _resolverUbicacionActualDesdeTraspasos_(ultimoMov) {
+    const tipoUltimo = _toSafeUpper_(ultimoMov ? ultimoMov.ultimoTipo : "");
+    const ultimaUbicacionEntrada = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaUbicacionEntrada : "");
+    const ultimaUbicacionSalida = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaUbicacionSalida : "");
+    const ultimaSerie = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaSerie : "");
+
+    // Regla principal:
+    // El balance / ubicación actual lo determina TRASPASOS.
+
+    if (tipoUltimo === "ACOMODO" || tipoUltimo === "CAMBIO DE BODEGA") {
+      if (_esUbicacionFisica_(ultimaUbicacionEntrada)) {
+        return ultimaUbicacionEntrada;
+      }
+
+      if (_esUbicacionFisica_(ultimaSerie)) {
+        return ultimaSerie;
+      }
+
+      return "";
+    }
+
+    // Si el último fue surtido, sale del universo auditable.
+    if (tipoUltimo === "SURTIDO") {
+      return "";
+    }
+
+    // Fallback defensivo para tipos distintos:
+    if (_esUbicacionFisica_(ultimaUbicacionEntrada)) {
+      return ultimaUbicacionEntrada;
+    }
+
+    if (_esUbicacionFisica_(ultimaSerie)) {
+      return ultimaSerie;
+    }
+
+    if (_esUbicacionFisica_(ultimaUbicacionSalida)) {
+      return ultimaUbicacionSalida;
+    }
+
+    return "";
+  }
+
+  function _resolverBodegaActual_(ubicacionActual, ultimoMov) {
+    const ubicacion = _toSafeUpper_(ubicacionActual);
+
+    if (_esUbicacionFisica_(ubicacion)) {
+      return _obtenerNombreBodegaPorSerie_(ubicacion, DOMAIN.BODEGA_FALLBACK);
+    }
+
+    const ultimaBodegaEntrada = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaBodegaEntrada : "");
+    const ultimaBodegaSalida = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaBodegaSalida : "");
+
+    if (ultimaBodegaEntrada && ultimaBodegaEntrada !== "1 - ALMACEN BIRLOS") {
+      return ultimaBodegaEntrada;
+    }
+
+    if (ultimaBodegaSalida && ultimaBodegaSalida !== "1 - ALMACEN BIRLOS") {
+      return ultimaBodegaSalida;
+    }
+
+    return DOMAIN.BODEGA_FALLBACK;
+  }
+
+  function _resolverSaldoActual_(base, ultimoMov) {
+    // Informativo, no define vigencia
+    const saldoBase = _toSafeNum_(base ? base.saldoBase : 0);
+    const tipoUltimo = _toSafeUpper_(ultimoMov ? ultimoMov.ultimoTipo : "");
+    const cantidadMovimiento = _toSafeNum_(ultimoMov ? ultimoMov.cantidadMovimiento : 0);
+
+    if (tipoUltimo === "ACOMODO" || tipoUltimo === "CAMBIO DE BODEGA") {
+      return Math.abs(cantidadMovimiento || saldoBase);
+    }
+
+    if (tipoUltimo === "SURTIDO") {
+      return 0;
+    }
+
+    return saldoBase || Math.abs(cantidadMovimiento || 0);
+  }
+
+  function _resolverEstatusLogico_(base, ultimoMov, ubicacionActual) {
+    const existeBD = !!base;
+    const validoBD = base ? base.validoBD === true : false;
+    const tieneUbicacionFisica = _esUbicacionFisica_(ubicacionActual);
+    const tipoUltimo = _toSafeUpper_(ultimoMov ? ultimoMov.ultimoTipo : "");
+
+    if (!ultimoMov) {
+      return existeBD
+        ? DOMAIN.ESTATUS_LOGICOS.SIN_TRASPASOS
+        : DOMAIN.ESTATUS_LOGICOS.SIN_REGISTRO_BD;
+    }
+
+    if (!existeBD) {
+      return DOMAIN.ESTATUS_LOGICOS.SIN_REGISTRO_BD;
+    }
+
+    if (!validoBD) {
+      return DOMAIN.ESTATUS_LOGICOS.INVALIDO_BD;
+    }
+
+    if (tieneUbicacionFisica) {
+      return DOMAIN.ESTATUS_LOGICOS.UBICADO;
+    }
+
+    if (tipoUltimo === "SURTIDO") {
+      return DOMAIN.ESTATUS_LOGICOS.FUERA_DE_AUDITORIA;
+    }
+
+    return DOMAIN.ESTATUS_LOGICOS.PENDIENTE_UBICACION;
+  }
+
+  // =========================================================
+  // CONSTRUCCIÓN DEL DATASET CONSOLIDADO
+  // =========================================================
+  function _construirEstado_() {
+    const mapaBase = _indexarExcedentesPorIdUnico_();
+    const mapaMov = _indexarUltimoMovimientoPorIdUnico_();
+
+    // MODELO INVERTIDO:
+    // La base principal es TRASPASOS.
+    // BD-EXCEDENTES solo valida / enriquece.
+    const ids = Array.from(
+      new Set([
+        ...Object.keys(mapaMov),
+        ...Object.keys(mapaBase)
+      ])
+    );
+
+    return ids
+      .map(id => {
+        const base = mapaBase[id] || null;
+        const ultimoMov = mapaMov[id] || null;
+
+        const ubicacionActual = _resolverUbicacionActualDesdeTraspasos_(ultimoMov);
+        const bodegaActual = _resolverBodegaActual_(ubicacionActual, ultimoMov);
+        const saldoActual = _resolverSaldoActual_(base, ultimoMov);
+        const estatusLogico = _resolverEstatusLogico_(base, ultimoMov, ubicacionActual);
+
+        const existeBD = !!base;
+        const validoBD = base ? base.validoBD === true : false;
+        const vigente = existeBD && validoBD;
+        const conUbicacion = _esUbicacionFisica_(ubicacionActual);
+        const pendienteUbicacion = vigente && !conUbicacion;
+        const auditable = vigente && conUbicacion;
+
+        return {
+          // Identificación
+          idUnico: id,
+          codigo: base
+            ? base.codigo
+            : _toSafeUpper_(ultimoMov ? ultimoMov.codigoMovimiento : ""),
+          descripcion: base
+            ? base.descripcion
+            : _toSafeUpper_(ultimoMov ? ultimoMov.descripcionMovimiento : ""),
+          idproducto: base ? base.idproducto : "",
+
+          // Validación BD
+          existeBD: existeBD,
+          estatusRegistro: base ? base.estatusRegistro : "",
+          validoBD: validoBD,
+          vigente: vigente,
+
+          // Estado operativo desde TRASPASOS
+          saldoActual: saldoActual,
+          ubicacionActual: ubicacionActual,
+          bodegaActual: bodegaActual,
+          estatusLogico: estatusLogico,
+
+          // Flags operativos
+          conUbicacion: conUbicacion,
+          pendienteUbicacion: pendienteUbicacion,
+          auditable: auditable,
+
+          // Base original (informativo)
+          saldoBase: base ? base.saldoBase : 0,
+          fechaBase: base ? base.fechaBase : "",
+          horaBase: base ? base.horaBase : "",
+
+          // Trazabilidad del último movimiento
+          ultimoMovimientoTipo: ultimoMov ? ultimoMov.ultimoTipo : "",
+          ultimaSerieMovimiento: ultimoMov ? ultimoMov.ultimaSerie : "",
+          ultimaUbicacionEntrada: ultimoMov ? ultimoMov.ultimaUbicacionEntrada : "",
+          ultimaUbicacionSalida: ultimoMov ? ultimoMov.ultimaUbicacionSalida : "",
+          ultimaBodegaEntrada: ultimoMov ? ultimoMov.ultimaBodegaEntrada : "",
+          ultimaBodegaSalida: ultimoMov ? ultimoMov.ultimaBodegaSalida : "",
+          ultimaFechaMovimiento: ultimoMov ? ultimoMov.ultimaFecha : "",
+          ultimaHoraMovimiento: ultimoMov ? ultimoMov.ultimaHora : ""
+        };
+      })
+      .sort((a, b) => {
+        const ubiA = _toSafeUpper_(a.ubicacionActual) || "ZZZZZZ";
+        const ubiB = _toSafeUpper_(b.ubicacionActual) || "ZZZZZZ";
+
+        const cmpUbi = ubiA.localeCompare(ubiB, "es", {
+          sensitivity: "base",
+          numeric: true
+        });
+
+        if (cmpUbi !== 0) return cmpUbi;
+
+        const cmpCodigo = _toSafeUpper_(a.codigo).localeCompare(_toSafeUpper_(b.codigo), "es", {
+          sensitivity: "base",
+          numeric: true
+        });
+
+        if (cmpCodigo !== 0) return cmpCodigo;
+
+        return _toSafeStr_(a.idUnico).localeCompare(_toSafeStr_(b.idUnico), "es", {
+          sensitivity: "base",
+          numeric: true
+        });
+      });
+  }
+
+  // =========================================================
+  // CACHE
+  // =========================================================
+  let cacheEstado_ = null;
+
+  function _getEstado_() {
+    if (cacheEstado_ === null) {
+      cacheEstado_ = _construirEstado_();
+      console.log("[CACHE] EstadoActualExcedentesService cargado", {
+        total: cacheEstado_.length
+      });
+    }
+
+    return cacheEstado_;
   }
 
   // =========================================================
@@ -524,7 +549,8 @@ const EstadoActualExcedentesService = (() => {
     const vigentes = all.filter(item => item.vigente);
     const auditables = all.filter(item => item.auditable);
     const pendientesUbicacion = all.filter(item => item.pendienteUbicacion);
-    const cerrados = all.filter(item => !item.vigente);
+    const invalidosBD = all.filter(item => item.estatusLogico === DOMAIN.ESTATUS_LOGICOS.INVALIDO_BD);
+    const sinRegistroBD = all.filter(item => item.estatusLogico === DOMAIN.ESTATUS_LOGICOS.SIN_REGISTRO_BD);
 
     const porBodega = auditables.reduce((acc, item) => {
       const bodega = _toSafeUpper_(item.bodegaActual) || DOMAIN.BODEGA_FALLBACK;
@@ -546,7 +572,8 @@ const EstadoActualExcedentesService = (() => {
     return {
       totalIdUnicos: all.length,
       vigentes: vigentes.length,
-      cerrados: cerrados.length,
+      invalidosBD: invalidosBD.length,
+      sinRegistroBD: sinRegistroBD.length,
       conUbicacion: all.filter(item => item.conUbicacion).length,
       pendientesUbicacion: pendientesUbicacion.length,
       auditables: auditables.length,
@@ -578,13 +605,10 @@ const EstadoActualExcedentesService = (() => {
 
 })();
 
-
 /**
- * Debuggers para EstadoActualExcedentesService
- * ------------------------------------------------------------
- * Requiere:
- * - debugServiceCall_()
- * - debugRepositoryMethods_() opcional
+ * =========================================================
+ * DEBUGGERS
+ * =========================================================
  */
 
 function debugEstadoActualExcedentesService_getAll() {
@@ -638,7 +662,7 @@ function debugEstadoActualExcedentesService_getAuditablesBodega() {
 }
 
 function debugEstadoActualExcedentesService_getPorIdUnico() {
-  const IDUNICO_PRUEBA = "202605141622201581";
+  const IDUNICO_PRUEBA = "20260514154729157481";
 
   return debugServiceCall_(
     "EstadoActualExcedentesService.getPorIdUnico",
@@ -649,7 +673,7 @@ function debugEstadoActualExcedentesService_getPorIdUnico() {
 }
 
 function debugEstadoActualExcedentesService_getUnoPorIdUnico() {
-  const IDUNICO_PRUEBA = "202605141622201581";
+  const IDUNICO_PRUEBA = "20260514154729157481";
 
   return debugServiceCall_(
     "EstadoActualExcedentesService.getUnoPorIdUnico",
@@ -660,7 +684,7 @@ function debugEstadoActualExcedentesService_getUnoPorIdUnico() {
 }
 
 function debugEstadoActualExcedentesService_getPorUbicacion() {
-  const UBICACION_PRUEBA = "B1-19";
+  const UBICACION_PRUEBA = "B1-01";
 
   return debugServiceCall_(
     "EstadoActualExcedentesService.getPorUbicacion",
@@ -703,8 +727,26 @@ function debugEstadoActualExcedentesService_clearCache() {
 }
 
 /**
- * Debug maestro:
- * ejecuta lo más importante de una sola vez
+ * Debug puntual para revisar una ubicación específica
+ */
+function debugEstadoActualExcedentesService_B1_01() {
+  EstadoActualExcedentesService.clearCache();
+  ExcedentesRepository.clearCache();
+  TraspasosRepository.clearCache();
+
+  const data = EstadoActualExcedentesService.getPorUbicacion("B1-01");
+
+  console.log("==================================================");
+  console.log("[DEBUG] Estado actual real de B1-01");
+  console.log("TOTAL:", data.length);
+  console.log(JSON.stringify(data, null, 2));
+  console.log("==================================================");
+
+  return data;
+}
+
+/**
+ * Debug maestro
  */
 function debugEstadoActualExcedentesService() {
   console.log("==================================================");
@@ -726,3 +768,67 @@ function debugEstadoActualExcedentesService() {
   console.log("[DEBUG MASTER] FIN EstadoActualExcedentesService");
   console.log("==================================================");
 }
+
+
+
+
+function debugEstadoActual_ids_B1_01_faltantes() {
+  EstadoActualExcedentesService.clearCache();
+  ExcedentesRepository.clearCache();
+  TraspasosRepository.clearCache();
+
+  var ids = [
+    "20260514154729157481",
+    "2026051416054731671",
+    "2026051416054731672",
+    "2026051416060330821",
+    "2026051416062372431",
+    "2026051416064631391",
+    "2026051416065731391",
+    "202605141607203621",
+    "202605141607203622",
+    "202605141607203623",
+    "202605141607203624",
+    "2026051416073431541"
+  ];
+
+  var salida = ids.map(function (id) {
+    var bd = ExcedentesRepository.getPorIdUnico(id) || [];
+    var tr = TraspasosRepository.getPorIdUnico(id) || [];
+    var estado = EstadoActualExcedentesService.getUnoPorIdUnico(id);
+
+    return {
+      idUnico: id,
+
+      existeEnBD: bd.length > 0,
+      totalFilasBD: bd.length,
+      statusBD: bd.length ? String(bd[0].status || "") : "",
+      codigoBD: bd.length ? String(bd[0].codigo || "") : "",
+      fechaBD: bd.length ? String(bd[0].fechaexcedente || "") : "",
+      horaBD: bd.length ? String(bd[0].horaexcedente || "") : "",
+
+      existeEnTraspasos: tr.length > 0,
+      totalFilasTraspasos: tr.length,
+
+      ultimoMovimientoTipo: estado ? estado.ultimoMovimientoTipo : "",
+      ultimaUbicacionEntrada: estado ? estado.ultimaUbicacionEntrada : "",
+      ultimaUbicacionSalida: estado ? estado.ultimaUbicacionSalida : "",
+      ultimaSerieMovimiento: estado ? estado.ultimaSerieMovimiento : "",
+      ubicacionActual: estado ? estado.ubicacionActual : "",
+      bodegaActual: estado ? estado.bodegaActual : "",
+      estatusLogico: estado ? estado.estatusLogico : "",
+      existeBDSegunEstado: estado ? estado.existeBD : false,
+      validoBD: estado ? estado.validoBD : false,
+      vigente: estado ? estado.vigente : false,
+      auditable: estado ? estado.auditable : false
+    };
+  });
+
+  console.log("==================================================");
+  console.log("[DEBUG] IDS FALTANTES B1-01");
+  console.log(JSON.stringify(salida, null, 2));
+  console.log("==================================================");
+
+  return salida;
+}
+
