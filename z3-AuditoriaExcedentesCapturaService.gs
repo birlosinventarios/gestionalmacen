@@ -1,8 +1,10 @@
+
 /**
  * AuditoriaExcedentesCapturaService.gs
  */
 
 const AuditoriaExcedentesCapturaService = (() => {
+
   const STATUS = Object.freeze({
     ABIERTA: "ABIERTA",
     CERRADA: "CERRADA"
@@ -13,113 +15,44 @@ const AuditoriaExcedentesCapturaService = (() => {
     POR_BODEGA: "POR_BODEGA"
   });
 
+  const TIPO_RESULTADO = Object.freeze({
+    CORRECTO: "CORRECTO",
+    SOBRANTE: "SOBRANTE"
+  });
+
   // =========================================================
-  // HELPERS BASE
+  // HELPERS DE DOMINIO
   // =========================================================
-  function _toStr_(value) {
-    return String(value == null ? "" : value).trim();
-  }
-
-  function _toUpper_(value) {
-    return _toStr_(value).toUpperCase();
-  }
-
-  function _toNum_(value) {
-    if (value === "" || value == null) return 0;
-    const n = Number(value);
-    return isNaN(n) ? 0 : n;
-  }
-
-  function _round2_(value) {
-    return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
-  }
-
-  function _tz_() {
-    return Session.getScriptTimeZone() || "America/Mexico_City";
-  }
-
-  function _now_() {
-    return new Date();
-  }
-
-  function _fmtDate_(d) {
-    return Utilities.formatDate(d || _now_(), _tz_(), "dd/MM/yyyy");
-  }
-
-  function _fmtTime_(d) {
-    return Utilities.formatDate(d || _now_(), _tz_(), "HH:mm:ss");
-  }
-
-  function _uniqueBy_(arr, mapper) {
-    var seen = {};
-    var out = [];
-
-    (arr || []).forEach(function (item) {
-      var key = mapper(item);
-      if (seen[key]) return;
-      seen[key] = true;
-      out.push(item);
-    });
-
-    return out;
-  }
-
-  function _normalizarTokenBodega_(value) {
-    return _toUpper_(value)
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  function _normalizarTokenUbicacion_(value) {
-    return _toUpper_(value)
-      .replace(/\s+/g, "")
-      .trim();
-  }
-
-  function _extraerCampo_(row, posiblesCampos) {
-    for (var i = 0; i < posiblesCampos.length; i++) {
-      var key = posiblesCampos[i];
-      if (row && row[key] != null && _toStr_(row[key])) {
-        return row[key];
-      }
-    }
-    return "";
-  }
-
-  function _inferirBodegaPorUbicacion_(ubicacion, fallback) {
-    var u = _toUpper_(ubicacion);
-    var fb = _toUpper_(fallback) || "PENDIENTE DE UBICACIÓN";
-
-    if (!u) return fb;
-    if (u.startsWith("B1")) return "BODEGA 1";
-    if (u.startsWith("B2")) return "BODEGA 2";
-    if (u.startsWith("B3")) return "BODEGA 3";
-    if (u.startsWith("BM")) return "BODEGA MOSTRADOR";
-    if (u.startsWith("CB1")) return "CASA BLANCA 1";
-    if (u.startsWith("CB2")) return "CASA BLANCA 2";
-    if (u.startsWith("CU")) return "CUARTO ALTO RIESGO";
-    if (u.startsWith("MO")) return "MOSTRADOR";
-
-    return fb;
-  }
 
   function _getAuditoriaOrThrow_(idauditoria) {
-    var audit = AuditoriaExcedentesRepository.getByIdAuditoria(_toStr_(idauditoria));
-    if (!audit) {
-      throw new Error("No existe la auditoría " + idauditoria);
+    const id = toStr_(idauditoria);
+
+    if (!id) {
+      throw new Error("Se requiere IdAuditoria.");
     }
+
+    const audit = AuditoriaExcedentesRepository.getByIdAuditoria(id);
+
+    if (!audit) {
+      throw new Error("No existe la auditoría " + id);
+    }
+
     return audit;
   }
 
   function _assertAuditoriaAbierta_(audit) {
-    if (_toUpper_(audit.estatus) !== STATUS.ABIERTA) {
-      throw new Error("La auditoría " + audit.idauditoria + " no está ABIERTA");
+    if (!audit) {
+      throw new Error("No se recibió una auditoría válida.");
+    }
+
+    if (toStrUpper_(audit.estatus) !== STATUS.ABIERTA) {
+      throw new Error("La auditoría " + audit.idauditoria + " no está ABIERTA.");
     }
   }
 
   function _buildConfigEstadoActual_(auditoria) {
-    var tipo = _toUpper_(auditoria.tipoauditoria);
-    var bodegaObjetivo = _toUpper_(auditoria.bodegaobjetivo);
+    const tipo = toStrUpper_(auditoria.tipoauditoria);
+    const bodegaObjetivo = toStrUpper_(auditoria.bodegaobjetivo);
 
     if (tipo === TIPOS_AUDITORIA.POR_BODEGA) {
       return {
@@ -134,51 +67,63 @@ const AuditoriaExcedentesCapturaService = (() => {
     };
   }
 
+  /**
+   * ÚNICO punto donde se consulta EstadoActualExcedentesService.
+   * Se debe ejecutar al cargar la auditoría, no por cada escaneo.
+   */
   function _getUniversoEsperadoAuditoria_(auditoria) {
     return EstadoActualExcedentesService.getAuditables(
       _buildConfigEstadoActual_(auditoria)
     ) || [];
   }
 
-  function _buildExpectedItem_(row, ubicacionOverride) {
-    var id = _toUpper_(row.idunico || row.idUnico || row.IDUNICO || "");
-    var ubi = _toUpper_(ubicacionOverride || row.ubicacionActual || row.ubicacion || "");
+  function _assertUbicacionEnAlcance_(auditoria, ubicacion, bodega) {
+    const tipo = toStrUpper_(auditoria.tipoauditoria);
 
-    return {
-      idunico: id,
-      codigo: _toUpper_(row.codigo || row.codigoproducto || row.sku || ""),
-      descripcion: _toUpper_(row.descripcion || row.descripcionproducto || ""),
-      bodega: _toUpper_(row.bodegaActual || row.bodega || ""),
-      ubicacion: ubi,
-      estado: "PENDIENTE",
-      hora: "",
-      observaciones: ""
-    };
-  }
-
-  function _normalizarDetalleRowsRespuesta_(resp) {
-    if (!resp) return [];
-
-    if (Array.isArray(resp)) return resp;
-    if (Array.isArray(resp.detalle)) return resp.detalle;
-    if (Array.isArray(resp.rows)) return resp.rows;
-    if (Array.isArray(resp.data)) return resp.data;
-
-    return [];
-  }
-
-  // =========================================================
-  // RESOLUCIÓN DE UBICACIÓN ESCANEADA
-  // =========================================================
-  function _buscarRegistroUbicacionPorIdentificador_(identificadorEscaneado) {
-    var id = _toUpper_(identificadorEscaneado);
-
-    if (typeof UbicacionesExcedentesRepository === "undefined" || !UbicacionesExcedentesRepository) {
-      throw new Error("UbicacionesExcedentesRepository no está disponible");
+    if (tipo === TIPOS_AUDITORIA.GLOBAL) {
+      return true;
     }
 
-    var repo = UbicacionesExcedentesRepository;
-    var row = null;
+    const bodegaAudit = normalizeWarehouseToken_(auditoria.bodegaobjetivo);
+    const bodegaUbicacion = normalizeWarehouseToken_(
+      bodega || inferWarehouseByLocation_(ubicacion, "")
+    );
+
+    if (
+      tipo === TIPOS_AUDITORIA.POR_BODEGA &&
+      bodegaAudit &&
+      bodegaUbicacion &&
+      bodegaAudit !== bodegaUbicacion
+    ) {
+      throw new Error(
+        "La ubicación escaneada pertenece a " +
+        bodegaUbicacion +
+        " y no corresponde a la auditoría de " +
+        auditoria.bodegaobjetivo +
+        "."
+      );
+    }
+
+    return true;
+  }
+
+  // =========================================================
+  // UBICACIONES / QR / IDENTIFICADOR
+  // =========================================================
+
+  function _buscarRegistroUbicacionPorIdentificador_(identificadorEscaneado) {
+    const id = toStrUpper_(identificadorEscaneado);
+
+    if (!id) {
+      return null;
+    }
+
+    if (typeof UbicacionesExcedentesRepository === "undefined" || !UbicacionesExcedentesRepository) {
+      throw new Error("UbicacionesExcedentesRepository no está disponible.");
+    }
+
+    const repo = UbicacionesExcedentesRepository;
+    let row = null;
 
     if (!row && typeof repo.getById === "function") {
       row = repo.getById(id);
@@ -188,73 +133,69 @@ const AuditoriaExcedentesCapturaService = (() => {
       row = repo.getByIdentificador(id);
     }
 
-    if (!row && typeof repo.buscarPorId === "function") {
-      row = repo.buscarPorId(id);
+    if (!row && typeof repo.getOnePorUbicacion === "function") {
+      row = repo.getOnePorUbicacion(id);
     }
 
-    if (!row && typeof repo.buscarPorIdentificador === "function") {
-      row = repo.buscarPorIdentificador(id);
+    if (!row && typeof repo.getPorUbicacion === "function") {
+      const rows = repo.getPorUbicacion(id) || [];
+      row = Array.isArray(rows) && rows.length ? rows[0] : null;
     }
 
-    if (!row && typeof repo.findById === "function") {
-      row = repo.findById(id);
-    }
+    if (!row && typeof repo.getAll === "function") {
+      const all = repo.getAll() || [];
+      const idToken = normalizeLocationToken_(id);
 
-    if (!row && typeof repo.findByIdentificador === "function") {
-      row = repo.findByIdentificador(id);
-    }
+      row = all.find(function (item) {
+        const tokenId = toStrUpper_(
+          pickFirstField_(item, [
+            "id",
+            "identificador",
+            "idubicacionesexcedentes",
+            "identificadorubicacion",
+            "codigoqr",
+            "codigo",
+            "idubicacion",
+            "qr"
+          ])
+        );
 
-    if (!row) {
-      var all = [];
+        const tokenUbicacion = toStrUpper_(
+          pickFirstField_(item, [
+            "ubicacion",
+            "ubicacioncanon",
+            "ubicacionactual",
+            "ubicacionfisica"
+          ])
+        );
 
-      if (typeof repo.getAll === "function") {
-        all = repo.getAll() || [];
-      } else if (typeof repo.listar === "function") {
-        all = repo.listar() || [];
-      } else if (typeof repo.listarTodo === "function") {
-        all = repo.listarTodo() || [];
-      }
-
-      if (Array.isArray(all) && all.length) {
-        row = all.find(function (x) {
-          var tokenId = _toUpper_(
-            _extraerCampo_(x, [
-              "id",
-              "identificador",
-              "idubicacionesexcedentes",
-              "identificadorubicacion",
-              "codigoqr",
-              "codigo",
-              "idubicacion",
-              "qr"
-            ])
-          );
-
-          return tokenId === id;
-        }) || null;
-      }
+        return (
+          tokenId === id ||
+          tokenUbicacion === id ||
+          normalizeLocationToken_(tokenId) === idToken ||
+          normalizeLocationToken_(tokenUbicacion) === idToken
+        );
+      }) || null;
     }
 
     return row || null;
   }
 
   function _resolverUbicacionEscaneadaOrThrow_(identificadorEscaneado) {
-    var id = _toUpper_(identificadorEscaneado);
+    const id = toStrUpper_(identificadorEscaneado);
 
     if (!id) {
-      throw new Error("Debes escanear un identificador de ubicación válido");
+      throw new Error("Debes escanear un identificador de ubicación válido.");
     }
 
-    var registro = _buscarRegistroUbicacionPorIdentificador_(id);
+    const registro = _buscarRegistroUbicacionPorIdentificador_(id);
 
     if (!registro) {
-      throw new Error(
-        "El identificador de ubicación escaneado no existe en UbicacionesExcedentesRepository: " + id
-      );
+      throw new Error("El identificador de ubicación escaneado no existe: " + id);
     }
 
-    var ubicacion = _toUpper_(
-      _extraerCampo_(registro, [
+    const ubicacion = toStrUpper_(
+      pickFirstField_(registro, [
         "ubicacion",
         "ubicacioncanon",
         "ubicacionactual",
@@ -262,8 +203,8 @@ const AuditoriaExcedentesCapturaService = (() => {
       ])
     );
 
-    var bodega = _toUpper_(
-      _extraerCampo_(registro, [
+    const bodega = toStrUpper_(
+      pickFirstField_(registro, [
         "bodega",
         "bodegaobjetivo",
         "bodegaactual"
@@ -272,333 +213,747 @@ const AuditoriaExcedentesCapturaService = (() => {
 
     if (!ubicacion) {
       throw new Error(
-        "El identificador " + id + " sí existe, pero el registro no contiene una columna ubicacion válida"
+        "El identificador " +
+        id +
+        " existe, pero no contiene una ubicación válida."
       );
     }
 
     return {
       identificadorEscaneado: id,
       ubicacion: ubicacion,
-      bodega: bodega || _inferirBodegaPorUbicacion_(ubicacion, ""),
+      bodega: bodega || inferWarehouseByLocation_(ubicacion, ""),
       raw: registro
     };
   }
 
   // =========================================================
-  // UNIVERSO ESPERADO POR UBICACIÓN
+  // DETALLES / MARCADORES
   // =========================================================
-  function _getUniversoEsperadoUbicacion_(auditoria, ubicacion) {
-    var universo = _getUniversoEsperadoAuditoria_(auditoria);
-    var ubi = _normalizarTokenUbicacion_(ubicacion);
 
-    return universo
-      .filter(function (item) {
-        var ubiRow = _normalizarTokenUbicacion_(item.ubicacionActual || item.ubicacion || "");
-        return ubiRow === ubi;
-      })
-      .map(function (item) {
-        return _buildExpectedItem_(item, _toUpper_(ubicacion));
-      })
-      .filter(function (item) {
-        return !!_toStr_(item.idunico);
-      });
+  function _getDetallesAuditoria_(idauditoria) {
+    return AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria) || [];
   }
 
-  // =========================================================
-  // UBICACIONES ABIERTAS / DETALLE
-  // =========================================================
-  function _getUbicacionesAbiertas_(idauditoria) {
-    if (
-      typeof AuditoriaExcedentesDetalleService !== "undefined" &&
-      AuditoriaExcedentesDetalleService.listarUbicacionesAbiertas
-    ) {
-      return AuditoriaExcedentesDetalleService.listarUbicacionesAbiertas(idauditoria) || [];
-    }
-    return [];
+  function _getDetallesUbicacion_(idauditoria, ubicacion) {
+    return AuditoriaExcedentesDetalleRepository.getByAuditoriaYUbicacion(
+      idauditoria,
+      ubicacion
+    ) || [];
   }
 
-  function _isUbicacionAbierta_(idauditoria, ubicacion) {
-    var abiertas = _getUbicacionesAbiertas_(idauditoria);
-    var ubi = _toUpper_(ubicacion);
+  function _getMarcadorUbicacion_(idauditoria, ubicacion) {
+    const rows = _getDetallesUbicacion_(idauditoria, ubicacion);
 
-    return abiertas.some(function (x) {
-      return _toUpper_(x.ubicacion) === ubi;
+    return rows.find(function (item) {
+      return !item.idunico && item.horainicioubicacion;
+    }) || null;
+  }
+
+  function _getMarcadorAbiertoUbicacion_(idauditoria, ubicacion) {
+    const rows = _getDetallesUbicacion_(idauditoria, ubicacion);
+
+    return rows.find(function (item) {
+      return !item.idunico &&
+        item.horainicioubicacion &&
+        !item.horafinubicacion;
+    }) || null;
+  }
+
+  function _getSecuenciaSiguiente_(idauditoria) {
+    const detalles = _getDetallesAuditoria_(idauditoria);
+
+    return detalles.reduce(function (acc, item) {
+      return Math.max(acc, toNum_(item.secuenciaubicacion));
+    }, 0) + 1;
+  }
+
+  function _buildResumenUbicacionPersistida_(idauditoria, ubicacion) {
+    const rows = _getDetallesUbicacion_(idauditoria, ubicacion);
+
+    const escaneados = rows.filter(function (item) {
+      return item.idunico && item.esfaltante !== true;
     });
+
+    return {
+      idauditoria: toStr_(idauditoria),
+      ubicacion: toStrUpper_(ubicacion),
+      escaneados: escaneados.length,
+      correctos: rows.filter(function (item) {
+        return item.escorrecto === true;
+      }).length,
+      faltantes: rows.filter(function (item) {
+        return item.esfaltante === true;
+      }).length,
+      sobrantes: rows.filter(function (item) {
+        return item.essobrante === true;
+      }).length,
+      abierta: !!_getMarcadorAbiertoUbicacion_(idauditoria, ubicacion),
+      cerrada: !!rows.find(function (item) {
+        return !item.idunico &&
+          item.horainicioubicacion &&
+          item.horafinubicacion;
+      }),
+      totalRegistros: rows.length
+    };
   }
 
-  function _getDetalleUbicacionRows_(idauditoria, ubicacion) {
-    if (
-      typeof AuditoriaExcedentesDetalleService !== "undefined" &&
-      AuditoriaExcedentesDetalleService.getDetalleUbicacion
-    ) {
-      var resp = AuditoriaExcedentesDetalleService.getDetalleUbicacion(idauditoria, ubicacion);
-      return _normalizarDetalleRowsRespuesta_(resp);
+  // =========================================================
+  // BOOTSTRAP
+  // =========================================================
+
+  function obtenerBootstrapCaptura() {
+    const usuarios = typeof UsuariosRepository !== "undefined" && UsuariosRepository.getAll
+      ? UsuariosRepository.getAll()
+      : [];
+
+    const auditoriasAbiertas = AuditoriaExcedentesRepository.getAbiertas
+      ? AuditoriaExcedentesRepository.getAbiertas()
+      : [];
+
+    let bodegas = [];
+
+    try {
+      bodegas = typeof UbicacionesExcedentesRepository !== "undefined" &&
+        UbicacionesExcedentesRepository.getBodegas
+        ? UbicacionesExcedentesRepository.getBodegas()
+        : [];
+    } catch (error) {
+      console.warn("[AuditoriaExcedentesCapturaService] No se pudieron cargar bodegas:", error);
+      bodegas = [];
     }
 
-    return [];
+    return {
+      usuarios: usuarios,
+      bodegas: bodegas,
+      auditoriasAbiertas: auditoriasAbiertas
+    };
+  }
+
+  function obtenerAuditoriasAbiertas() {
+    return AuditoriaExcedentesRepository.getAbiertas
+      ? AuditoriaExcedentesRepository.getAbiertas()
+      : [];
   }
 
   // =========================================================
-  // ESTADO VIVO DE UBICACIÓN
+  // PAQUETE COMPLETO DE CAPTURA
   // =========================================================
-  function _buildEstadoUbicacion_(idauditoria, ubicacion) {
-    var audit = _getAuditoriaOrThrow_(idauditoria);
-    var ubi = _toUpper_(ubicacion);
 
-    var expectedRows = _getUniversoEsperadoUbicacion_(audit, ubi);
-    var detailRows = _getDetalleUbicacionRows_(idauditoria, ubi);
-    var expectedMap = {};
-    var resolved = [];
+  function obtenerPaqueteCaptura(idauditoria) {
+    const id = toStr_(idauditoria);
 
-    expectedRows.forEach(function (item) {
-      var id = _toUpper_(item.idunico || item.idUnico || "");
-      if (!id) return;
+    if (!id) {
+      throw new Error("obtenerPaqueteCaptura() requiere idauditoria.");
+    }
 
-      expectedMap[id] = {
-        idunico: id,
-        codigo: item.codigo,
-        descripcion: item.descripcion,
-        bodega: item.bodega,
-        ubicacion: item.ubicacion,
-        estado: "PENDIENTE",
-        hora: "",
-        observaciones: ""
+    const audit = _getAuditoriaOrThrow_(id);
+    _assertAuditoriaAbierta_(audit);
+
+    const universo = _getUniversoEsperadoAuditoria_(audit);
+    const detallePrevio = _getDetallesAuditoria_(id);
+
+    const esperadosPorUbicacion = {};
+    const esperadoIndex = {};
+    const ubicacionesMap = {};
+    const escaneadosPrevios = {};
+
+    universo.forEach(function (row) {
+      const idunico = toStrUpper_(row.idUnico || row.idunico || "");
+      const ubicacion = toStrUpper_(row.ubicacionActual || row.ubicacion || "");
+      const bodega = toStrUpper_(
+        row.bodegaActual ||
+        row.bodega ||
+        inferWarehouseByLocation_(ubicacion, "")
+      );
+
+      if (!idunico || !ubicacion) return;
+
+      const item = {
+        idunico: idunico,
+        codigo: toStrUpper_(row.codigo || row.codigoproducto || row.sku || ""),
+        descripcion: toStrUpper_(row.descripcion || row.descripcionproducto || ""),
+        cantidad: toNum_(row.saldoActual || row.cantidad || row.balance || 0),
+        ubicacionActual: ubicacion,
+        bodegaActual: bodega
+      };
+
+      if (!esperadosPorUbicacion[ubicacion]) {
+        esperadosPorUbicacion[ubicacion] = [];
+      }
+
+      esperadosPorUbicacion[ubicacion].push(item);
+      esperadoIndex[idunico] = item;
+
+      if (!ubicacionesMap[ubicacion]) {
+        ubicacionesMap[ubicacion] = {
+          ubicacion: ubicacion,
+          bodega: bodega,
+          totalEsperados: 0,
+          abierta: false,
+          cerrada: false
+        };
+      }
+
+      ubicacionesMap[ubicacion].totalEsperados++;
+    });
+
+    detallePrevio.forEach(function (row) {
+      const ubicacion = toStrUpper_(row.ubicacion || "");
+
+      if (ubicacion && !ubicacionesMap[ubicacion]) {
+        ubicacionesMap[ubicacion] = {
+          ubicacion: ubicacion,
+          bodega: toStrUpper_(row.bodega || inferWarehouseByLocation_(ubicacion, "")),
+          totalEsperados: 0,
+          abierta: false,
+          cerrada: false
+        };
+      }
+
+      if (ubicacion && !row.idunico && row.horainicioubicacion && !row.horafinubicacion) {
+        ubicacionesMap[ubicacion].abierta = true;
+      }
+
+      if (ubicacion && !row.idunico && row.horainicioubicacion && row.horafinubicacion) {
+        ubicacionesMap[ubicacion].cerrada = true;
+      }
+
+      const idu = toStrUpper_(row.idunico || "");
+
+      if (!idu) return;
+      if (row.esfaltante === true) return;
+
+      escaneadosPrevios[idu] = {
+        idunico: idu,
+        ubicacion: toStrUpper_(row.ubicacion || ""),
+        bodega: toStrUpper_(row.bodega || ""),
+        codigo: toStrUpper_(row.codigo || ""),
+        descripcion: toStrUpper_(row.descripcion || ""),
+        estado: row.escorrecto === true
+          ? "CORRECTO"
+          : row.essobrante === true
+          ? "SOBRANTE"
+          : "ESCANEADO",
+        hora: toStr_(row.horaescaneoidunico || ""),
+        observaciones: toStr_(row.observaciones || "")
       };
     });
 
-    detailRows.forEach(function (row) {
-      var id = _toUpper_(row.idunico || row.idUnico || "");
-      if (!id) return; // ignora marcador de apertura/cierre
+    Object.keys(esperadosPorUbicacion).forEach(function (ubicacion) {
+      esperadosPorUbicacion[ubicacion].sort(function (a, b) {
+        return compareEs_(a.idunico, b.idunico);
+      });
+    });
 
-      var hora = _toStr_(row.hora || row.horaescaneoidunico || row.horaregistro || row.horaescaneo || row.horainicio || "");
-      var observaciones = _toStr_(row.observaciones || row.nota || row.mensaje || "");
+    const ubicaciones = Object.values(ubicacionesMap).sort(function (a, b) {
+      return compareEs_(a.ubicacion, b.ubicacion);
+    });
 
-      if (expectedMap[id]) {
-        if (row.esfaltante === true) {
-          expectedMap[id].estado = "FALTANTE";
-          expectedMap[id].hora = hora;
-          expectedMap[id].observaciones = observaciones || "No fue escaneado al cierre";
-        } else if (row.escorrecto === true) {
-          expectedMap[id].estado = "CORRECTO";
-          expectedMap[id].hora = hora;
-          expectedMap[id].observaciones = observaciones;
-        } else {
-          expectedMap[id].estado = "PENDIENTE";
-        }
-      } else {
-        resolved.push({
-          idunico: id,
-          codigo: _toUpper_(row.codigo || row.codigoproducto || row.sku || ""),
-          descripcion: _toUpper_(row.descripcion || row.descripcionproducto || ""),
-          bodega: _toUpper_(row.bodega || ""),
-          ubicacion: ubi,
-          estado: row.essobrante === true ? "SOBRANTE" : "PENDIENTE",
-          hora: hora,
-          observaciones: observaciones || (row.essobrante === true ? "Detectado fuera de ubicación" : "")
-        });
+    const resumen = {
+      esperados: universo.length,
+      escaneados: Object.keys(escaneadosPrevios).length,
+      correctos: detallePrevio.filter(function (x) {
+        return x.escorrecto === true;
+      }).length,
+      faltantes: detallePrevio.filter(function (x) {
+        return x.esfaltante === true;
+      }).length,
+      sobrantes: detallePrevio.filter(function (x) {
+        return x.essobrante === true;
+      }).length
+    };
+
+    return {
+      ok: true,
+      auditoria: audit,
+      ubicaciones: ubicaciones,
+      esperadosPorUbicacion: esperadosPorUbicacion,
+      esperadoIndex: esperadoIndex,
+      escaneadosPrevios: escaneadosPrevios,
+      resumen: resumen,
+      generadoEn: {
+        fecha: fmtDateNow_(),
+        hora: fmtTimeNow_()
+      }
+    };
+  }
+
+  // =========================================================
+  // ABRIR UBICACIÓN
+  // =========================================================
+
+  function abrirUbicacionPorEscaneo(payload) {
+    const idauditoria = toStr_(payload && payload.idauditoria);
+    const identificadorEscaneado = toStrUpper_(
+      payload && (payload.identificadorUbicacion || payload.ubicacion)
+    );
+
+    if (!idauditoria) {
+      throw new Error("abrirUbicacionPorEscaneo() requiere idauditoria.");
+    }
+
+    if (!identificadorEscaneado) {
+      throw new Error("Debes escanear un identificador de ubicación válido.");
+    }
+
+    const audit = _getAuditoriaOrThrow_(idauditoria);
+    _assertAuditoriaAbierta_(audit);
+
+    const ubicacionResuelta = _resolverUbicacionEscaneadaOrThrow_(identificadorEscaneado);
+
+    _assertUbicacionEnAlcance_(
+      audit,
+      ubicacionResuelta.ubicacion,
+      ubicacionResuelta.bodega
+    );
+
+    let marker = _getMarcadorUbicacion_(idauditoria, ubicacionResuelta.ubicacion);
+
+    if (marker && marker.horafinubicacion) {
+      throw new Error("La ubicación " + ubicacionResuelta.ubicacion + " ya fue cerrada.");
+    }
+
+    if (!marker) {
+      marker = AuditoriaExcedentesDetalleRepository.insert({
+        idauditoria: idauditoria,
+        secuenciaubicacion: _getSecuenciaSiguiente_(idauditoria),
+        bodega: ubicacionResuelta.bodega,
+        ubicacion: ubicacionResuelta.ubicacion,
+        horainicioubicacion: fmtTimeNow_(),
+        horafinubicacion: "",
+        idunico: "",
+        codigo: "",
+        descripcion: "",
+        horaescaneoidunico: "",
+        escorrecto: false,
+        esfaltante: false,
+        essobrante: false,
+        observaciones: "ID_UBICACION_ESCANEADO:" + ubicacionResuelta.identificadorEscaneado
+      });
+    }
+
+    return {
+      ok: true,
+      mensaje: "Ubicación abierta correctamente.",
+      idauditoria: idauditoria,
+      identificadorEscaneado: ubicacionResuelta.identificadorEscaneado,
+      ubicacion: ubicacionResuelta.ubicacion,
+      bodega: ubicacionResuelta.bodega,
+      marcador: marker,
+      resumenPersistido: _buildResumenUbicacionPersistida_(
+        idauditoria,
+        ubicacionResuelta.ubicacion
+      )
+    };
+  }
+
+  // =========================================================
+  // ESTADO PERSISTIDO DE UBICACIÓN
+  // =========================================================
+
+  function obtenerEstadoUbicacion(payload) {
+    const idauditoria = toStr_(payload && payload.idauditoria);
+    const ubicacion = toStrUpper_(payload && payload.ubicacion);
+
+    if (!idauditoria) {
+      throw new Error("obtenerEstadoUbicacion() requiere idauditoria.");
+    }
+
+    if (!ubicacion) {
+      throw new Error("obtenerEstadoUbicacion() requiere ubicacion.");
+    }
+
+    return {
+      ok: true,
+      idauditoria: idauditoria,
+      ubicacion: ubicacion,
+      detalle: _getDetallesUbicacion_(idauditoria, ubicacion),
+      resumen: _buildResumenUbicacionPersistida_(idauditoria, ubicacion),
+      abierta: !!_getMarcadorAbiertoUbicacion_(idauditoria, ubicacion)
+    };
+  }
+
+  // =========================================================
+  // RECÁLCULO DE CABECERA DESDE DETALLE
+  // =========================================================
+
+  function _recalcularCabeceraDesdeDetalle_(idauditoria) {
+    const audit = _getAuditoriaOrThrow_(idauditoria);
+    const detalle = _getDetallesAuditoria_(idauditoria);
+
+    const escaneados = detalle.filter(function (x) {
+      return x.idunico && x.esfaltante !== true;
+    }).length;
+
+    const correctos = detalle.filter(function (x) {
+      return x.idunico && x.escorrecto === true;
+    }).length;
+
+    const faltantes = detalle.filter(function (x) {
+      return x.esfaltante === true;
+    }).length;
+
+    const sobrantes = detalle.filter(function (x) {
+      return x.essobrante === true;
+    }).length;
+
+    const ubicacionesAuditadasSet = {};
+    const ubicacionesConDiferenciaSet = {};
+
+    detalle.forEach(function (x) {
+      const ubi = toStrUpper_(x.ubicacion || "");
+      if (!ubi) return;
+
+      if (!x.idunico && x.horainicioubicacion && x.horafinubicacion) {
+        ubicacionesAuditadasSet[ubi] = true;
+      }
+
+      if (x.esfaltante === true || x.essobrante === true) {
+        ubicacionesConDiferenciaSet[ubi] = true;
       }
     });
 
-    Object.keys(expectedMap).forEach(function (key) {
-      resolved.push(expectedMap[key]);
-    });
+    const esperadosTotales = toNum_(audit.idunicosesperadostotales);
 
-    resolved.sort(function (a, b) {
-      return _toStr_(a.idunico).localeCompare(_toStr_(b.idunico), "es", {
-        sensitivity: "base",
-        numeric: true
-      });
-    });
-
-    var resumen = {
-      esperados: expectedRows.length,
-      escaneados: resolved.filter(function (x) {
-        return x.estado === "CORRECTO" || x.estado === "SOBRANTE";
-      }).length,
-      correctos: resolved.filter(function (x) { return x.estado === "CORRECTO"; }).length,
-      faltantes: resolved.filter(function (x) { return x.estado === "FALTANTE"; }).length,
-      sobrantes: resolved.filter(function (x) { return x.estado === "SOBRANTE"; }).length
-    };
-
-    return {
-      idauditoria: _toStr_(idauditoria),
-      ubicacion: ubi,
-      abierta: _isUbicacionAbierta_(idauditoria, ubi),
-      detalle: resolved,
-      resumen: resumen
-    };
-  }
-
-  // =========================================================
-  // DUPLICADOS
-  // =========================================================
-  function _buscarDuplicadoEnAuditoria_(idauditoria, idunico) {
-    var rows = AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria) || [];
-    var targetId = _toUpper_(idunico);
-
-    var matches = rows.filter(function (row) {
-      return _toUpper_(row.idunico || row.idUnico || "") === targetId && row.esfaltante !== true;
-    });
-
-    if (!matches.length) return null;
-
-    var first = matches[0];
-    return {
-      idunico: targetId,
-      ubicacion: _toUpper_(first.ubicacion),
-      bodega: _toUpper_(first.bodega),
-      totalCoincidencias: matches.length
-    };
-  }
-
-  // =========================================================
-  // DELTAS UI
-  // =========================================================
-  function _buildLocationResumenDeltaByTipo_(tipoResultado) {
-    var tipo = _toUpper_(tipoResultado);
-
-    if (tipo === "CORRECTO") {
-      return {
-        escaneados: 1,
-        correctos: 1,
-        faltantes: 0,
-        sobrantes: 0
-      };
-    }
-
-    if (tipo === "SOBRANTE") {
-      return {
-        escaneados: 1,
-        correctos: 0,
-        faltantes: 0,
-        sobrantes: 1
-      };
-    }
-
-    return {
-      escaneados: 0,
-      correctos: 0,
-      faltantes: 0,
-      sobrantes: 0
-    };
-  }
-
-  function _buildAuditResumenDeltaByTipo_(tipoResultado) {
-    var tipo = _toUpper_(tipoResultado);
-
-    if (tipo === "CORRECTO") {
-      return {
-        idunicosescaneadostotales: 1,
-        idunicoscorrectostotales: 1,
-        idunicosfaltantestotales: 0,
-        idunicossobrantestotales: 0
-      };
-    }
-
-    if (tipo === "SOBRANTE") {
-      return {
-        idunicosescaneadostotales: 1,
-        idunicoscorrectostotales: 0,
-        idunicosfaltantestotales: 0,
-        idunicossobrantestotales: 1
-      };
-    }
-
-    return {
-      idunicosescaneadostotales: 0,
-      idunicoscorrectostotales: 0,
-      idunicosfaltantestotales: 0,
-      idunicossobrantestotales: 0
-    };
-  }
-
-  function _buildUiRowFromPersistencia_(tipoResultado, persistencia, payloadBase) {
-    var tipo = _toUpper_(tipoResultado);
-    var reg = persistencia && persistencia.registro ? persistencia.registro : {};
-    var detalle = persistencia && persistencia.detalle ? persistencia.detalle : {};
-    var actual = persistencia && persistencia.actual ? persistencia.actual : {};
-
-    var hora = _toStr_(reg.horaescaneoidunico || _fmtTime_());
-
-    var observaciones = "";
-    if (tipo === "SOBRANTE") {
-      observaciones =
-        _toStr_(detalle.observacion) ||
-        _toStr_(reg.observaciones) ||
-        (
-          _toUpper_(actual.ubicacionActual)
-            ? ("ESPERADO EN " + _toUpper_(actual.ubicacionActual))
-            : "DETECTADO FUERA DE UBICACIÓN"
-        );
-    } else {
-      observaciones = _toStr_(reg.observaciones || "");
-    }
-
-    return {
-      idunico: _toUpper_(payloadBase.idunico || reg.idunico || detalle.idunico || ""),
-      codigo: _toUpper_(reg.codigo || actual.codigo || ""),
-      descripcion: _toUpper_(reg.descripcion || actual.descripcion || ""),
-      estado: tipo === "CORRECTO" ? "CORRECTO" : (tipo === "SOBRANTE" ? "SOBRANTE" : "PENDIENTE"),
-      hora: hora,
-      observaciones: observaciones
-    };
-  }
-
-  function _buildUiDeltaFromResultado_(tipoResultado, persistencia, payloadBase) {
-    var tipo = _toUpper_(tipoResultado);
-
-    var row =
-      (tipo === "CORRECTO" || tipo === "SOBRANTE")
-        ? _buildUiRowFromPersistencia_(tipo, persistencia, payloadBase)
-        : null;
-
-    return {
-      highlightId: _toUpper_(payloadBase.idunico || ""),
-      location: {
-        operacion:
-          tipo === "CORRECTO"
-            ? "UPDATE_ROW"
-            : tipo === "SOBRANTE"
-            ? "UPSERT_ROW"
-            : "NOOP",
-        rowKey: _toUpper_(payloadBase.idunico || ""),
-        row: row
-      },
-      locationResumenDelta: _buildLocationResumenDeltaByTipo_(tipo),
-      auditResumenDelta: _buildAuditResumenDeltaByTipo_(tipo)
-    };
-  }
-
-  function _applyAuditDeltaToHeader_(audit, auditDelta) {
-    var actualesEscaneados = _toNum_(audit.idunicosescaneadostotales);
-    var actualesCorrectos = _toNum_(audit.idunicoscorrectostotales);
-    var actualesFaltantes = _toNum_(audit.idunicosfaltantestotales);
-    var actualesSobrantes = _toNum_(audit.idunicossobrantestotales);
-    var esperados = _toNum_(audit.idunicosesperadostotales);
-
-    var nextEscaneados = actualesEscaneados + _toNum_(auditDelta.idunicosescaneadostotales);
-    var nextCorrectos = actualesCorrectos + _toNum_(auditDelta.idunicoscorrectostotales);
-    var nextFaltantes = actualesFaltantes + _toNum_(auditDelta.idunicosfaltantestotales);
-    var nextSobrantes = actualesSobrantes + _toNum_(auditDelta.idunicossobrantestotales);
-
-    var confiabilidad = esperados > 0
-      ? _round2_((nextCorrectos / esperados) * 100)
+    const confiabilidad = esperadosTotales > 0
+      ? round2_((correctos / esperadosTotales) * 100)
       : 0;
 
-    var updated = AuditoriaExcedentesRepository.updateByIdAuditoria(audit.idauditoria, {
-      idunicosescaneadostotales: nextEscaneados,
-      idunicoscorrectostotales: nextCorrectos,
-      idunicosfaltantestotales: nextFaltantes,
-      idunicossobrantestotales: nextSobrantes,
+    const updated = AuditoriaExcedentesRepository.updateByIdAuditoria(idauditoria, {
+      ubicacionesauditadas: Object.keys(ubicacionesAuditadasSet).length,
+      ubicacionescondiferencia: Object.keys(ubicacionesConDiferenciaSet).length,
+      idunicosescaneadostotales: escaneados,
+      idunicoscorrectostotales: correctos,
+      idunicosfaltantestotales: faltantes,
+      idunicossobrantestotales: sobrantes,
       confiabilidadtotal: confiabilidad
     });
 
     return {
-      idunicosescaneadostotales: _toNum_(updated.idunicosescaneadostotales),
-      idunicoscorrectostotales: _toNum_(updated.idunicoscorrectostotales),
-      idunicosfaltantestotales: _toNum_(updated.idunicosfaltantestotales),
-      idunicossobrantestotales: _toNum_(updated.idunicossobrantestotales),
-      confiabilidadtotal: _toNum_(updated.confiabilidadtotal)
+      idauditoria: idauditoria,
+      ubicacionesauditadas: toNum_(updated.ubicacionesauditadas),
+      ubicacionescondiferencia: toNum_(updated.ubicacionescondiferencia),
+      idunicosesperadostotales: toNum_(updated.idunicosesperadostotales),
+      idunicosescaneadostotales: toNum_(updated.idunicosescaneadostotales),
+      idunicoscorrectostotales: toNum_(updated.idunicoscorrectostotales),
+      idunicosfaltantestotales: toNum_(updated.idunicosfaltantestotales),
+      idunicossobrantestotales: toNum_(updated.idunicossobrantestotales),
+      confiabilidadtotal: toNum_(updated.confiabilidadtotal)
+    };
+  }
+
+  // =========================================================
+  // REGISTRO POR LOTE
+  // =========================================================
+
+  function registrarEscaneosLote(payload) {
+    const idauditoria = toStr_(payload && payload.idauditoria);
+    const ubicacion = toStrUpper_(payload && payload.ubicacion);
+    const escaneos = Array.isArray(payload && payload.escaneos)
+      ? payload.escaneos
+      : [];
+
+    if (!idauditoria) {
+      throw new Error("registrarEscaneosLote() requiere idauditoria.");
+    }
+
+    if (!ubicacion) {
+      throw new Error("registrarEscaneosLote() requiere ubicacion.");
+    }
+
+    if (!escaneos.length) {
+      return {
+        ok: true,
+        insertados: 0,
+        omitidos: 0,
+        detalleOmitidos: [],
+        mensaje: "No había escaneos pendientes para sincronizar."
+      };
+    }
+
+    const audit = _getAuditoriaOrThrow_(idauditoria);
+    _assertAuditoriaAbierta_(audit);
+
+    const marker = _getMarcadorAbiertoUbicacion_(idauditoria, ubicacion);
+
+    if (!marker) {
+      throw new Error("La ubicación " + ubicacion + " no está abierta.");
+    }
+
+    const detalleActual = _getDetallesAuditoria_(idauditoria);
+    const yaRegistrados = {};
+
+    detalleActual.forEach(function (row) {
+      const idu = toStrUpper_(row.idunico || "");
+      if (!idu) return;
+      if (row.esfaltante === true) return;
+
+      yaRegistrados[idu] = true;
+    });
+
+    const rowsInsertar = [];
+    const omitidos = [];
+
+    escaneos.forEach(function (item) {
+      const idunico = toStrUpper_(item.idunico || item.idUnico || "");
+      const tipo = toStrUpper_(item.tipoResultado || item.estado || "");
+      const codigo = toStrUpper_(item.codigo || "");
+      const descripcion = toStrUpper_(item.descripcion || "");
+      const observaciones = toStr_(item.observaciones || item.mensaje || "");
+
+      if (!idunico) {
+        omitidos.push({
+          motivo: "SIN_IDUNICO",
+          item: item
+        });
+        return;
+      }
+
+      if (yaRegistrados[idunico]) {
+        omitidos.push({
+          idunico: idunico,
+          motivo: "DUPLICADO_SERVIDOR"
+        });
+        return;
+      }
+
+      const esCorrecto = tipo === TIPO_RESULTADO.CORRECTO;
+      const esSobrante = tipo === TIPO_RESULTADO.SOBRANTE;
+
+      if (!esCorrecto && !esSobrante) {
+        omitidos.push({
+          idunico: idunico,
+          motivo: "TIPO_NO_PERSISTIBLE",
+          tipo: tipo
+        });
+        return;
+      }
+
+      rowsInsertar.push({
+        idauditoria: idauditoria,
+        secuenciaubicacion: marker.secuenciaubicacion,
+        bodega: toStrUpper_(
+          item.bodega ||
+          marker.bodega ||
+          inferWarehouseByLocation_(ubicacion, "")
+        ),
+        ubicacion: ubicacion,
+        horainicioubicacion: "",
+        horafinubicacion: "",
+        idunico: idunico,
+        codigo: codigo,
+        descripcion: descripcion,
+        horaescaneoidunico: toStr_(item.hora || item.horaLocal || fmtTimeNow_()),
+        escorrecto: esCorrecto,
+        esfaltante: false,
+        essobrante: esSobrante,
+        observaciones: observaciones
+      });
+
+      yaRegistrados[idunico] = true;
+    });
+
+    if (rowsInsertar.length > 0) {
+      AuditoriaExcedentesDetalleRepository.insertMany(rowsInsertar);
+    }
+
+    const auditSnapshot = _recalcularCabeceraDesdeDetalle_(idauditoria);
+
+    return {
+      ok: true,
+      insertados: rowsInsertar.length,
+      omitidos: omitidos.length,
+      detalleOmitidos: omitidos,
+      auditSnapshot: auditSnapshot,
+      mensaje: "Escaneos sincronizados correctamente."
+    };
+  }
+
+  /**
+   * Compatibilidad con llamadas antiguas.
+   *
+   * IMPORTANTE:
+   * Este método ya NO calcula si el IdUnico es correcto o sobrante.
+   * El frontend debe enviar tipoResultado.
+   */
+  function registrarEscaneoIdUnico(payload) {
+    const item = payload || {};
+
+    if (!item.tipoResultado) {
+      throw new Error(
+        "registrarEscaneoIdUnico() requiere tipoResultado en la nueva lógica de captura."
+      );
+    }
+
+    return registrarEscaneosLote({
+      idauditoria: item.idauditoria,
+      ubicacion: item.ubicacion,
+      escaneos: [
+        {
+          idunico: item.idunico,
+          tipoResultado: item.tipoResultado,
+          codigo: item.codigo,
+          descripcion: item.descripcion,
+          bodega: item.bodega,
+          horaLocal: item.horaLocal,
+          observaciones: item.observaciones
+        }
+      ]
+    });
+  }
+
+  // =========================================================
+  // CIERRE DE UBICACIÓN
+  // =========================================================
+
+  function cerrarUbicacion(payload) {
+    const idauditoria = toStr_(payload && payload.idauditoria);
+    const ubicacion = toStrUpper_(payload && payload.ubicacion);
+    const faltantes = Array.isArray(payload && payload.faltantes)
+      ? payload.faltantes
+      : [];
+    const observaciones = toStr_(payload && payload.observaciones);
+
+    if (!idauditoria) {
+      throw new Error("cerrarUbicacion() requiere idauditoria.");
+    }
+
+    if (!ubicacion) {
+      throw new Error("cerrarUbicacion() requiere ubicacion.");
+    }
+
+    const audit = _getAuditoriaOrThrow_(idauditoria);
+    _assertAuditoriaAbierta_(audit);
+
+    const marker = _getMarcadorAbiertoUbicacion_(idauditoria, ubicacion);
+
+    if (!marker) {
+      throw new Error("La ubicación " + ubicacion + " no está abierta o ya fue cerrada.");
+    }
+
+    const detalleActual = _getDetallesUbicacion_(idauditoria, ubicacion);
+    const yaRegistrados = {};
+
+    detalleActual.forEach(function (row) {
+      const idu = toStrUpper_(row.idunico || "");
+      if (!idu) return;
+
+      yaRegistrados[idu] = true;
+    });
+
+    const faltantesInsertar = [];
+
+    faltantes.forEach(function (item) {
+      const idunico = toStrUpper_(item.idunico || item.idUnico || "");
+
+      if (!idunico) return;
+      if (yaRegistrados[idunico]) return;
+
+      faltantesInsertar.push({
+        idauditoria: idauditoria,
+        secuenciaubicacion: marker.secuenciaubicacion,
+        bodega: toStrUpper_(
+          item.bodegaActual ||
+          item.bodega ||
+          marker.bodega ||
+          inferWarehouseByLocation_(ubicacion, "")
+        ),
+        ubicacion: ubicacion,
+        horainicioubicacion: "",
+        horafinubicacion: "",
+        idunico: idunico,
+        codigo: toStrUpper_(item.codigo || ""),
+        descripcion: toStrUpper_(item.descripcion || ""),
+        horaescaneoidunico: "",
+        escorrecto: false,
+        esfaltante: true,
+        essobrante: false,
+        observaciones: "NO ESCANEADO AL CERRAR UBICACIÓN"
+      });
+
+      yaRegistrados[idunico] = true;
+    });
+
+    if (faltantesInsertar.length > 0) {
+      AuditoriaExcedentesDetalleRepository.insertMany(faltantesInsertar);
+    }
+
+    AuditoriaExcedentesDetalleRepository.updateByRowNumber(marker._rowNumber, {
+      horafinubicacion: fmtTimeNow_(),
+      observaciones: observaciones || marker.observaciones || ""
+    });
+
+    const auditSnapshot = _recalcularCabeceraDesdeDetalle_(idauditoria);
+    const estado = obtenerEstadoUbicacion({
+      idauditoria: idauditoria,
+      ubicacion: ubicacion
+    });
+
+    return {
+      ok: true,
+      mensaje: "Ubicación cerrada correctamente.",
+      idauditoria: idauditoria,
+      ubicacion: ubicacion,
+      faltantesInsertados: faltantesInsertar.length,
+      auditSnapshot: auditSnapshot,
+      detalle: estado.detalle,
+      resumen: estado.resumen,
+      abierta: false
+    };
+  }
+
+  // =========================================================
+  // CIERRE DE AUDITORÍA
+  // =========================================================
+
+  function cerrarAuditoria(payload) {
+    const idauditoria = toStr_(payload && payload.idauditoria);
+    const observaciones = toStr_(payload && payload.observaciones);
+
+    if (!idauditoria) {
+      throw new Error("cerrarAuditoria() requiere idauditoria.");
+    }
+
+    const audit = _getAuditoriaOrThrow_(idauditoria);
+    _assertAuditoriaAbierta_(audit);
+
+    const abiertas = _getDetallesAuditoria_(idauditoria).filter(function (item) {
+      return !item.idunico &&
+        item.horainicioubicacion &&
+        !item.horafinubicacion;
+    });
+
+    if (abiertas.length > 0) {
+      throw new Error(
+        "No se puede cerrar la auditoría porque hay ubicaciones abiertas. Cierra primero todas las ubicaciones."
+      );
+    }
+
+    const resumen = _recalcularCabeceraDesdeDetalle_(idauditoria);
+    const horafin = fmtTimeNow_();
+    const duracionmin = minutesDiffFromStrings_(audit.fecha, audit.horainicio, horafin);
+
+    const updated = AuditoriaExcedentesRepository.updateByIdAuditoria(idauditoria, {
+      horafin: horafin,
+      duracionmin: duracionmin,
+      estatus: STATUS.CERRADA,
+      ubicacionesauditadas: resumen.ubicacionesauditadas,
+      ubicacionescondiferencia: resumen.ubicacionescondiferencia,
+      idunicosesperadostotales: resumen.idunicosesperadostotales,
+      idunicosescaneadostotales: resumen.idunicosescaneadostotales,
+      idunicoscorrectostotales: resumen.idunicoscorrectostotales,
+      idunicosfaltantestotales: resumen.idunicosfaltantestotales,
+      idunicossobrantestotales: resumen.idunicossobrantestotales,
+      confiabilidadtotal: resumen.confiabilidadtotal,
+      observaciones: observaciones || audit.observaciones || ""
+    });
+
+    return {
+      ok: true,
+      mensaje: "Auditoría cerrada correctamente.",
+      auditoria: updated,
+      resumen: resumen
     };
   }
 
@@ -606,320 +961,23 @@ const AuditoriaExcedentesCapturaService = (() => {
   // API PÚBLICA
   // =========================================================
 
-  /**
-   * Bootstrap específico de captura
-   */
-  function obtenerBootstrapCaptura() {
-    var boot = AuditoriaExcedentesService.obtenerBootstrap();
-    var abiertas = AuditoriaExcedentesRepository.getAbiertas
-      ? AuditoriaExcedentesRepository.getAbiertas()
-      : [];
-
-    return {
-      usuarios: boot.usuarios || [],
-      bodegas: boot.bodegas || [],
-      auditoriasAbiertas: abiertas
-    };
-  }
-
-  /**
-   * Atajo para obtener auditorías abiertas
-   */
-  function obtenerAuditoriasAbiertas() {
-    return AuditoriaExcedentesRepository.getAbiertas
-      ? AuditoriaExcedentesRepository.getAbiertas()
-      : [];
-  }
-
-  /**
-   * Abre una ubicación por escaneo y devuelve el estado operativo inicial.
-   * payload:
-   * {
-   *   idauditoria,
-   *   identificadorUbicacion
-   * }
-   */
-  function abrirUbicacionPorEscaneo(payload) {
-    var idauditoria = _toStr_(payload && payload.idauditoria);
-    var identificadorEscaneado = _toUpper_(payload && (payload.identificadorUbicacion || payload.ubicacion));
-
-    if (!idauditoria) {
-      throw new Error("abrirUbicacionPorEscaneo() requiere idauditoria");
-    }
-
-    if (!identificadorEscaneado) {
-      throw new Error("Debes escanear un identificador de ubicación válido");
-    }
-
-    var audit = _getAuditoriaOrThrow_(idauditoria);
-    _assertAuditoriaAbierta_(audit);
-
-    var ubicacionResuelta = _resolverUbicacionEscaneadaOrThrow_(identificadorEscaneado);
-
-    if (_toUpper_(audit.tipoauditoria) === TIPOS_AUDITORIA.POR_BODEGA) {
-      var bodegaAudit = _normalizarTokenBodega_(audit.bodegaobjetivo);
-      var bodegaUbic = _normalizarTokenBodega_(ubicacionResuelta.bodega || _inferirBodegaPorUbicacion_(ubicacionResuelta.ubicacion));
-
-      if (bodegaAudit && bodegaUbic && bodegaAudit !== bodegaUbic) {
-        throw new Error(
-          "La ubicación escaneada pertenece a " +
-          bodegaUbic +
-          " y no corresponde a la auditoría de " +
-          audit.bodegaobjetivo
-        );
-      }
-    }
-
-    AuditoriaExcedentesDetalleService.abrirUbicacion({
-      idauditoria: idauditoria,
-      ubicacion: ubicacionResuelta.ubicacion,
-      observaciones: "ID_UBICACION_ESCANEADO:" + ubicacionResuelta.identificadorEscaneado
-    });
-
-    var estado = _buildEstadoUbicacion_(idauditoria, ubicacionResuelta.ubicacion);
-
-    return {
-      ok: true,
-      mensaje: estado.resumen.esperados > 0
-        ? "Ubicación abierta correctamente"
-        : "Ubicación abierta. No tiene esperados en el estado actual.",
-      idauditoria: idauditoria,
-      identificadorEscaneado: ubicacionResuelta.identificadorEscaneado,
-      ubicacion: ubicacionResuelta.ubicacion,
-      bodega: ubicacionResuelta.bodega,
-      detalle: estado.detalle,
-      resumen: estado.resumen,
-      abierta: estado.abierta
-    };
-  }
-
-  /**
-   * Devuelve el estado vivo de una ubicación:
-   * - esperados
-   * - correctos
-   * - faltantes
-   * - sobrantes
-   */
-  function obtenerEstadoUbicacion(payload) {
-    var idauditoria = _toStr_(payload && payload.idauditoria);
-    var ubicacion = _toUpper_(payload && payload.ubicacion);
-
-    if (!idauditoria) {
-      throw new Error("obtenerEstadoUbicacion() requiere idauditoria");
-    }
-
-    if (!ubicacion) {
-      throw new Error("obtenerEstadoUbicacion() requiere ubicacion");
-    }
-
-    return _buildEstadoUbicacion_(idauditoria, ubicacion);
-  }
-
-  /**
-   * Registra escaneo de IdUnico con validación de duplicado
-   * y responde con contrato delta para la UI.
-   */
-  function registrarEscaneoIdUnico(payload) {
-    var idauditoria = _toStr_(payload && payload.idauditoria);
-    var ubicacion = _toUpper_(payload && payload.ubicacion);
-    var idunico = _toUpper_(payload && payload.idunico);
-
-    if (!idauditoria) {
-      throw new Error("registrarEscaneoIdUnico() requiere idauditoria");
-    }
-
-    if (!ubicacion) {
-      throw new Error("registrarEscaneoIdUnico() requiere ubicacion");
-    }
-
-    if (!idunico) {
-      throw new Error("registrarEscaneoIdUnico() requiere idunico");
-    }
-
-    var audit = _getAuditoriaOrThrow_(idauditoria);
-    _assertAuditoriaAbierta_(audit);
-
-    if (!_isUbicacionAbierta_(idauditoria, ubicacion)) {
-      throw new Error("Debes abrir primero la ubicación antes de escanear IdUnicos");
-    }
-
-    // =====================================================
-    // 1) DUPLICADOS
-    // =====================================================
-    var dupe = _buscarDuplicadoEnAuditoria_(idauditoria, idunico);
-    if (dupe) {
-      var tipoDupe = _toUpper_(dupe.ubicacion) === ubicacion
-        ? "DUPLICADO_EN_UBICACION"
-        : "DUPLICADO_EN_AUDITORIA";
-
-      return {
-        ok: true,
-        tipoResultado: tipoDupe,
-        mensaje: tipoDupe === "DUPLICADO_EN_UBICACION"
-          ? "El IdUnico ya fue escaneado previamente en esta ubicación."
-          : "El IdUnico ya fue escaneado previamente en otra ubicación de la misma auditoría.",
-        detalle: {
-          idunico: idunico,
-          ubicacion: ubicacion,
-          ubicacionSistema: _toUpper_(dupe.ubicacion || ""),
-          observacion: tipoDupe === "DUPLICADO_EN_AUDITORIA"
-            ? ("YA ESCANEADO EN " + _toUpper_(dupe.ubicacion || ""))
-            : "YA ESCANEADO EN ESTA UBICACIÓN"
-        },
-        uiDelta: {
-          highlightId: idunico,
-          location: {
-            operacion: "NOOP",
-            rowKey: idunico,
-            row: null
-          },
-          locationResumenDelta: {
-            escaneados: 0,
-            correctos: 0,
-            faltantes: 0,
-            sobrantes: 0
-          },
-          auditResumenDelta: {
-            idunicosescaneadostotales: 0,
-            idunicoscorrectostotales: 0,
-            idunicosfaltantestotales: 0,
-            idunicossobrantestotales: 0
-          }
-        },
-        auditSnapshot: {
-          idunicosescaneadostotales: _toNum_(audit.idunicosescaneadostotales),
-          idunicoscorrectostotales: _toNum_(audit.idunicoscorrectostotales),
-          idunicosfaltantestotales: _toNum_(audit.idunicosfaltantestotales),
-          idunicossobrantestotales: _toNum_(audit.idunicossobrantestotales),
-          confiabilidadtotal: _toNum_(audit.confiabilidadtotal)
-        },
-        persistencia: null
-      };
-    }
-
-    // =====================================================
-    // 2) PERSISTENCIA EN DETALLE
-    // =====================================================
-    var resultPersistencia = AuditoriaExcedentesDetalleService.registrarEscaneoIdUnico({
-      idauditoria: idauditoria,
-      ubicacion: ubicacion,
-      idunico: idunico
-    });
-
-    var tipoResultado = _toUpper_(
-      resultPersistencia && (resultPersistencia.tipoResultado || resultPersistencia.clasificacion || "")
-    ) || "DESCONOCIDO";
-
-    var mensaje =
-      _toStr_(resultPersistencia && resultPersistencia.mensaje) ||
-      (tipoResultado === "CORRECTO"
-        ? "Escaneo correcto."
-        : tipoResultado === "SOBRANTE"
-        ? "El IdUnico no pertenece a la ubicación auditada."
-        : "Escaneo procesado.");
-
-    var detalle = {
-      idunico: idunico,
-      ubicacion: ubicacion,
-      ubicacionSistema: _toUpper_(
-        resultPersistencia &&
-        resultPersistencia.detalle &&
-        (resultPersistencia.detalle.ubicacionSistema || "")
-      ),
-      observacion: _toStr_(
-        resultPersistencia &&
-        resultPersistencia.detalle &&
-        (resultPersistencia.detalle.observacion || "")
-      )
-    };
-
-    // =====================================================
-    // 3) DELTA PARA UI
-    // =====================================================
-    var uiDelta = _buildUiDeltaFromResultado_(tipoResultado, resultPersistencia, {
-      idunico: idunico,
-      ubicacion: ubicacion
-    });
-
-    // =====================================================
-    // 4) ACTUALIZACIÓN INCREMENTAL DE CABECERA
-    // =====================================================
-    var auditSnapshot = _applyAuditDeltaToHeader_(audit, uiDelta.auditResumenDelta);
-
-    return {
-      ok: true,
-      tipoResultado: tipoResultado,
-      mensaje: mensaje,
-      detalle: detalle,
-      uiDelta: uiDelta,
-      auditSnapshot: auditSnapshot,
-      persistencia: resultPersistencia && resultPersistencia.registro
-        ? {
-            rowNumber: resultPersistencia.registro._rowNumber || null,
-            idauditoria: idauditoria,
-            ubicacion: ubicacion
-          }
-        : null
-    };
-  }
-
-  /**
-   * Cierra una ubicación y devuelve el estado final resultante.
-   */
-  function cerrarUbicacion(payload) {
-    var idauditoria = _toStr_(payload && payload.idauditoria);
-    var ubicacion = _toUpper_(payload && payload.ubicacion);
-
-    if (!idauditoria) {
-      throw new Error("cerrarUbicacion() requiere idauditoria");
-    }
-
-    if (!ubicacion) {
-      throw new Error("cerrarUbicacion() requiere ubicacion");
-    }
-
-    AuditoriaExcedentesDetalleService.cerrarUbicacion({
-      idauditoria: idauditoria,
-      ubicacion: ubicacion,
-      observaciones: _toStr_(payload && payload.observaciones)
-    });
-
-    AuditoriaExcedentesService.recalcularResumen(idauditoria, { persistir: true });
-
-    var estado = _buildEstadoUbicacion_(idauditoria, ubicacion);
-
-    return {
-      ok: true,
-      mensaje: "Ubicación cerrada correctamente",
-      idauditoria: idauditoria,
-      ubicacion: ubicacion,
-      detalle: estado.detalle,
-      resumen: estado.resumen,
-      abierta: false
-    };
-  }
-
-  /**
-   * Cierra auditoría desde captura
-   */
-  function cerrarAuditoria(payload) {
-    return AuditoriaExcedentesService.cerrarAuditoria(payload || {});
-  }
-
   return {
     obtenerBootstrapCaptura,
     obtenerAuditoriasAbiertas,
+    obtenerPaqueteCaptura,
     abrirUbicacionPorEscaneo,
     obtenerEstadoUbicacion,
     registrarEscaneoIdUnico,
+    registrarEscaneosLote,
     cerrarUbicacion,
     cerrarAuditoria
   };
+
 })();
 
 /**
  * =========================================================
- * DEBUGGERS
+ * DEBUGGERS OPCIONALES
  * =========================================================
  */
 
@@ -929,6 +987,10 @@ function debugAuditoriaExcedentesCapturaService_obtenerBootstrapCaptura() {
 
 function debugAuditoriaExcedentesCapturaService_obtenerAuditoriasAbiertas() {
   return AuditoriaExcedentesCapturaService.obtenerAuditoriasAbiertas();
+}
+
+function debugAuditoriaExcedentesCapturaService_obtenerPaqueteCaptura() {
+  return AuditoriaExcedentesCapturaService.obtenerPaqueteCaptura("AUD-PRUEBA-001");
 }
 
 function debugAuditoriaExcedentesCapturaService_abrirUbicacionPorEscaneo() {
@@ -945,25 +1007,36 @@ function debugAuditoriaExcedentesCapturaService_obtenerEstadoUbicacion() {
   });
 }
 
-function debugAuditoriaExcedentesCapturaService_registrarEscaneoIdUnico() {
-  return AuditoriaExcedentesCapturaService.registrarEscaneoIdUnico({
+function debugAuditoriaExcedentesCapturaService_registrarEscaneosLote() {
+  return AuditoriaExcedentesCapturaService.registrarEscaneosLote({
     idauditoria: "AUD-PRUEBA-001",
     ubicacion: "B1-01",
-    idunico: "20260514154729157481"
+    escaneos: [
+      {
+        idunico: "20260514154729157481",
+        tipoResultado: "CORRECTO",
+        codigo: "PRUEBA",
+        descripcion: "PRUEBA",
+        bodega: "BODEGA 1",
+        horaLocal: fmtTimeNow_(),
+        observaciones: ""
+      }
+    ]
   });
 }
 
 function debugAuditoriaExcedentesCapturaService_cerrarUbicacion() {
   return AuditoriaExcedentesCapturaService.cerrarUbicacion({
     idauditoria: "AUD-PRUEBA-001",
-    ubicacion: "B1-01"
+    ubicacion: "B1-01",
+    faltantes: [],
+    observaciones: "CIERRE DE PRUEBA"
   });
 }
 
 function debugAuditoriaExcedentesCapturaService_cerrarAuditoria() {
   return AuditoriaExcedentesCapturaService.cerrarAuditoria({
     idauditoria: "AUD-PRUEBA-001",
-    observaciones: "CIERRE DESDE CAPTURA",
-    cerrarUbicacionesAbiertas: true
+    observaciones: "CIERRE DESDE CAPTURA"
   });
 }

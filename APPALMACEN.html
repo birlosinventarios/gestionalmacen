@@ -752,6 +752,42 @@
           .APPALMACENController_obtenerContenidoVista(fileName);
       };
 
+      window.irAVistaShell = (idVista, nombreArchivo, globals = {}) => {
+        try {
+          Object.keys(globals || {}).forEach((key) => {
+            window[key] = globals[key];
+          });
+
+          const id = String(idVista || "").trim();
+          const file = String(nombreArchivo || idVista || "").trim();
+
+          if (!id || !file) {
+            throw new Error("irAVistaShell requiere idVista y nombreArchivo.");
+          }
+
+          console.log("🧭 [Shell] Navegación interna:", {
+            idVista: id,
+            nombreArchivo: file,
+            globals
+          });
+
+          seleccionarVista(id, file);
+
+        } catch (error) {
+          console.error("❌ [Shell] Error en irAVistaShell:", error);
+
+          window.notificar(
+            error && error.message ? error.message : "No se pudo navegar a la vista solicitada.",
+            "error",
+            4200,
+            {
+              title: "Navegación no disponible",
+              sound: true
+            }
+          );
+        }
+      };
+
       useEffect(() => {
         window.inicializarMegaData()
           .then(() => {
@@ -860,10 +896,10 @@
         e("main", { className: "flex-1 flex flex-col relative bg-[#f8f9fa]" },
           isSidebarOpen ? e("div", { className: "overlay-fade", onClick: () => setIsSidebarOpen(false) }) : null,
           e("header", { className: "h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10" },
-            e("div", null,
-              e("h1", { className: "text-xl font-black uppercase tracking-tighter" },
-                TOOLS.find(t => t.id === activeTool)?.name
-              )
+            e("div", null,   
+                e("h1", { className: "text-xl font-black uppercase tracking-tighter" },
+                  TOOLS.find(t => t.id === activeTool)?.name || activeTool
+                )
             )
           ),
           e("div", { className: "flex-1 overflow-auto bg-white m-4 rounded-2xl shadow-sm border border-[#dadce0]" },

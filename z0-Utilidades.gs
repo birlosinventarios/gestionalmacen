@@ -336,3 +336,264 @@ function debugRepositoryMethods_(label, repository) {
   }
 }
 
+/**
+ * =========================================================
+ * Utilities extendidas para services/controllers
+ * =========================================================
+ */
+
+/**
+ * Número redondeado a 2 decimales.
+ */
+function round2_(value) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * Zona horaria del script.
+ */
+function getScriptTz_() {
+  return Session.getScriptTimeZone() || "America/Mexico_City";
+}
+
+/**
+ * Fecha actual.
+ */
+function now_() {
+  return new Date();
+}
+
+/**
+ * Fecha actual formateada dd/MM/yyyy.
+ */
+function fmtDateNow_() {
+  return Utilities.formatDate(now_(), getScriptTz_(), "dd/MM/yyyy");
+}
+
+/**
+ * Hora actual formateada HH:mm:ss.
+ */
+function fmtTimeNow_() {
+  return Utilities.formatDate(now_(), getScriptTz_(), "HH:mm:ss");
+}
+
+/**
+ * Fecha formateada dd/MM/yyyy desde Date.
+ */
+function fmtDateSafe_(date) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) return "";
+  return Utilities.formatDate(date, getScriptTz_(), "dd/MM/yyyy");
+}
+
+/**
+ * Hora formateada HH:mm:ss desde Date.
+ */
+function fmtTimeSafe_(date) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) return "";
+  return Utilities.formatDate(date, getScriptTz_(), "HH:mm:ss");
+}
+
+/**
+ * Contexto temporal estándar.
+ */
+function getTemporalContext_() {
+  const now = now_();
+
+  return {
+    fecha: Utilities.formatDate(now, getScriptTz_(), "dd/MM/yyyy"),
+    hora: Utilities.formatDate(now, getScriptTz_(), "HH:mm:ss"),
+    ahora: now
+  };
+}
+
+/**
+ * Normaliza texto para token de ubicación.
+ * Ejemplo:
+ * " B1 - 01 " => "B1-01" si no hay espacios internos con guion,
+ * "B1 01" => "B101"
+ */
+function normalizeLocationToken_(value) {
+  return toStrUpper_(value)
+    .replace(/\s+/g, "")
+    .trim();
+}
+
+/**
+ * Normaliza texto para bodega.
+ */
+function normalizeWarehouseToken_(value) {
+  return toStrUpper_(value)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Extrae el primer campo con valor desde un objeto.
+ */
+function pickFirstField_(row, possibleFields) {
+  for (let i = 0; i < possibleFields.length; i++) {
+    const key = possibleFields[i];
+
+    if (row && row[key] !== null && row[key] !== undefined && toStr_(row[key])) {
+      return row[key];
+    }
+  }
+
+  return "";
+}
+
+/**
+ * Devuelve elementos únicos según una llave calculada.
+ */
+function uniqueBy_(arr, mapper) {
+  const seen = {};
+  const out = [];
+
+  (arr || []).forEach(function (item) {
+    const key = mapper(item);
+
+    if (!key) return;
+    if (seen[key]) return;
+
+    seen[key] = true;
+    out.push(item);
+  });
+
+  return out;
+}
+
+/**
+ * Orden localeCompare español con soporte numérico.
+ */
+function compareEs_(a, b) {
+  return String(a || "").localeCompare(
+    String(b || ""),
+    "es",
+    {
+      sensitivity: "base",
+      numeric: true
+    }
+  );
+}
+
+/**
+ * Clonado simple para objetos planos.
+ */
+function clonePlain_(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+/**
+ * Inferencia estándar de bodega por ubicación.
+ */
+function inferWarehouseByLocation_(ubicacion, fallback) {
+  const u = toStrUpper_(ubicacion);
+  const fb = toStrUpper_(fallback) || "PENDIENTE DE UBICACIÓN";
+
+  if (!u) return fb;
+  if (u.startsWith("B1")) return "BODEGA 1";
+  if (u.startsWith("B2")) return "BODEGA 2";
+  if (u.startsWith("B3")) return "BODEGA 3";
+  if (u.startsWith("BM")) return "BODEGA MOSTRADOR";
+  if (u.startsWith("CB1")) return "CASA BLANCA 1";
+  if (u.startsWith("CB2")) return "CASA BLANCA 2";
+  if (u.startsWith("CU")) return "CUARTO ALTO RIESGO";
+  if (u.startsWith("MO")) return "MOSTRADOR";
+
+  return fb;
+}
+
+/**
+ * Diferencia en minutos entre fecha + hora inicio + hora fin.
+ * fecha: dd/MM/yyyy
+ * horaInicio: HH:mm:ss
+ * horaFin: HH:mm:ss
+ */
+function minutesDiffFromStrings_(fechaStr, horaInicioStr, horaFinStr) {
+  try {
+    if (!fechaStr || !horaInicioStr || !horaFinStr) return 0;
+
+    const fechaParts = String(fechaStr).split("/");
+    const inicioParts = String(horaInicioStr).split(":");
+    const finParts = String(horaFinStr).split(":");
+
+    if (fechaParts.length !== 3 || inicioParts.length < 2 || finParts.length < 2) {
+      return 0;
+    }
+
+    const day = Number(fechaParts[0]);
+    const month = Number(fechaParts[1]);
+    const year = Number(fechaParts[2]);
+
+    const h1 = Number(inicioParts[0] || 0);
+    const m1 = Number(inicioParts[1] || 0);
+    const s1 = Number(inicioParts[2] || 0);
+
+    const h2 = Number(finParts[0] || 0);
+    const m2 = Number(finParts[1] || 0);
+    const s2 = Number(finParts[2] || 0);
+
+    const inicio = new Date(year, month - 1, day, h1, m1, s1);
+    const fin = new Date(year, month - 1, day, h2, m2, s2);
+
+    const diff = fin.getTime() - inicio.getTime();
+
+    return diff > 0 ? Math.round(diff / 60000) : 0;
+
+  } catch (error) {
+    return 0;
+  }
+}
+
+/**
+ * Ejecuta una operación con LockService.
+ */
+function withScriptLock_(label, executor, timeoutMs) {
+  const lock = LockService.getScriptLock();
+  let locked = false;
+
+  try {
+    lock.waitLock(timeoutMs || 30000);
+    locked = true;
+
+    return executor();
+
+  } catch (error) {
+    console.error(`[LOCK] ${label} :: ERROR`, error && error.message);
+    if (error && error.stack) console.error(error.stack);
+    throw error;
+
+  } finally {
+    if (locked) {
+      lock.releaseLock();
+    }
+  }
+}
+
+/**
+ * Wrapper genérico para controllers.
+ */
+function execController_(controllerName, label, executor) {
+  try {
+    console.log(`[${controllerName}] ${label} :: INICIO`);
+
+    const result = executor();
+
+    console.log(
+      `[${controllerName}] ${label} :: OK`,
+      result && typeof result === "object"
+        ? JSON.stringify(result).slice(0, 1000)
+        : result
+    );
+
+    return result;
+
+  } catch (error) {
+    console.error(`[${controllerName}] ${label} :: ERROR message`, error && error.message);
+    console.error(`[${controllerName}] ${label} :: ERROR stack`, error && error.stack);
+    console.error(`[${controllerName}] ${label} :: ERROR raw`, error);
+
+    throw new Error(error && error.message ? error.message : `Error en ${label}`);
+  }
+}
+
