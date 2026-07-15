@@ -51,29 +51,34 @@ const FormularioEtiquetasExcedentesService = (() => {
     }
 
     const producto = mapaCatalogo[cod];
+
     if (!producto) {
       throw new Error(`El código "${cod}" no existe en el catálogo.`);
     }
 
     return {
       codigo: cod,
-      producto
+      producto: producto
     };
   }
 
   function _validarCantidad_(cantidad, codigo) {
     const valor = toNum_(cantidad);
+
     if (valor <= 0) {
       throw new Error(`La cantidad del código "${codigo}" debe ser mayor a cero.`);
     }
+
     return valor;
   }
 
   function _validarIdUnico_(idUnico, codigo) {
     const valor = toStr_(idUnico);
+
     if (!valor) {
       throw new Error(`La etiqueta del código "${codigo}" no tiene idUnico.`);
     }
+
     return valor;
   }
 
@@ -94,14 +99,14 @@ const FormularioEtiquetasExcedentesService = (() => {
     }
 
     return [
-      idUnico,                    // COL.EXCEDENTES.IDUNICO
-      config.fecha,               // COL.EXCEDENTES.FECHA
-      config.hora,                // COL.EXCEDENTES.HORA
-      idproducto,                 // COL.EXCEDENTES.IDPRODUCTO
-      codigo,                     // COL.EXCEDENTES.CODIGO
-      descripcion,                // COL.EXCEDENTES.DESCRIPCION
-      cantidad,                   // COL.EXCEDENTES.CANTIDAD
-      DOMAIN.STATUS_INICIAL       // COL.EXCEDENTES.STATUS
+      idUnico,
+      config.fecha,
+      config.hora,
+      idproducto,
+      codigo,
+      descripcion,
+      cantidad,
+      DOMAIN.STATUS_INICIAL
     ];
   }
 
@@ -119,6 +124,21 @@ const FormularioEtiquetasExcedentesService = (() => {
     };
   }
 
+  function _prepararHtmlOnline_(html) {
+    return String(html || "")
+      .replace(/<script[\s\S]*?<\/script>/gi, "");
+  }
+
+  function _renderEtiquetaExcedentes_(loteImpresion, fechaHora, modoImpresion) {
+    const tmpl = HtmlService.createTemplateFromFile("EtiquetaExcedentesImpresa");
+
+    tmpl.lote = loteImpresion;
+    tmpl.fechaHora = fechaHora;
+    tmpl.modoImpresion = modoImpresion || "LOCAL";
+
+    return tmpl.evaluate().getContent();
+  }
+
   function getBootstrap() {
     return {
       codigos: _buildCodigos_(),
@@ -128,13 +148,19 @@ const FormularioEtiquetasExcedentesService = (() => {
 
   function buscarProductoPorCodigo(codigo) {
     const cod = toStrUpper_(codigo);
+
     if (!cod) {
-      return { encontrado: false };
+      return {
+        encontrado: false
+      };
     }
 
     const producto = CatalogoRepository.getPorCodigo(cod)[0];
+
     if (!producto) {
-      return { encontrado: false };
+      return {
+        encontrado: false
+      };
     }
 
     return {
@@ -168,8 +194,10 @@ const FormularioEtiquetasExcedentesService = (() => {
       const config = _obtenerContextoTemporal_(ss);
       const mapaCatalogo = _buildMapaCatalogo_();
 
-      // 1) Guardar en BD-EXCEDENTES
+      const fechaHora = config.fecha + " " + config.hora;
+
       const rows = lote.map(item => _mapExcedenteToRow_(item, config, mapaCatalogo));
+
       const startRow = hoja.getLastRow() + 1;
       hoja.getRange(startRow, 1, rows.length, 8).setValues(rows);
 
@@ -179,18 +207,52 @@ const FormularioEtiquetasExcedentesService = (() => {
         ExcedentesRepository.clearCache();
       }
 
-      // 2) Generar HTML de impresión
-      const tmpl = HtmlService.createTemplateFromFile('EtiquetaExcedentesImpresa');
+      const loteImpresion = lote.map(item => _mapPrintItem_(item, mapaCatalogo));
 
-      tmpl.lote = lote.map(item => _mapPrintItem_(item, mapaCatalogo));
-      tmpl.fechaHora = config.fecha + " " + config.hora;
+      const htmlImpresion = _renderEtiquetaExcedentes_(
+        loteImpresion,
+        fechaHora,
+        "LOCAL"
+      );
 
-      return tmpl.evaluate().getContent();
+      const htmlOnline = _prepararHtmlOnline_(
+        _renderEtiquetaExcedentes_(
+          loteImpresion,
+          fechaHora,
+          "ONLINE"
+        )
+      );
+
+      const printJob = {
+        tipo: "ETIQUETAS_EXCEDENTES",
+        origen: "FormularioEtiquetasExcedentes",
+        formato: "HTML",
+        html: htmlOnline,
+        content: htmlOnline,
+        meta: {
+          modulo: "FormularioEtiquetasExcedentes",
+          total: loteImpresion.length,
+          fechaHora: fechaHora,
+          etiqueta: "EXCEDENTES",
+          formatoEtiqueta: "HTML",
+          papel: "100x155mm"
+        }
+      };
+
+      return {
+        ok: true,
+        modoCompatible: ["LOCAL", "ONLINE"],
+        htmlImpresion: htmlImpresion,
+        printJob: printJob,
+        total: loteImpresion.length
+      };
 
     } catch (error) {
       throw new Error("No se pudo procesar el lote de etiquetas de excedentes: " + error.message);
     } finally {
-      if (locked) lock.releaseLock();
+      if (locked) {
+        lock.releaseLock();
+      }
     }
   }
 

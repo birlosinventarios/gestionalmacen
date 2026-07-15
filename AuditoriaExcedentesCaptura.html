@@ -12,6 +12,7 @@
 
     --aec-success: #1e8e3e;
     --aec-success-dark: #157337;
+    --aec-success-light: rgba(30, 142, 62, 0.14);
 
     --aec-slate: #1c1d1f;
     --aec-slate-light: rgba(28, 29, 31, 0.08);
@@ -286,7 +287,7 @@
   }
 
   #render-auditoria-excedentes-captura .aec-table-wrap {
-    max-height: 68vh;
+    max-height: calc(100vh - 370px);
     overflow: auto;
   }
 
@@ -302,11 +303,11 @@
     z-index: 10;
     background: rgba(248, 249, 250, 0.96);
     backdrop-filter: blur(8px);
-    padding: 14px 16px;
-    font-size: 11px;
+    padding: 9px 14px;
+    font-size: 10px;
     font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.14em;
     color: var(--aec-text-secondary);
     border-bottom: 1px solid var(--aec-border);
     white-space: nowrap;
@@ -314,7 +315,7 @@
   }
 
   #render-auditoria-excedentes-captura .aec-table tbody td {
-    padding: 14px 16px;
+    padding: 10px 14px;
     border-bottom: 1px solid #eef1f4;
     background: var(--aec-white);
     vertical-align: middle;
@@ -398,6 +399,202 @@
     background: linear-gradient(to bottom, rgba(248,249,250,0.96), rgba(248,249,250,0.90));
     backdrop-filter: blur(8px);
   }
+
+  @keyframes aecFabIn {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  #render-auditoria-excedentes-captura .animate-fab-in {
+    animation: aecFabIn 0.22s ease-out forwards;
+  }
+
+  /* =========================================================
+    HEADER COMPACTO PREMIUM - TABLA CONCILIACIÓN
+  ========================================================= */
+
+  #render-auditoria-excedentes-captura .aec-conciliacion-header {
+    position: sticky;
+    top: 0;
+    z-index: 15;
+    padding: 10px 16px;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,249,250,0.94));
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--aec-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  #render-auditoria-excedentes-captura .aec-conciliacion-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  #render-auditoria-excedentes-captura .aec-conciliacion-marker {
+    width: 5px;
+    height: 34px;
+    border-radius: 999px;
+    background: var(--primary);
+    box-shadow: 0 8px 18px rgba(217, 48, 37, 0.22);
+    flex-shrink: 0;
+  }
+
+  #render-auditoria-excedentes-captura .aec-conciliacion-title-block {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.05;
+  }
+
+  #render-auditoria-excedentes-captura .aec-conciliacion-eyebrow {
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--aec-text-secondary);
+    white-space: nowrap;
+  }
+
+  #render-auditoria-excedentes-captura .aec-conciliacion-title {
+    margin-top: 3px;
+    font-size: 15px;
+    font-weight: 950;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--aec-text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #render-auditoria-excedentes-captura .aec-conciliacion-statusbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  #render-auditoria-excedentes-captura .aec-chip-compact {
+    min-height: 26px !important;
+    padding: 0 9px !important;
+    font-size: 9px !important;
+    letter-spacing: 0.10em !important;
+    border-radius: 999px !important;
+  }
+
+  #render-auditoria-excedentes-captura .aec-sync-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--aec-success);
+    box-shadow: 0 0 0 4px rgba(30, 142, 62, 0.12);
+    flex-shrink: 0;
+  }
+
+  #render-auditoria-excedentes-captura .aec-sync-dot.warning {
+    background: var(--aec-warning);
+    box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.14);
+  }
+
+  #render-auditoria-excedentes-captura .aec-sync-dot.pending {
+    background: var(--aec-slate);
+    box-shadow: 0 0 0 4px rgba(28, 29, 31, 0.10);
+  }
+
+  #render-auditoria-excedentes-captura .aec-conciliacion-subtle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 26px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: rgba(28, 29, 31, 0.045);
+    border: 1px solid rgba(28, 29, 31, 0.08);
+    color: var(--aec-text-secondary);
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 900px) {
+    #render-auditoria-excedentes-captura .aec-conciliacion-header {
+      align-items: flex-start;
+      flex-direction: column;
+      padding: 10px 14px;
+    }
+
+    #render-auditoria-excedentes-captura .aec-conciliacion-statusbar {
+      justify-content: flex-start;
+    }
+  }
+
+/* =========================================================
+   FAB CAPTURA CONTEXTUAL - PANEL ABSOLUTO
+========================================================= */
+
+#render-auditoria-excedentes-captura .fab-captura-contextual {
+  position: fixed !important;
+  right: 32px !important;
+  bottom: 32px !important;
+  z-index: 10050 !important;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+#render-auditoria-excedentes-captura .fab-captura-contextual > * {
+  pointer-events: auto;
+}
+
+#render-auditoria-excedentes-captura .aec-floating-panel {
+  position: absolute;
+  right: 0;
+  bottom: 76px;
+  transform-origin: bottom right;
+}
+
+#render-auditoria-excedentes-captura .aec-floating-panel-close {
+  width: 430px;
+  max-width: calc(100vw - 32px);
+}
+
+#render-auditoria-excedentes-captura .aec-floating-panel-open {
+  width: 380px;
+  max-width: calc(100vw - 32px);
+}
+
+@media (max-width: 640px) {
+  #render-auditoria-excedentes-captura .fab-captura-contextual {
+    right: 16px !important;
+    bottom: 16px !important;
+  }
+
+  #render-auditoria-excedentes-captura .aec-floating-panel {
+    right: 0;
+    bottom: 72px;
+  }
+
+  #render-auditoria-excedentes-captura .aec-floating-panel-close,
+  #render-auditoria-excedentes-captura .aec-floating-panel-open {
+    width: calc(100vw - 32px);
+  }
+}
+
 </style>
 
 <div
@@ -409,8 +606,8 @@
 window.cargar_AuditoriaExcedentesCaptura = () => {
   const { useState, useEffect, useCallback, useRef } = React;
 
-  const FLUSH_CADA = 10;
-  const FLUSH_MS = 2500;
+  const FLUSH_CADA = 2;
+  const FLUSH_MS = 350;
 
   const notify_ = (msg, type = "info", timer = 2200, options = {}) => {
     const fn = window.notificar || window.lanzarNotificacion;
@@ -496,6 +693,8 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
     const [busyCloseLocation, setBusyCloseLocation] = useState(false);
     const [busyCloseAudit, setBusyCloseAudit] = useState(false);
     const [auditCloseNotes, setAuditCloseNotes] = useState("");
+    const [locationCloseNotes, setLocationCloseNotes] = useState("");
+    const [panelCaptura, setPanelCaptura] = useState("");
     const [pendingCount, setPendingCount] = useState(0);
 
     const cacheRef = useRef({
@@ -507,92 +706,303 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
       flushTimer: null
     });
 
-    const locationRef = useRef(null);
-    const idRef = useRef(null);
+    
+    const esCodigoUbicacionLocal_ = (valor) => {
+      const raw = toUpper_(valor);
+      if (!raw) return false;
 
-    const resumenRows_ = (rows) => ({
-      esperados: rows.filter((x) => toUpper_(x.estado) !== "SOBRANTE").length,
-      escaneados: rows.filter((x) => ["CORRECTO", "SOBRANTE"].includes(toUpper_(x.estado))).length,
-      correctos: rows.filter((x) => toUpper_(x.estado) === "CORRECTO").length,
-      faltantes: rows.filter((x) => toUpper_(x.estado) === "FALTANTE").length,
-      sobrantes: rows.filter((x) => toUpper_(x.estado) === "SOBRANTE").length
-    });
+      // Si coincide con ubicación canónica cargada en el paquete
+      if (cacheRef.current.expectedByLocation && cacheRef.current.expectedByLocation[raw]) {
+        return true;
+      }
 
-    const mapDetallePersistido_ = (rows) => {
-      return (Array.isArray(rows) ? rows : [])
-        .filter((row) => row && row.idunico)
-        .map((row) => {
-          let estado = "PENDIENTE";
-          if (row.escorrecto === true) estado = "CORRECTO";
-          else if (row.esfaltante === true) estado = "FALTANTE";
-          else if (row.essobrante === true) estado = "SOBRANTE";
+      // Patrones de identificadores de ubicación comunes
+      const patronesUbicacion = [
+        /^B\d[A-Z0-9_-]*$/i,
+        /^CB\d[A-Z0-9_-]*$/i,
+        /^BM[A-Z0-9_-]*$/i,
+        /^MO[A-Z0-9_-]*$/i,
+        /^CU[A-Z0-9_-]*$/i
+      ];
 
-          return {
-            idunico: toUpper_(row.idunico),
-            codigo: toUpper_(row.codigo || ""),
-            descripcion: toUpper_(row.descripcion || ""),
-            bodega: toUpper_(row.bodega || ""),
-            ubicacion: toUpper_(row.ubicacion || ""),
-            estado,
-            hora: row.horaescaneoidunico || row.hora || "",
-            observaciones: row.observaciones || ""
-          };
-        });
+      return patronesUbicacion.some((rx) => rx.test(raw));
     };
 
-    const buildRowsForLocation_ = useCallback((ubicacion) => {
-      const ubi = toUpper_(ubicacion);
-      const expected = cacheRef.current.expectedByLocation[ubi] || [];
-      const scanned = cacheRef.current.scannedById || {};
-      const rows = [];
 
-      expected.forEach((item) => {
-        const id = toUpper_(item.idunico);
-        const s = scanned[id];
+    const enrichRef = useRef({
+      queue: [],
+      running: false,
+      timer: null,
+      known: {}
+    });
 
-        rows.push({
-          idunico: id,
-          codigo: item.codigo || "",
-          descripcion: item.descripcion || "",
-          bodega: item.bodegaActual || "",
-          ubicacion: ubi,
-          estado: s && toUpper_(s.ubicacion) === ubi ? s.estado : "PENDIENTE",
-          hora: s && toUpper_(s.ubicacion) === ubi ? s.hora : "",
-          observaciones: s && toUpper_(s.ubicacion) === ubi ? s.observaciones : ""
+    const locationRef = useRef(null);
+    const idRef = useRef(null);
+    const closeNotesRef = useRef(null);
+
+    const focusSinScroll_ = (ref, delay = 80) => {
+      setTimeout(() => {
+        const el = ref?.current;
+        if (!el) return;
+
+        const contenedor = document.getElementById("render-auditoria-excedentes-captura");
+
+        const scrollTopContenedor = contenedor ? contenedor.scrollTop : 0;
+        const scrollLeftContenedor = contenedor ? contenedor.scrollLeft : 0;
+
+        const scrollXVentana = window.scrollX || window.pageXOffset || 0;
+        const scrollYVentana = window.scrollY || window.pageYOffset || 0;
+
+        try {
+          el.focus({ preventScroll: true });
+        } catch (e) {
+          el.focus();
+        }
+
+        if (contenedor) {
+          contenedor.scrollTop = scrollTopContenedor;
+          contenedor.scrollLeft = scrollLeftContenedor;
+        }
+
+        window.scrollTo(scrollXVentana, scrollYVentana);
+      }, delay);
+    };
+
+    const resumenRows_ = (rows) => ({
+          esperados: rows.filter((x) => toUpper_(x.estado) !== "SOBRANTE").length,
+          escaneados: rows.filter((x) => ["CORRECTO", "SOBRANTE"].includes(toUpper_(x.estado))).length,
+          correctos: rows.filter((x) => toUpper_(x.estado) === "CORRECTO").length,
+          faltantes: rows.filter((x) => toUpper_(x.estado) === "FALTANTE").length,
+          sobrantes: rows.filter((x) => toUpper_(x.estado) === "SOBRANTE").length
         });
-      });
 
-      Object.keys(scanned).forEach((id) => {
-        const s = scanned[id];
-        if (toUpper_(s.ubicacion) !== ubi) return;
-        if (toUpper_(s.estado) !== "SOBRANTE") return;
-        if (rows.some((r) => toUpper_(r.idunico) === id)) return;
+        const mapDetallePersistido_ = (rows) => {
+          return (Array.isArray(rows) ? rows : [])
+            .filter((row) => row && row.idunico)
+            .map((row) => {
+              let estado = "PENDIENTE";
 
-        rows.unshift({
-          idunico: id,
-          codigo: s.codigo || "",
-          descripcion: s.descripcion || "",
-          bodega: s.bodega || "",
-          ubicacion: ubi,
-          estado: "SOBRANTE",
-          hora: s.hora || "",
-          observaciones: s.observaciones || ""
-        });
-      });
+              if (row.escorrecto === true) {
+                estado = "CORRECTO";
+              } else if (row.esfaltante === true) {
+                estado = "FALTANTE";
+              } else if (row.essobrante === true) {
+                estado = "SOBRANTE";
+              }
 
-      return rows.sort((a, b) => String(a.idunico).localeCompare(String(b.idunico), "es", { numeric: true, sensitivity: "base" }));
-    }, []);
+              return {
+                idunico: toUpper_(row.idunico),
+                codigo: toUpper_(row.codigo || ""),
+                descripcion: toUpper_(row.descripcion || ""),
+                bodega: toUpper_(row.bodega || ""),
+                ubicacion: toUpper_(row.ubicacion || ""),
+                estado: estado,
+                hora: row.horaescaneoidunico || row.hora || "",
+                observaciones: row.observaciones || ""
+              };
+            });
+        };
 
-    const setLocationFromRows_ = useCallback((ubicacion, bodega, abierta) => {
-      const rows = buildRowsForLocation_(ubicacion);
-      setLocationState({
-        ubicacion: toUpper_(ubicacion),
-        bodega: toUpper_(bodega),
-        abierta: !!abierta,
-        detalle: rows,
-        resumen: resumenRows_(rows)
-      });
-    }, [buildRowsForLocation_]);
+        const buildRowsForLocation_ = useCallback((ubicacion) => {
+          const ubi = toUpper_(ubicacion);
+          const expected = cacheRef.current.expectedByLocation[ubi] || [];
+          const scanned = cacheRef.current.scannedById || {};
+          const rows = [];
+
+          expected.forEach((item) => {
+            const id = toUpper_(item.idunico);
+            const s = scanned[id];
+            const perteneceMismaUbicacion = s && toUpper_(s.ubicacion) === ubi;
+
+            rows.push({
+              idunico: id,
+              codigo: item.codigo || "",
+              descripcion: item.descripcion || "",
+              bodega: item.bodegaActual || item.bodega || "",
+              ubicacion: ubi,
+              estado: perteneceMismaUbicacion ? s.estado : "PENDIENTE",
+              hora: perteneceMismaUbicacion ? s.hora : "",
+              observaciones: perteneceMismaUbicacion ? s.observaciones : "",
+              ubicacionSistema: perteneceMismaUbicacion ? s.ubicacionSistema || "" : "",
+              bodegaSistema: perteneceMismaUbicacion ? s.bodegaSistema || "" : ""
+            });
+          });
+
+          Object.keys(scanned).forEach((id) => {
+            const s = scanned[id];
+
+            if (toUpper_(s.ubicacion) !== ubi) return;
+            if (toUpper_(s.estado) !== "SOBRANTE") return;
+            if (rows.some((r) => toUpper_(r.idunico) === id)) return;
+
+            rows.unshift({
+              idunico: id,
+              codigo: s.codigo || "",
+              descripcion: s.descripcion || "",
+              bodega: s.bodega || "",
+              ubicacion: ubi,
+              estado: "SOBRANTE",
+              hora: s.hora || "",
+              observaciones: s.observaciones || "",
+              ubicacionSistema: s.ubicacionSistema || "",
+              bodegaSistema: s.bodegaSistema || ""
+            });
+          });
+
+          return rows.sort((a, b) => {
+            return String(a.idunico).localeCompare(String(b.idunico), "es", {
+              numeric: true,
+              sensitivity: "base"
+            });
+          });
+        }, []);
+
+        const setLocationFromRows_ = useCallback((ubicacion, bodega, abierta) => {
+          const rows = buildRowsForLocation_(ubicacion);
+
+          setLocationState({
+            ubicacion: toUpper_(ubicacion),
+            bodega: toUpper_(bodega),
+            abierta: !!abierta,
+            detalle: rows,
+            resumen: resumenRows_(rows)
+          });
+        }, [buildRowsForLocation_]);
+
+        const ejecutarEnriquecimientoSobrantes_ = useCallback(() => {
+          const state = enrichRef.current;
+
+          if (state.running) return;
+          if (!state.queue.length) return;
+
+          const ids = state.queue.splice(0, 25);
+          state.running = true;
+
+          google.script.run
+            .withSuccessHandler((resp) => {
+              state.running = false;
+
+              const data = resp && resp.data ? resp.data : {};
+
+              const actualizacionesObservaciones = [];
+
+              Object.keys(data).forEach((id) => {
+                const info = data[id] || {};
+                const current = cacheRef.current.scannedById[id];
+
+                if (!current) return;
+                if (toUpper_(current.estado) !== "SOBRANTE") return;
+
+                const observacionEnriquecida = info.encontrado
+                  ? "Excedente ubicado en " + (info.ubicacionActual || "SIN UBICACIÓN")
+                  : info.observaciones || current.observaciones || "IDUNICO NO EXISTE EN UNIVERSO DE AUDITORÍA";
+
+                const actualizado = {
+                  ...current,
+                  codigo: info.codigo || current.codigo || "",
+                  descripcion: info.descripcion || current.descripcion || "",
+                  bodegaSistema: info.bodegaActual || "",
+                  ubicacionSistema: info.ubicacionActual || "",
+                  observaciones: observacionEnriquecida
+                };
+
+                cacheRef.current.scannedById[id] = actualizado;
+
+                
+                cacheRef.current.pendingSync = cacheRef.current.pendingSync.map((scan) => {
+                  if (toUpper_(scan.idunico) !== id) return scan;
+
+                  return {
+                    ...scan,
+                    codigo: actualizado.codigo || scan.codigo || "",
+                    descripcion: actualizado.descripcion || scan.descripcion || "",
+                    observaciones: actualizado.observaciones || scan.observaciones || ""
+                  };
+                });
+
+
+                actualizacionesObservaciones.push({
+                  idunico: id,
+                  codigo: actualizado.codigo || "",
+                  descripcion: actualizado.descripcion || "",
+                  bodegaSistema: actualizado.bodegaSistema || "",
+                  ubicacionSistema: actualizado.ubicacionSistema || "",
+                  observaciones: actualizado.observaciones || ""
+                });
+              });
+
+              if (locationState.ubicacion) {
+                const rows = buildRowsForLocation_(locationState.ubicacion);
+
+                setLocationState((prev) => ({
+                  ...prev,
+                  detalle: rows,
+                  resumen: resumenRows_(rows)
+                }));
+              }
+
+              if (actualizacionesObservaciones.length && locationState.ubicacion) {
+                google.script.run
+                  .withSuccessHandler(() => {
+                    console.log(
+                      "✅ Observaciones enriquecidas persistidas:",
+                      actualizacionesObservaciones.length
+                    );
+                  })
+                  .withFailureHandler((err) => {
+                    console.warn(
+                      "⚠️ No se pudieron persistir observaciones enriquecidas:",
+                      err
+                    );
+                  })
+                  .AuditoriaExcedentesCapturaController_actualizarObservacionesSobrantes({
+                    idauditoria: auditId,
+                    ubicacionAuditada: locationState.ubicacion,
+                    actualizaciones: actualizacionesObservaciones
+                  });
+              }
+
+
+
+              if (state.queue.length) {
+                setTimeout(() => ejecutarEnriquecimientoSobrantes_(), 500);
+              }
+            })
+            .withFailureHandler((err) => {
+              state.running = false;
+
+              console.warn("No se pudo enriquecer sobrantes:", err);
+
+              if (state.queue.length) {
+                setTimeout(() => ejecutarEnriquecimientoSobrantes_(), 1500);
+              }
+            })
+            .AuditoriaExcedentesCapturaController_enriquecerSobrantesLote({
+              ids: ids
+            });
+        }, [buildRowsForLocation_, locationState.ubicacion, auditId]);
+
+        const programarEnriquecimientoSobrante_ = useCallback((idunico) => {
+          const id = toUpper_(idunico);
+
+          if (!id) return;
+          if (enrichRef.current.known[id]) return;
+
+          enrichRef.current.known[id] = true;
+          enrichRef.current.queue.push(id);
+
+          if (enrichRef.current.timer) {
+            clearTimeout(enrichRef.current.timer);
+          }
+
+          enrichRef.current.timer = setTimeout(() => {
+            ejecutarEnriquecimientoSobrantes_();
+          }, 700);
+        }, [ejecutarEnriquecimientoSobrantes_]);
+
+
+
+
 
     const cargarPaquete_ = useCallback((idauditoria) => {
       if (!idauditoria) return;
@@ -611,6 +1021,9 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
           cacheRef.current.scannedById = scannedById;
           cacheRef.current.pendingSync = [];
           setPendingCount(0);
+          setPanelCaptura("");
+          setLocationCloseNotes("");
+
 
           setAuditHeader(safe.auditoria || null);
           setAuditResumen({
@@ -634,13 +1047,17 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
             });
           }
 
+
           setLoading(false);
           notify_("Auditoría cargada en memoria.", "success", 1500, { title: "Captura lista", sound: false });
 
-          setTimeout(() => {
-            if (abierta) idRef.current?.focus();
-            else locationRef.current?.focus();
-          }, 80);
+          if (abierta) {
+            focusSinScroll_(idRef, 80);
+          } else {
+            focusSinScroll_(locationRef, 80);
+          }
+
+
         })
         .withFailureHandler((err) => {
           console.error("Error paquete captura:", err);
@@ -696,7 +1113,9 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
       const cache = cacheRef.current;
 
       if (cache.syncing) {
-        if (callback) callback(false);
+        if (callback) {
+          setTimeout(() => flushPendientes_(callback), 350);
+        }
         return;
       }
 
@@ -709,6 +1128,11 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
       setPendingCount(cache.pendingSync.length);
       cache.syncing = true;
       setSyncing(true);
+
+      const ubicacionActual = toUpper_(locationState.ubicacion);
+      const esperadosUbicacion = (
+        cacheRef.current.expectedByLocation[ubicacionActual] || []
+      ).length;
 
       google.script.run
         .withSuccessHandler((resp) => {
@@ -742,10 +1166,12 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
         })
         .AuditoriaExcedentesCapturaController_registrarEscaneosLote({
           idauditoria: auditId,
-          ubicacion: locationState.ubicacion,
+          ubicacion: ubicacionActual,
+          esperadosUbicacion: esperadosUbicacion,
           escaneos: lote
         });
     }, [auditId, locationState.ubicacion]);
+
 
     const programarFlush_ = useCallback(() => {
       const cache = cacheRef.current;
@@ -764,12 +1190,28 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
       const identificador = toUpper_(locationInput);
 
       if (!auditId) {
-        notify_("Selecciona una auditoría abierta.", "warning", 2500, { title: "Auditoría requerida", sound: true });
+        notify_("Selecciona una auditoría abierta.", "warning", 2500, {
+          title: "Auditoría requerida",
+          sound: true
+        });
         return;
       }
 
       if (!identificador) {
-        notify_("Escanea una ubicación válida.", "warning", 2500, { title: "Ubicación requerida", sound: true });
+        notify_("Escanea una ubicación válida.", "warning", 2500, {
+          title: "Ubicación requerida",
+          sound: true
+        });
+        return;
+      }
+
+      if (locationState.abierta && locationState.ubicacion) {
+        notify_("Cierra la ubicación actual antes de abrir otra.", "warning", 3200, {
+          title: "Ubicación activa",
+          sound: true
+        });
+        setPanelCaptura("");
+        focusSinScroll_(idRef, 80);
         return;
       }
 
@@ -784,6 +1226,7 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
           setBusyLocation(false);
           setLocationInput(ubicacion);
           setIdInput("");
+
           setLastResult({
             tipoResultado: "UBICACION_ABIERTA",
             mensaje: safe.mensaje || "Ubicación abierta correctamente.",
@@ -791,20 +1234,28 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
           });
 
           setLocationFromRows_(ubicacion, bodega, true);
+          setPanelCaptura("");
+          setLocationCloseNotes("");
 
           notify_(safe.mensaje || `Ubicación ${ubicacion} abierta.`, "success", 1400, {
             title: "Ubicación activa",
             sound: false
           });
 
-          setTimeout(() => idRef.current?.focus(), 80);
+          focusSinScroll_(idRef, 80);
         })
         .withFailureHandler((err) => {
           console.error("Error abriendo ubicación:", err);
+
           setBusyLocation(false);
           setLocationInput("");
-          notify_(err?.message || "No se pudo abrir la ubicación.", "error", 4200, { title: "Error", sound: true });
-          setTimeout(() => locationRef.current?.focus(), 80);
+
+          notify_(err?.message || "No se pudo abrir la ubicación.", "error", 4200, {
+            title: "Error",
+            sound: true
+          });
+
+          focusSinScroll_(locationRef, 80);
         })
         .AuditoriaExcedentesCapturaController_abrirUbicacionPorEscaneo({
           idauditoria: auditId,
@@ -816,17 +1267,41 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
       const id = toUpper_(idunico);
       const ubicacion = toUpper_(locationState.ubicacion);
 
-      if (!id) return { ok: false, tipoResultado: "VACIO", mensaje: "IdUnico vacío." };
-      if (!ubicacion) return { ok: false, tipoResultado: "SIN_UBICACION", mensaje: "Primero abre una ubicación." };
+    if (!id) {
+      return {
+        ok: false,
+        tipoResultado: "VACIO",
+        mensaje: "IdUnico vacío."
+      };
+    }
 
-      const scanned = cacheRef.current.scannedById[id];
+    if (!ubicacion) {
+      return {
+        ok: false,
+        tipoResultado: "SIN_UBICACION",
+        mensaje: "Primero abre una ubicación."
+      };
+    }
+
+    // =========================================================
+    // BLOQUEO: NO PERMITIR UBICACIÓN COMO IDUNICO
+    // =========================================================
+    if (esCodigoUbicacionLocal_(id)) {
+      return {
+        ok: false,
+        tipoResultado: "QR_UBICACION_EN_CAMPO_ID",
+        mensaje: `El código ${id} corresponde a una ubicación, no a una etiqueta IdUnico.`
+      };
+    }
+
+    const scanned = cacheRef.current.scannedById[id];
 
       if (scanned) {
         return {
           ok: true,
           persistir: false,
           tipoResultado: "DUPLICADO",
-          mensaje: "Este IdUnico ya fue escaneado.",
+          mensaje: "Esta etiqueta ya fue escaneada.",
           idunico: id,
           detalle: scanned
         };
@@ -889,7 +1364,7 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
 
       if (!res.ok) {
         notify_(res.mensaje, "warning", 2500, { title: "Escaneo inválido", sound: true });
-        setTimeout(() => idRef.current?.focus(), 50);
+        focusSinScroll_(idRef, 50);
         return;
       }
 
@@ -898,7 +1373,7 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
         setHighlightId(res.idunico);
         setTimeout(() => setHighlightId(""), 1800);
         notify_(res.mensaje, "warning", 1600, { title: "Duplicado", sound: true });
-        setTimeout(() => idRef.current?.focus(), 50);
+        focusSinScroll_(idRef, 50);
         return;
       }
 
@@ -928,6 +1403,13 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
       cacheRef.current.pendingSync.push(row);
       setPendingCount(cacheRef.current.pendingSync.length);
 
+      if (
+        res.tipoResultado === "SOBRANTE" &&
+        (!res.codigo || !res.descripcion)
+      ) {
+        programarEnriquecimientoSobrante_(res.idunico);
+      }
+
       const rows = buildRowsForLocation_(locationState.ubicacion);
       setLocationState((prev) => ({
         ...prev,
@@ -952,7 +1434,7 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
       );
 
       programarFlush_();
-      setTimeout(() => idRef.current?.focus(), 30);
+      focusSinScroll_(idRef, 30);
     };
 
     const calcularFaltantes_ = () => {
@@ -972,7 +1454,7 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
       });
     };
 
-    const cerrarUbicacion_ = () => {
+    const cerrarUbicacion_ = (sinConfirmar = false) => {
       const ubicacion = toUpper_(locationState.ubicacion);
 
       if (!auditId || !ubicacion) {
@@ -1002,15 +1484,25 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
                 setAuditHeader((prev) => ({ ...(prev || {}), ...safe.auditSnapshot }));
               }
 
-              const detalle = mapDetallePersistido_(safe.detalle || []);
-
               setLocationState({
-                ubicacion: toUpper_(safe.ubicacion || ubicacion),
-                bodega: locationState.bodega,
+                ubicacion: "",
+                bodega: "",
                 abierta: false,
-                detalle,
-                resumen: safe.resumen || resumenRows_(detalle)
+                detalle: [],
+                resumen: {
+                  esperados: 0,
+                  escaneados: 0,
+                  correctos: 0,
+                  faltantes: 0,
+                  sobrantes: 0
+                }
               });
+
+              setLocationInput("");
+              setIdInput("");
+              setHighlightId("");
+              setPanelCaptura("");
+              setLocationCloseNotes("");
 
               setLastResult({
                 tipoResultado: "UBICACION_CERRADA",
@@ -1023,7 +1515,7 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
                 sound: true
               });
 
-              setTimeout(() => locationRef.current?.focus(), 80);
+              focusSinScroll_(locationRef, 80);
             })
             .withFailureHandler((err) => {
               console.error("Error cerrando ubicación:", err);
@@ -1034,12 +1526,12 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
               idauditoria: auditId,
               ubicacion,
               faltantes,
-              observaciones: ""
+              observaciones: locationCloseNotes || ""
             });
         });
       };
 
-      if (typeof window.confirmarSistema === "function") {
+      if (!sinConfirmar && typeof window.confirmarSistema === "function") {
         window.confirmarSistema({
           tipo: "warning",
           title: "Cerrar ubicación",
@@ -1128,88 +1620,446 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
     const canScan = !!auditId && !!locationState.ubicacion && locationState.abierta && !busyLocation;
     const canCloseLocation = !!auditId && !!locationState.ubicacion && locationState.abierta;
 
+    const debeMantenerFocusEscaner_ = useCallback(() => {
+      if (!auditId) return false;
+      if (!locationState.ubicacion) return false;
+      if (!locationState.abierta) return false;
+      if (busyLocation || busyCloseLocation || busyCloseAudit) return false;
+      if (panelCaptura === "ABRIR_UBICACION") return false;
+      if (panelCaptura === "CERRAR_UBICACION") return false;
+
+      // Si hay modal normal SweetAlert abierto, no robar foco.
+      try {
+        if (
+          typeof Swal !== "undefined" &&
+          Swal.isVisible &&
+          Swal.isVisible()
+        ) {
+          const popup = Swal.getPopup ? Swal.getPopup() : document.querySelector(".swal2-popup");
+          const esToast = popup && popup.classList.contains("swal2-toast");
+
+          if (!esToast) return false;
+        }
+      } catch (e) {}
+
+      return true;
+    }, [
+      auditId,
+      locationState.ubicacion,
+      locationState.abierta,
+      busyLocation,
+      busyCloseLocation,
+      busyCloseAudit,
+      panelCaptura
+    ]);
+
+    const reenfocarEscaner_ = useCallback((delay = 80) => {
+      if (!debeMantenerFocusEscaner_()) return;
+      focusSinScroll_(idRef, delay);
+    }, [debeMantenerFocusEscaner_]);
+
+    useEffect(() => {
+      const onWindowFocus = () => {
+        reenfocarEscaner_(120);
+      };
+
+      const onVisibilityChange = () => {
+        if (document.visibilityState === "visible") {
+          reenfocarEscaner_(120);
+        }
+      };
+
+      const onPointerUp = (e) => {
+        const tag = String(e.target?.tagName || "").toUpperCase();
+
+        // No robar foco si está escribiendo en textarea/select/input visible.
+        if (tag === "TEXTAREA" || tag === "SELECT") return;
+
+        // Si está en panel de abrir/cerrar ubicación, no reenfocar al escáner oculto.
+        if (panelCaptura === "ABRIR_UBICACION" || panelCaptura === "CERRAR_UBICACION") return;
+
+        reenfocarEscaner_(80);
+      };
+
+      window.addEventListener("focus", onWindowFocus);
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      document.addEventListener("pointerup", onPointerUp, true);
+
+      return () => {
+        window.removeEventListener("focus", onWindowFocus);
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+        document.removeEventListener("pointerup", onPointerUp, true);
+      };
+    }, [reenfocarEscaner_, panelCaptura]);
+
+
     if (loading) {
       return (
-        <div className="aec-empty-state">
-          <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-            <LocalIcon name="loader" size={28} />
-          </div>
-          <span className="text-[13px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
-            Cargando captura...
+        <div className="p-28 flex flex-col items-center justify-center gap-4 fade-in-up">
+          <div className="w-10 h-10 border-4 border-slate-100 border-t-[var(--primary)] rounded-full animate-spin"></div>
+
+          <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+            Cargando captura de auditoría...
           </span>
         </div>
       );
     }
-
     return (
-      <div className="space-y-6 fade-in-up">
-        <div className="aec-panel p-5">
-          <div className="grid grid-cols-1 2xl:grid-cols-[1.1fr_0.8fr_1.1fr] gap-5">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+      <div className="space-y-3 fade-in-up">
+        <div className="aec-panel p-4">
+          <div className="grid grid-cols-1 2xl:grid-cols-[minmax(280px,0.9fr)_minmax(280px,0.85fr)_minmax(620px,1.55fr)] gap-4 items-stretch">
+            
+            <div className="aec-card p-4 flex flex-col justify-center min-h-[118px]">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
                 Captura operativa
               </p>
-              <h2 className="m-0 text-[28px] font-black text-[var(--text-main)]">
+
+              <h2 className="m-0 p-0 bg-transparent border-none text-[24px] font-black text-[var(--text-main)] leading-tight">
                 {auditHeader?.idauditoria || auditId || "SIN AUDITORÍA"}
               </h2>
+
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 {auditHeader?.estatus && (
                   <span className={`aec-chip ${toUpper_(auditHeader.estatus) === "ABIERTA" ? "aec-chip-open" : "aec-chip-closed"}`}>
                     {auditHeader.estatus}
                   </span>
                 )}
+
                 <span className={conf.className}>
                   {Number(auditHeader?.confiabilidadtotal || auditResumen.confiabilidadtotal || 0).toFixed(2)}% · {conf.label}
                 </span>
-                {syncing && <span className="aec-chip aec-chip-amber">Sincronizando...</span>}
-                {pendingCount > 0 && <span className="aec-chip aec-chip-slate">Pendientes: {pendingCount}</span>}
+
+                {syncing && (
+                  <span className="aec-chip aec-chip-amber">
+                    Sincronizando
+                  </span>
+                )}
+
+                {pendingCount > 0 && (
+                  <span className="aec-chip aec-chip-slate">
+                    Pendientes: {pendingCount}
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="aec-card p-4 text-center">
-              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-1">
-                Auditor
+            <div className="aec-card p-4 flex flex-col justify-center min-h-[118px]">
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-1 text-center">
+                Auditor / Tipo
               </div>
-              <div className="text-[18px] font-black uppercase tracking-[0.08em]">
+
+              <div className="text-[17px] font-black uppercase tracking-[0.08em] text-[var(--text-main)] text-center leading-tight">
                 {auditHeader?.auditor || "SIN AUDITOR"}
               </div>
+
               <div className="mt-2 flex justify-center gap-2 flex-wrap">
-                {auditHeader?.tipoauditoria && <span className="aec-chip aec-chip-amber">{auditHeader.tipoauditoria}</span>}
-                {auditHeader?.bodegaobjetivo && <span className="aec-chip aec-chip-slate">{auditHeader.bodegaobjetivo}</span>}
+                {auditHeader?.tipoauditoria && (
+                  <span className="aec-chip aec-chip-amber">
+                    {toUpper_(auditHeader.tipoauditoria) === "POR_BODEGA" ? "POR BODEGA" : "GLOBAL"}
+                  </span>
+                )}
+
+                {auditHeader?.bodegaobjetivo && (
+                  <span className="aec-chip aec-chip-slate">
+                    {auditHeader.bodegaobjetivo}
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="aec-kpi">
-                <div className="aec-kpi-topbar slate"></div>
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Esperados</div>
-                <div className="text-[26px] font-black mt-2">{Number(auditResumen.idunicosesperadostotales || auditResumen.esperados || 0)}</div>
+            <div className="aec-card p-3 min-h-[118px]">
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-2">
+                Métricos de auditoría
               </div>
-              <div className="aec-kpi">
-                <div className="aec-kpi-topbar emerald"></div>
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Correctos</div>
-                <div className="text-[26px] font-black mt-2">{Number(auditResumen.idunicoscorrectostotales || auditResumen.correctos || 0)}</div>
+
+              <div className="grid grid-cols-4 gap-2">
+                <div className="aec-kpi !min-h-[78px] !p-3">
+                  <div className="aec-kpi-topbar slate"></div>
+                  <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                    Esperados
+                  </div>
+                  <div className="text-[22px] font-black text-[var(--text-main)] mt-2 leading-none">
+                    {Number(auditResumen.idunicosesperadostotales || auditResumen.esperados || 0)}
+                  </div>
+                </div>
+
+                <div className="aec-kpi !min-h-[78px] !p-3">
+                  <div className="aec-kpi-topbar emerald"></div>
+                  <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                    Correctos
+                  </div>
+                  <div className="text-[22px] font-black text-[var(--text-main)] mt-2 leading-none">
+                    {Number(auditResumen.idunicoscorrectostotales || auditResumen.correctos || 0)}
+                  </div>
+                </div>
+
+                <div className="aec-kpi !min-h-[78px] !p-3">
+                  <div className="aec-kpi-topbar amber"></div>
+                  <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                    Faltantes
+                  </div>
+                  <div className="text-[22px] font-black text-[var(--text-main)] mt-2 leading-none">
+                    {Number(auditResumen.idunicosfaltantestotales || auditResumen.faltantes || 0)}
+                  </div>
+                </div>
+
+                <div className="aec-kpi !min-h-[78px] !p-3">
+                  <div className="aec-kpi-topbar red"></div>
+                  <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                    Sobrantes
+                  </div>
+                  <div className="text-[22px] font-black text-[var(--text-main)] mt-2 leading-none">
+                    {Number(auditResumen.idunicossobrantestotales || auditResumen.sobrantes || 0)}
+                  </div>
+                </div>
               </div>
-              <div className="aec-kpi">
-                <div className="aec-kpi-topbar amber"></div>
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Faltantes</div>
-                <div className="text-[26px] font-black mt-2">{Number(auditResumen.idunicosfaltantestotales || auditResumen.faltantes || 0)}</div>
+            </div>
+
+          </div>
+        </div>
+
+        <input
+          ref={idRef}
+          type="text"
+          inputMode="none"
+          autoComplete="off"
+          className="fixed opacity-0 pointer-events-none w-px h-px left-0 bottom-0"
+          value={idInput}
+          onChange={(e) => setIdInput(e.target.value.toUpperCase())}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              procesarIdLocal_();
+            }
+          }}
+          onBlur={() => {
+            reenfocarEscaner_(100);
+          }}
+          onPaste={(e) => e.preventDefault()}
+          disabled={!canScan || panelCaptura === "CERRAR_UBICACION"}
+        />
+
+        <div className="space-y-3">
+          <div className="aec-panel p-4">
+            <div className="grid grid-cols-1 2xl:grid-cols-[minmax(260px,0.55fr)_minmax(720px,1.45fr)] gap-4 items-stretch">
+              
+              <div className="aec-card p-4 flex flex-col justify-center min-h-[108px]">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
+                  Ubicación activa
+                </p>
+
+                <h3 className="m-0 p-0 bg-transparent border-none text-[22px] font-black font-mono-premium text-[var(--text-main)] leading-tight">
+                  {locationState.ubicacion || "SIN UBICACIÓN"}
+                </h3>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className={`aec-chip ${locationState.abierta ? "aec-chip-red" : "aec-chip-slate"}`}>
+                    {locationState.abierta ? "Abierta" : "Inactiva"}
+                  </span>
+
+                  {canScan && (
+                    <span className="aec-chip aec-chip-emerald">
+                      Escáner activo
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="aec-kpi">
-                <div className="aec-kpi-topbar red"></div>
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">Sobrantes</div>
-                <div className="text-[26px] font-black mt-2">{Number(auditResumen.idunicossobrantestotales || auditResumen.sobrantes || 0)}</div>
+
+              <div className="aec-card p-3 min-h-[108px]">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-2">
+                  Métricos de ubicación
+                </div>
+
+                <div className="grid grid-cols-5 gap-2">
+                  {[
+                    ["Esperados", locationState.resumen.esperados, "slate"],
+                    ["Escaneados", locationState.resumen.escaneados, "slate"],
+                    ["Correctos", locationState.resumen.correctos, "emerald"],
+                    ["Faltantes", locationState.resumen.faltantes, "amber"],
+                    ["Sobrantes", locationState.resumen.sobrantes, "red"]
+                  ].map(([label, value, tone]) => (
+                    <div className="aec-kpi !min-h-[78px] !p-3" key={label}>
+                      <div className={`aec-kpi-topbar ${tone}`}></div>
+
+                      <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)] leading-tight">
+                        {label}
+                      </div>
+
+                      <div className="text-[22px] font-black text-[var(--text-main)] mt-2 leading-none">
+                        {Number(value || 0)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+            </div>
+          </div>
+
+          <div className="aec-panel overflow-hidden">
+            <div className="aec-conciliacion-header">
+              <div className="aec-conciliacion-title-wrap">
+                <div className="aec-conciliacion-marker"></div>
+
+                <div className="aec-conciliacion-title-block">
+                  <span className="aec-conciliacion-eyebrow">
+                    Conciliación operativa
+                  </span>
+
+                  <span className="aec-conciliacion-title">
+                    Material esperado
+                  </span>
+                </div>
+              </div>
+
+              <div className="aec-conciliacion-statusbar">
+                {lastResult && (
+                  <span
+                    className={
+                      toUpper_(lastResult.tipoResultado) === "CORRECTO"
+                        ? "aec-chip aec-chip-emerald aec-chip-compact"
+                        : toUpper_(lastResult.tipoResultado) === "SOBRANTE"
+                        ? "aec-chip aec-chip-red aec-chip-compact"
+                        : "aec-chip aec-chip-amber aec-chip-compact"
+                    }
+                  >
+                    {lastResult.tipoResultado}
+                  </span>
+                )}
+
+                {syncing && (
+                  <span className="aec-conciliacion-subtle">
+                    <span className="aec-sync-dot warning"></span>
+                    Sincronizando
+                  </span>
+                )}
+
+                {!syncing && pendingCount === 0 && (
+                  <span className="aec-conciliacion-subtle">
+                    <span className="aec-sync-dot"></span>
+                    Listo para escaneo
+                  </span>
+                )}
+
+                {pendingCount > 0 && (
+                  <span className="aec-conciliacion-subtle">
+                    <span className="aec-sync-dot pending"></span>
+                    Pendientes: {pendingCount}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="aec-table-wrap custom-scroll">
+              <table className="aec-table">
+                <thead>
+                  <tr>
+                    <th>IdUnico</th>
+                    <th>Código</th>
+                    <th>Descripción</th>
+                    <th>Estado</th>
+                    <th>Hora</th>
+                    <th>Observaciones</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {rows.map((row, idx) => {
+                    const visual = estadoVisual_(row.estado);
+                    const rowId = toUpper_(row.idunico);
+                    const high = rowId && highlightId && rowId === highlightId;
+
+                    return (
+                      <tr
+                        key={`${row.idunico || "SIN-ID"}-${idx}`}
+                        className={`aec-row ${visual.row} ${high ? "row-highlight flash-row" : ""}`}
+                      >
+                        <td>
+                          <span className="aec-id text-[14px]">
+                            {row.idunico || "—"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className="aec-code text-[13px]">
+                            {row.codigo || "—"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className="text-[12px] font-semibold uppercase text-[var(--text-secondary)]">
+                            {row.descripcion || "Sin descripción"}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className={visual.chip}>
+                            {visual.text}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className="aec-code text-[12px]">
+                            {fmtTime_(row.hora)}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className="text-[12px] font-semibold text-[var(--text-secondary)]">
+                            {row.observaciones || "—"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {!rows.length && (
+                <div className="aec-empty-state">
+                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                    <LocalIcon name="scan-line" size={28} />
+                  </div>
+
+                  <span className="text-[13px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                    Sin ubicación cargada
+                  </span>
+
+                  <span className="text-[11px] text-slate-400 font-semibold">
+                    Presiona “Auditar ubicación” para iniciar.
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 2xl:grid-cols-[430px_minmax(0,1fr)] gap-6">
-          <div className="space-y-6">
-            <div className="aec-panel p-5 space-y-4">
-              <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">Paso 1</div>
-                <div className="text-[18px] font-black mt-1">Escanea ubicación</div>
+        <div className="fab-captura-contextual flex flex-col items-end gap-3">
+
+          {panelCaptura === "ABRIR_UBICACION" && (
+            <div className="aec-card p-5 aec-floating-panel aec-floating-panel-open animate-fab-in">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+                    Paso 1
+                  </div>
+                  <div className="text-[20px] font-black text-[var(--text-main)]">
+                    Escanea ubicación
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="aec-btn-soft !min-h-[36px] !px-3"
+                  onClick={() => {
+                    setPanelCaptura("");
+                    if (locationState.abierta) {
+                      focusSinScroll_(idRef, 80);
+                    }
+                  }}
+                >
+                  Cerrar
+                </button>
               </div>
 
               <input
@@ -1231,176 +2081,90 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
                 disabled={!auditId || busyLocation}
               />
 
-              <button className="aec-btn-primary w-full" onClick={abrirUbicacion_} disabled={!auditId || !locationInput || busyLocation}>
+              <button
+                className="aec-btn-primary w-full mt-3"
+                onClick={abrirUbicacion_}
+                disabled={!auditId || !locationInput || busyLocation}
+              >
                 {busyLocation ? "Abriendo..." : "Procesar ubicación"}
               </button>
+            </div>
+          )}
 
-              <div className="aec-card p-4">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-2">Ubicación activa</div>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="aec-id text-[18px]">{locationState.ubicacion || "SIN UBICACIÓN"}</div>
-                    <div className="aec-subtle mt-1">{locationState.abierta ? "Lista para IdUnicos" : "Escanea ubicación"}</div>
+          
+          {panelCaptura === "CERRAR_UBICACION" && (
+            <div className="aec-card p-5 aec-floating-panel aec-floating-panel-close animate-fab-in">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+                    Paso 3
                   </div>
-                  <span className={`aec-chip ${locationState.abierta ? "aec-chip-red" : "aec-chip-slate"}`}>
-                    {locationState.abierta ? "Operando" : "Inactiva"}
-                  </span>
+                  <div className="text-[20px] font-black text-[var(--text-main)]">
+                    Cierre de ubicación
+                  </div>
+                  <div className="aec-id text-[14px] mt-1">
+                    {locationState.ubicacion || "SIN UBICACIÓN"}
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="aec-panel p-5 space-y-4">
-              <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">Paso 2</div>
-                <div className="text-[18px] font-black mt-1">Escanea IdUnico</div>
-              </div>
-
-              <input
-                ref={idRef}
-                type="text"
-                inputMode="none"
-                autoComplete="off"
-                className={`aec-input scanner font-mono-premium ${!canScan ? "locked" : ""}`}
-                placeholder={canScan ? "Escanea IdUnico" : "Primero abre ubicación"}
-                value={idInput}
-                onChange={(e) => setIdInput(e.target.value.toUpperCase())}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    procesarIdLocal_();
-                  }
-                }}
-                onPaste={(e) => e.preventDefault()}
-                disabled={!canScan}
-              />
-
-              <button className="aec-btn-dark w-full" onClick={procesarIdLocal_} disabled={!canScan || !idInput}>
-                Procesar IdUnico
-              </button>
-
-              <div className={!lastResult ? "aec-last-result ok" : toUpper_(lastResult.tipoResultado) === "CORRECTO" ? "aec-last-result ok" : "aec-last-result warn"}>
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] mb-1">Último resultado</div>
-                {!lastResult ? (
-                  <div className="text-[13px] font-semibold">Sin eventos.</div>
-                ) : (
-                  <div className="space-y-1">
-                    <div className="text-[13px] font-black uppercase">{lastResult.tipoResultado}</div>
-                    <div className="text-[13px] font-semibold">{lastResult.mensaje}</div>
-                    {lastResult.detalle?.idunico && <div className="text-[12px] font-mono-premium font-bold">{lastResult.detalle.idunico}</div>}
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button className="aec-btn-danger" onClick={cerrarUbicacion_} disabled={!canCloseLocation || busyCloseLocation}>
-                  {busyCloseLocation ? "Cerrando..." : "Cerrar ubicación"}
-                </button>
-                <button className="aec-btn-soft" onClick={() => { setIdInput(""); idRef.current?.focus(); }} disabled={!canScan}>
-                  Limpiar
+                <button
+                  type="button"
+                  className="aec-btn-soft !min-h-[36px] !px-3"
+                  onClick={() => {
+                    setPanelCaptura("");
+                    focusSinScroll_(idRef, 80);
+                  }}
+                  disabled={busyCloseLocation}
+                >
+                  Cancelar
                 </button>
               </div>
-            </div>
 
-            <div className="aec-panel p-5 space-y-4">
               <textarea
+                ref={closeNotesRef}
                 className="aec-textarea"
-                placeholder="Observaciones de cierre..."
-                value={auditCloseNotes}
-                onChange={(e) => setAuditCloseNotes(e.target.value)}
+                placeholder="Observaciones de cierre de ubicación..."
+                value={locationCloseNotes}
+                onChange={(e) => setLocationCloseNotes(e.target.value)}
+                disabled={busyCloseLocation}
               />
-              <button className="aec-btn-primary w-full" onClick={cerrarAuditoria_} disabled={!auditId || busyCloseAudit}>
-                {busyCloseAudit ? "Cerrando auditoría..." : "Cerrar auditoría"}
+
+              <button
+                className="aec-btn-danger w-full mt-3"
+                onClick={() => cerrarUbicacion_(true)}
+                disabled={!canCloseLocation || busyCloseLocation}
+              >
+                {busyCloseLocation ? "Cerrando..." : "Confirmar cierre de ubicación"}
               </button>
             </div>
-          </div>
+          )}
 
-          <div className="space-y-6">
-            <div className="aec-panel p-5">
-              <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">Ubicación</p>
-                  <h3 className="m-0 text-[24px] font-black font-mono-premium">{locationState.ubicacion || "SIN UBICACIÓN"}</h3>
-                  <div className="mt-2">
-                    <span className={`aec-chip ${locationState.abierta ? "aec-chip-red" : "aec-chip-slate"}`}>
-                      {locationState.abierta ? "Abierta" : "Inactiva"}
-                    </span>
-                  </div>
-                </div>
+          <button
+            type="button"
+            className={`min-h-[58px] rounded-2xl px-5 shadow-xl flex items-center gap-3 font-black uppercase tracking-[0.12em] text-[12px] transition-all ${
+              locationState.abierta
+                ? "bg-[#fee2e2] text-[#991b1b] border border-[#fecaca]"
+                : "bg-[var(--primary)] text-white"
+            }`}
 
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 w-full xl:min-w-[680px]">
-                  {[
-                    ["Esperados", locationState.resumen.esperados, "slate"],
-                    ["Escaneados", locationState.resumen.escaneados, "slate"],
-                    ["Correctos", locationState.resumen.correctos, "emerald"],
-                    ["Faltantes", locationState.resumen.faltantes, "amber"],
-                    ["Sobrantes", locationState.resumen.sobrantes, "red"]
-                  ].map(([label, value, tone]) => (
-                    <div className="aec-kpi" key={label}>
-                      <div className={`aec-kpi-topbar ${tone}`}></div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">{label}</div>
-                      <div className="text-[24px] font-black mt-2">{Number(value || 0)}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            onClick={() => {
+              if (locationState.abierta) {
+                setPanelCaptura("CERRAR_UBICACION");
+                focusSinScroll_(closeNotesRef, 120);
+              } else {
+                setPanelCaptura("ABRIR_UBICACION");
+                focusSinScroll_(locationRef, 120);
+              }
+            }}
 
-            <div className="aec-panel overflow-hidden">
-              <div className="aec-sticky-focus px-5 pt-5 pb-3 flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">Conciliación</p>
-                  <h3 className="m-0 text-[22px] font-black">Material esperado</h3>
-                </div>
-                <div className="flex gap-2">
-                  <span className="aec-chip aec-chip-slate">{expectedRows.length} esperados</span>
-                  <span className="aec-chip aec-chip-red">{sobrantes.length} sobrantes</span>
-                </div>
-              </div>
+            disabled={!auditId || busyLocation || busyCloseLocation}
+          >
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white/20">
+              <LocalIcon name={locationState.abierta ? "lock" : "plus"} size={20} />
+            </span>
 
-              <div className="aec-table-wrap custom-scroll">
-                <table className="aec-table">
-                  <thead>
-                    <tr>
-                      <th>IdUnico</th>
-                      <th>Código</th>
-                      <th>Descripción</th>
-                      <th>Estado</th>
-                      <th>Hora</th>
-                      <th>Observaciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row, idx) => {
-                      const visual = estadoVisual_(row.estado);
-                      const rowId = toUpper_(row.idunico);
-                      const high = rowId && highlightId && rowId === highlightId;
-
-                      return (
-                        <tr key={`${row.idunico || "SIN-ID"}-${idx}`} className={`aec-row ${visual.row} ${high ? "row-highlight flash-row" : ""}`}>
-                          <td><span className="aec-id text-[14px]">{row.idunico || "—"}</span></td>
-                          <td><span className="aec-code text-[13px]">{row.codigo || "—"}</span></td>
-                          <td><span className="text-[12px] font-semibold uppercase text-[var(--text-secondary)]">{row.descripcion || "Sin descripción"}</span></td>
-                          <td><span className={visual.chip}>{visual.text}</span></td>
-                          <td><span className="aec-code text-[12px]">{fmtTime_(row.hora)}</span></td>
-                          <td><span className="text-[12px] font-semibold text-[var(--text-secondary)]">{row.observaciones || "—"}</span></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-
-                {!rows.length && (
-                  <div className="aec-empty-state">
-                    <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                      <LocalIcon name="scan-line" size={28} />
-                    </div>
-                    <span className="text-[13px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Sin ubicación cargada</span>
-                    <span className="text-[11px] text-slate-400 font-semibold">Escanea una ubicación para iniciar.</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+            {locationState.abierta ? "Cerrar ubicación" : "Auditar ubicación"}
+          </button>
         </div>
       </div>
     );

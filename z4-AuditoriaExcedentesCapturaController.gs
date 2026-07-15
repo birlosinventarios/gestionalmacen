@@ -58,6 +58,12 @@ function AuditoriaExcedentesCapturaController_cerrarAuditoria(payload) {
   });
 }
 
+function AuditoriaExcedentesCapturaController_enriquecerSobrantesLote(payload) {
+  return execController_(CTRL_AECC, "enriquecerSobrantesLote", function () {
+    return AuditoriaExcedentesCapturaService.enriquecerSobrantesLote(payload || {});
+  });
+}
+
 function AuditoriaExcedentesCapturaController_ping() {
   return execController_(CTRL_AECC, "ping", function () {
     return {
@@ -66,5 +72,11 @@ function AuditoriaExcedentesCapturaController_ping() {
       modulo: "AuditoriaExcedentesCaptura",
       build: "CAPTURA-OPTIMIZADA-2026-06-27"
     };
+  });
+}
+
+function AuditoriaExcedentesCapturaController_actualizarObservacionesSobrantes(payload) {
+  return execController_(CTRL_AECC, "actualizarObservacionesSobrantes", function () {
+    return AuditoriaExcedentesCapturaService.actualizarObservacionesSobrantes(payload || {});
   });
 }

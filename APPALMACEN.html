@@ -20,6 +20,7 @@
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 
   <?!= incluir('z0-Utilidades_XLSX'); ?>
+  <?!= incluir('z0-ImpresionModoUtilidades'); ?>
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <style>
@@ -505,7 +506,35 @@
       return !!(popup && popup.classList.contains('swal2-toast'));
     }
 
+    function limpiarReactRootsVistas_() {
+      const roots = [
+        "__AUDITORIA_EXCEDENTES_ROOT__",
+        "__AUDITORIA_EXCEDENTES_DETALLE_ROOT__",
+        "__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__"
+      ];
+
+      roots.forEach((key) => {
+        const root = window[key];
+
+        if (root && typeof root.unmount === "function") {
+          try {
+            root.unmount();
+            console.log("🧹 [Shell] Root desmontado:", key);
+          } catch (e) {
+            console.warn("⚠️ [Shell] No se pudo desmontar root:", key, e);
+          }
+        } else {
+          console.log("ℹ️ [Shell] Sin root activo para desmontar:", key);
+        }
+
+        window[key] = null;
+      });
+    }
+
     function limpiarRecursosDeVistaAnterior({ cerrarToast = false } = {}) {
+      // Importante: desmontar roots React anteriores para liberar useEffect, timers y polling
+      limpiarReactRootsVistas_();
+
       window.initVista = null;
 
       if (window.temporizadorActualizacion) {
@@ -530,7 +559,7 @@
 
       window.escribiendo = false;
       window.lanzarNotificacion = window.notificar;
-    } 
+    }
 
     async function cargarScriptExternoSeguro(oldScript) {
       const src = oldScript.getAttribute("src");
@@ -639,11 +668,18 @@
     // APP PRINCIPAL
     // =========================================================
     const App = () => {
+
       const [activeTool, setActiveTool] = useState('FormularioTraspasos');
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
       const [viewContent, setViewContent] = useState("");
       const [loading, setLoading] = useState(false);
+
+      const [printMode, setPrintMode] = useState(
+        window.ImpresionModoUtilidades ? window.ImpresionModoUtilidades.getMode() : "LOCAL"
+      );
+
       const containerRef = useRef(null);
+
 
     window.inicializarMegaData = () => {
       if (window.DATA_ALMACEN_CACHE) {
@@ -838,6 +874,21 @@
         return () => { cancelado = true; };
       }, [viewContent, activeTool]);
 
+
+        useEffect(() => {
+          const handler = (event) => {
+            setPrintMode(event?.detail?.mode || "LOCAL");
+          };
+
+          window.addEventListener("app-print-mode-change", handler);
+
+          return () => {
+            window.removeEventListener("app-print-mode-change", handler);
+          };
+        }, []);
+
+
+
       const toolsByCategory = TOOLS.reduce((acc, tool) => {
         if (!acc[tool.category]) acc[tool.category] = [];
         acc[tool.category].push(tool);
@@ -895,13 +946,261 @@
         ),
         e("main", { className: "flex-1 flex flex-col relative bg-[#f8f9fa]" },
           isSidebarOpen ? e("div", { className: "overlay-fade", onClick: () => setIsSidebarOpen(false) }) : null,
-          e("header", { className: "h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10" },
-            e("div", null,   
+            e("header", { className: "h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10" },
+
+              e("div", null,
                 e("h1", { className: "text-xl font-black uppercase tracking-tighter" },
                   TOOLS.find(t => t.id === activeTool)?.name || activeTool
                 )
-            )
-          ),
+              ),
+
+              e("div", { className: "flex items-center gap-3" },
+
+                e("button", {
+                  type: "button",
+                  onClick: () => {
+                    if (!window.ImpresionModoUtilidades) {
+                      window.notificar("No se encontró PrintModeUtils.", "error", 3500, {
+                        title: "Modo impresión no disponible",
+                        sound: true
+                      });
+                      return;
+                    }
+
+                    const nuevoModo = window.ImpresionModoUtilidades.toggleMode();
+                    setPrintMode(nuevoModo);
+
+                    window.notificar(
+                      nuevoModo === "ONLINE"
+                        ? "Modo de impresión ONLINE activado."
+                        : "Modo de impresión LOCAL activado.",
+                      "info",
+                      2200,
+                      {
+                        title: "Modo de impresión",
+                        sound: false
+                      }
+                    );
+                  },
+                  className:
+                    "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-[0.12em] border transition-all active:scale-95 " +
+                    (
+                      printMode === "ONLINE"
+                        ? "bg-[#d93025] text-white border-[#d93025] shadow-sm"
+                        : "bg-white text-[#1c1d1f] border-[#dadce0] hover:bg-slate-50"
+                    ),
+                  title: printMode === "ONLINE"
+                    ? "Modo ONLINE: la impresión se envía por web al puente"
+                    : "Modo LOCAL: la impresión se abre en este navegador"
+                },
+                  e(Icon, { name: printMode === "ONLINE" ? "cloud" : "monitor", size: 16 }),
+                  e("span", null, printMode)
+                ),
+
+
+                  e("button", {
+                    type: "button",
+                    onClick: () => {
+                      const fechaHoraPrueba = new Date().toLocaleString();
+
+                      const htmlLocal =
+                        "<!DOCTYPE html>" +
+                        "<html>" +
+                        "<head>" +
+                        "<meta charset='UTF-8'>" +
+                        "<title>Prueba impresión LOCAL</title>" +
+                        "<style>" +
+                        "@page{size:100mm 150mm;margin:0;}" +
+                        "html,body{width:100mm;height:150mm;margin:0;padding:0;background:#fff;font-family:Arial,sans-serif;}" +
+                        ".etiqueta{width:100mm;height:150mm;padding:8mm;box-sizing:border-box;display:flex;flex-direction:column;}" +
+                        ".titulo{text-align:center;font-size:18px;font-weight:900;margin-bottom:8px;}" +
+                        ".subtitulo{text-align:center;font-size:14px;font-weight:900;margin-bottom:12px;}" +
+                        ".modo{text-align:center;font-size:13px;font-weight:900;border:2px solid #000;padding:5px;margin-bottom:10px;}" +
+                        ".linea{border-top:2px solid #000;margin:10px 0;}" +
+                        ".campo{font-size:13px;font-weight:700;margin:6px 0;line-height:1.25;}" +
+                        ".label{font-weight:900;}" +
+                        ".mensaje{font-size:12px;font-weight:700;line-height:1.35;margin-top:8px;text-align:center;}" +
+                        ".mono{font-family:monospace;font-size:12px;font-weight:700;}" +
+                        ".footer{margin-top:auto;text-align:center;font-size:12px;font-weight:900;border-top:2px solid #000;padding-top:6px;}" +
+                        "@media print{html,body{width:100mm;height:150mm;margin:0;padding:0}.etiqueta{page-break-after:always;}}" +
+                        "</style>" +
+                        "</head>" +
+                        "<body>" +
+                        "<div class='etiqueta'>" +
+                        "<div class='titulo'>BIRLOS Y TORNILLOS</div>" +
+                        "<div class='subtitulo'>PRUEBA IMPRESIÓN LOCAL</div>" +
+                        "<div class='modo'>MODO LOCAL</div>" +
+
+                        "<div class='linea'></div>" +
+
+                        "<div class='campo'><span class='label'>FECHA/HORA:</span><br>" + fechaHoraPrueba + "</div>" +
+                        "<div class='campo'><span class='label'>ORIGEN:</span><br>HEADER APPALMACEN</div>" +
+                        "<div class='campo'><span class='label'>CANAL:</span><br>NAVEGADOR LOCAL → VISTA PREVIA → CTRL + P</div>" +
+                        "<div class='campo'><span class='label'>ESTADO:</span><br>IMPRESIÓN DESDE ESTE DISPOSITIVO</div>" +
+
+                        "<div class='linea'></div>" +
+
+                        "<div class='mensaje'>" +
+                        "Esta etiqueta confirma que el modo LOCAL renderiza la etiqueta en el navegador y usa el cuadro de impresión del dispositivo actual." +
+                        "</div>" +
+
+                        "<div class='linea'></div>" +
+
+                        "<div class='campo mono'>RESULTADO ESPERADO:<br>VISTA PREVIA / CTRL + P</div>" +
+
+                        "<div class='footer'>PRUEBA LOCAL FINALIZADA</div>" +
+                        "</div>" +
+                        "</body>" +
+                        "</html>";
+
+                      if (
+                        window.ImpresionModoUtilidades &&
+                        typeof window.ImpresionModoUtilidades.abrirHtmlLocal === "function"
+                      ) {
+                        window.ImpresionModoUtilidades.abrirHtmlLocal(htmlLocal, "Prueba impresión LOCAL");
+                        return;
+                      }
+
+                      const win = window.open("", "_blank", "width=900,height=700");
+
+                      if (win) {
+                        win.document.open();
+                        win.document.write(htmlLocal);
+                        win.document.close();
+
+                        win.onload = function () {
+                          win.focus();
+                          setTimeout(function () {
+                            win.print();
+                          }, 350);
+                        };
+                      } else {
+                        window.notificar("El navegador bloqueó la ventana de impresión LOCAL.", "warning", 3500, {
+                          title: "Impresión LOCAL",
+                          sound: true
+                        });
+                      }
+                    },
+                    className: "inline-flex items-center justify-center w-10 h-10 rounded-xl border border-[#dadce0] bg-white text-slate-600 hover:bg-slate-50 transition-all active:scale-95",
+                    title: "Probar impresión LOCAL"
+                  },
+                    e(Icon, { name: "monitor", size: 17 })
+                  ),
+
+                  e("button", {
+                    type: "button",
+                    onClick: () => {
+                      const fechaHoraPrueba = new Date().toLocaleString();
+
+                      const htmlOnline =
+                        "<!DOCTYPE html>" +
+                        "<html>" +
+                        "<head>" +
+                        "<meta charset='UTF-8'>" +
+                        "<title>Prueba impresión ONLINE</title>" +
+                        "<style>" +
+                        "@page{size:100mm 150mm;margin:0;}" +
+                        "html,body{width:100mm;height:150mm;margin:0;padding:0;background:#fff;font-family:Arial,sans-serif;}" +
+                        ".etiqueta{width:100mm;height:150mm;padding:8mm;box-sizing:border-box;display:flex;flex-direction:column;}" +
+                        ".titulo{text-align:center;font-size:18px;font-weight:900;margin-bottom:8px;}" +
+                        ".subtitulo{text-align:center;font-size:14px;font-weight:900;margin-bottom:12px;}" +
+                        ".modo{text-align:center;font-size:13px;font-weight:900;border:2px solid #000;padding:5px;margin-bottom:10px;}" +
+                        ".linea{border-top:2px solid #000;margin:10px 0;}" +
+                        ".campo{font-size:13px;font-weight:700;margin:6px 0;line-height:1.25;}" +
+                        ".label{font-weight:900;}" +
+                        ".mensaje{font-size:12px;font-weight:700;line-height:1.35;margin-top:8px;text-align:center;}" +
+                        ".mono{font-family:monospace;font-size:12px;font-weight:700;}" +
+                        ".footer{margin-top:auto;text-align:center;font-size:12px;font-weight:900;border-top:2px solid #000;padding-top:6px;}" +
+                        "@media print{html,body{width:100mm;height:150mm;margin:0;padding:0}.etiqueta{page-break-after:always;}}" +
+                        "</style>" +
+                        "</head>" +
+                        "<body>" +
+                        "<div class='etiqueta'>" +
+                        "<div class='titulo'>BIRLOS Y TORNILLOS</div>" +
+                        "<div class='subtitulo'>PRUEBA IMPRESIÓN ONLINE</div>" +
+                        "<div class='modo'>MODO ONLINE</div>" +
+
+                        "<div class='linea'></div>" +
+
+                        "<div class='campo'><span class='label'>FECHA/HORA:</span><br>" + fechaHoraPrueba + "</div>" +
+                        "<div class='campo'><span class='label'>ORIGEN:</span><br>HEADER APPALMACEN</div>" +
+                        "<div class='campo'><span class='label'>CANAL:</span><br>APP WEB → APPS SCRIPT → PRINTSERVER → GD-41</div>" +
+                        "<div class='campo'><span class='label'>ESTADO:</span><br>ENVÍO DIRECTO POR PUENTE ONLINE</div>" +
+
+                        "<div class='linea'></div>" +
+
+                        "<div class='mensaje'>" +
+                        "Esta etiqueta confirma que el modo ONLINE envía HTML por web al PrintServer, genera PDF con Chrome en segundo plano y manda la impresión a la GD-41." +
+                        "</div>" +
+
+                        "<div class='linea'></div>" +
+
+                        "<div class='campo mono'>RESULTADO ESPERADO:<br>IMPRESIÓN SIN USAR CTRL + P</div>" +
+
+                        "<div class='footer'>PRUEBA ONLINE FINALIZADA</div>" +
+                        "</div>" +
+                        "</body>" +
+                        "</html>";
+
+                      const printJob = {
+                        tipo: "HTML_TEST",
+                        origen: "APPALMACEN_HEADER",
+                        formato: "HTML",
+                        html: htmlOnline,
+                        content: htmlOnline,
+                        meta: {
+                          modulo: "APPALMACEN",
+                          accion: "BOTON_TEST_ONLINE",
+                          modo: "ONLINE",
+                          fechaHora: fechaHoraPrueba,
+                          etiqueta: "100x150mm"
+                        }
+                      };
+
+                      window.notificar("Enviando prueba ONLINE al PrintServer...", "info", 2200, {
+                        title: "Impresión ONLINE",
+                        sound: false
+                      });
+
+                      google.script.run
+                        .withSuccessHandler((res) => {
+                          console.log("✅ Prueba ONLINE:", res);
+
+                          if (res && res.ok) {
+                            window.notificar("Prueba ONLINE enviada correctamente.", "success", 3200, {
+                              title: "Impresión ONLINE",
+                              sound: true
+                            });
+                            return;
+                          }
+
+                          window.notificar("El PrintServer respondió, pero no confirmó impresión.", "warning", 4200, {
+                            title: "Impresión no confirmada",
+                            sound: true
+                          });
+                        })
+                        .withFailureHandler((err) => {
+                          console.error("❌ Error prueba ONLINE:", err);
+
+                          window.notificar(
+                            err && err.message ? err.message : "No se pudo enviar la prueba ONLINE.",
+                            "error",
+                            5000,
+                            {
+                              title: "Error ONLINE",
+                              sound: true
+                            }
+                          );
+                        })
+                        .ImpresionPuenteController_imprimir(printJob);
+                    },
+                    className: "inline-flex items-center justify-center w-10 h-10 rounded-xl border border-[#d93025] bg-[#d93025] text-white hover:bg-[#b3261e] transition-all active:scale-95",
+                    title: "Probar impresión ONLINE"
+                  },
+                    e(Icon, { name: "cloud", size: 17 })
+                  )
+              )
+            ),
           e("div", { className: "flex-1 overflow-auto bg-white m-4 rounded-2xl shadow-sm border border-[#dadce0]" },
             loading
               ? e("div", { className: "flex items-center justify-center h-full" },

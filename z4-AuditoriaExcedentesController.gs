@@ -196,83 +196,15 @@ function AuditoriaExcedentesController_ping() {
   });
 }
 
-/**
- * =========================================================
- * DEBUGGERS
- * =========================================================
- */
-
-function debugAuditoriaExcedentesController_ping() {
-  return AuditoriaExcedentesController_ping();
-}
-
-function debugAuditoriaExcedentesController_obtenerBootstrap() {
-  return AuditoriaExcedentesController_obtenerBootstrap();
-}
-
-function debugAuditoriaExcedentesController_obtenerDashboardMetricos() {
-  return AuditoriaExcedentesController_obtenerDashboardMetricos();
-}
-
-function debugAuditoriaExcedentesController_listarAuditorias() {
-  return AuditoriaExcedentesController_listarAuditorias({});
-}
-
-function debugAuditoriaExcedentesController_obtenerAuditoriaPorId() {
-  return AuditoriaExcedentesController_obtenerAuditoriaPorId("AUD-PRUEBA-001");
-}
-
-function debugAuditoriaExcedentesController_obtenerAuditoriaActiva() {
-  return AuditoriaExcedentesController_obtenerAuditoriaActiva("AUD-PRUEBA-001");
-}
-
-function debugAuditoriaExcedentesController_recalcularResumen() {
-  return AuditoriaExcedentesController_recalcularResumen("AUD-PRUEBA-001", { persistir: false });
-}
-
-function debugAuditoriaExcedentesController_abrirAuditoria() {
-  return AuditoriaExcedentesController_abrirAuditoria({
-    auditor: "PRUEBA SISTEMA",
-    tipoauditoria: "GLOBAL",
-    bodegaobjetivo: "TODAS",
-    observaciones: "PRUEBA DESDE CONTROLLER"
+function AuditoriaExcedentesController_obtenerDetalleAuditoriaEnVivo(idauditoria) {
+  return _aec_exec_("obtenerDetalleAuditoriaEnVivo", function () {
+    return AuditoriaExcedentesService.obtenerDetalleAuditoriaEnVivo(idauditoria);
   });
 }
 
-function debugAuditoriaExcedentesController_cerrarAuditoria() {
-  return AuditoriaExcedentesController_cerrarAuditoria({
-    idauditoria: "AUD-PRUEBA-001",
-    observaciones: "CIERRE DE PRUEBA",
-    cerrarUbicacionesAbiertas: true
+function AuditoriaExcedentesController_obtenerPulsoAuditoriaEnVivo(idauditoria) {
+  return _aec_exec_("obtenerPulsoAuditoriaEnVivo", function () {
+    return AuditoriaExcedentesService.obtenerPulsoAuditoriaEnVivo(idauditoria);
   });
 }
 
-function debugAuditoriaExcedentesController_abrirUbicacion() {
-  return AuditoriaExcedentesController_abrirUbicacion({
-    idauditoria: "AUD-PRUEBA-001",
-    ubicacion: "B1-19"
-  });
-}
-
-function debugAuditoriaExcedentesController_registrarEscaneoIdUnico() {
-  return AuditoriaExcedentesController_registrarEscaneoIdUnico({
-    idauditoria: "AUD-PRUEBA-001",
-    ubicacion: "B1-19",
-    idunico: "202605141622201581"
-  });
-}
-
-function debugAuditoriaExcedentesController_cerrarUbicacion() {
-  return AuditoriaExcedentesController_cerrarUbicacion({
-    idauditoria: "AUD-PRUEBA-001",
-    ubicacion: "B1-19"
-  });
-}
-
-function debugAuditoriaExcedentesController_obtenerDetalleUbicacion() {
-  return AuditoriaExcedentesController_obtenerDetalleUbicacion("AUD-PRUEBA-001", "B1-19");
-}
-
-function debugAuditoriaExcedentesController_obtenerDetalleAuditoria() {
-  return AuditoriaExcedentesController_obtenerDetalleAuditoria("AUD-PRUEBA-001");
-}

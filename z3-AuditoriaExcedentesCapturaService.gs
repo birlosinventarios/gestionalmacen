@@ -31,7 +31,9 @@ const AuditoriaExcedentesCapturaService = (() => {
       throw new Error("Se requiere IdAuditoria.");
     }
 
-    const audit = AuditoriaExcedentesRepository.getByIdAuditoria(id);
+    const audit = AuditoriaExcedentesRepository.getByIdAuditoriaFresh
+      ? AuditoriaExcedentesRepository.getByIdAuditoriaFresh(id)
+      : AuditoriaExcedentesRepository.getByIdAuditoria(id);
 
     if (!audit) {
       throw new Error("No existe la auditoría " + id);
@@ -227,20 +229,44 @@ const AuditoriaExcedentesCapturaService = (() => {
     };
   }
 
+  
+  function _esIdentificadorUbicacionExcedente_(valor) {
+    const raw = toStrUpper_(valor || "");
+
+    if (!raw) return false;
+
+    const registro = _buscarRegistroUbicacionPorIdentificador_(raw);
+
+    return !!registro;
+  }
+
+
   // =========================================================
   // DETALLES / MARCADORES
   // =========================================================
 
+  
   function _getDetallesAuditoria_(idauditoria) {
-    return AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria) || [];
+    return AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh
+      ? AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh(idauditoria)
+      : AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria) || [];
   }
 
+
+
   function _getDetallesUbicacion_(idauditoria, ubicacion) {
-    return AuditoriaExcedentesDetalleRepository.getByAuditoriaYUbicacion(
-      idauditoria,
-      ubicacion
-    ) || [];
+    const id = toStr_(idauditoria);
+    const ubi = toStrUpper_(ubicacion);
+
+    const detalles = AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh
+      ? AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh(id)
+      : AuditoriaExcedentesDetalleRepository.getByIdAuditoria(id) || [];
+
+    return detalles.filter(function(x) {
+      return toStrUpper_(x.ubicacion) === ubi;
+    });
   }
+
 
   function _getMarcadorUbicacion_(idauditoria, ubicacion) {
     const rows = _getDetallesUbicacion_(idauditoria, ubicacion);
@@ -533,6 +559,27 @@ const AuditoriaExcedentesCapturaService = (() => {
       });
     }
 
+    try {
+      const universo = _getUniversoEsperadoAuditoria_(audit) || [];
+
+      const esperadosUbicacion = universo.filter(function(row) {
+        return toStrUpper_(row.ubicacionActual || row.ubicacion || "") === ubicacionResuelta.ubicacion;
+      }).length;
+
+      if (typeof AuditoriaExcedentesLiveCache !== "undefined") {
+        AuditoriaExcedentesLiveCache.abrirUbicacion({
+          idauditoria: idauditoria,
+          ubicacion: ubicacionResuelta.ubicacion,
+          bodega: ubicacionResuelta.bodega,
+          secuenciaubicacion: marker.secuenciaubicacion,
+          horainicioubicacion: marker.horainicioubicacion || fmtTimeNow_(),
+          esperados: esperadosUbicacion
+        });
+      }
+    } catch (e) {
+      console.warn("[LIVE] No se pudo emitir apertura de ubicación:", e);
+    }
+
     return {
       ok: true,
       mensaje: "Ubicación abierta correctamente.",
@@ -578,70 +625,15 @@ const AuditoriaExcedentesCapturaService = (() => {
   // RECÁLCULO DE CABECERA DESDE DETALLE
   // =========================================================
 
-  function _recalcularCabeceraDesdeDetalle_(idauditoria) {
-    const audit = _getAuditoriaOrThrow_(idauditoria);
-    const detalle = _getDetallesAuditoria_(idauditoria);
-
-    const escaneados = detalle.filter(function (x) {
-      return x.idunico && x.esfaltante !== true;
-    }).length;
-
-    const correctos = detalle.filter(function (x) {
-      return x.idunico && x.escorrecto === true;
-    }).length;
-
-    const faltantes = detalle.filter(function (x) {
-      return x.esfaltante === true;
-    }).length;
-
-    const sobrantes = detalle.filter(function (x) {
-      return x.essobrante === true;
-    }).length;
-
-    const ubicacionesAuditadasSet = {};
-    const ubicacionesConDiferenciaSet = {};
-
-    detalle.forEach(function (x) {
-      const ubi = toStrUpper_(x.ubicacion || "");
-      if (!ubi) return;
-
-      if (!x.idunico && x.horainicioubicacion && x.horafinubicacion) {
-        ubicacionesAuditadasSet[ubi] = true;
-      }
-
-      if (x.esfaltante === true || x.essobrante === true) {
-        ubicacionesConDiferenciaSet[ubi] = true;
-      }
-    });
-
-    const esperadosTotales = toNum_(audit.idunicosesperadostotales);
-
-    const confiabilidad = esperadosTotales > 0
-      ? round2_((correctos / esperadosTotales) * 100)
-      : 0;
-
-    const updated = AuditoriaExcedentesRepository.updateByIdAuditoria(idauditoria, {
-      ubicacionesauditadas: Object.keys(ubicacionesAuditadasSet).length,
-      ubicacionescondiferencia: Object.keys(ubicacionesConDiferenciaSet).length,
-      idunicosescaneadostotales: escaneados,
-      idunicoscorrectostotales: correctos,
-      idunicosfaltantestotales: faltantes,
-      idunicossobrantestotales: sobrantes,
-      confiabilidadtotal: confiabilidad
-    });
-
-    return {
-      idauditoria: idauditoria,
-      ubicacionesauditadas: toNum_(updated.ubicacionesauditadas),
-      ubicacionescondiferencia: toNum_(updated.ubicacionescondiferencia),
-      idunicosesperadostotales: toNum_(updated.idunicosesperadostotales),
-      idunicosescaneadostotales: toNum_(updated.idunicosescaneadostotales),
-      idunicoscorrectostotales: toNum_(updated.idunicoscorrectostotales),
-      idunicosfaltantestotales: toNum_(updated.idunicosfaltantestotales),
-      idunicossobrantestotales: toNum_(updated.idunicossobrantestotales),
-      confiabilidadtotal: toNum_(updated.confiabilidadtotal)
-    };
-  }
+function _recalcularCabeceraDesdeDetalle_(idauditoria) {
+  /**
+   * Delegamos el cálculo maestro a AuditoriaExcedentesService
+   * para que captura, detalle, dashboard y cabecera usen la misma regla.
+   */
+  return AuditoriaExcedentesService.recalcularResumen(idauditoria, {
+    persistir: true
+  });
+}
 
   // =========================================================
   // REGISTRO POR LOTE
@@ -710,6 +702,17 @@ const AuditoriaExcedentesCapturaService = (() => {
         return;
       }
 
+      // =========================================================
+      // BLOQUEO SERVIDOR: NO GUARDAR UBICACIONES COMO IDUNICO
+      // =========================================================
+      if (_esIdentificadorUbicacionExcedente_(idunico)) {
+        omitidos.push({
+          idunico: idunico,
+          motivo: "QR_UBICACION_NO_ES_IDUNICO"
+        });
+        return;
+      }
+
       if (yaRegistrados[idunico]) {
         omitidos.push({
           idunico: idunico,
@@ -754,12 +757,29 @@ const AuditoriaExcedentesCapturaService = (() => {
       yaRegistrados[idunico] = true;
     });
 
-    if (rowsInsertar.length > 0) {
-      AuditoriaExcedentesDetalleRepository.insertMany(rowsInsertar);
-    }
+    let auditSnapshot = null;
 
-    const auditSnapshot = _recalcularCabeceraDesdeDetalle_(idauditoria);
+      if (rowsInsertar.length > 0) {
+        AuditoriaExcedentesDetalleRepository.insertMany(rowsInsertar);
 
+        try {
+          if (typeof AuditoriaExcedentesLiveCache !== "undefined") {
+            AuditoriaExcedentesLiveCache.registrarEscaneos({
+              idauditoria: idauditoria,
+              ubicacion: ubicacion,
+              bodega: marker.bodega,
+              secuenciaubicacion: marker.secuenciaubicacion,
+              esperados: toNum_(payload && payload.esperadosUbicacion),
+              rows: rowsInsertar
+            });
+          }
+        } catch (e) {
+          console.warn("[LIVE] No se pudo emitir lote de escaneos:", e);
+        }
+
+        auditSnapshot = _recalcularCabeceraDesdeDetalle_(idauditoria);
+      }
+    
     return {
       ok: true,
       insertados: rowsInsertar.length,
@@ -768,6 +788,7 @@ const AuditoriaExcedentesCapturaService = (() => {
       auditSnapshot: auditSnapshot,
       mensaje: "Escaneos sincronizados correctamente."
     };
+
   }
 
   /**
@@ -879,12 +900,31 @@ const AuditoriaExcedentesCapturaService = (() => {
       AuditoriaExcedentesDetalleRepository.insertMany(faltantesInsertar);
     }
 
+    const horaFinLive = fmtTimeNow_();
+
     AuditoriaExcedentesDetalleRepository.updateByRowNumber(marker._rowNumber, {
-      horafinubicacion: fmtTimeNow_(),
+      horafinubicacion: horaFinLive,
       observaciones: observaciones || marker.observaciones || ""
     });
 
+    try {
+      if (typeof AuditoriaExcedentesLiveCache !== "undefined") {
+        AuditoriaExcedentesLiveCache.cerrarUbicacion({
+          idauditoria: idauditoria,
+          ubicacion: ubicacion,
+          bodega: marker.bodega,
+          secuenciaubicacion: marker.secuenciaubicacion,
+          horafinubicacion: horaFinLive,
+          faltantesInsertados: faltantesInsertar.length
+        });
+      }
+    } catch (e) {
+      console.warn("[LIVE] No se pudo emitir cierre de ubicación:", e);
+    }
+
     const auditSnapshot = _recalcularCabeceraDesdeDetalle_(idauditoria);
+
+
     const estado = obtenerEstadoUbicacion({
       idauditoria: idauditoria,
       ubicacion: ubicacion
@@ -949,6 +989,15 @@ const AuditoriaExcedentesCapturaService = (() => {
       observaciones: observaciones || audit.observaciones || ""
     });
 
+    
+    try {
+      if (typeof AuditoriaExcedentesLiveCache !== "undefined") {
+        AuditoriaExcedentesLiveCache.clear(idauditoria);
+      }
+    } catch (e) {
+      console.warn("[LIVE] No se pudo limpiar LiveCache al cerrar auditoría:", e);
+    }
+
     return {
       ok: true,
       mensaje: "Auditoría cerrada correctamente.",
@@ -957,9 +1006,140 @@ const AuditoriaExcedentesCapturaService = (() => {
     };
   }
 
+  function enriquecerSobrantesLote(payload) {
+    const ids = Array.isArray(payload && payload.ids)
+      ? payload.ids
+      : [];
+
+    const salida = {};
+
+    ids.forEach(function (rawId) {
+      const idunico = toStrUpper_(rawId);
+
+      if (!idunico) return;
+
+      try {
+        const actual = EstadoActualExcedentesService.getUnoPorIdUnico(idunico);
+
+        if (!actual) {
+          salida[idunico] = {
+            encontrado: false,
+            idunico: idunico,
+            codigo: "",
+            descripcion: "",
+            bodegaActual: "",
+            ubicacionActual: "",
+            observaciones: "IDUNICO NO ENCONTRADO EN ESTADO ACTUAL"
+          };
+          return;
+        }
+
+        salida[idunico] = {
+          encontrado: true,
+          idunico: idunico,
+          codigo: toStrUpper_(actual.codigo || ""),
+          descripcion: toStrUpper_(actual.descripcion || ""),
+          bodegaActual: toStrUpper_(actual.bodegaActual || actual.bodega || ""),
+          ubicacionActual: toStrUpper_(actual.ubicacionActual || actual.ubicacion || ""),
+          observaciones: actual.ubicacionActual
+            ? "SISTEMA: " + toStrUpper_(actual.ubicacionActual)
+            : "SISTEMA SIN UBICACIÓN"
+        };
+
+      } catch (error) {
+        salida[idunico] = {
+          encontrado: false,
+          idunico: idunico,
+          codigo: "",
+          descripcion: "",
+          bodegaActual: "",
+          ubicacionActual: "",
+          observaciones: "ERROR AL CONSULTAR ESTADO ACTUAL: " + (error && error.message ? error.message : "")
+        };
+      }
+    });
+
+    return {
+      ok: true,
+      total: Object.keys(salida).length,
+      data: salida
+    };
+  }
+
+  function actualizarObservacionesSobrantes(payload) {
+    payload = payload || {};
+
+    const idauditoria = toStrUpper_(payload.idauditoria || "");
+    const ubicacionAuditada = toStrUpper_(payload.ubicacionAuditada || "");
+    const actualizaciones = Array.isArray(payload.actualizaciones)
+      ? payload.actualizaciones
+      : [];
+
+    if (!idauditoria) {
+      throw new Error("Falta idauditoria para actualizar observaciones de sobrantes.");
+    }
+
+    if (!ubicacionAuditada) {
+      throw new Error("Falta ubicación auditada para actualizar observaciones de sobrantes.");
+    }
+
+    if (!actualizaciones.length) {
+      return {
+        ok: true,
+        actualizados: 0,
+        mensaje: "Sin observaciones por actualizar."
+      };
+    }
+
+    const detalle = _getDetallesUbicacion_(idauditoria, ubicacionAuditada);
+
+    if (!detalle.length) {
+      return {
+        ok: true,
+        actualizados: 0,
+        mensaje: "No se encontraron detalles para la ubicación auditada."
+      };
+    }
+
+    const mapa = {};
+
+    actualizaciones.forEach(function (item) {
+      const id = toStrUpper_(item.idunico || "");
+      if (id) mapa[id] = item;
+    });
+
+    let actualizados = 0;
+
+    detalle.forEach(function (row) {
+      const idunico = toStrUpper_(row.idunico || "");
+
+      if (!idunico) return;
+      if (!mapa[idunico]) return;
+      if (row.essobrante !== true) return;
+
+      const upd = mapa[idunico];
+
+      AuditoriaExcedentesDetalleRepository.updateByRowNumber(row._rowNumber, {
+        codigo: toStrUpper_(upd.codigo || row.codigo || ""),
+        descripcion: toStrUpper_(upd.descripcion || row.descripcion || ""),
+        observaciones: toStr_(upd.observaciones || row.observaciones || "")
+      });
+
+      actualizados++;
+    });
+
+    return {
+      ok: true,
+      actualizados: actualizados,
+      mensaje: "Observaciones de sobrantes actualizadas: " + actualizados
+    };
+  }
+
+
   // =========================================================
   // API PÚBLICA
   // =========================================================
+
 
   return {
     obtenerBootstrapCaptura,
@@ -970,73 +1150,10 @@ const AuditoriaExcedentesCapturaService = (() => {
     registrarEscaneoIdUnico,
     registrarEscaneosLote,
     cerrarUbicacion,
+    enriquecerSobrantesLote,
+    actualizarObservacionesSobrantes,
     cerrarAuditoria
   };
 
+
 })();
-
-/**
- * =========================================================
- * DEBUGGERS OPCIONALES
- * =========================================================
- */
-
-function debugAuditoriaExcedentesCapturaService_obtenerBootstrapCaptura() {
-  return AuditoriaExcedentesCapturaService.obtenerBootstrapCaptura();
-}
-
-function debugAuditoriaExcedentesCapturaService_obtenerAuditoriasAbiertas() {
-  return AuditoriaExcedentesCapturaService.obtenerAuditoriasAbiertas();
-}
-
-function debugAuditoriaExcedentesCapturaService_obtenerPaqueteCaptura() {
-  return AuditoriaExcedentesCapturaService.obtenerPaqueteCaptura("AUD-PRUEBA-001");
-}
-
-function debugAuditoriaExcedentesCapturaService_abrirUbicacionPorEscaneo() {
-  return AuditoriaExcedentesCapturaService.abrirUbicacionPorEscaneo({
-    idauditoria: "AUD-PRUEBA-001",
-    identificadorUbicacion: "B1B101"
-  });
-}
-
-function debugAuditoriaExcedentesCapturaService_obtenerEstadoUbicacion() {
-  return AuditoriaExcedentesCapturaService.obtenerEstadoUbicacion({
-    idauditoria: "AUD-PRUEBA-001",
-    ubicacion: "B1-01"
-  });
-}
-
-function debugAuditoriaExcedentesCapturaService_registrarEscaneosLote() {
-  return AuditoriaExcedentesCapturaService.registrarEscaneosLote({
-    idauditoria: "AUD-PRUEBA-001",
-    ubicacion: "B1-01",
-    escaneos: [
-      {
-        idunico: "20260514154729157481",
-        tipoResultado: "CORRECTO",
-        codigo: "PRUEBA",
-        descripcion: "PRUEBA",
-        bodega: "BODEGA 1",
-        horaLocal: fmtTimeNow_(),
-        observaciones: ""
-      }
-    ]
-  });
-}
-
-function debugAuditoriaExcedentesCapturaService_cerrarUbicacion() {
-  return AuditoriaExcedentesCapturaService.cerrarUbicacion({
-    idauditoria: "AUD-PRUEBA-001",
-    ubicacion: "B1-01",
-    faltantes: [],
-    observaciones: "CIERRE DE PRUEBA"
-  });
-}
-
-function debugAuditoriaExcedentesCapturaService_cerrarAuditoria() {
-  return AuditoriaExcedentesCapturaService.cerrarAuditoria({
-    idauditoria: "AUD-PRUEBA-001",
-    observaciones: "CIERRE DESDE CAPTURA"
-  });
-}

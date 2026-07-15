@@ -103,7 +103,7 @@ const AuditoriaExcedentesService = (() => {
 
   function _startOfWeekMonday_(date) {
     const d = new Date(date);
-    const day = d.getDay(); // 0=domingo, 1=lunes
+    const day = d.getDay();
     const diff = day === 0 ? -6 : 1 - day;
     d.setHours(0, 0, 0, 0);
     d.setDate(d.getDate() + diff);
@@ -230,21 +230,15 @@ const AuditoriaExcedentesService = (() => {
     return "PENDIENTE DE UBICACIÓN";
   }
 
-  function _getLocationMarkersClosedByAuditsInRange_(auditsInRange) {
-    const allDetail = AuditoriaExcedentesDetalleRepository.getAll();
-    const auditIds = new Set(auditsInRange.map(x => _toStr_(x.idauditoria)));
+  // =========================================================
+  // RESUMEN / MÉTRICOS
+  // =========================================================
+  function _buildActualMetricsFromClosedLocations_(auditsInRange, bodegaFilter, allDetailOpt) {
+    const allDetail = Array.isArray(allDetailOpt)
+      ? allDetailOpt
+      : AuditoriaExcedentesDetalleRepository.getAll();
 
-    return allDetail.filter(item =>
-      auditIds.has(_toStr_(item.idauditoria)) &&
-      !item.idunico &&
-      item.horainicioubicacion &&
-      item.horafinubicacion
-    );
-  }
-
-  function _buildActualMetricsFromClosedLocations_(auditsInRange, bodegaFilter) {
-    const allDetail = AuditoriaExcedentesDetalleRepository.getAll();
-    const auditIds = new Set(auditsInRange.map(x => _toStr_(x.idauditoria)));
+    const auditIds = new Set((auditsInRange || []).map(x => _toStr_(x.idauditoria)));
 
     const markersClosed = allDetail.filter(item =>
       auditIds.has(_toStr_(item.idauditoria)) &&
@@ -270,21 +264,13 @@ const AuditoriaExcedentesService = (() => {
     const correctos = detailRows.filter(x => x.escorrecto === true).length;
     const faltantes = detailRows.filter(x => x.esfaltante === true).length;
     const sobrantes = detailRows.filter(x => x.essobrante === true).length;
-
-    // Esperados reales de una ubicación cerrada:
-    // correctos + faltantes
     const esperados = correctos + faltantes;
-
-    // Escaneados reales:
-    // correctos + sobrantes
     const escaneados = detailRows.filter(x => x.idunico && x.esfaltante !== true).length;
 
     const mapDiff = {};
     detailRows.forEach(item => {
       const key = `${_toStr_(item.idauditoria)}__${_toUpper_(item.ubicacion)}`;
-      if (!mapDiff[key]) {
-        mapDiff[key] = false;
-      }
+      if (!mapDiff[key]) mapDiff[key] = false;
       if (item.esfaltante === true || item.essobrante === true) {
         mapDiff[key] = true;
       }
@@ -298,7 +284,7 @@ const AuditoriaExcedentesService = (() => {
       : 0;
 
     return {
-      auditoriasCerradas: _uniqueBy_(auditsInRange, x => _toStr_(x.idauditoria)).length,
+      auditoriasCerradas: _uniqueBy_(auditsInRange || [], x => _toStr_(x.idauditoria)).length,
       ubicacionesAuditadas,
       ubicacionesConDiferencia,
       esperados,
@@ -311,10 +297,107 @@ const AuditoriaExcedentesService = (() => {
     };
   }
 
-  // =========================================================
-  // API PÚBLICA BASE
-  // =========================================================
+  function _calcularMetricosAuditoriaDesdeDetalle_(idauditoria, options) {
+    options = options || {};
 
+    
+    const audit = options.usarFresh && AuditoriaExcedentesRepository.getByIdAuditoriaFresh
+      ? AuditoriaExcedentesRepository.getByIdAuditoriaFresh(idauditoria)
+      : _getAuditoriaOrThrow_(idauditoria);
+
+    if (!audit) {
+      throw new Error(`No existe la auditoría ${idauditoria}`);
+    }
+
+    
+    const detalle = options.usarFresh && AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh
+      ? AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh(idauditoria)
+      : AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria);
+
+
+    const id = _toStr_(idauditoria);
+
+    const markers = detalle.filter(x =>
+      !x.idunico &&
+      x.horainicioubicacion
+    );
+
+    const markersCerrados = markers.filter(x =>
+      x.horainicioubicacion &&
+      x.horafinubicacion
+    );
+
+    const markersAbiertos = markers.filter(x =>
+      x.horainicioubicacion &&
+      !x.horafinubicacion
+    );
+
+    const filasConId = detalle.filter(x => x.idunico);
+
+    const correctosRows = filasConId.filter(x => x.escorrecto === true);
+    const faltantesRows = filasConId.filter(x => x.esfaltante === true);
+    const sobrantesRows = filasConId.filter(x => x.essobrante === true);
+    const escaneadosRows = filasConId.filter(x => x.esfaltante !== true);
+
+    const ubicacionesAuditadas = _uniqueBy_(
+      markersCerrados.filter(x => x.ubicacion),
+      x => _toUpper_(x.ubicacion)
+    ).length;
+
+    const ubicacionesAbiertas = _uniqueBy_(
+      markersAbiertos.filter(x => x.ubicacion),
+      x => _toUpper_(x.ubicacion)
+    ).length;
+
+    const ubicacionesConDiferencia = _uniqueBy_(
+      filasConId.filter(x =>
+        x.ubicacion &&
+        (x.esfaltante === true || x.essobrante === true)
+      ),
+      x => _toUpper_(x.ubicacion)
+    ).length;
+
+    let esperados = _toNum_(audit.idunicosesperadostotales);
+
+    if (!esperados && options.usarFallbackEsperados !== false) {
+      esperados = correctosRows.length + faltantesRows.length;
+    }
+
+    const correctos = correctosRows.length;
+    const faltantes = faltantesRows.length;
+    const sobrantes = sobrantesRows.length;
+    const escaneados = escaneadosRows.length;
+
+    const confiabilidad = esperados > 0
+      ? _round2_((correctos / esperados) * 100)
+      : 0;
+
+    return {
+      idauditoria: id,
+
+      ubicacionesauditadas: ubicacionesAuditadas,
+      ubicacionesabiertas: ubicacionesAbiertas,
+      ubicacionescondiferencia: ubicacionesConDiferencia,
+
+      idunicosesperadostotales: esperados,
+      idunicosescaneadostotales: escaneados,
+      idunicoscorrectostotales: correctos,
+      idunicosfaltantestotales: faltantes,
+      idunicossobrantestotales: sobrantes,
+
+      confiabilidadtotal: confiabilidad,
+      confiabilidadState: _summarizeConfiabilidad_(confiabilidad),
+
+      totalFilasDetalle: detalle.length,
+      totalMarcadores: markers.length,
+      totalMarcadoresCerrados: markersCerrados.length,
+      totalMarcadoresAbiertos: markersAbiertos.length
+    };
+  }
+
+  // =========================================================
+  // API BASE
+  // =========================================================
   function obtenerBootstrap() {
     const usuarios = (typeof UsuariosRepository !== "undefined" && UsuariosRepository.getAll)
       ? UsuariosRepository.getAll()
@@ -425,48 +508,30 @@ const AuditoriaExcedentesService = (() => {
     const resumen = recalcularResumen(idauditoria, { persistir: false });
 
     return {
-      auditoria: audit,
-      detalle,
-      resumen
+      auditoria: {
+        ...audit,
+        ...resumen
+      },
+      detalle: detalle,
+      resumen: resumen
     };
   }
 
   function recalcularResumen(idauditoria, options) {
+    options = options || {};
+
     const persistir = !(options && options.persistir === false);
-    const audit = _getAuditoriaOrThrow_(idauditoria);
-
-    const universoEsperado = _getUniversoEsperado_(audit);
-    const detalle = AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria);
-
-    const esperados = universoEsperado.length;
-    const escaneados = detalle.filter(x => x.idunico && !x.esfaltante).length;
-    const correctos = detalle.filter(x => x.idunico && x.escorrecto === true).length;
-    const faltantes = detalle.filter(x => x.esfaltante === true).length;
-    const sobrantes = detalle.filter(x => x.essobrante === true).length;
-
-    const ubicacionesAuditadas = _uniqueBy_(
-      detalle.filter(x => x.ubicacion),
-      x => _toUpper_(x.ubicacion)
-    ).length;
-
-    const ubicacionesConDiferencia = _uniqueBy_(
-      detalle.filter(x => x.ubicacion && (x.esfaltante === true || x.essobrante === true)),
-      x => _toUpper_(x.ubicacion)
-    ).length;
-
-    const confiabilidad = esperados > 0
-      ? _round2_((correctos / esperados) * 100)
-      : 0;
+    const metricos = _calcularMetricosAuditoriaDesdeDetalle_(idauditoria, options);
 
     const patch = {
-      ubicacionesauditadas: ubicacionesAuditadas,
-      ubicacionescondiferencia: ubicacionesConDiferencia,
-      idunicosesperadostotales: esperados,
-      idunicosescaneadostotales: escaneados,
-      idunicoscorrectostotales: correctos,
-      idunicosfaltantestotales: faltantes,
-      idunicossobrantestotales: sobrantes,
-      confiabilidadtotal: confiabilidad
+      ubicacionesauditadas: metricos.ubicacionesauditadas,
+      ubicacionescondiferencia: metricos.ubicacionescondiferencia,
+      idunicosesperadostotales: metricos.idunicosesperadostotales,
+      idunicosescaneadostotales: metricos.idunicosescaneadostotales,
+      idunicoscorrectostotales: metricos.idunicoscorrectostotales,
+      idunicosfaltantestotales: metricos.idunicosfaltantestotales,
+      idunicossobrantestotales: metricos.idunicossobrantestotales,
+      confiabilidadtotal: metricos.confiabilidadtotal
     };
 
     if (persistir) {
@@ -474,9 +539,8 @@ const AuditoriaExcedentesService = (() => {
     }
 
     return {
-      idauditoria: _toStr_(idauditoria),
-      ...patch,
-      confiabilidadState: _summarizeConfiabilidad_(confiabilidad)
+      ...metricos,
+      ...patch
     };
   }
 
@@ -521,6 +585,14 @@ const AuditoriaExcedentesService = (() => {
       observaciones: observaciones || audit.observaciones || ""
     });
 
+    try {
+      if (typeof AuditoriaExcedentesLiveCache !== "undefined") {
+        AuditoriaExcedentesLiveCache.clear(idauditoria);
+      }
+    } catch (e) {
+      console.warn("[LIVE] No se pudo limpiar LiveCache al cerrar auditoría desde Service principal:", e);
+    }
+
     return {
       ok: true,
       mensaje: "Auditoría cerrada correctamente",
@@ -537,12 +609,28 @@ const AuditoriaExcedentesService = (() => {
   }
 
   function registrarEscaneoIdUnico(payload) {
-    return AuditoriaExcedentesDetalleService.registrarEscaneoIdUnico(payload);
+    const result = AuditoriaExcedentesDetalleService.registrarEscaneoIdUnico(payload || {});
+
+    if (payload && payload.idauditoria && result && result.ok) {
+      const resumen = recalcularResumen(payload.idauditoria, { persistir: true });
+      result.auditSnapshot = resumen;
+      result.resumenAuditoria = resumen;
+    }
+
+    return result;
   }
 
   function cerrarUbicacion(payload) {
+    payload = payload || {};
+
     const result = AuditoriaExcedentesDetalleService.cerrarUbicacion(payload);
-    recalcularResumen(payload.idauditoria, { persistir: true });
+
+    if (payload.idauditoria) {
+      const resumen = recalcularResumen(payload.idauditoria, { persistir: true });
+      result.auditSnapshot = resumen;
+      result.resumenAuditoria = resumen;
+    }
+
     return result;
   }
 
@@ -556,7 +644,10 @@ const AuditoriaExcedentesService = (() => {
     const resumen = recalcularResumen(idauditoria, { persistir: false });
 
     return {
-      auditoria: audit,
+      auditoria: {
+        ...audit,
+        ...resumen
+      },
       resumen: resumen,
       detalle: detalle,
       ubicaciones: AuditoriaExcedentesDetalleService.listarUbicacionesAuditadas(idauditoria)
@@ -564,19 +655,8 @@ const AuditoriaExcedentesService = (() => {
   }
 
   // =========================================================
-  // MÉTRICOS DE DASHBOARD
+  // DASHBOARD
   // =========================================================
-
-  /**
-   * Dashboard principal con:
-   * - auditorías abiertas
-   * - ubicaciones abiertas
-   * - confiabilidad semanal actual (ejercicio)
-   * - confiabilidad mensual actual (ejercicio)
-   * - faltantes / sobrantes semana y mes
-   * - ubicaciones con diferencia semana y mes
-   * - desglose por bodega
-   */
   function obtenerDashboardMetricos() {
     const now = _now_();
 
@@ -587,6 +667,7 @@ const AuditoriaExcedentesService = (() => {
     const endMonth = _endOfMonth_(now);
 
     const allAudits = AuditoriaExcedentesRepository.getAll();
+
     const abiertas = allAudits.filter(x => _toUpper_(x.estatus) === STATUS.ABIERTA);
     const cerradas = allAudits.filter(x => _toUpper_(x.estatus) === STATUS.CERRADA);
 
@@ -600,37 +681,76 @@ const AuditoriaExcedentesService = (() => {
       return _isDateWithin_(fecha, startMonth, endMonth);
     });
 
-    const allOpenLocations = abiertas.flatMap(a =>
-      AuditoriaExcedentesDetalleService.listarUbicacionesAbiertas(a.idauditoria)
-        .map(x => ({
-          ...x,
-          idauditoria: a.idauditoria
-        }))
+    const allDetailDashboard = AuditoriaExcedentesDetalleRepository.getAll();
+
+    const auditIdsAbiertas = new Set(
+      abiertas.map(a => _toStr_(a.idauditoria))
     );
 
-    const semanalEjercicio = _buildActualMetricsFromClosedLocations_(auditsWeek, null);
-    const mensualEjercicio = _buildActualMetricsFromClosedLocations_(auditsMonth, null);
+    const allOpenLocations = allDetailDashboard
+      .filter(item =>
+        auditIdsAbiertas.has(_toStr_(item.idauditoria)) &&
+        !item.idunico &&
+        item.horainicioubicacion &&
+        !item.horafinubicacion
+      )
+      .map(item => ({
+        idauditoria: item.idauditoria,
+        ubicacion: item.ubicacion,
+        bodega: item.bodega,
+        secuenciaubicacion: item.secuenciaubicacion,
+        horainicioubicacion: item.horainicioubicacion
+      }));
 
-    const bodegasUniverse = EstadoActualExcedentesService.getResumen().bodegasAuditables || [];
+    const semanalEjercicio = _buildActualMetricsFromClosedLocations_(
+      auditsWeek,
+      null,
+      allDetailDashboard
+    );
+
+    const mensualEjercicio = _buildActualMetricsFromClosedLocations_(
+      auditsMonth,
+      null,
+      allDetailDashboard
+    );
+
+    let bodegasUniverse = [];
+
+    try {
+      const resumenEstado = EstadoActualExcedentesService.getResumen() || {};
+      bodegasUniverse = Array.isArray(resumenEstado.bodegasAuditables)
+        ? resumenEstado.bodegasAuditables
+        : [];
+    } catch (e) {
+      console.warn("[AuditoriaExcedentesService] No se pudo obtener resumen de EstadoActual:", e);
+      bodegasUniverse = [];
+    }
+
     const bodegas = _uniqueBy_(
       [
         ...bodegasUniverse.map(x => ({ bodega: _toUpper_(x) })),
-        ...AuditoriaExcedentesDetalleRepository.getAll()
+        ...allDetailDashboard
           .filter(x => x.bodega)
-          .map(x => ({ bodega: _toUpper_(x.bodega) }))
+          .map(x => ({ bodega: _toUpper_(x.bodega) })),
+        ...allAudits
+          .filter(x => x.bodegaobjetivo && _toUpper_(x.bodegaobjetivo) !== "TODAS")
+          .map(x => ({ bodega: _toUpper_(x.bodegaobjetivo) }))
       ],
       x => x.bodega
     )
       .map(x => x.bodega)
       .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base", numeric: true }));
+      .sort((a, b) => String(a).localeCompare(String(b), "es", {
+        sensitivity: "base",
+        numeric: true
+      }));
 
     const porBodega = bodegas.map(bodega => {
-      const semanal = _buildActualMetricsFromClosedLocations_(auditsWeek, bodega);
-      const mensual = _buildActualMetricsFromClosedLocations_(auditsMonth, bodega);
+      const semanal = _buildActualMetricsFromClosedLocations_(auditsWeek, bodega, allDetailDashboard);
+      const mensual = _buildActualMetricsFromClosedLocations_(auditsMonth, bodega, allDetailDashboard);
 
       return {
-        bodega,
+        bodega: bodega,
         semanalActual: {
           auditoriasCerradas: semanal.auditoriasCerradas,
           ubicacionesAuditadas: semanal.ubicacionesAuditadas,
@@ -725,6 +845,730 @@ const AuditoriaExcedentesService = (() => {
     };
   }
 
+  // =========================================================
+  // DETALLE AUDITORÍA EN VIVO
+  // =========================================================
+  function _aecLive_timeToSeconds_(value) {
+    const s = _toStr_(value);
+    if (!s) return null;
+
+    const parts = s.split(":").map(Number);
+    if (parts.length < 2) return null;
+
+    const h = parts[0] || 0;
+    const m = parts[1] || 0;
+    const sec = parts[2] || 0;
+
+    return h * 3600 + m * 60 + sec;
+  }
+
+  function _aecLive_diffMinutesByTime_(horaInicio, horaFin) {
+    const ini = _aecLive_timeToSeconds_(horaInicio);
+    const fin = _aecLive_timeToSeconds_(horaFin || _fmtTime_());
+
+    if (ini == null || fin == null) return 0;
+
+    let diff = fin - ini;
+    if (diff < 0) diff += 24 * 3600;
+
+    return _round2_(diff / 60);
+  }
+
+  function _aecLive_safePct_(num, den) {
+    const n = _toNum_(num);
+    const d = _toNum_(den);
+    if (!d) return 0;
+    return _round2_((n / d) * 100);
+  }
+
+  function _aecLive_buildEsperadosPorUbicacion_(audit) {
+    const universo = _getUniversoEsperado_(audit) || [];
+    const map = {};
+
+    universo.forEach(row => {
+      const ubicacion = _toUpper_(row.ubicacionActual || row.ubicacion || "");
+      const idunico = _toStr_(row.idUnico || row.idunico || "");
+
+      if (!ubicacion || !idunico) return;
+
+      if (!map[ubicacion]) {
+        map[ubicacion] = {
+          ubicacion: ubicacion,
+          bodega: _toUpper_(
+            row.bodegaActual ||
+            row.bodega ||
+            _inferirBodegaPorUbicacion_(ubicacion)
+          ),
+          totalEsperados: 0,
+          ids: {}
+        };
+      }
+
+      map[ubicacion].totalEsperados++;
+      map[ubicacion].ids[idunico] = true;
+    });
+
+    return map;
+  }
+
+  function _aecLive_buildUbicacionesEnVivo_(idauditoria) {
+    const audit = _getAuditoriaOrThrow_(idauditoria);
+    const detalle = AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria) || [];
+    const esperadosMap = _aecLive_buildEsperadosPorUbicacion_(audit);
+
+    const map = {};
+
+    function ensureUbicacion_(ubicacion, bodega) {
+      const ubi = _toUpper_(ubicacion);
+      if (!ubi) return null;
+
+      if (!map[ubi]) {
+        const esperadoInfo = esperadosMap[ubi] || {};
+
+        map[ubi] = {
+          key: ubi,
+          idauditoria: _toStr_(idauditoria),
+          ubicacion: ubi,
+          bodega: _toUpper_(
+            bodega ||
+            esperadoInfo.bodega ||
+            _inferirBodegaPorUbicacion_(ubi)
+          ),
+          secuenciaubicacion: 0,
+
+          abierta: false,
+          cerrada: false,
+          estadoOperativo: "SIN_INICIAR",
+          estadoRitmo: "SIN_INICIAR",
+
+          horainicioubicacion: "",
+          horafinubicacion: "",
+
+          esperados: _toNum_(esperadoInfo.totalEsperados),
+          escaneados: 0,
+          correctos: 0,
+          faltantes: 0,
+          sobrantes: 0,
+          pendientes: 0,
+
+          avancePct: 0,
+          avanceTrabajoPct: 0,
+
+          minutosTranscurridos: 0,
+          escaneosPorMinuto: 0,
+          correctosPorMinuto: 0,
+          minutosEstimadosRestantes: 0,
+
+          tieneDiferencia: false,
+          totalFilas: 0
+        };
+      }
+
+      return map[ubi];
+    }
+
+    detalle.forEach(row => {
+      const ubicacion = _toUpper_(row.ubicacion || "");
+      if (!ubicacion) return;
+
+      const item = ensureUbicacion_(ubicacion, row.bodega);
+      if (!item) return;
+
+      item.secuenciaubicacion = Math.max(
+        _toNum_(item.secuenciaubicacion),
+        _toNum_(row.secuenciaubicacion)
+      );
+
+      if (!row.idunico && row.horainicioubicacion) {
+        item.abierta = true;
+        item.horainicioubicacion = row.horainicioubicacion || item.horainicioubicacion;
+
+        if (row.horafinubicacion) {
+          item.cerrada = true;
+          item.horafinubicacion = row.horafinubicacion;
+        }
+
+        return;
+      }
+
+      if (!row.idunico) return;
+
+      item.totalFilas++;
+
+      if (row.escorrecto === true) item.correctos++;
+      if (row.esfaltante === true) item.faltantes++;
+      if (row.essobrante === true) item.sobrantes++;
+      if (row.esfaltante !== true) item.escaneados++;
+    });
+
+    Object.keys(map).forEach(ubicacion => {
+      const item = map[ubicacion];
+
+      item.tieneDiferencia = item.faltantes > 0 || item.sobrantes > 0;
+
+      if (item.cerrada) {
+        item.esperados = item.correctos + item.faltantes;
+        item.pendientes = 0;
+        item.avancePct = 100;
+        item.avanceTrabajoPct = 100;
+
+        item.estadoOperativo = item.tieneDiferencia
+          ? "CERRADA_CON_DIFERENCIA"
+          : "CERRADA_CORRECTA";
+
+      } else if (item.abierta) {
+        item.pendientes = Math.max(item.esperados - item.correctos, 0);
+        item.avancePct = _aecLive_safePct_(item.correctos, item.esperados);
+        item.avanceTrabajoPct = _aecLive_safePct_(item.escaneados, item.esperados);
+        item.estadoOperativo = "EN_PROCESO";
+
+      } else {
+        item.pendientes = item.esperados;
+        item.avancePct = 0;
+        item.avanceTrabajoPct = 0;
+        item.estadoOperativo = "SIN_INICIAR";
+      }
+
+      const horaFinCalculo = item.cerrada
+        ? item.horafinubicacion
+        : _fmtTime_();
+
+      item.minutosTranscurridos = item.horainicioubicacion
+        ? _aecLive_diffMinutesByTime_(item.horainicioubicacion, horaFinCalculo)
+        : 0;
+
+      item.escaneosPorMinuto = item.minutosTranscurridos > 0
+        ? _round2_(item.escaneados / item.minutosTranscurridos)
+        : 0;
+
+      item.correctosPorMinuto = item.minutosTranscurridos > 0
+        ? _round2_(item.correctos / item.minutosTranscurridos)
+        : 0;
+
+      item.minutosEstimadosRestantes =
+        item.abierta && !item.cerrada && item.correctosPorMinuto > 0
+          ? _round2_(item.pendientes / item.correctosPorMinuto)
+          : 0;
+
+      if (item.abierta && !item.cerrada) {
+        if (item.correctosPorMinuto === 0 && item.minutosTranscurridos >= 5) {
+          item.estadoRitmo = "DETENIDO";
+        } else if (item.correctosPorMinuto < 2 && item.minutosTranscurridos >= 3) {
+          item.estadoRitmo = "CRITICO";
+        } else if (item.correctosPorMinuto < 3 && item.minutosTranscurridos >= 3) {
+          item.estadoRitmo = "LENTO";
+        } else {
+          item.estadoRitmo = "A_TIEMPO";
+        }
+      } else if (item.cerrada) {
+        item.estadoRitmo = "FINALIZADO";
+      } else {
+        item.estadoRitmo = "SIN_INICIAR";
+      }
+    });
+
+    return Object.values(map)
+      .filter(x => x.abierta || x.cerrada)
+      .sort((a, b) => {
+        const seq = _toNum_(a.secuenciaubicacion) - _toNum_(b.secuenciaubicacion);
+        if (seq !== 0) return seq;
+
+        return String(a.ubicacion).localeCompare(String(b.ubicacion), "es", {
+          numeric: true,
+          sensitivity: "base"
+        });
+      });
+  }
+
+  function _aecLive_buildUbicacionesEnVivoFresh_(idauditoria, audit, detalle) {
+    const safeAudit = audit || _getAuditoriaOrThrow_(idauditoria);
+    const safeDetalle = Array.isArray(detalle)
+      ? detalle
+      : AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh
+      ? AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh(idauditoria)
+      : AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria) || [];
+
+    const esperadosMap = _aecLive_buildEsperadosPorUbicacion_(safeAudit);
+    const map = {};
+
+    function ensureUbicacion_(ubicacion, bodega) {
+      const ubi = _toUpper_(ubicacion);
+      if (!ubi) return null;
+
+      if (!map[ubi]) {
+        const esperadoInfo = esperadosMap[ubi] || {};
+
+        map[ubi] = {
+          key: ubi,
+          idauditoria: _toStr_(idauditoria),
+          ubicacion: ubi,
+          bodega: _toUpper_(
+            bodega ||
+            esperadoInfo.bodega ||
+            _inferirBodegaPorUbicacion_(ubi)
+          ),
+          secuenciaubicacion: 0,
+
+          abierta: false,
+          cerrada: false,
+          estadoOperativo: "SIN_INICIAR",
+          estadoRitmo: "SIN_INICIAR",
+
+          horainicioubicacion: "",
+          horafinubicacion: "",
+
+          esperados: _toNum_(esperadoInfo.totalEsperados),
+          escaneados: 0,
+          correctos: 0,
+          faltantes: 0,
+          sobrantes: 0,
+          pendientes: 0,
+
+          avancePct: 0,
+          avanceTrabajoPct: 0,
+
+          minutosTranscurridos: 0,
+          escaneosPorMinuto: 0,
+          correctosPorMinuto: 0,
+          minutosEstimadosRestantes: 0,
+
+          tieneDiferencia: false,
+          totalFilas: 0
+        };
+      }
+
+      return map[ubi];
+    }
+
+    safeDetalle.forEach(row => {
+      const ubicacion = _toUpper_(row.ubicacion || "");
+      if (!ubicacion) return;
+
+      const item = ensureUbicacion_(ubicacion, row.bodega);
+      if (!item) return;
+
+      item.secuenciaubicacion = Math.max(
+        _toNum_(item.secuenciaubicacion),
+        _toNum_(row.secuenciaubicacion)
+      );
+
+      if (!row.idunico && row.horainicioubicacion) {
+        item.abierta = true;
+        item.horainicioubicacion = row.horainicioubicacion || item.horainicioubicacion;
+
+        if (row.horafinubicacion) {
+          item.cerrada = true;
+          item.horafinubicacion = row.horafinubicacion;
+        }
+
+        return;
+      }
+
+      if (!row.idunico) return;
+
+      item.totalFilas++;
+
+      if (row.escorrecto === true) item.correctos++;
+      if (row.esfaltante === true) item.faltantes++;
+      if (row.essobrante === true) item.sobrantes++;
+      if (row.esfaltante !== true) item.escaneados++;
+    });
+
+    Object.keys(map).forEach(ubicacion => {
+      const item = map[ubicacion];
+
+      item.tieneDiferencia = item.faltantes > 0 || item.sobrantes > 0;
+
+      if (item.cerrada) {
+        item.esperados = item.correctos + item.faltantes;
+        item.pendientes = 0;
+        item.avancePct = 100;
+        item.avanceTrabajoPct = 100;
+
+        item.estadoOperativo = item.tieneDiferencia
+          ? "CERRADA_CON_DIFERENCIA"
+          : "CERRADA_CORRECTA";
+
+      } else if (item.abierta) {
+        item.pendientes = Math.max(item.esperados - item.correctos, 0);
+        item.avancePct = _aecLive_safePct_(item.correctos, item.esperados);
+        item.avanceTrabajoPct = _aecLive_safePct_(item.escaneados, item.esperados);
+        item.estadoOperativo = "EN_PROCESO";
+
+      } else {
+        item.pendientes = item.esperados;
+        item.avancePct = 0;
+        item.avanceTrabajoPct = 0;
+        item.estadoOperativo = "SIN_INICIAR";
+      }
+
+      const horaFinCalculo = item.cerrada
+        ? item.horafinubicacion
+        : _fmtTime_();
+
+      item.minutosTranscurridos = item.horainicioubicacion
+        ? _aecLive_diffMinutesByTime_(item.horainicioubicacion, horaFinCalculo)
+        : 0;
+
+      item.escaneosPorMinuto = item.minutosTranscurridos > 0
+        ? _round2_(item.escaneados / item.minutosTranscurridos)
+        : 0;
+
+      item.correctosPorMinuto = item.minutosTranscurridos > 0
+        ? _round2_(item.correctos / item.minutosTranscurridos)
+        : 0;
+
+      item.minutosEstimadosRestantes =
+        item.abierta && !item.cerrada && item.correctosPorMinuto > 0
+          ? _round2_(item.pendientes / item.correctosPorMinuto)
+          : 0;
+
+      if (item.abierta && !item.cerrada) {
+        if (item.correctosPorMinuto === 0 && item.minutosTranscurridos >= 5) {
+          item.estadoRitmo = "DETENIDO";
+        } else if (item.correctosPorMinuto < 2 && item.minutosTranscurridos >= 3) {
+          item.estadoRitmo = "CRITICO";
+        } else if (item.correctosPorMinuto < 3 && item.minutosTranscurridos >= 3) {
+          item.estadoRitmo = "LENTO";
+        } else {
+          item.estadoRitmo = "A_TIEMPO";
+        }
+      } else if (item.cerrada) {
+        item.estadoRitmo = "FINALIZADO";
+      } else {
+        item.estadoRitmo = "SIN_INICIAR";
+      }
+    });
+
+    return Object.values(map)
+      .filter(x => x.abierta || x.cerrada)
+      .sort((a, b) => {
+        const seq = _toNum_(a.secuenciaubicacion) - _toNum_(b.secuenciaubicacion);
+        if (seq !== 0) return seq;
+
+        return String(a.ubicacion).localeCompare(String(b.ubicacion), "es", {
+          numeric: true,
+          sensitivity: "base"
+        });
+      });
+  }
+
+  function obtenerDetalleAuditoriaEnVivo(idauditoria) {
+    const audit = _getAuditoriaOrThrow_(idauditoria);
+
+    const detalle = AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh
+      ? AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh(idauditoria)
+      : AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria) || [];
+
+    const resumen = recalcularResumen(idauditoria, {
+      persistir: false,
+      usarFresh: true
+    });
+
+    const ubicacionesEnVivo = _aecLive_buildUbicacionesEnVivoFresh_(idauditoria, audit, detalle);
+
+
+    return {
+      ok: true,
+      source: "SHEETS_FULL",
+
+      auditoria: {
+        ...audit,
+        ...resumen
+      },
+
+      resumen: resumen,
+
+      resumenOperativo: _aecLive_resumenOperativoDesdeUbicaciones_(ubicacionesEnVivo),
+
+      detalle: detalle,
+
+      ubicaciones: AuditoriaExcedentesDetalleService.listarUbicacionesAuditadas(idauditoria),
+
+      ubicacionesEnVivo: ubicacionesEnVivo,
+
+      generadoEn: {
+        fecha: _fmtDate_(),
+        hora: _fmtTime_()
+      }
+    };
+  }
+
+  // =========================================================
+  // PULSO LIGERO EN VIVO
+  // =========================================================
+  function _pulso_timeToSeconds_(value) {
+    const s = _toStr_(value);
+    if (!s) return null;
+
+    const parts = s.split(":").map(Number);
+    if (parts.length < 2) return null;
+
+    return (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
+  }
+
+  function _pulso_diffMinutes_(horaInicio, horaFin) {
+    const ini = _pulso_timeToSeconds_(horaInicio);
+    const fin = _pulso_timeToSeconds_(horaFin || _fmtTime_());
+
+    if (ini == null || fin == null) return 0;
+
+    let diff = fin - ini;
+    if (diff < 0) diff += 24 * 3600;
+
+    return _round2_(diff / 60);
+  }
+
+  function _pulso_pct_(num, den) {
+    const n = _toNum_(num);
+    const d = _toNum_(den);
+    if (!d) return 0;
+    return _round2_((n / d) * 100);
+  }
+
+  function _pulso_getEsperadosUbicacion_(audit, ubicacion) {
+    const cache = CacheService.getScriptCache();
+    const idAudit = _toStr_(audit.idauditoria);
+    const ubi = _toUpper_(ubicacion);
+    const key = "AEC_EXPECTED_UBI_" + idAudit + "_" + ubi;
+
+    const cached = cache.get(key);
+    if (cached !== null && cached !== "") {
+      return _toNum_(cached);
+    }
+
+    const universo = _getUniversoEsperado_(audit) || [];
+
+    const total = universo.filter(row => {
+      return _toUpper_(row.ubicacionActual || row.ubicacion || "") === ubi;
+    }).length;
+
+    cache.put(key, String(total), 21600);
+    return total;
+  }
+
+  function _aecLive_resumenOperativoDesdeUbicaciones_(ubicacionesEnVivo) {
+    const lista = Array.isArray(ubicacionesEnVivo) ? ubicacionesEnVivo : [];
+
+    const abiertas = lista.filter(x => x.abierta && !x.cerrada);
+    const cerradas = lista.filter(x => x.cerrada);
+
+    const esperadosVivos = lista.reduce((acc, x) => acc + _toNum_(x.esperados), 0);
+    const correctosVivos = lista.reduce((acc, x) => acc + _toNum_(x.correctos), 0);
+    const escaneadosVivos = lista.reduce((acc, x) => acc + _toNum_(x.escaneados), 0);
+    const pendientesVivos = lista.reduce((acc, x) => acc + _toNum_(x.pendientes), 0);
+    const sobrantesVivos = lista.reduce((acc, x) => acc + _toNum_(x.sobrantes), 0);
+    const faltantesOficiales = lista.reduce((acc, x) => acc + _toNum_(x.faltantes), 0);
+    const minutosActivos = abiertas.reduce((acc, x) => acc + _toNum_(x.minutosTranscurridos), 0);
+
+    return {
+      ubicacionesTocadas: lista.length,
+      ubicacionesAbiertas: abiertas.length,
+      ubicacionesCerradas: cerradas.length,
+
+      esperadosVivos,
+      correctosVivos,
+      escaneadosVivos,
+      pendientesVivos,
+      sobrantesVivos,
+      faltantesOficiales,
+
+      avanceVivoPct: _pulso_pct_(correctosVivos, esperadosVivos),
+      avanceTrabajoPct: _pulso_pct_(escaneadosVivos, esperadosVivos),
+
+      minutosActivos: _round2_(minutosActivos),
+      escaneosPorMinuto: minutosActivos > 0
+        ? _round2_(escaneadosVivos / minutosActivos)
+        : 0,
+      correctosPorMinuto: minutosActivos > 0
+        ? _round2_(correctosVivos / minutosActivos)
+        : 0,
+
+      ubicacionesLentas: lista.filter(x => x.estadoRitmo === "LENTO").length,
+      ubicacionesCriticas: lista.filter(x => x.estadoRitmo === "CRITICO").length,
+      ubicacionesDetenidas: lista.filter(x => x.estadoRitmo === "DETENIDO").length
+    };
+  }
+
+  function _aecLive_debeIgnorarCachePorDetalleVacio_(idauditoria, live) {
+    try {
+      if (!live) return false;
+
+      const ubicacionesLive = Array.isArray(live.ubicacionesEnVivo)
+        ? live.ubicacionesEnVivo.length
+        : 0;
+
+      if (ubicacionesLive <= 0) return false;
+
+      const id = _toStr_(idauditoria);
+      const cache = CacheService.getScriptCache();
+      const sanityKey = "AEC_LIVE_SANITY_EMPTY_DETAIL_" + id;
+
+      const sanityCached = cache.get(sanityKey);
+
+      if (sanityCached === "OK") {
+        return false;
+      }
+
+      const detalle = AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh
+        ? AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh(id)
+        : AuditoriaExcedentesDetalleRepository.getByIdAuditoria(id) || [];
+
+      if (!detalle.length) {
+        try {
+          if (typeof AuditoriaExcedentesLiveCache !== "undefined") {
+            AuditoriaExcedentesLiveCache.clear(id);
+          }
+        } catch (clearErr) {
+          console.warn("[LIVE] No se pudo limpiar LiveCache obsoleto:", clearErr);
+        }
+
+        console.warn("[LIVE] Cache ignorado y limpiado porque detalle está vacío:", id);
+
+        cache.put(sanityKey, "CLEARED", 10);
+        return true;
+      }
+
+      cache.put(sanityKey, "OK", 10);
+      return false;
+
+    } catch (e) {
+      console.warn("[LIVE] Error validando cache contra detalle vacío:", e);
+      return false;
+    }
+  }
+
+  function _aecLive_mergePulsoLiveConSheets_(idauditoria, live) {
+    const id = _toStr_(idauditoria);
+
+    const audit = _getAuditoriaOrThrow_(id);
+    const resumen = recalcularResumen(id, { persistir: false });
+
+    const ubicacionesSheets = _aecLive_buildUbicacionesEnVivo_(id) || [];
+
+    const ubicacionesLive = Array.isArray(live && live.ubicacionesEnVivo)
+      ? live.ubicacionesEnVivo
+      : [];
+
+    const map = {};
+
+    ubicacionesSheets.forEach(u => {
+      const key = _toUpper_(u.key || u.ubicacion || "");
+      if (!key) return;
+      map[key] = u;
+    });
+
+    ubicacionesLive.forEach(u => {
+      const key = _toUpper_(u.key || u.ubicacion || "");
+      if (!key) return;
+
+      const base = map[key] || {};
+
+      map[key] = {
+        ...base,
+        ...u,
+        idauditoria: id,
+        key: key,
+        ubicacion: _toUpper_(u.ubicacion || base.ubicacion || key),
+        bodega: _toUpper_(u.bodega || base.bodega || _inferirBodegaPorUbicacion_(key)),
+        secuenciaubicacion: _toNum_(u.secuenciaubicacion || base.secuenciaubicacion)
+      };
+    });
+
+    const ubicacionesEnVivo = Object.values(map)
+      .filter(x => x.abierta || x.cerrada)
+      .sort((a, b) => {
+        const seq = _toNum_(a.secuenciaubicacion) - _toNum_(b.secuenciaubicacion);
+        if (seq !== 0) return seq;
+
+        return String(a.ubicacion).localeCompare(String(b.ubicacion), "es", {
+          numeric: true,
+          sensitivity: "base"
+        });
+      });
+
+    return {
+      ok: true,
+      source: "CACHE_LIVE_MERGED_SHEETS",
+      schema: live && live.schema ? live.schema : "AEC_LIVE_V3",
+      idauditoria: id,
+      version: live && live.version ? live.version : 0,
+
+      auditoria: {
+        ...audit,
+        ...resumen
+      },
+
+      resumen: resumen,
+
+      resumenOperativo: _aecLive_resumenOperativoDesdeUbicaciones_(ubicacionesEnVivo),
+
+      ubicacionesEnVivo: ubicacionesEnVivo,
+
+      generadoEn: {
+        fecha: _fmtDate_(),
+        hora: _fmtTime_()
+      }
+    };
+  }
+
+  function obtenerPulsoAuditoriaEnVivo(idauditoria) {
+    const id = _toStr_(idauditoria);
+
+    if (!id) {
+      return {
+        ok: false,
+        source: "SIN_IDAUDITORIA",
+        idauditoria: "",
+        resumenOperativo: {},
+        ubicacionesEnVivo: [],
+        generadoEn: {
+          fecha: _fmtDate_(),
+          hora: _fmtTime_()
+        }
+      };
+    }
+
+    if (typeof AuditoriaExcedentesLiveCache !== "undefined") {
+      try {
+        const live = AuditoriaExcedentesLiveCache.getPulso(id);
+
+        if (
+          live &&
+          live.resumenOperativo &&
+          Number(live.resumenOperativo.ubicacionesTocadas || 0) > 0
+        ) {
+          if (!_aecLive_debeIgnorarCachePorDetalleVacio_(id, live)) {
+            return {
+              ...live,
+              source: live.source || "CACHE_LIVE"
+            };
+          }
+        }
+      } catch (e) {
+        console.warn("[LIVE] No se pudo leer pulso desde LiveCache:", e);
+      }
+    }
+
+    /**
+     * IMPORTANTE:
+     * El pulso NO debe consultar Sheets.
+     * Si no hay LiveCache, la vista conserva lo que ya tiene
+     * y el full refresh se encarga de sincronizar.
+     */
+    return {
+      ok: true,
+      source: "NO_LIVE_CACHE",
+      idauditoria: id,
+      resumenOperativo: null,
+      ubicacionesEnVivo: null,
+      generadoEn: {
+        fecha: _fmtDate_(),
+        hora: _fmtTime_()
+      }
+    };
+  }
+
   return {
     // base
     obtenerBootstrap,
@@ -732,6 +1576,8 @@ const AuditoriaExcedentesService = (() => {
     listarAuditorias,
     obtenerAuditoriaPorId,
     obtenerAuditoriaActiva,
+    obtenerDetalleAuditoriaEnVivo,
+    obtenerPulsoAuditoriaEnVivo,
     recalcularResumen,
     cerrarAuditoria,
 
@@ -747,48 +1593,3 @@ const AuditoriaExcedentesService = (() => {
   };
 
 })();
-
-/**
- * =========================================================
- * DEBUGGERS
- * =========================================================
- */
-
-function debugAuditoriaExcedentesService_abrirAuditoria() {
-  return AuditoriaExcedentesService.abrirAuditoria({
-    auditor: "PRUEBA SISTEMA",
-    tipoauditoria: "GLOBAL",
-    bodegaobjetivo: "TODAS",
-    observaciones: "PRUEBA DE APERTURA"
-  });
-}
-
-function debugAuditoriaExcedentesService_obtenerBootstrap() {
-  return AuditoriaExcedentesService.obtenerBootstrap();
-}
-
-function debugAuditoriaExcedentesService_listarAuditorias() {
-  return AuditoriaExcedentesService.listarAuditorias({});
-}
-
-function debugAuditoriaExcedentesService_obtenerAuditoriaPorId() {
-  return AuditoriaExcedentesService.obtenerAuditoriaPorId("AUD-PRUEBA-001");
-}
-
-function debugAuditoriaExcedentesService_recalcularResumen() {
-  return AuditoriaExcedentesService.recalcularResumen("AUD-PRUEBA-001", { persistir: false });
-}
-
-function debugAuditoriaExcedentesService_cerrarAuditoria() {
-  return AuditoriaExcedentesService.cerrarAuditoria({
-    idauditoria: "AUD-PRUEBA-001",
-    observaciones: "CIERRE DE PRUEBA"
-  });
-}
-
-function debugAuditoriaExcedentesService_obtenerDashboardMetricos() {
-  const data = AuditoriaExcedentesService.obtenerDashboardMetricos();
-  console.log("[DEBUG] AuditoriaExcedentesService.obtenerDashboardMetricos");
-  console.log(JSON.stringify(data, null, 2));
-  return data;
-}

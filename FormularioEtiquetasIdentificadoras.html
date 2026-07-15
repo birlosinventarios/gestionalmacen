@@ -582,11 +582,12 @@
       return 0;
     });
 
-    const btn = document.getElementById('btnImprimirTodo');
-    const textoBoton = document.getElementById('textoBoton');
+    const btn = document.getElementById("btnImprimirTodo");
+    const textoBoton = document.getElementById("textoBoton");
 
     if (!btn || !textoBoton) {
       console.error("❌ No se encontró el botón de impresión o el span textoBoton");
+
       notify_(
         "No se encontró el control de impresión en la vista.",
         "error",
@@ -596,104 +597,232 @@
           sound: true
         }
       );
+
       return;
     }
+
+    const modoImpresion =
+      window.ImpresionModoUtilidades &&
+      typeof window.ImpresionModoUtilidades.getMode === "function"
+        ? window.ImpresionModoUtilidades.getMode()
+        : "LOCAL";
 
     textoBoton.innerText = "⏳ Generando...";
     btn.disabled = true;
 
-    notify_("Preparando lote de impresión...", "info", 1600, {
-      title: "Generando etiquetas",
-      sound: false
-    });
+    notify_(
+      modoImpresion === "ONLINE"
+        ? "Preparando etiquetas para impresión ONLINE..."
+        : "Preparando etiquetas para impresión LOCAL...",
+      "info",
+      1800,
+      {
+        title: "Generando etiquetas",
+        sound: false
+      }
+    );
 
-    const win = window.open("", "_blank");
+    let win = null;
 
-    if (!win) {
-      notify_(
-        "La ventana fue bloqueada. Permite los pop-ups para continuar.",
-        "warning",
-        4200,
-        {
-          title: "Pop-up bloqueado",
-          sound: true
-        }
-      );
-      btn.disabled = false;
-      textoBoton.innerText = "Imprimir";
-      return;
+    if (modoImpresion === "LOCAL") {
+      win = window.open("", "_blank");
+
+      if (!win) {
+        notify_(
+          "La ventana fue bloqueada. Permite los pop-ups para continuar.",
+          "warning",
+          4200,
+          {
+            title: "Pop-up bloqueado",
+            sound: true
+          }
+        );
+
+        btn.disabled = false;
+        textoBoton.innerText = "Imprimir";
+        return;
+      }
+
+      win.document.write(`
+        <html>
+          <head>
+            <title>Generando etiquetas...</title>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                margin: 0;
+                color: #5f6368;
+                background-color: #f8f9fa;
+              }
+
+              .spinner {
+                width: 50px;
+                height: 50px;
+                border: 5px solid #f3f3f3;
+                border-top: 5px solid #d93025;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin-bottom: 20px;
+              }
+
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+
+              .loader {
+                text-align: center;
+                max-width: 420px;
+                padding: 0 24px;
+              }
+
+              .loader h3 {
+                margin: 0 0 8px 0;
+                font-size: 22px;
+                font-weight: 700;
+                color: #1c1d1f;
+                letter-spacing: 0.04em;
+              }
+
+              .loader p {
+                margin: 0;
+                font-size: 14px;
+                color: #5f6368;
+                line-height: 1.5;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="spinner"></div>
+            <div class="loader">
+              <h3>Preparando etiquetas...</h3>
+              <p>Espera un momento mientras se genera la impresión de la etiqueta.</p>
+            </div>
+          </body>
+        </html>
+      `);
+
+      win.document.close();
     }
 
-    win.document.write(`
-      <html>
-        <head>
-          <title>Generando etiquetas...</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              height: 100vh;
-              margin: 0;
-              color: #5f6368;
-              background-color: #f8f9fa;
-            }
-
-            .spinner {
-              width: 50px;
-              height: 50px;
-              border: 5px solid #f3f3f3;
-              border-top: 5px solid #d93025;
-              border-radius: 50%;
-              animation: spin 1s linear infinite;
-              margin-bottom: 20px;
-            }
-
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-
-            .loader {
-              text-align: center;
-              max-width: 420px;
-              padding: 0 24px;
-            }
-
-            .loader h3 {
-              margin: 0 0 8px 0;
-              font-size: 22px;
-              font-weight: 700;
-              color: #1c1d1f;
-              letter-spacing: 0.04em;
-            }
-
-            .loader p {
-              margin: 0;
-              font-size: 14px;
-              color: #5f6368;
-              line-height: 1.5;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="spinner"></div>
-          <div class="loader">
-            <h3>Preparando etiquetas...</h3>
-            <p>Espera un momento mientras se genera la impresión de la etiqueta.</p>
-          </div>
-        </body>
-      </html>
-    `);
-    win.document.close();
-
     google.script.run
-      .withSuccessHandler(function (htmlGenerado) {
-        win.document.open();
-        win.document.write(htmlGenerado);
-        win.document.close();
+      .withSuccessHandler(function (resultado) {
+        const res = typeof resultado === "string"
+          ? {
+              ok: true,
+              htmlImpresion: resultado,
+              printJob: null,
+              legacy: true
+            }
+          : resultado;
+
+        if (!res || !res.htmlImpresion) {
+          if (win && !win.closed) {
+            win.close();
+          }
+
+          btn.disabled = false;
+          textoBoton.innerText = "Imprimir";
+
+          notify_(
+            "No se recibió una impresión válida desde el servidor.",
+            "error",
+            4200,
+            {
+              title: "Respuesta inválida",
+              sound: true
+            }
+          );
+
+          return;
+        }
+
+        if (modoImpresion === "ONLINE") {
+          if (!res.printJob) {
+            btn.disabled = false;
+            textoBoton.innerText = "Imprimir";
+
+            notify_(
+              "No se recibió paquete ONLINE para imprimir.",
+              "error",
+              4200,
+              {
+                title: "Impresión ONLINE no disponible",
+                sound: true
+              }
+            );
+
+            return;
+          }
+
+          notify_("Enviando etiquetas identificadoras al PrintServer...", "info", 2200, {
+            title: "Impresión ONLINE",
+            sound: false
+          });
+
+          google.script.run
+            .withSuccessHandler(function (respuestaOnline) {
+              if (respuestaOnline && respuestaOnline.ok) {
+                window.colaDeImpresionEtiquetas = [];
+                window.actualizarVistaLista();
+
+                btn.disabled = false;
+                textoBoton.innerText = "Imprimir";
+
+                notify_("Etiquetas identificadoras enviadas correctamente por ONLINE.", "success", 3000, {
+                  title: "Impresión ONLINE",
+                  sound: true
+                });
+
+                return;
+              }
+
+              btn.disabled = false;
+              textoBoton.innerText = "Imprimir";
+
+              notify_(
+                "El PrintServer respondió, pero no confirmó la impresión.",
+                "warning",
+                4200,
+                {
+                  title: "Impresión no confirmada",
+                  sound: true
+                }
+              );
+            })
+            .withFailureHandler(function (errOnline) {
+              console.error("❌ Error impresión ONLINE:", errOnline);
+
+              btn.disabled = false;
+              textoBoton.innerText = "Imprimir";
+
+              notify_(
+                errOnline && errOnline.message
+                  ? errOnline.message
+                  : "No se pudieron imprimir las etiquetas identificadoras por ONLINE.",
+                "error",
+                5200,
+                {
+                  title: "Error ONLINE",
+                  sound: true
+                }
+              );
+            })
+            .ImpresionPuenteController_imprimir(res.printJob);
+
+          return;
+        }
+
+        if (win && !win.closed) {
+          win.document.open();
+          win.document.write(res.htmlImpresion);
+          win.document.close();
+        }
 
         window.colaDeImpresionEtiquetas = [];
         window.actualizarVistaLista();
@@ -701,20 +830,25 @@
         btn.disabled = false;
         textoBoton.innerText = "Imprimir";
 
-        notify_("Etiquetas generadas correctamente.", "success", 2400, {
-          title: "Impresión lista",
+        notify_("Etiquetas identificadoras generadas correctamente.", "success", 2400, {
+          title: "Impresión LOCAL lista",
           sound: true
         });
       })
       .withFailureHandler(function (err) {
-        win.close();
+        if (win && !win.closed) {
+          win.close();
+        }
+
         console.error("❌ Error al generar etiquetas:", err);
 
         btn.disabled = false;
         textoBoton.innerText = "Imprimir";
 
         notify_(
-          "No se pudieron generar las etiquetas.",
+          err && err.message
+            ? err.message
+            : "No se pudieron generar las etiquetas.",
           "error",
           4200,
           {

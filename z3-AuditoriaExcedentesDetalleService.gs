@@ -154,21 +154,54 @@ const AuditoriaExcedentesDetalleService = (() => {
   }
 
   function _buildResumenUbicacion_(idauditoria, ubicacion) {
-    const items = AuditoriaExcedentesDetalleRepository.getByAuditoriaYUbicacion(idauditoria, ubicacion);
+    const items = AuditoriaExcedentesDetalleRepository.getByAuditoriaYUbicacion(
+      idauditoria,
+      ubicacion
+    );
 
-    const escaneados = items.filter(x => x.idunico);
-    const correctos = escaneados.filter(x => x.escorrecto);
-    const faltantes = items.filter(x => x.esfaltante);
-    const sobrantes = items.filter(x => x.essobrante);
+    const markers = items.filter(x =>
+      !x.idunico &&
+      x.horainicioubicacion
+    );
+
+    const marcadorAbierto = markers.find(x =>
+      x.horainicioubicacion &&
+      !x.horafinubicacion
+    ) || null;
+
+    const marcadorCerrado = markers.find(x =>
+      x.horainicioubicacion &&
+      x.horafinubicacion
+    ) || null;
+
+    const filasConId = items.filter(x => x.idunico);
+
+    const correctos = filasConId.filter(x => x.escorrecto === true);
+    const faltantes = filasConId.filter(x => x.esfaltante === true);
+    const sobrantes = filasConId.filter(x => x.essobrante === true);
+
+    const escaneados = filasConId.filter(x => x.esfaltante !== true);
+
+    const esperados = correctos.length + faltantes.length;
+
+    const tieneDiferencia = faltantes.length > 0 || sobrantes.length > 0;
 
     return {
       idauditoria: _normalizeIdAuditoria_(idauditoria),
       ubicacion: _normalizeUbicacion_(ubicacion),
+
+      abierta: !!marcadorAbierto,
+      cerrada: !!marcadorCerrado,
+
+      esperados: esperados,
       escaneados: escaneados.length,
       correctos: correctos.length,
       faltantes: faltantes.length,
       sobrantes: sobrantes.length,
-      totalRegistros: items.length
+
+      tieneDiferencia: tieneDiferencia,
+      totalRegistros: items.length,
+      totalFilasConId: filasConId.length
     };
   }
 
@@ -532,14 +565,21 @@ const AuditoriaExcedentesDetalleService = (() => {
    * Obtiene detalle completo de una ubicación
    */
   function getDetalleUbicacion(idauditoria, ubicacion) {
-    const data = AuditoriaExcedentesDetalleRepository.getByAuditoriaYUbicacion(idauditoria, ubicacion);
+    const data = AuditoriaExcedentesDetalleRepository.getByAuditoriaYUbicacion(
+      idauditoria,
+      ubicacion
+    );
+
     const resumen = _buildResumenUbicacion_(idauditoria, ubicacion);
 
     return {
       idauditoria: _normalizeIdAuditoria_(idauditoria),
       ubicacion: _normalizeUbicacion_(ubicacion),
-      resumen,
-      data
+      resumen: resumen,
+
+      // compatibilidad
+      data: data,
+      detalle: data
     };
   }
 

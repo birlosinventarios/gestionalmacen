@@ -79,30 +79,8 @@
     animation: aePulseCritical 2s infinite ease-in-out;
   }
 
-  @keyframes aeFabIn {
-    from {
-      opacity: 0;
-      transform: translateY(12px) scale(0.96);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-
   #render-auditoria-excedentes .animate-fab-in {
     animation: aeFabIn 0.25s ease-out;
-  }
-
-  @keyframes aeSlideLeft {
-    from {
-      opacity: 0;
-      transform: translateX(40px) scale(0.92);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0) scale(1);
-    }
   }
 
   #render-auditoria-excedentes .animate-slide-left {
@@ -119,12 +97,12 @@
   #render-auditoria-excedentes .ae-kpi-card {
     background: var(--ae-white);
     border: 1px solid var(--ae-border);
-    border-radius: 1.5rem;
-    padding: 1.5rem;
+    border-radius: 1.25rem;
+    padding: 1rem;
     box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
     position: relative;
     overflow: hidden;
-    min-height: 170px;
+    min-height: 112px;
     transition: all 0.28s ease;
   }
 
@@ -303,77 +281,8 @@
     cursor: not-allowed;
   }
 
-  #render-auditoria-excedentes .ae-search-input {
-    width: 380px;
-    max-width: calc(100vw - 120px);
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(8px);
-    border: 2px solid var(--primary);
-    border-radius: 1.25rem;
-    padding: 16px 20px;
-    box-shadow: 0 20px 50px rgba(217, 48, 37, 0.15);
-    outline: none;
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--ae-text-main);
-  }
-
-  #render-auditoria-excedentes .ae-search-input::placeholder {
-    color: #9ca3af;
-  }
-
-  #render-auditoria-excedentes .ae-fab-main,
-  #render-auditoria-excedentes .ae-fab-action {
-    width: 64px;
-    height: 64px;
-    border-radius: 1.25rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.28s ease;
-  }
-
-  #render-auditoria-excedentes .ae-fab-main {
-    background: rgba(217, 48, 37, 0.12);
-    color: var(--primary);
-    border: 1px solid rgba(217, 48, 37, 0.30);
-    box-shadow: var(--ae-shadow-soft);
-  }
-
-  #render-auditoria-excedentes .ae-fab-main:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-    box-shadow: 0 12px 30px rgba(217, 48, 37, 0.28);
-  }
-
-  #render-auditoria-excedentes .ae-fab-main.open {
-    background: var(--ae-text-main);
-    color: white;
-    border-color: var(--ae-text-main);
-  }
-
-  #render-auditoria-excedentes .ae-fab-action {
-    background: white;
-    color: var(--ae-text-secondary);
-    border: 1px solid var(--ae-border);
-    box-shadow: var(--ae-shadow-soft);
-  }
-
-  #render-auditoria-excedentes .ae-fab-action:hover {
-    color: var(--primary);
-    border-color: rgba(217, 48, 37, 0.35);
-    transform: scale(1.04);
-  }
-
-  #render-auditoria-excedentes .ae-fab-action.primary {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-  }
-
   #render-auditoria-excedentes .ae-table-wrap {
-    max-height: 68vh;
+    max-height: calc(100vh - 360px);
     overflow: auto;
   }
 
@@ -665,35 +574,33 @@
       <div className="ae-kpi-card">
         <div className={`ae-kpi-topbar ${getKpiTopBarClass(tone)}`}></div>
 
-        <div className="h-full flex flex-col pt-2">
-          <div className="mb-1">
-            <p className="text-[17px] font-extrabold uppercase tracking-[0.14em] text-[var(--text-secondary)] leading-tight">
-              {title}
-            </p>
-          </div>
+        <div className="h-full flex flex-col pt-1">
+          <div className="grid grid-cols-[1fr_auto] items-center gap-3 h-full">
+            <div className="min-w-0">
+              <p className="text-[12px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)] leading-tight mb-2">
+                {title}
+              </p>
 
-          <div className="grid grid-cols-[1fr_auto] items-end h-full gap-4">
-            <div className="flex flex-col justify-between h-full min-w-0">
               <div className="flex items-end gap-2 flex-wrap">
-                <h3 className="text-5xl font-black tracking-tight text-[var(--text-main)] leading-none m-0 p-0 bg-transparent border-none">
+                <h3 className="m-0 p-0 bg-transparent border-none text-[34px] font-black tracking-tight text-[var(--text-main)] leading-none">
                   {typeof value === "number" ? value.toLocaleString() : value}
                 </h3>
 
                 {unit && (
-                  <span className="text-[16px] font-bold text-[var(--text-secondary)] uppercase leading-none pb-1">
+                  <span className="text-[13px] font-black text-[var(--text-secondary)] uppercase leading-none pb-1">
                     {unit}
                   </span>
                 )}
               </div>
 
               {trend && (
-                <div className="mt-4 flex items-center gap-2 flex-wrap">
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
                   <span className={trend.className || "ae-chip ae-chip-slate"}>
                     {trend.text}
                   </span>
 
                   {trend.sub && (
-                    <span className="text-xs font-semibold text-[var(--text-secondary)]">
+                    <span className="text-[11px] font-semibold text-[var(--text-secondary)]">
                       {trend.sub}
                     </span>
                   )}
@@ -701,9 +608,9 @@
               )}
             </div>
 
-            <div className="self-end justify-self-end">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${getKpiIconClass(tone)}`}>
-                <LocalIcon name={iconName} size={34} />
+            <div className="justify-self-end">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${getKpiIconClass(tone)}`}>
+                <LocalIcon name={iconName} size={28} />
               </div>
             </div>
           </div>
@@ -741,6 +648,9 @@
 
       const [isSearchExpanded, setIsSearchExpanded] = useState(false);
       const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
+      const [isFabMenuMounted, setIsFabMenuMounted] = useState(false);
+      const [isFabClosing, setIsFabClosing] = useState(false);
+      const [isSearchClosing, setIsSearchClosing] = useState(false);
 
       const [formNuevaAuditoria, setFormNuevaAuditoria] = useState({
         auditor: "",
@@ -751,132 +661,360 @@
 
       const firstLoadDoneRef = useRef(false);
       const searchInputRef = useRef(null);
+      const refreshSeqRef = useRef(0);
+      const refreshInFlightRef = useRef(false);
+
+      const abrirFabMenu_ = () => {
+        setIsFabMenuMounted(true);
+        setIsFabClosing(false);
+        setIsFabMenuOpen(true);
+      };
+
+      const cerrarFabMenu_ = () => {
+        setIsFabClosing(true);
+        setIsSearchClosing(true);
+
+        setTimeout(() => {
+          setIsFabMenuOpen(false);
+          setIsFabMenuMounted(false);
+          setIsFabClosing(false);
+          setIsSearchExpanded(false);
+          setIsSearchClosing(false);
+          setSearchQuery("");
+        }, 190);
+      };
+
+      const toggleFabMenu_ = () => {
+        if (isFabMenuOpen) {
+          cerrarFabMenu_();
+        } else {
+          abrirFabMenu_();
+        }
+      };
+
+      const abrirBuscador_ = () => {
+        setIsSearchClosing(false);
+        setIsSearchExpanded(true);
+        setTimeout(() => searchInputRef.current?.focus(), 120);
+      };
+
+      const cerrarBuscador_ = () => {
+        setIsSearchClosing(true);
+
+        setTimeout(() => {
+          setIsSearchExpanded(false);
+          setIsSearchClosing(false);
+          setSearchQuery("");
+        }, 180);
+      };
+
+      const toggleBuscador_ = () => {
+        if (isSearchExpanded) {
+          cerrarBuscador_();
+        } else {
+          abrirBuscador_();
+        }
+      };
 
       // ---------------------------------------------------------
       // CARGA
       // ---------------------------------------------------------
       const refrescarDatos = useCallback((contexto = "init") => {
-        setLoading(true);
+        const seq = Date.now();
+        const logPrefix = `[AE REFRESH ${seq}]`;
+
+        if (refreshInFlightRef.current && contexto === "auto") {
+          console.warn(`${logPrefix} ⏭️ Auto refresh omitido: ya hay una carga activa.`);
+          return;
+        }
+
+        refreshSeqRef.current = seq;
+        refreshInFlightRef.current = true;
+
+        console.log(`${logPrefix} 🚦 Inicio`, { contexto });
+
+        if (contexto !== "auto") {
+          setLoading(true);
+        }
 
         if (typeof google === "undefined" || !google.script || !google.script.run) {
+          console.error(`${logPrefix} ❌ google.script.run no disponible`);
+
+          refreshInFlightRef.current = false;
+          setLoading(false);
+
           notify_("google.script.run no está disponible en este contexto.", "error", 4200, {
             title: "Entorno inválido",
             sound: true
           });
-          setLoading(false);
+
           return;
         }
+
+        let finalizado = false;
+
+        const finalizarCarga_ = () => {
+          if (refreshSeqRef.current !== seq) {
+            console.warn(`${logPrefix} ⚠️ Respuesta vieja ignorada.`);
+            return false;
+          }
+
+          finalizado = true;
+          refreshInFlightRef.current = false;
+          setLoading(false);
+          return true;
+        };
+
+        const finalizarError_ = (titulo, mensaje, err) => {
+          if (refreshSeqRef.current !== seq) {
+            console.warn(`${logPrefix} ⚠️ Error viejo ignorado.`);
+            return;
+          }
+
+          finalizado = true;
+          refreshInFlightRef.current = false;
+          setLoading(false);
+
+          console.error(`${logPrefix} ❌ ${titulo}`, err);
+
+          notify_(
+            mensaje,
+            "error",
+            4200,
+            {
+              title: titulo,
+              sound: true
+            }
+          );
+        };
+
+        const watchdog = setTimeout(() => {
+          if (finalizado) return;
+
+          console.error(`${logPrefix} ⏱️ Timeout de carga. Se liberará la pantalla.`);
+
+          finalizado = true;
+          refreshInFlightRef.current = false;
+          setLoading(false);
+
+          notify_(
+            "La carga tardó demasiado. Se liberó la pantalla; intenta actualizar nuevamente.",
+            "warning",
+            5200,
+            {
+              title: "Carga detenida",
+              sound: true
+            }
+          );
+        }, 25000);
+
+        const limpiarWatchdog_ = () => {
+          try {
+            clearTimeout(watchdog);
+          } catch (e) {}
+        };
 
         if (contexto === "init") {
           notify_("Cargando auditorías de excedentes...", "info", 1600, {
             title: "Inicializando módulo",
             sound: false
           });
-        } else {
+        } else if (contexto === "manual") {
           notify_("Actualizando auditorías de excedentes...", "info", 1400, {
             title: "Sincronizando",
             sound: false
           });
         }
 
-        google.script.run
-          .withSuccessHandler((bootstrapResp) => {
-            const bootstrapSafe = bootstrapResp || {};
-            setBootstrapData({
-              usuarios: Array.isArray(bootstrapSafe.usuarios) ? bootstrapSafe.usuarios : [],
-              bodegas: Array.isArray(bootstrapSafe.bodegas) ? bootstrapSafe.bodegas : [],
-              auditoriasAbiertas: Array.isArray(bootstrapSafe.auditoriasAbiertas) ? bootstrapSafe.auditoriasAbiertas : [],
-              auditoriasCerradas: Array.isArray(bootstrapSafe.auditoriasCerradas) ? bootstrapSafe.auditoriasCerradas : []
-            });
+        const cargarAuditorias_ = (dashboardOk = true) => {
+          console.log(`${logPrefix} 🚦 Paso 3: listarAuditorias`);
 
-            google.script.run
-              .withSuccessHandler((dashboardResp) => {
-                const dash = dashboardResp || {};
-                setDashboard({
-                  fechaCorte: dash.fechaCorte || {},
-                  resumenGlobal: dash.resumenGlobal || {},
-                  destacados: dash.destacados || {},
-                  porBodega: Array.isArray(dash.porBodega) ? dash.porBodega : []
+          google.script.run
+            .withSuccessHandler((auditoriasResp) => {
+              try {
+                if (refreshSeqRef.current !== seq) {
+                  console.warn(`${logPrefix} ⚠️ listarAuditorias ignorado por refresh viejo.`);
+                  return;
+                }
+
+                const lista = Array.isArray(auditoriasResp) ? auditoriasResp : [];
+
+                console.log(`${logPrefix} ✅ listarAuditorias OK`, {
+                  total: lista.length,
+                  dashboardOk
                 });
 
-                google.script.run
-                  .withSuccessHandler((auditoriasResp) => {
-                    const lista = Array.isArray(auditoriasResp) ? auditoriasResp : [];
-                    setAuditorias(lista);
-                    setLoading(false);
+                setAuditorias(lista);
 
-                    if (!firstLoadDoneRef.current) {
-                      firstLoadDoneRef.current = true;
-                      notify_(
-                        `Se cargaron ${lista.length} auditorías.`,
-                        "success",
-                        2200,
-                        {
-                          title: "Dashboard listo",
-                          sound: false
-                        }
-                      );
-                    } else if (contexto !== "init") {
-                      notify_(
-                        `Datos actualizados correctamente (${lista.length} auditorías).`,
-                        "success",
-                        1800,
-                        {
-                          title: "Actualización completada",
-                          sound: false
-                        }
-                      );
+                limpiarWatchdog_();
+
+                if (!finalizarCarga_()) return;
+
+                if (!firstLoadDoneRef.current) {
+                  firstLoadDoneRef.current = true;
+
+                  notify_(
+                    `Se cargaron ${lista.length} auditorías.`,
+                    "success",
+                    2200,
+                    {
+                      title: "Dashboard listo",
+                      sound: false
                     }
-                  })
-                  .withFailureHandler((err) => {
-                    console.error("❌ [AuditoriaExcedentes] Error listando auditorías:", err);
-                    setLoading(false);
-                    notify_(
-                      err && err.message ? err.message : "No se pudo listar auditorías.",
-                      "error",
-                      4200,
-                      {
-                        title: "Error de auditorías",
-                        sound: true
-                      }
-                    );
-                  })
-                  .AuditoriaExcedentesController_listarAuditorias({});
-              })
-              .withFailureHandler((err) => {
-                console.error("❌ [AuditoriaExcedentes] Error en obtenerDashboardMetricos:", err);
-                setLoading(false);
-                notify_(
-                  err && err.message ? err.message : "No se pudo obtener el dashboard de auditoría.",
-                  "error",
-                  4200,
-                  {
-                    title: "Error de métricos",
-                    sound: true
-                  }
+                  );
+                } else if (contexto !== "init") {
+                  notify_(
+                    `Datos actualizados correctamente (${lista.length} auditorías).`,
+                    "success",
+                    1800,
+                    {
+                      title: "Actualización completada",
+                      sound: false
+                    }
+                  );
+                }
+
+              } catch (e) {
+                limpiarWatchdog_();
+
+                finalizarError_(
+                  "Error frontend",
+                  "Error procesando la lista de auditorías.",
+                  e
                 );
-              })
-              .AuditoriaExcedentesController_obtenerDashboardMetricos();
+              }
+            })
+            .withFailureHandler((err) => {
+              limpiarWatchdog_();
+
+              finalizarError_(
+                "Error de auditorías",
+                err && err.message ? err.message : "No se pudo listar auditorías.",
+                err
+              );
+            })
+            .AuditoriaExcedentesController_listarAuditorias({});
+        };
+
+        console.log(`${logPrefix} 🚦 Paso 1: obtenerBootstrap`);
+
+        google.script.run
+          .withSuccessHandler((bootstrapResp) => {
+            try {
+              if (refreshSeqRef.current !== seq) {
+                console.warn(`${logPrefix} ⚠️ obtenerBootstrap ignorado por refresh viejo.`);
+                return;
+              }
+
+              const bootstrapSafe = bootstrapResp || {};
+
+              console.log(`${logPrefix} ✅ obtenerBootstrap OK`, bootstrapSafe);
+
+              setBootstrapData({
+                usuarios: Array.isArray(bootstrapSafe.usuarios) ? bootstrapSafe.usuarios : [],
+                bodegas: Array.isArray(bootstrapSafe.bodegas) ? bootstrapSafe.bodegas : [],
+                auditoriasAbiertas: Array.isArray(bootstrapSafe.auditoriasAbiertas) ? bootstrapSafe.auditoriasAbiertas : [],
+                auditoriasCerradas: Array.isArray(bootstrapSafe.auditoriasCerradas) ? bootstrapSafe.auditoriasCerradas : []
+              });
+
+              console.log(`${logPrefix} 🚦 Paso 2: obtenerDashboardMetricos`);
+
+              google.script.run
+                .withSuccessHandler((dashboardResp) => {
+                  try {
+                    if (refreshSeqRef.current !== seq) {
+                      console.warn(`${logPrefix} ⚠️ obtenerDashboardMetricos ignorado por refresh viejo.`);
+                      return;
+                    }
+
+                    const dash = dashboardResp || {};
+
+                    console.log(`${logPrefix} ✅ obtenerDashboardMetricos OK`, dash);
+
+                    setDashboard({
+                      fechaCorte: dash.fechaCorte || {},
+                      resumenGlobal: dash.resumenGlobal || {},
+                      destacados: dash.destacados || {},
+                      porBodega: Array.isArray(dash.porBodega) ? dash.porBodega : []
+                    });
+
+                    cargarAuditorias_(true);
+
+                  } catch (e) {
+                    console.error(`${logPrefix} ❌ Error procesando dashboard en frontend`, e);
+
+                    setDashboard({
+                      fechaCorte: {},
+                      resumenGlobal: {},
+                      destacados: {},
+                      porBodega: []
+                    });
+
+                    cargarAuditorias_(false);
+                  }
+                })
+                .withFailureHandler((err) => {
+                  console.error(`${logPrefix} ⚠️ Dashboard falló. Se cargará lista de auditorías de todos modos.`, err);
+
+                  notify_(
+                    err && err.message
+                      ? err.message
+                      : "No se pudo obtener el dashboard, pero se cargará la lista de auditorías.",
+                    "warning",
+                    4200,
+                    {
+                      title: "Métricos no disponibles",
+                      sound: true
+                    }
+                  );
+
+                  setDashboard({
+                    fechaCorte: {},
+                    resumenGlobal: {},
+                    destacados: {},
+                    porBodega: []
+                  });
+
+                  cargarAuditorias_(false);
+                })
+                .AuditoriaExcedentesController_obtenerDashboardMetricos();
+
+            } catch (e) {
+              limpiarWatchdog_();
+
+              finalizarError_(
+                "Error frontend",
+                "Error procesando bootstrap de auditorías.",
+                e
+              );
+            }
           })
           .withFailureHandler((err) => {
-            console.error("❌ [AuditoriaExcedentes] Error en obtenerBootstrap:", err);
-            setLoading(false);
-            notify_(
+            limpiarWatchdog_();
+
+            finalizarError_(
+              "Error de carga",
               err && err.message ? err.message : "No se pudo cargar el módulo de auditoría.",
-              "error",
-              4200,
-              {
-                title: "Error de carga",
-                sound: true
-              }
+              err
             );
           })
           .AuditoriaExcedentesController_obtenerBootstrap();
+
       }, []);
 
       useEffect(() => {
         refrescarDatos("init");
       }, [refrescarDatos]);
+
+      
+      useEffect(() => {
+        const timer = setInterval(() => {
+          refrescarDatos("auto");
+        }, 30000);
+
+        return () => clearInterval(timer);
+      }, [refrescarDatos]);
+
 
       // ---------------------------------------------------------
       // NUEVA AUDITORÍA
@@ -1022,6 +1160,73 @@
         );
       };
 
+      const exportarExcelAuditorias_ = () => {
+        if (!window.ExcelExportUtils || typeof window.ExcelExportUtils.exportarAXLSX !== "function") {
+          notify_(
+            "No se detectó el helper global de exportación XLSX.",
+            "error",
+            4200,
+            {
+              title: "Exportador no disponible",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        if (!Array.isArray(auditoriasFiltradas) || auditoriasFiltradas.length === 0) {
+          notify_(
+            "No existen auditorías disponibles para exportación.",
+            "warning",
+            3200,
+            {
+              title: "Sin datos para exportar",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        const fecha = new Date().toISOString().slice(0, 10);
+
+        window.ExcelExportUtils.exportarAXLSX({
+          fileName: `Auditorias_Excedentes_${fecha}.xlsx`,
+          sheetName: "Auditorias",
+          rows: auditoriasFiltradas,
+          columns: [
+            { key: "idauditoria", label: "Auditoría" },
+            { key: "fecha", label: "Fecha" },
+            { key: "horainicio", label: "Hora Inicio" },
+            { key: "horafin", label: "Hora Fin" },
+            { key: "tipoauditoria", label: "Tipo Auditoría" },
+            { key: "auditor", label: "Auditor" },
+            { key: "bodegaobjetivo", label: "Bodega Objetivo" },
+            { key: "estatus", label: "Estatus" },
+            { key: "confiabilidadtotal", label: "Confiabilidad Total" },
+            { key: "ubicacionesauditadas", label: "Ubicaciones Auditadas" },
+            { key: "ubicacionescondiferencia", label: "Ubicaciones con Diferencia" },
+            { key: "idunicosesperadostotales", label: "ID Únicos Esperados" },
+            { key: "idunicoscorrectostotales", label: "ID Únicos Correctos" },
+            { key: "idunicosfaltantestotales", label: "ID Únicos Faltantes" },
+            { key: "idunicossobrantestotales", label: "ID Únicos Sobrantes" },
+            { key: "observaciones", label: "Observaciones" }
+          ]
+        });
+
+        notify_(
+          `Se inició la exportación de ${auditoriasFiltradas.length} auditorías.`,
+          "success",
+          2200,
+          {
+            title: "Exportación iniciada",
+            sound: true
+          }
+        );
+
+        cerrarFabMenu_();
+      };
+
+
       const continuarAuditoria = (item) => {
         const folio = item && item.idauditoria ? String(item.idauditoria).trim() : "";
         const estatus = String(item && item.estatus ? item.estatus : "").toUpperCase();
@@ -1136,9 +1341,9 @@
       const mejorSemana = destacados.bodegaMejorSemana || null;
 
       return (
-        <div className="space-y-6 fade-in-up relative">
+        <div className="space-y-4 fade-in-up relative">
           {/* KPI */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <KPIBlock
               title="Auditorías abiertas"
               value={Number(resumenGlobal.auditoriasAbiertas || 0)}
@@ -1212,100 +1417,108 @@
             />
           </div>
 
-          {/* Destacados */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <div className="ae-card p-5">
-              <div className="flex items-center justify-between gap-4 mb-4">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
+
+          {/* Destacados compactos */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            <div className="ae-card px-4 py-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
                     Bodega más crítica / semana
                   </p>
-                  <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[22px] font-black tracking-tight">
-                    {criticaSemana?.bodega || "Sin datos"}
-                  </h3>
-                </div>
 
-                <div className={getConfiabilidadVisual(criticaSemana?.semanalActual?.confiabilidad).className}>
-                  {Number(criticaSemana?.semanalActual?.confiabilidad || 0).toFixed(2)}%
-                </div>
-              </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="m-0 p-0 bg-transparent border-none text-[17px] font-black text-[var(--text-main)] uppercase leading-tight">
+                      {criticaSemana?.bodega || "Sin datos"}
+                    </h3>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div className="ae-mini-card">
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                    Faltantes
-                  </div>
-                  <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
-                    {Number(criticaSemana?.semanalActual?.faltantes || 0)}
+                    <span className={getConfiabilidadVisual(criticaSemana?.semanalActual?.confiabilidad).className}>
+                      {Number(criticaSemana?.semanalActual?.confiabilidad || 0).toFixed(2)}%
+                    </span>
                   </div>
                 </div>
 
-                <div className="ae-mini-card">
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                    Sobrantes
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-center">
+                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                      Falt.
+                    </div>
+                    <div className="text-[18px] font-black text-[var(--primary)] leading-tight">
+                      {Number(criticaSemana?.semanalActual?.faltantes || 0)}
+                    </div>
                   </div>
-                  <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
-                    {Number(criticaSemana?.semanalActual?.sobrantes || 0)}
-                  </div>
-                </div>
 
-                <div className="ae-mini-card">
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                    Dif. ubi
+                  <div className="text-center">
+                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                      Sobr.
+                    </div>
+                    <div className="text-[18px] font-black text-amber-700 leading-tight">
+                      {Number(criticaSemana?.semanalActual?.sobrantes || 0)}
+                    </div>
                   </div>
-                  <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
-                    {Number(criticaSemana?.semanalActual?.ubicacionesConDiferencia || 0)}
+
+                  <div className="text-center">
+                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                      Dif.
+                    </div>
+                    <div className="text-[18px] font-black text-[var(--text-main)] leading-tight">
+                      {Number(criticaSemana?.semanalActual?.ubicacionesConDiferencia || 0)}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="ae-card p-5">
-              <div className="flex items-center justify-between gap-4 mb-4">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
+            <div className="ae-card px-4 py-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
                     Mejor bodega / semana
                   </p>
-                  <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[22px] font-black tracking-tight">
-                    {mejorSemana?.bodega || "Sin datos"}
-                  </h3>
-                </div>
 
-                <div className={getConfiabilidadVisual(mejorSemana?.semanalActual?.confiabilidad).className}>
-                  {Number(mejorSemana?.semanalActual?.confiabilidad || 0).toFixed(2)}%
-                </div>
-              </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="m-0 p-0 bg-transparent border-none text-[17px] font-black text-[var(--text-main)] uppercase leading-tight">
+                      {mejorSemana?.bodega || "Sin datos"}
+                    </h3>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div className="ae-mini-card">
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                    Correctos
-                  </div>
-                  <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
-                    {Number(mejorSemana?.semanalActual?.correctos || 0)}
+                    <span className={getConfiabilidadVisual(mejorSemana?.semanalActual?.confiabilidad).className}>
+                      {Number(mejorSemana?.semanalActual?.confiabilidad || 0).toFixed(2)}%
+                    </span>
                   </div>
                 </div>
 
-                <div className="ae-mini-card">
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                    Esperados
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-center">
+                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                      Corr.
+                    </div>
+                    <div className="text-[18px] font-black text-emerald-700 leading-tight">
+                      {Number(mejorSemana?.semanalActual?.correctos || 0)}
+                    </div>
                   </div>
-                  <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
-                    {Number(mejorSemana?.semanalActual?.esperados || 0)}
-                  </div>
-                </div>
 
-                <div className="ae-mini-card">
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                    Dif. ubi
+                  <div className="text-center">
+                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                      Esp.
+                    </div>
+                    <div className="text-[18px] font-black text-[var(--text-main)] leading-tight">
+                      {Number(mejorSemana?.semanalActual?.esperados || 0)}
+                    </div>
                   </div>
-                  <div className="text-[24px] font-black text-[var(--text-main)] mt-1">
-                    {Number(mejorSemana?.semanalActual?.ubicacionesConDiferencia || 0)}
+
+                  <div className="text-center">
+                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                      Dif.
+                    </div>
+                    <div className="text-[18px] font-black text-[var(--text-main)] leading-tight">
+                      {Number(mejorSemana?.semanalActual?.ubicacionesConDiferencia || 0)}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+
 
           {/* Filtros */}
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
@@ -1615,79 +1828,83 @@
             </div>
           </div>
 
-          {/* FAB */}
-          <div className="fixed bottom-10 right-10 z-[999] flex flex-col items-end gap-3">
-            {isFabMenuOpen && isSearchExpanded && (
-              <div className="flex items-center gap-3 animate-slide-left">
+          {/* MENÚ FLOTANTE GLOBALIZADO */}
+          <div className="app-fab-container">
+
+            {isFabMenuMounted && isSearchExpanded && (
+              <div className={`app-fab-row ${isSearchClosing || isFabClosing ? "app-fab-slide-right" : "app-fab-slide-left"}`}>
                 <input
                   ref={searchInputRef}
                   autoFocus
                   type="text"
                   placeholder="Busca por ID, auditor, tipo o bodega..."
-                  className="ae-search-input"
+                  className="app-fab-search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
             )}
 
-            {isFabMenuOpen && (
-              <div className="flex flex-col items-end gap-3 animate-fab-in">
-                <button
-                  onClick={() => {
-                    const nuevoEstado = !isSearchExpanded;
-                    setIsSearchExpanded(nuevoEstado);
+            {isFabMenuMounted && (
+              <div className={`app-fab-stack ${isFabClosing ? "app-fab-out" : "app-fab-in"}`}>
 
-                    if (nuevoEstado) {
-                      setTimeout(() => searchInputRef.current?.focus(), 120);
-                    } else {
-                      setSearchQuery("");
-                    }
-                  }}
-                  className="ae-fab-action"
+                <button
+                  type="button"
+                  className={`app-fab-action ${isSearchExpanded ? "dark" : ""}`}
                   title={isSearchExpanded ? "Cerrar buscador" : "Buscar auditoría"}
+                  onClick={toggleBuscador_}
                 >
                   <LocalIcon name={isSearchExpanded ? "x" : "search"} size={24} />
                 </button>
 
                 <button
+                  type="button"
+                  className="app-fab-action"
+                  title="Actualizar tablero"
                   onClick={() => refrescarDatos("manual")}
                   disabled={loading}
-                  className="ae-fab-action"
-                  title="Actualizar tablero"
                 >
                   <LocalIcon
                     name="refresh-cw"
                     size={24}
-                    className={loading ? "animate-spin text-[var(--primary)]" : ""}
+                    className={loading ? "text-[#d93025] animate-spin" : ""}
                   />
                 </button>
 
                 <button
-                  onClick={abrirPanelNuevaAuditoria}
-                  className="ae-fab-action primary"
+                  type="button"
+                  className="app-fab-action primary"
                   title="Nueva auditoría"
+                  onClick={() => {
+                    abrirPanelNuevaAuditoria();
+                    cerrarFabMenu_();
+                  }}
                 >
                   <LocalIcon name="folder-plus" size={24} />
                 </button>
+
+                <button
+                  type="button"
+                  className="app-fab-action success"
+                  title="Exportar Excel"
+                  onClick={exportarExcelAuditorias_}
+                  disabled={loading || auditoriasFiltradas.length === 0}
+                >
+                  <LocalIcon name="file-spreadsheet" size={24} />
+                </button>
+
               </div>
             )}
 
             <button
-              onClick={() => {
-                const nuevoEstado = !isFabMenuOpen;
-                setIsFabMenuOpen(nuevoEstado);
-
-                if (!nuevoEstado) {
-                  setIsSearchExpanded(false);
-                  setSearchQuery("");
-                }
-              }}
-              className={`ae-fab-main ${isFabMenuOpen ? "open" : ""}`}
+              type="button"
+              className={`app-fab-main ${isFabMenuOpen ? "open" : ""}`}
               title={isFabMenuOpen ? "Cerrar acciones" : "Abrir acciones"}
+              onClick={toggleFabMenu_}
             >
               <LocalIcon name={isFabMenuOpen ? "x" : "ellipsis-vertical"} size={26} />
             </button>
+
           </div>
 
           {/* OFFCANVAS NUEVA AUDITORÍA */}

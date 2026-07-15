@@ -44,135 +44,282 @@
       + '&color=000000'
       + '&bgcolor=FFFFFF';
   }
+
+  var MODO_IMPRESION = (typeof modoImpresion !== "undefined" && modoImpresion)
+    ? String(modoImpresion).toUpperCase()
+    : "LOCAL";
+
+  var ES_ONLINE = MODO_IMPRESION === "ONLINE";
+  var TOTAL_IMAGENES_ESPERADAS = (lote && lote.length) ? lote.length * 2 : 0;
+
 ?>
 
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <base target="_top">
-  <style>
-    :root {
-      --ancho-papel: 10cm;
-      --alto-papel: 15.5cm;
-      --ancho-diseno: 15.6cm;
-      --alto-diseno: 9.5cm;
-    }
 
-    * { box-sizing: border-box; }
+<style>
+  :root {
+    --ancho-papel: 150mm;
+    --alto-papel: 100mm;
+    --ancho-diseno: 145mm;
+    --alto-diseno: 95mm;
+  }
 
-    @page {
-      size: letter;
-    }
+  * {
+    box-sizing: border-box;
+  }
 
+  @page {
+    size: 150mm 100mm;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 150mm;
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    font-family: "Century Gothic", AppleGothic, sans-serif;
+    background: white;
+    overflow: visible;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .contenedor-pagina {
+    width: 150mm;
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    background: white;
+    display: block;
+    overflow: visible;
+  }
+
+  .pagina-etiqueta {
+    width: 150mm;
+    height: 100mm;
+    min-height: 100mm;
+    max-height: 100mm;
+    margin: 0;
+    padding: 0;
+    background: white;
+    overflow: hidden;
+    display: block;
+    position: relative;
+
+    page-break-inside: avoid;
+    break-inside: avoid;
+
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .pagina-etiqueta + .pagina-etiqueta {
+    page-break-before: always;
+    break-before: page;
+  }
+
+  .pagina-etiqueta:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .etiqueta {
+    width: var(--ancho-diseno);
+    height: var(--alto-diseno);
+    border: 2px solid black;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    background: white;
+    margin: 2.5mm;
+
+    transform: none;
+    transform-origin: initial;
+
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .marca-agua {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    opacity: 0.07;
+    z-index: -1;
+    filter: grayscale(100%);
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 4px solid black;
+    padding-bottom: 5px;
+    margin-bottom: 10px;
+    align-items: center;
+  }
+
+  .codigo-titulo {
+    font-size: 20pt;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .tipo-badge {
+    font-size: 11pt;
+    font-weight: bold;
+    color: #000;
+    text-align: right;
+  }
+
+  .cuerpo {
+    display: flex;
+    flex: 1;
+    justify-content: space-between;
+    align-items: stretch;
+  }
+
+  .info {
+    width: 55%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .descripcion {
+    font-weight: bold;
+    font-size: 25pt;
+    color: #333;
+    line-height: 1.1;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+
+  .qr-container {
+    width: 200px;
+    height: 200px;
+    border: 1px solid #ddd;
+    background: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .qr-container img {
+    width: 90%;
+    height: 90%;
+    object-fit: contain;
+    display: block;
+  }
+
+  @media screen {
+    html,
     body {
-      margin: 0;
-      padding: 0;
-      font-family: "Century Gothic", AppleGothic, sans-serif;
+      width: 100%;
+      height: auto;
+      min-height: 100%;
       background-color: #f0f0f0;
+      overflow: visible;
     }
 
     .contenedor-pagina {
       width: 100%;
+      height: auto;
       display: flex;
       flex-direction: column;
       align-items: center;
+      gap: 10mm;
+      padding: 10mm 0;
+      background-color: #f0f0f0;
+      overflow: visible;
+    }
+
+    .pagina-etiqueta {
+      width: 150mm;
+      height: 100mm;
+      min-height: 100mm;
+      max-height: 100mm;
+      flex: 0 0 100mm;
+      margin: 0;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+      background: white;
+    }
+  }
+
+  @media print {
+    html,
+    body {
+      width: 150mm;
+      height: auto;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
+      background: white;
+      overflow: visible;
+    }
+
+    .contenedor-pagina {
+      width: 150mm;
+      height: auto;
+      margin: 0;
+      padding: 0;
+      background: white;
+      display: block;
+      overflow: visible;
+    }
+
+    .pagina-etiqueta {
+      width: 150mm;
+      height: 100mm;
+      min-height: 100mm;
+      max-height: 100mm;
+      margin: 0;
+      padding: 0;
+      box-shadow: none;
+      background: white;
+      overflow: hidden;
+      display: block;
+      position: relative;
+
+      page-break-inside: avoid;
+      break-inside: avoid;
+
+      page-break-after: always;
+      break-after: page;
+    }
+
+    .pagina-etiqueta + .pagina-etiqueta {
+      page-break-before: always;
+      break-before: page;
+    }
+
+    .pagina-etiqueta:last-child {
+      page-break-after: auto;
+      break-after: auto;
     }
 
     .etiqueta {
-      width: var(--ancho-diseno);
-      height: var(--alto-diseno);
-      border: 2px solid black;
-      padding: 30px;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      overflow: hidden;
+      width: 145mm;
+      height: 95mm;
+      margin: 2.5mm;
       page-break-inside: avoid;
       break-inside: avoid;
-      transform: rotate(90deg) translate(1.8mm, calc(-1 * var(--ancho-diseno) + 34.2mm));
-      transform-origin: top left;
-      background: white;
+      transform: none;
+      transform-origin: initial;
     }
+  }
+</style>
 
-    .marca-agua {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 80%;
-      opacity: 0.07;
-      z-index: -1;
-      filter: grayscale(100%);
-    }
-
-    .header {
-      display: flex;
-      justify-content: space-between;
-      border-bottom: 4px solid black;
-      padding-bottom: 5px;
-      margin-bottom: 10px;
-      align-items: center;
-    }
-
-    .codigo-titulo {
-      font-size: 20pt;
-      font-weight: 700;
-      margin: 0;
-    }
-
-    .tipo-badge {
-      font-size: 11pt;
-      font-weight: bold;
-      color: #000;
-      text-align: right;
-    }
-
-    .cuerpo {
-      display: flex;
-      flex: 1;
-      justify-content: space-between;
-      align-items: stretch;
-    }
-
-    .info {
-      width: 55%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-
-    .descripcion {
-      font-weight: bold;
-      font-size: 25pt;
-      color: #333;
-      line-height: 1.1;
-      text-transform: uppercase;
-      margin-bottom: 5px;
-    }
-
-    .qr-container {
-      width: 200px;
-      height: 200px;
-      border: 1px solid #ddd;
-      background: white;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .qr-container img {
-      width: 90%;
-      height: 90%;
-      object-fit: contain;
-    }
-
-    @media print {
-      .etiqueta {
-        page-break-inside: avoid;
-        break-inside: avoid;
-      }
-    }
-  </style>
 </head>
 
 <body>
@@ -183,22 +330,15 @@
   </div>
 <? } else { ?>
 
+
 <div class="contenedor-pagina">
   <?
-    var tipoAnterior = "";
-
     lote.forEach(function(item, index) {
-
-      if (index > 0 && item.tipo !== tipoAnterior) {
-  ?>
-        <div style="page-break-after: always;"></div>
-  <?
-      }
-
-      tipoAnterior = item.tipo;
   ?>
 
-  <div class="etiqueta">
+  <div class="pagina-etiqueta">
+    <div class="etiqueta">
+
 
     <img
       src="https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png"
@@ -228,10 +368,13 @@
       </div>
     </div>
 
+
+    </div>
   </div>
 
   <? }); ?>
 </div>
+
 
 <? } ?>
 

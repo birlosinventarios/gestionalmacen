@@ -3,6 +3,8 @@
 <div id="vista-excedentes-root" class="h-full w-full bg-[#f8f9fa] overflow-hidden relative"></div>
 
 <script type="text/babel">
+  console.log("🧩 GestorExcedentes BUILD: 2026-07-06-FAB-SIN-SWITCH-01");
+
   (function() {
     const { useState, useEffect, useMemo, useRef } = React;
 
@@ -24,34 +26,45 @@
       notify_(mensaje, tipo, timer, options);
     };
 
+    const notifyStateShellRef = { current: {} };
+    const notifyOnceShell_ = createNotifyOnce_(notifyStateShellRef);
+
     // =========================================================
     // COMPONENTE: ICONOS DE LUCIDE
     // =========================================================
     const LocalIcon = ({ name, size = 20, className = "" }) => {
       useEffect(() => {
         if (window.lucide) window.lucide.createIcons();
-      }, [name]);
+      }, [name, size, className]);
 
-      return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+      return (
+        <i
+          data-lucide={name}
+          style={{ width: size, height: size }}
+          className={className}
+        ></i>
+      );
     };
 
     // =========================================================
     // COMPONENTE: TARJETA DE MÉTRICAS
     // =========================================================
     const SummaryCard = ({ label, value, iconName, colorClass, unit = "reg" }) => (
-      <div className={`bg-white p-6 rounded-[1.5rem] border ${colorClass.split(' ') || 'border-gray-100'} shadow-sm flex items-center gap-6 transition-all hover:shadow-lg hover:-translate-y-1`}>
-        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${colorClass.split(' ').slice(0,2).join(' ')} shadow-inner`}>
-          <LocalIcon name={iconName} size={32} />
+      <div className={`bg-white px-5 py-4 rounded-[1.25rem] border ${colorClass || 'border-gray-100'} shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:-translate-y-0.5 min-h-[104px]`}>
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${colorClass || 'bg-slate-50 text-slate-700 border-slate-100'} shadow-inner shrink-0`}>
+          <LocalIcon name={iconName} size={26} />
         </div>
 
-        <div className="flex flex-col">
-          <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#5f6368] mb-1">
+        <div className="flex flex-col min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#5f6368] mb-1 leading-tight">
             {label}
           </p>
 
-          <h3 className="text-4xl font-black text-[#1c1d1f] tracking-tighter">
+          <h3 className="text-[30px] font-black text-[#1c1d1f] tracking-tighter leading-none">
             {Number(value || 0).toLocaleString()}
-            <span className="text-sm font-bold text-gray-400 ml-2 italic">{unit}</span>
+            <span className="text-[12px] font-bold text-gray-400 ml-2 italic">
+              {unit}
+            </span>
           </h3>
         </div>
       </div>
@@ -70,7 +83,7 @@
       if (serie.startsWith("CB1")) return "Casa Blanca 1";
       if (serie.startsWith("CB2")) return "Casa Blanca 2";
 
-      return item.ebodegaActual || 'Pendiente de ubicación';
+      return item.ebodegaActual || "Pendiente de ubicación";
     };
 
     // =========================================================
@@ -102,6 +115,7 @@
     // =========================================================
     const VistaGestorExcedentes = () => {
       const [data, setDatos] = useState([]);
+
       const [resumen, setResumen] = useState({
         totalIdsRegistrados: 0,
         idsUnicosVigentes: 0,
@@ -113,13 +127,74 @@
       const [loading, setLoading] = useState(true);
       const [filtro, setFiltro] = useState("");
       const [bodegaSeleccionada, setBodegaSeleccionada] = useState("Todos");
-      const [isSearchExpanded, setIsSearchExpanded] = useState(false);
 
-      const inputRef = useRef(null);
+      const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+      const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
+      const [isFabMenuMounted, setIsFabMenuMounted] = useState(false);
+      const [isFabClosing, setIsFabClosing] = useState(false);
+      const [isSearchClosing, setIsSearchClosing] = useState(false);
+
+      const searchInputRef = useRef(null);
       const firstLoadDoneRef = useRef(false);
       const notifyStateRef = useRef({});
+      const fabContainerRef = useRef(null);
 
       const notifyOnce_ = createNotifyOnce_(notifyStateRef);
+
+      // =========================================================
+      // FAB GLOBAL
+      // =========================================================
+      const abrirFabMenu_ = () => {
+        setIsFabMenuMounted(true);
+        setIsFabClosing(false);
+        setIsFabMenuOpen(true);
+      };
+
+      const cerrarFabMenu_ = () => {
+        setIsFabClosing(true);
+        setIsSearchClosing(true);
+
+        setTimeout(() => {
+          setIsFabMenuOpen(false);
+          setIsFabMenuMounted(false);
+          setIsFabClosing(false);
+          setIsSearchExpanded(false);
+          setIsSearchClosing(false);
+          setFiltro("");
+        }, 190);
+      };
+
+      const toggleFabMenu_ = () => {
+        if (isFabMenuOpen) {
+          cerrarFabMenu_();
+        } else {
+          abrirFabMenu_();
+        }
+      };
+
+      const abrirBuscador_ = () => {
+        setIsSearchClosing(false);
+        setIsSearchExpanded(true);
+        setTimeout(() => searchInputRef.current?.focus(), 120);
+      };
+
+      const cerrarBuscador_ = () => {
+        setIsSearchClosing(true);
+
+        setTimeout(() => {
+          setIsSearchExpanded(false);
+          setIsSearchClosing(false);
+          setFiltro("");
+        }, 180);
+      };
+
+      const toggleBuscador_ = () => {
+        if (isSearchExpanded) {
+          cerrarBuscador_();
+        } else {
+          abrirBuscador_();
+        }
+      };
 
       // ---------------------------------------------------------
       // CARGA INICIAL
@@ -129,7 +204,26 @@
       }, []);
 
       // ---------------------------------------------------------
-      // REFRESH CONTRA NUEVO CONTROLLER
+      // CERRAR FAB CON ESCAPE
+      // ---------------------------------------------------------
+      useEffect(() => {
+        if (!isFabMenuOpen) return;
+
+        const handleKeyDown = (event) => {
+          if (event.key === "Escape") {
+            cerrarFabMenu_();
+          }
+        };
+
+        document.addEventListener("keydown", handleKeyDown, true);
+
+        return () => {
+          document.removeEventListener("keydown", handleKeyDown, true);
+        };
+      }, [isFabMenuOpen]);
+
+      // ---------------------------------------------------------
+      // REFRESH CONTRA CONTROLLER
       // ---------------------------------------------------------
       const refrescarDatos = (contexto = "manual") => {
         setLoading(true);
@@ -159,6 +253,7 @@
             const resumenRecibido = resultado?.resumen || {};
 
             setDatos(dataRecibida);
+
             setResumen({
               totalIdsRegistrados: Number(resumenRecibido.totalIdsRegistrados || 0),
               idsUnicosVigentes: Number(resumenRecibido.idsUnicosVigentes || 0),
@@ -181,12 +276,14 @@
                   sound: false
                 });
               }
+
               firstLoadDoneRef.current = true;
               return;
             }
 
             if (!firstLoadDoneRef.current) {
               firstLoadDoneRef.current = true;
+
               notify_(
                 `Se cargaron ${dataRecibida.length} registros en el gestor de excedentes.`,
                 "success",
@@ -222,6 +319,7 @@
             );
 
             setDatos([]);
+
             setResumen({
               totalIdsRegistrados: 0,
               idsUnicosVigentes: 0,
@@ -229,6 +327,7 @@
               idsUnicosConUbicacion: 0,
               stockTotalVigente: 0
             });
+
             setLoading(false);
           })
           .GestorExcedentesController_obtenerVista();
@@ -270,6 +369,7 @@
         if (!filtro.trim()) return filtrados;
 
         const f = filtro.toLowerCase().trim();
+
         return filtrados.filter(item =>
           (item.ecodigo && item.ecodigo.toLowerCase().includes(f)) ||
           (item.eidUnico && item.eidUnico.toLowerCase().includes(f)) ||
@@ -286,15 +386,28 @@
         "Bodega Mostrador",
         "Casa Blanca 1",
         "Casa Blanca 2",
-        "Pendiente de ubicación",
-        "Ubicación manual"
+        "Pendiente de ubicación"
       ];
 
       return (
         <div className="h-full w-full flex flex-col relative bg-[#f8f9fa]">
 
+          {isFabMenuMounted && ReactDOM.createPortal(
+            <div
+              className={`fixed inset-0 bg-slate-950/45 backdrop-blur-[2px] transition-opacity duration-200 ${
+                isFabClosing ? "opacity-0" : "opacity-100"
+              }`}
+              style={{ zIndex: 9000 }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                cerrarFabMenu_();
+              }}
+            ></div>,
+            document.body
+          )}
+
           {/* MÉTRICAS */}
-          <div className="px-8 py-6 grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="px-6 md:px-8 pt-4 pb-3 grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
             <SummaryCard
               label="IDs únicos con ubicación"
               value={resumen.idsUnicosConUbicacion}
@@ -321,12 +434,13 @@
           </div>
 
           {/* SEGMENTACIÓN POR BODEGA */}
-          <div className="px-8 pb-5 flex flex-wrap gap-2 shrink-0">
+          <div className="px-6 md:px-8 pb-3 flex flex-wrap gap-2 shrink-0">
             {opcionBodegas.map((bodega) => {
               const esActivo = bodegaSeleccionada === bodega;
               const tieneStockBuscado = bodegasConExistenciaBuscada.has(bodega);
 
               let clasesBordeYFondo = "";
+
               if (esActivo) {
                 clasesBordeYFondo = "bg-[#1c1d1f] text-white border-[#1c1d1f] shadow-md";
               } else if (tieneStockBuscado) {
@@ -339,7 +453,7 @@
                 <button
                   key={bodega}
                   onClick={() => setBodegaSeleccionada(bodega)}
-                  className={`px-5 py-2.5 rounded-xl text-sm font-black tracking-tight border-2 transition-all duration-300 active:scale-95 ${clasesBordeYFondo}`}
+                  className={`px-4 py-2 rounded-xl text-[12px] font-black uppercase tracking-[0.06em] border transition-all duration-300 active:scale-95 ${clasesBordeYFondo}`}
                 >
                   {bodega}
                 </button>
@@ -348,8 +462,8 @@
           </div>
 
           {/* TABLA */}
-          <div className="flex-1 overflow-auto px-8 pb-40">
-            <div className="bg-white rounded-[2rem] border border-[#dadce0] overflow-hidden shadow-sm">
+          <div className="flex-1 min-h-0 overflow-auto px-6 md:px-8 pb-32">
+            <div className="bg-white rounded-[1.5rem] border border-[#dadce0] overflow-hidden shadow-sm">
               <table className="w-full text-left">
                 <thead className="bg-[#f8f9fa] border-b border-[#dadce0] sticky top-0 z-10">
                   <tr>
@@ -418,7 +532,7 @@
                         <td className="px-6 py-4 text-center">
                           <div className="flex flex-col items-center">
                             <span className="text-[20px] text-[#5f6368] font-medium bg-gray-100 px-3 py-0.5 rounded-lg mb-1">
-                              {item.eserie || 'Sin ubicación'}
+                              {item.eserie || "Sin ubicación"}
                             </span>
 
                             <span className="text-[18px] font-bold text-[#1c1d1f]">
@@ -473,55 +587,65 @@
             </div>
           </div>
 
-          {/* BOTONES FLOTANTES */}
-          <div className="fixed bottom-10 right-10 flex flex-col items-end gap-5 z-50">
-
-            {/* BUSCADOR EXPANDIBLE */}
-            <div className="flex items-center gap-3">
-              {isSearchExpanded && (
+          {/* MENÚ FLOTANTE GLOBALIZADO */}
+          <div
+            ref={fabContainerRef}
+            className="app-fab-container"
+            style={{ zIndex: 9010 }}
+          >
+            {isFabMenuMounted && isSearchExpanded && (
+              <div className={`app-fab-row ${isSearchClosing || isFabClosing ? "app-fab-slide-right" : "app-fab-slide-left"}`}>
                 <input
-                  ref={inputRef}
+                  ref={searchInputRef}
                   autoFocus
                   type="text"
                   placeholder="Escribe un código, ID o descripción..."
-                  className="w-96 bg-white/90 backdrop-blur-md border-2 border-[#d93025] rounded-[1.25rem] px-6 py-4 shadow-[0_20px_50px_rgba(217,48,37,0.15)] outline-none font-bold text-sm text-[#1c1d1f] transition-all duration-300 placeholder-gray-400 focus:ring-4 focus:ring-[#d93025]/20 focus:border-[#d93025] animate-slide-left"
+                  className="app-fab-search"
                   value={filtro}
                   onChange={(e) => setFiltro(e.target.value)}
                 />
-              )}
+              </div>
+            )}
 
-              <button
-                onClick={() => {
-                  setIsSearchExpanded(!isSearchExpanded);
-                  if (!isSearchExpanded) {
-                    setTimeout(() => inputRef.current?.focus(), 120);
-                  } else {
-                    setFiltro("");
-                  }
-                }}
-                className={`w-16 h-16 rounded-[1.25rem] shadow-lg flex items-center justify-center text-white transition-all duration-500 transform active:scale-95 hover:scale-105 hover:shadow-[0_10px_25px_rgba(217,48,37,0.3)] ${
-                  isSearchExpanded
-                    ? 'bg-[#1c1d1f] hover:bg-black ring-4 ring-black/10'
-                    : 'bg-[#d93025] hover:bg-[#b02218] ring-4 ring-[#d93025]/10'
-                }`}
-                title={isSearchExpanded ? "Cerrar buscador" : "Buscar material"}
-              >
-                <LocalIcon name={isSearchExpanded ? "x" : "search"} size={26} />
-              </button>
-            </div>
+            {isFabMenuMounted && (
+              <div className={`app-fab-stack ${isFabClosing ? "app-fab-out" : "app-fab-in"}`}>
 
-            {/* REFRESH */}
+                <button
+                  type="button"
+                  className={`app-fab-action ${isSearchExpanded ? "dark" : ""}`}
+                  title={isSearchExpanded ? "Cerrar buscador" : "Buscar material"}
+                  onClick={toggleBuscador_}
+                >
+                  <LocalIcon name={isSearchExpanded ? "x" : "search"} size={24} />
+                </button>
+
+                <button
+                  type="button"
+                  className="app-fab-action"
+                  title="Actualizar tabla"
+                  onClick={() => refrescarDatos("manual")}
+                  disabled={loading}
+                >
+                  <LocalIcon
+                    name="refresh-cw"
+                    size={24}
+                    className={loading ? "text-[#d93025] animate-spin" : ""}
+                  />
+                </button>
+
+              </div>
+            )}
+
             <button
-              onClick={() => refrescarDatos("manual")}
-              disabled={loading}
-              className="w-16 h-16 bg-white/90 backdrop-blur-md border border-[#dadce0] rounded-[1.25rem] shadow-lg flex items-center justify-center text-[#5f6368] hover:text-[#d93025] hover:border-[#d93025]/40 transition-all duration-300 transform active:scale-95 hover:scale-105 hover:shadow-[0_10px_20px_rgba(0,0,0,0.05)] disabled:opacity-50 disabled:pointer-events-none"
-              title="Actualizar tabla"
+              type="button"
+              className={`app-fab-main ${isFabMenuOpen ? "open" : ""}`}
+              title={isFabMenuOpen ? "Cerrar acciones" : "Abrir acciones"}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleFabMenu_();
+              }}
             >
-              <LocalIcon
-                name="refresh-cw"
-                size={26}
-                className={loading ? "text-[#d93025] animate-spin" : ""}
-              />
+              <LocalIcon name={isFabMenuOpen ? "x" : "ellipsis-vertical"} size={26} />
             </button>
           </div>
         </div>
@@ -532,7 +656,8 @@
     // CONTRATO CON EL SHELL
     // =========================================================
     window.cargar_GestorExcedentes = () => {
-      const rootEl = document.getElementById('vista-excedentes-root');
+      const rootEl = document.getElementById("vista-excedentes-root");
+
       if (!rootEl) {
         console.warn("⚠️ [GestorExcedentes] No se encontró #vista-excedentes-root");
         notify_("No se encontró el contenedor principal del gestor de excedentes.", "error", 4200, {
@@ -547,11 +672,20 @@
           window.__GESTOR_EXCEDENTES_ROOT__.unmount();
         } catch (e) {
           console.warn("⚠️ [GestorExcedentes] No se pudo desmontar root previo:", e);
-          notifyOnceShell_?.("gestor-root-previo", "Se liberó una instancia previa del gestor.", "warning", 1600, {
-            title: "Reinicialización",
-            sound: false
-          }, 10000);
+          notifyOnceShell_(
+            "gestor-root-previo",
+            "Se liberó una instancia previa del gestor.",
+            "warning",
+            1600,
+            {
+              title: "Reinicialización",
+              sound: false
+            },
+            10000
+          );
         }
+
+        window.__GESTOR_EXCEDENTES_ROOT__ = null;
       }
 
       try {
@@ -570,10 +704,6 @@
         );
       }
     };
-
-    // Helper opcional solo para shell-level messages
-    const notifyStateShellRef = { current: {} };
-    const notifyOnceShell_ = createNotifyOnce_(notifyStateShellRef);
 
     window.initVista = window.cargar_GestorExcedentes;
     console.log("🧩 [GestorExcedentes] initVista definida:", typeof window.initVista);

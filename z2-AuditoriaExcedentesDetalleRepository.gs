@@ -247,7 +247,9 @@ const AuditoriaExcedentesDetalleRepository = (() => {
       }
 
       const row = _objToRow_(obj);
+
       _sheet_().appendRow(row);
+      SpreadsheetApp.flush();
 
       clearCache();
 
@@ -288,6 +290,7 @@ const AuditoriaExcedentesDetalleRepository = (() => {
       const maxCol = _maxColIndex_();
 
       sh.getRange(startRow, 1, rows.length, maxCol).setValues(rows);
+      SpreadsheetApp.flush();
 
       clearCache();
 
@@ -314,7 +317,9 @@ const AuditoriaExcedentesDetalleRepository = (() => {
       };
 
       const newRow = _objToRow_(merged, currentValues);
+
       sh.getRange(rowNumber, 1, 1, maxCol).setValues([newRow]);
+      SpreadsheetApp.flush();
 
       clearCache();
 
@@ -360,6 +365,20 @@ const AuditoriaExcedentesDetalleRepository = (() => {
     return true;
   }
 
+
+  function getByIdAuditoriaFresh(idAuditoria) {
+    const id = _normalizeId_(idAuditoria);
+    const values = _readValues_();
+
+    return values
+      .map((row, idx) => _rowToObj_(row, idx + 2))
+      .filter(item =>
+        item.idauditoria &&
+        _normalizeId_(item.idauditoria) === id
+      );
+  }
+
+
   return {
     getAll,
     getByIdAuditoria,
@@ -371,32 +390,8 @@ const AuditoriaExcedentesDetalleRepository = (() => {
     insertMany,
     updateByRowNumber,
     deleteByIdAuditoria,
+    getByIdAuditoriaFresh,
     clearCache
   };
 
 })();
-
-/**
- * ===========================
- * DEBUGGERS
- * ===========================
- */
-
-function debugAuditoriaExcedentesDetalleRepository_getAll() {
-  const data = AuditoriaExcedentesDetalleRepository.getAll();
-  console.log("[DEBUG] AuditoriaExcedentesDetalleRepository.getAll :: total", data.length);
-  console.log(JSON.stringify(data.slice(0, 20), null, 2));
-  return data;
-}
-
-function debugAuditoriaExcedentesDetalleRepository_getByIdAuditoria() {
-  const ID = "AUD-PRUEBA-001";
-  const data = AuditoriaExcedentesDetalleRepository.getByIdAuditoria(ID);
-  console.log("[DEBUG] AuditoriaExcedentesDetalleRepository.getByIdAuditoria :: total", data.length);
-  console.log(JSON.stringify(data.slice(0, 20), null, 2));
-  return data;
-}
-
-function debugAuditoriaExcedentesDetalleRepository_clearCache() {
-  return AuditoriaExcedentesDetalleRepository.clearCache();
-}

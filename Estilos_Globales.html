@@ -1097,3 +1097,476 @@
           .btn-icono-historial:active {
               transform: scale(0.95);
           }
+
+          /* =========================================================
+          SISTEMA GLOBAL DE BOTONES FLOTANTES / FAB
+          Prefijo: app-fab
+          ========================================================= */
+
+          .app-fab-container {
+            position: fixed;
+            right: 30px;
+            bottom: 30px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 12px;
+            pointer-events: none;
+          }
+
+          .app-fab-container > * {
+            pointer-events: auto;
+          }
+
+          .app-fab-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 12px;
+          }
+
+          .app-fab-row {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+          }
+
+          .app-fab-main,
+          .app-fab-action {
+            border: none;
+            outline: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition:
+              transform 0.25s ease,
+              box-shadow 0.25s ease,
+              background-color 0.25s ease,
+              border-color 0.25s ease,
+              color 0.25s ease,
+              opacity 0.25s ease;
+          }
+
+          .app-fab-main {
+            min-width: 64px;
+            height: 64px;
+            border-radius: 1.25rem;
+            background: var(--primary);
+            color: var(--white);
+            box-shadow: 0 12px 30px rgba(217, 48, 37, 0.28);
+            border: 1px solid rgba(217, 48, 37, 0.35);
+          }
+
+          .app-fab-main:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px) scale(1.04);
+            box-shadow: 0 16px 38px rgba(217, 48, 37, 0.36);
+          }
+
+          .app-fab-main.open,
+          .app-fab-main.is-open {
+            background: var(--text-main);
+            color: var(--white);
+            border-color: var(--text-main);
+            box-shadow: 0 12px 30px rgba(28, 29, 31, 0.28);
+          }
+
+          .app-fab-main.open:hover,
+          .app-fab-main.is-open:hover {
+            background: #000000;
+          }
+
+          .app-fab-main.context-danger {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+            box-shadow: 0 12px 30px rgba(153, 27, 27, 0.16);
+          }
+
+          .app-fab-main.context-danger:hover {
+            background: #fecaca;
+            color: #7f1d1d;
+          }
+
+          .app-fab-main.context-success {
+            background: #1e8e3e;
+            color: var(--white);
+            border-color: rgba(30, 142, 62, 0.35);
+            box-shadow: 0 12px 30px rgba(30, 142, 62, 0.26);
+          }
+
+          .app-fab-main.context-success:hover {
+            background: #157337;
+          }
+
+          .app-fab-main.with-label {
+            width: auto;
+            min-width: 64px;
+            padding: 0 20px;
+            gap: 12px;
+          }
+
+          .app-fab-label {
+            font-size: 12px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            white-space: nowrap;
+          }
+
+          .app-fab-icon-box {
+            width: 32px;
+            height: 32px;
+            border-radius: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.20);
+            flex-shrink: 0;
+          }
+
+          .app-fab-action {
+            width: 56px;
+            height: 56px;
+            border-radius: 1.15rem;
+            background: rgba(255, 255, 255, 0.94);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-soft);
+            backdrop-filter: blur(8px);
+          }
+
+          .app-fab-action:hover {
+            color: var(--primary);
+            border-color: rgba(217, 48, 37, 0.36);
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 12px 26px rgba(0, 0, 0, 0.12);
+          }
+
+          .app-fab-action.primary {
+            background: var(--primary);
+            color: var(--white);
+            border-color: var(--primary);
+            box-shadow: 0 12px 30px rgba(217, 48, 37, 0.26);
+          }
+
+          .app-fab-action.primary:hover {
+            background: var(--primary-dark);
+            color: var(--white);
+          }
+
+          .app-fab-action.dark {
+            background: var(--text-main);
+            color: var(--white);
+            border-color: var(--text-main);
+          }
+
+          .app-fab-action.success {
+            background: #1e8e3e;
+            color: var(--white);
+            border-color: #1e8e3e;
+          }
+
+          .app-fab-action.warning {
+            background: #fff7ed;
+            color: #b45309;
+            border-color: rgba(217, 119, 6, 0.28);
+          }
+
+          .app-fab-action.danger {
+            background: #fee2e2;
+            color: #991b1b;
+            border-color: #fecaca;
+          }
+
+          .app-fab-action:disabled,
+          .app-fab-main:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            pointer-events: none;
+            transform: none;
+          }
+
+          .app-fab-panel {
+            width: 420px;
+            max-width: calc(100vw - 32px);
+            background: var(--white);
+            border: 1px solid var(--border-color);
+            border-radius: 1.5rem;
+            box-shadow: var(--shadow-soft);
+            padding: 20px;
+            animation: appFabIn 0.22s ease-out forwards;
+          }
+
+          .app-fab-panel.sm {
+            width: 360px;
+          }
+
+          .app-fab-panel.lg {
+            width: 520px;
+          }
+
+          .app-fab-panel-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+          }
+
+          .app-fab-panel-eyebrow {
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            color: var(--text-secondary);
+          }
+
+          .app-fab-panel-title {
+            font-size: 20px;
+            font-weight: 900;
+            color: var(--text-main);
+            line-height: 1.15;
+            margin: 0;
+          }
+
+          .app-fab-panel-subtitle {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+          }
+
+          .app-fab-search {
+            width: 380px;
+            max-width: calc(100vw - 120px);
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(8px);
+            border: 2px solid var(--primary);
+            border-radius: 1.25rem;
+            padding: 16px 20px;
+            box-shadow: 0 20px 50px rgba(217, 48, 37, 0.15);
+            outline: none;
+            font-weight: 800;
+            font-size: 14px;
+            color: var(--text-main);
+            text-transform: uppercase;
+            animation: appFabSlideLeft 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+          }
+
+          .app-fab-search::placeholder {
+            color: #9ca3af;
+            font-weight: 700;
+            text-transform: none;
+          }
+
+          .app-fab-search:focus {
+            box-shadow:
+              0 20px 50px rgba(217, 48, 37, 0.18),
+              0 0 0 4px rgba(217, 48, 37, 0.12);
+          }
+
+          .app-fab-tooltip {
+            background: var(--text-main);
+            color: var(--white);
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.10em;
+            box-shadow: var(--shadow-soft);
+            white-space: nowrap;
+          }
+
+          .app-fab-hidden {
+            display: none !important;
+          }
+
+          .app-fab-in {
+            animation: appFabIn 0.22s ease-out forwards;
+          }
+
+          .app-fab-slide-left {
+            animation: appFabSlideLeft 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+          }
+
+          @keyframes appFabIn {
+            from {
+              opacity: 0;
+              transform: translateY(14px) scale(0.96);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0) scale(1);
+            }
+          }
+
+          @keyframes appFabSlideLeft {
+            from {
+              opacity: 0;
+              transform: translateX(42px) scale(0.92);
+            }
+            to {
+              opacity: 1;
+              transform: translateX(0) scale(1);
+            }
+          }
+
+          /* =========================================================
+            COMPATIBILIDAD CON BOTÓN VIEJO DE FILTROS
+            Mantiene .btn-filtros-flotante con estética nueva
+            ========================================================= */
+
+          .btn-filtros-flotante {
+            position: fixed;
+            right: 30px;
+            bottom: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 1.25rem;
+            background: var(--text-main);
+            color: var(--white);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-soft);
+            z-index: 9999;
+            border: 1px solid rgba(28, 29, 31, 0.15);
+            cursor: pointer;
+            transition:
+              transform 0.25s ease,
+              box-shadow 0.25s ease,
+              background-color 0.25s ease,
+              color 0.25s ease;
+          }
+
+          .btn-filtros-flotante:hover {
+            transform: translateY(-2px) scale(1.05) rotate(5deg);
+            background: var(--primary);
+            color: var(--white);
+            box-shadow: 0 12px 30px rgba(217, 48, 37, 0.28);
+          }
+
+          .btn-filtros-flotante .material-icons {
+            font-size: 28px;
+          }
+
+          /* =========================================================
+            RESPONSIVE
+            ========================================================= */
+
+          @media (max-width: 640px) {
+            .app-fab-container {
+              right: 16px;
+              bottom: 16px;
+            }
+
+            .app-fab-main {
+              height: 58px;
+              min-width: 58px;
+              border-radius: 1rem;
+            }
+
+            .app-fab-action {
+              width: 52px;
+              height: 52px;
+              border-radius: 1rem;
+            }
+
+            .app-fab-main.with-label {
+              padding: 0 14px;
+            }
+
+            .app-fab-label {
+              font-size: 10px;
+              letter-spacing: 0.10em;
+            }
+
+            .app-fab-search {
+              width: calc(100vw - 96px);
+              max-width: calc(100vw - 96px);
+              padding: 14px 16px;
+            }
+
+            .app-fab-panel {
+              width: calc(100vw - 32px);
+              padding: 16px;
+            }
+
+            .btn-filtros-flotante {
+              right: 16px;
+              bottom: 16px;
+              width: 56px;
+              height: 56px;
+              border-radius: 1rem;
+            }
+          }
+/* =========================================================
+   ANIMACIONES FAB ENTRADA / SALIDA
+========================================================= */
+
+.app-fab-in {
+  animation: appFabIn 0.22s ease-out forwards;
+}
+
+.app-fab-out {
+  animation: appFabOut 0.18s ease-in forwards;
+}
+
+.app-fab-slide-left {
+  animation: appFabSlideLeft 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.app-fab-slide-right {
+  animation: appFabSlideRight 0.18s ease-in forwards;
+}
+
+@keyframes appFabIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes appFabOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+}
+
+@keyframes appFabSlideLeft {
+  from {
+    opacity: 0;
+    transform: translateX(42px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes appFabSlideRight {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(42px) scale(0.92);
+  }
+}

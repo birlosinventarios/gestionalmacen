@@ -39,19 +39,36 @@ function doGet(e) {
   }
 
   // 2. LISTA DE PÁGINAS PERMITIDAS (Incluye el nuevo GestorExcedentes)
-  var paginasPermitidas = [
-    'GestorExcedentes', // Tu nueva Propuesta 1
-    'PrototipoTraspasos',
-    'PrototipoExcedentes',
-    'FormularioTraspasos',
-    'APPALMACEN', 
-    'FormularioEtiquetas', 
-    'FormularioEtiquetasExcedentes',
-    'FormularioEtiquetasExcedentesReimpresion', 
-    'MonitorTraspasos',
-    'HistorialTraspasos',
-    'ConsultaExcedentes'
-  ];
+var paginasPermitidas = [
+  // Shell principal
+  'APPALMACEN',
+
+  // Vistas operativas
+  'FormularioTraspasos',
+  'MonitorTraspasos',
+  'HistorialTraspasos',
+
+  // Etiquetas
+  'FormularioEtiquetas',
+  'FormularioEtiquetasIdentificadoras',
+  'FormularioEtiquetasExcedentes',
+  'FormularioEtiquetasExcedentesReimpresion',
+
+  // Excedentes / inventario
+  'GestorExcedentes',
+  'ConsultaExcedentes',
+  'NegativosBirlos',
+  'MonitorReabastecimiento',
+
+  // Auditoría
+  'AuditoriaExcedentes',
+  'AuditoriaExcedentesCaptura',
+  'AuditoriaExcedentesDetalle',
+
+  // Prototipos
+  'PrototipoTraspasos',
+  'PrototipoExcedentes'
+];
   
   if (paginasPermitidas.indexOf(pagina) === -1) {
     return HtmlService.createHtmlOutput("<h2>Error: '" + pagina + "' no existe.</h2>");

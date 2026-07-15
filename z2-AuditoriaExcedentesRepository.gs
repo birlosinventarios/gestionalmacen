@@ -281,9 +281,28 @@ const AuditoriaExcedentesRepository = (() => {
     return true;
   }
 
+  function getAllFresh() {
+    const values = _readValues_();
+
+    return values
+      .map((row, idx) => _rowToObj_(row, idx + 2))
+      .filter(item => item.idauditoria);
+  }
+
+  function getByIdAuditoriaFresh(idAuditoria) {
+    const id = _normalizeId_(idAuditoria);
+    const all = getAllFresh();
+    const found = all.find(x => _normalizeId_(x.idauditoria) === id);
+
+    return found ? _clone_(found) : null;
+  }
+
+  
   return {
     getAll,
+    getAllFresh,
     getByIdAuditoria,
+    getByIdAuditoriaFresh,
     getAbiertas,
     getCerradas,
     exists,
@@ -293,35 +312,5 @@ const AuditoriaExcedentesRepository = (() => {
     clearCache
   };
 
+
 })();
-
-/**
- * ===========================
- * DEBUGGERS
- * ===========================
- */
-
-function debugAuditoriaExcedentesRepository_getAll() {
-  const data = AuditoriaExcedentesRepository.getAll();
-  console.log("[DEBUG] AuditoriaExcedentesRepository.getAll :: total", data.length);
-  console.log(JSON.stringify(data.slice(0, 10), null, 2));
-  return data;
-}
-
-function debugAuditoriaExcedentesRepository_getAbiertas() {
-  const data = AuditoriaExcedentesRepository.getAbiertas();
-  console.log("[DEBUG] AuditoriaExcedentesRepository.getAbiertas :: total", data.length);
-  console.log(JSON.stringify(data.slice(0, 10), null, 2));
-  return data;
-}
-
-function debugAuditoriaExcedentesRepository_getCerradas() {
-  const data = AuditoriaExcedentesRepository.getCerradas();
-  console.log("[DEBUG] AuditoriaExcedentesRepository.getCerradas :: total", data.length);
-  console.log(JSON.stringify(data.slice(0, 10), null, 2));
-  return data;
-}
-
-function debugAuditoriaExcedentesRepository_clearCache() {
-  return AuditoriaExcedentesRepository.clearCache();
-}

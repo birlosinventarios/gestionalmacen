@@ -327,6 +327,123 @@ const MonitorReabastecimientoService = (() => {
       bajoMinimo: tieneMaxMin ? existenciaActual <= minimo : false
     };
   }
+  
+/**
+ * ------------------------------------------------------------
+ * BALANCE POR ID ÚNICO / ESTADO ACTUAL
+ * ------------------------------------------------------------
+ */
+
+function esCasaBlanca_(bodega) {
+  const b = toStrUpper_(bodega || "");
+
+  return (
+    b === "CASA BLANCA 1" ||
+    b === "CASA BLANCA 2" ||
+    b.startsWith("CB1") ||
+    b.startsWith("CB2")
+  );
+}
+
+function esBodegaExcedente_(bodega) {
+  const b = toStrUpper_(bodega || "");
+
+  return (
+    b === "BODEGA 1" ||
+    b === "BODEGA 2" ||
+    b === "BODEGA 3" ||
+    b === "BODEGA MOSTRADOR" ||
+    b === "CUARTO ALTO RIESGO" ||
+    b === "MOSTRADOR" ||
+    b.startsWith("B1") ||
+    b.startsWith("B2") ||
+    b.startsWith("B3") ||
+    b.startsWith("BM") ||
+    b.startsWith("CU") ||
+    b.startsWith("MO")
+  );
+}
+
+function construirBalanceIdUnicoPorCodigo_() {
+  const mapa = {};
+
+  if (
+    typeof EstadoActualExcedentesService === "undefined" ||
+    !EstadoActualExcedentesService ||
+    typeof EstadoActualExcedentesService.getAuditables !== "function"
+  ) {
+    console.warn("[MonitorReabastecimientoService] EstadoActualExcedentesService no disponible.");
+    return mapa;
+  }
+
+  let auditables = [];
+
+  try {
+    auditables = EstadoActualExcedentesService.getAuditables({
+      tipoAuditoria: "GLOBAL",
+      bodegaObjetivo: "TODAS"
+    }) || [];
+  } catch (error) {
+    console.error("❌ Error al construir balance ID único:", error);
+    return mapa;
+  }
+
+  auditables.forEach(item => {
+    const codigo = toStrUpper_(item.codigo || "");
+    const idUnico = toStr_(item.idUnico || item.idunico || "");
+    const bodegaActual = toStrUpper_(item.bodegaActual || item.bodega || "");
+    const ubicacionActual = toStrUpper_(item.ubicacionActual || item.ubicacion || "");
+    const saldoActual = toNum_(item.saldoActual || 0);
+
+    if (!codigo) return;
+    if (!idUnico) return;
+    if (saldoActual <= 0) return;
+
+    if (!mapa[codigo]) {
+      mapa[codigo] = {
+        codigo: codigo,
+
+        excedentebodegaIdUnico: 0,
+        excedentecasablancaIdUnico: 0,
+        excedenteTotalIdUnico: 0,
+
+        idsUnicosExcedenteBodega: [],
+        idsUnicosExcedenteCasaBlanca: [],
+
+        detalleIdUnicoExcedentes: [],
+        detalleIdUnicoBodega: [],
+        detalleIdUnicoCasaBlanca: []
+      };
+    }
+
+    const detalleIdUnico = {
+      idUnico: idUnico,
+      bodega: bodegaActual,
+      ubicacion: ubicacionActual,
+      sku: codigo,
+      cantidadIdUnico: saldoActual
+    };
+
+    if (esCasaBlanca_(bodegaActual)) {
+      mapa[codigo].excedentecasablancaIdUnico += saldoActual;
+      mapa[codigo].idsUnicosExcedenteCasaBlanca.push(idUnico);
+      mapa[codigo].detalleIdUnicoCasaBlanca.push(detalleIdUnico);
+      mapa[codigo].detalleIdUnicoExcedentes.push(detalleIdUnico);
+
+    } else if (esBodegaExcedente_(bodegaActual)) {
+      mapa[codigo].excedentebodegaIdUnico += saldoActual;
+      mapa[codigo].idsUnicosExcedenteBodega.push(idUnico);
+      mapa[codigo].detalleIdUnicoBodega.push(detalleIdUnico);
+      mapa[codigo].detalleIdUnicoExcedentes.push(detalleIdUnico);
+    }
+
+    mapa[codigo].excedenteTotalIdUnico =
+      mapa[codigo].excedentebodegaIdUnico +
+      mapa[codigo].excedentecasablancaIdUnico;
+  });
+
+  return mapa;
+}
 
   /**
    * ------------------------------------------------------------
@@ -334,13 +451,16 @@ const MonitorReabastecimientoService = (() => {
    * ------------------------------------------------------------
    */
 
+  
   function construirRegistros_() {
     const existencias = getExistencias_();
     const mapaCatalogo = buildCatalogoMap_();
     const mapaMaxMin = buildMaxMinMap_();
     const mapaUbicaciones = buildUbicacionesMap_();
+    const balanceIdUnicoPorCodigo = construirBalanceIdUnicoPorCodigo_();
 
     const salida = existencias.map(item => {
+
       const codigo = toStrUpper_(item.codigo);
       const catalogo = mapaCatalogo[codigo] || {};
       const maxmin = mapaMaxMin[codigo] || {};
@@ -365,6 +485,20 @@ const MonitorReabastecimientoService = (() => {
       const excedenteBodega = toNum_(item.excedentebodega || 0);
       const excedenteCasaBlanca = toNum_(item.excedentecasablanca || 0);
       const excedenteTotal = excedenteBodega + excedenteCasaBlanca;
+
+      const balanceIdUnico = balanceIdUnicoPorCodigo[codigo] || null;
+
+      const excedenteBodegaIdUnico = balanceIdUnico
+        ? toNum_(balanceIdUnico.excedentebodegaIdUnico)
+        : 0;
+
+      const excedenteCasaBlancaIdUnico = balanceIdUnico
+        ? toNum_(balanceIdUnico.excedentecasablancaIdUnico)
+        : 0;
+
+      const excedenteTotalIdUnico =
+        excedenteBodegaIdUnico + excedenteCasaBlancaIdUnico;
+
 
       const minimo = toNum_(maxmin.minimo || 0);
       const maximo = toNum_(maxmin.maximo || 0);
@@ -435,10 +569,37 @@ const MonitorReabastecimientoService = (() => {
         maximo: maximo,
         umbralpreventivo: minimo * 1.5,
 
-        // Excedentes disponibles
+        // Excedentes disponibles desde EXISTENCIAS
         excedentebodega: excedenteBodega,
         excedentecasablanca: excedenteCasaBlanca,
         excedentetotal: excedenteTotal,
+
+        // Excedentes disponibles desde ID ÚNICO / EstadoActualExcedentesService
+        excedentebodegaIdUnico: excedenteBodegaIdUnico,
+        excedentecasablancaIdUnico: excedenteCasaBlancaIdUnico,
+        excedenteTotalIdUnico: excedenteTotalIdUnico,
+
+        idsUnicosExcedenteBodega: balanceIdUnico
+          ? [...(balanceIdUnico.idsUnicosExcedenteBodega || [])]
+          : [],
+
+        idsUnicosExcedenteCasaBlanca: balanceIdUnico
+          ? [...(balanceIdUnico.idsUnicosExcedenteCasaBlanca || [])]
+          : [],
+
+        detalleIdUnicoExcedentes: balanceIdUnico
+          ? [...(balanceIdUnico.detalleIdUnicoExcedentes || [])]
+          : [],
+
+        detalleIdUnicoBodega: balanceIdUnico
+          ? [...(balanceIdUnico.detalleIdUnicoBodega || [])]
+          : [],
+
+        detalleIdUnicoCasaBlanca: balanceIdUnico
+          ? [...(balanceIdUnico.detalleIdUnicoCasaBlanca || [])]
+          : [],
+
+        modoBalanceDisponibleIdUnico: !!balanceIdUnico,
 
         // Semáforo / acción
         statussemaforo: statusSemaforo,

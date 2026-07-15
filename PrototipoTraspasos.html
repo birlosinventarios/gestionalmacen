@@ -263,15 +263,15 @@
   }
 
   #render-prototipo-traspasos .proto-type-chip-acomodo {
-    background: #eff6ff;
-    color: #2563eb;
-    border-color: #bfdbfe;
+    background: #ecfdf5;
+    color: #047857;
+    border-color: #a7f3d0;
   }
 
   #render-prototipo-traspasos .proto-type-chip-surtido {
-    background: #fff7ed;
-    color: #d97706;
-    border-color: #fed7aa;
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
   }
 
   #render-prototipo-traspasos .proto-location-block {
@@ -606,6 +606,21 @@
           ).filter(Boolean)
         );
       }, [cola]);
+
+      
+      const resumenCola = useMemo(() => {
+        const total = cola.length;
+
+        const acomodos = cola.filter(item => item.tipo === 'Acomodo').length;
+        const surtidos = cola.filter(item => item.tipo === 'Surtido').length;
+
+        return {
+          total,
+          acomodos,
+          surtidos
+        };
+      }, [cola]);
+
 
       const baseActivaDisponible = useMemo(() => {
         return baseActiva.filter(item => {
@@ -1759,6 +1774,44 @@
 
             {/* TABLA DE RESULTADOS */}
             <div className="flex-1 min-w-0 proto-results-shell overflow-auto custom-scroll-container">
+
+              <div className="bg-white border-b border-gray-200 px-5 py-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-[#1c1d1f] text-white flex items-center justify-center shadow-md">
+                    <LocalIcon name="list-checks" size={22} />
+                  </div>
+
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
+                      Fila de movimientos
+                    </span>
+                    <span className="text-[15px] font-black uppercase tracking-[0.08em] text-gray-900">
+                      {resumenCola.total} {resumenCola.total === 1 ? 'elemento añadido' : 'elementos añadidos'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.16em]">
+                      Acomodo
+                    </span>
+                    <span className="block text-[18px] font-black font-mono leading-none">
+                      {resumenCola.acomodos}
+                    </span>
+                  </div>
+
+                  <div className="px-3 py-2 rounded-xl bg-red-50 border border-red-100 text-red-700">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.16em]">
+                      Surtido
+                    </span>
+                    <span className="block text-[18px] font-black font-mono leading-none">
+                      {resumenCola.surtidos}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               <table className="proto-results-table">
                 <thead className="proto-results-head">
                   <tr>

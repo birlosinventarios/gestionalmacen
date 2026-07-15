@@ -94,11 +94,20 @@ const GestorExcedentesService = (() => {
   function _mapResumen_(resumenBase) {
     const r = resumenBase || {};
 
+    const idsUnicosVigentes = _toSafeNum_(r.vigentes);
+    const idsUnicosConUbicacion = _toSafeNum_(r.conUbicacion);
+    const idsUnicosPendientes = _toSafeNum_(r.pendientesUbicacion);
+
+    const avanceUbicacionPct = idsUnicosVigentes > 0
+      ? Math.round(((idsUnicosConUbicacion / idsUnicosVigentes) * 100 + Number.EPSILON) * 100) / 100
+      : 0;
+
     return {
       totalIdsRegistrados: _toSafeNum_(r.totalIdUnicos),
-      idsUnicosVigentes: _toSafeNum_(r.vigentes),
-      idsUnicosPendientes: _toSafeNum_(r.pendientesUbicacion),
-      idsUnicosConUbicacion: _toSafeNum_(r.conUbicacion),
+      idsUnicosVigentes: idsUnicosVigentes,
+      idsUnicosPendientes: idsUnicosPendientes,
+      idsUnicosConUbicacion: idsUnicosConUbicacion,
+      avanceUbicacionPct: avanceUbicacionPct,
       stockTotalVigente: _toSafeNum_(r.stockTotalVigente),
 
       // compatibilidad semántica
@@ -190,6 +199,7 @@ function obtenerVista() {
           foliosVigentes: 0,
           foliosPendientes: 0,
           foliosConUbicacion: 0,
+          avanceUbicacionPct: 0,
           auditables: 0,
           cerrados: 0,
           stockTotalAuditable: 0,

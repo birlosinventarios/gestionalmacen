@@ -59,6 +59,63 @@
   #render-monitor-reabastecimiento .fade-in-up {
     animation: mrFadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
+
+  #render-monitor-reabastecimiento .mr-fab-mode-panel {
+    min-width: 220px;
+    background: #ffffff;
+    border: 1px solid #dadce0;
+    border-radius: 1rem;
+    padding: 8px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.14);
+  }
+
+  #render-monitor-reabastecimiento .mr-fab-mode-title {
+    font-size: 9px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #5f6368;
+    padding: 2px 4px 7px;
+  }
+
+  #render-monitor-reabastecimiento .mr-fab-mode-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  #render-monitor-reabastecimiento .mr-fab-mode-btn {
+    min-height: 38px;
+    border-radius: 0.75rem;
+    border: none;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    transition: all 0.18s ease;
+  }
+
+  #render-monitor-reabastecimiento .mr-fab-mode-btn.idle {
+    background: #f8f9fa;
+    color: #5f6368;
+  }
+
+  #render-monitor-reabastecimiento .mr-fab-mode-btn.idle:hover {
+    background: #f1f3f4;
+    color: #1c1d1f;
+  }
+
+  #render-monitor-reabastecimiento .mr-fab-mode-btn.active-red {
+    background: #d93025;
+    color: #ffffff;
+    box-shadow: 0 4px 10px rgba(217, 48, 37, 0.18);
+  }
+
+  #render-monitor-reabastecimiento .mr-fab-mode-btn.active-dark {
+    background: #1c1d1f;
+    color: #ffffff;
+  }
+
 </style>
 
 <div id="render-monitor-reabastecimiento" class="h-full w-full flex flex-col bg-[#f8f9fa] overflow-y-auto p-4 md:p-8"></div>
@@ -141,38 +198,36 @@
           : 'bg-slate-100 text-slate-900 border border-slate-300';
 
       return (
-        <div className="bg-white border border-[#dadce0] rounded-[1.5rem] p-6 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group min-h-[170px]">
+        <div className="bg-white border border-[#dadce0] rounded-[1.25rem] p-4 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group min-h-[112px]">
           <div className={`absolute top-0 left-0 right-0 h-1.5 ${topBarColor}`}></div>
 
-          <div className="h-full flex flex-col pt-2">
-            <div className="mb-1">
-              <p className="text-[18px] font-extrabold uppercase tracking-[0.14em] text-[#5f6368] leading-tight">
-                {title}
-              </p>
-            </div>
+          <div className="h-full flex flex-col pt-1">
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 h-full">
+              <div className="min-w-0">
+                <p className="text-[12px] font-black uppercase tracking-[0.12em] text-[#5f6368] leading-tight mb-2">
+                  {title}
+                </p>
 
-            <div className="grid grid-cols-[1fr_auto] items-end h-full gap-4">
-              <div className="flex flex-col justify-between h-full min-w-0">
                 <div className="flex items-end gap-2 flex-wrap">
-                  <h3 className="text-5xl font-black tracking-tight text-[#1c1d1f] leading-none">
+                  <h3 className="m-0 p-0 bg-transparent border-none text-[34px] font-black tracking-tight text-[#1c1d1f] leading-none">
                     {value}
                   </h3>
 
                   {unit && (
-                    <span className="text-[18px] font-bold text-[#5f6368] uppercase leading-none pb-1">
+                    <span className="text-[13px] font-black text-[#5f6368] uppercase leading-none pb-1">
                       {unit}
                     </span>
                   )}
                 </div>
 
                 {trend && (
-                  <div className="mt-4 flex items-center gap-2 flex-wrap">
-                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${trendColor}`}>
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${trendColor}`}>
                       {trend.text}
                     </span>
 
                     {trend.sub && (
-                      <span className="text-xs font-semibold text-[#5f6368]">
+                      <span className="text-[11px] font-semibold text-[#5f6368]">
                         {trend.sub}
                       </span>
                     )}
@@ -180,9 +235,9 @@
                 )}
               </div>
 
-              <div className="self-end justify-self-end">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${iconStyles[indicatorColor]}`}>
-                  <LocalIcon name={iconName} size={40} />
+              <div className="justify-self-end">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${iconStyles[indicatorColor]}`}>
+                  <LocalIcon name={iconName} size={28} />
                 </div>
               </div>
             </div>
@@ -252,12 +307,91 @@
       const [sortBy, setSortBy] = useState("PRIORIDAD");
       const [activeRow, setActiveRow] = useState(null);
       const [currentPage, setCurrentPage] = useState(1);
+      const [modoBalance, setModoBalance] = useState("EXISTENCIAS");
+
       const [hoverMenu, setHoverMenu] = useState(null);
+
+      const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+      const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
+      const [isFabMenuMounted, setIsFabMenuMounted] = useState(false);
+      const [isFabClosing, setIsFabClosing] = useState(false);
+      const [isSearchClosing, setIsSearchClosing] = useState(false);
+
       const closeMenuTimeout = useRef(null);
+      const searchInputRef = useRef(null);
+      const fabContainerRef = useRef(null);
 
       const firstLoadDoneRef = useRef(false);
       const syncNotifyStateRef = useRef({});
       const notifyOnce_ = createNotifyOnce_(syncNotifyStateRef);
+
+      const abrirFabMenu_ = () => {
+        setIsFabMenuMounted(true);
+        setIsFabClosing(false);
+        setIsFabMenuOpen(true);
+      };
+
+      const cerrarFabMenu_ = () => {
+        setIsFabClosing(true);
+        setIsSearchClosing(true);
+
+        setTimeout(() => {
+          setIsFabMenuOpen(false);
+          setIsFabMenuMounted(false);
+          setIsFabClosing(false);
+          setIsSearchExpanded(false);
+          setIsSearchClosing(false);
+          setSearchQuery("");
+        }, 190);
+      };
+
+      const toggleFabMenu_ = () => {
+        if (isFabMenuOpen) {
+          cerrarFabMenu_();
+        } else {
+          abrirFabMenu_();
+        }
+      };
+
+      const abrirBuscador_ = () => {
+        setIsSearchClosing(false);
+        setIsSearchExpanded(true);
+        setTimeout(() => searchInputRef.current?.focus(), 120);
+      };
+
+      const cerrarBuscador_ = () => {
+        setIsSearchClosing(true);
+
+        setTimeout(() => {
+          setIsSearchExpanded(false);
+          setIsSearchClosing(false);
+          setSearchQuery("");
+        }, 180);
+      };
+
+      const toggleBuscador_ = () => {
+        if (isSearchExpanded) {
+          cerrarBuscador_();
+        } else {
+          abrirBuscador_();
+        }
+      };
+
+      useEffect(() => {
+        if (!isFabMenuOpen) return;
+
+        const handleKeyDown = (event) => {
+          if (event.key === "Escape") {
+            cerrarFabMenu_();
+          }
+        };
+
+        document.addEventListener("keydown", handleKeyDown, true);
+
+        return () => {
+          document.removeEventListener("keydown", handleKeyDown, true);
+        };
+      }, [isFabMenuOpen]);
 
       const fetchDatabase = useCallback((contexto = "init") => {
         const USAR_MOCK = false;
@@ -422,24 +556,124 @@
       useEffect(() => {
         fetchDatabase("init");
       }, [fetchDatabase]);
-
+      
       useEffect(() => {
         setCurrentPage(1);
         setActiveRow(null);
-      }, [searchQuery, filterStatus, sortBy, filterBodega]);
+      }, [searchQuery, filterStatus, sortBy, filterBodega, modoBalance]);
+
+      const registrosConBalanceActivo = useMemo(() => {
+        return (registros || []).map(item => {
+          const usandoIdUnico = modoBalance === "IDUNICO";
+
+          const excedenteBodegaActivo = usandoIdUnico
+            ? Number(item.excedentebodegaIdUnico || 0)
+            : Number(item.excedentebodega || 0);
+
+          const excedenteCasaBlancaActivo = usandoIdUnico
+            ? Number(item.excedentecasablancaIdUnico || 0)
+            : Number(item.excedentecasablanca || 0);
+
+          const excedenteTotalActivo =
+            excedenteBodegaActivo + excedenteCasaBlancaActivo;
+
+          const objetivoRellenoActivo = Number(item.cantidadobjetivorelleno || 0);
+
+          const rellenoPosibleConExcedenteActivo =
+            Math.min(objetivoRellenoActivo, excedenteTotalActivo);
+
+          const rellenoCompletoActivo =
+            objetivoRellenoActivo > 0 &&
+            rellenoPosibleConExcedenteActivo >= objetivoRellenoActivo;
+
+          let accionOperativaActiva = String(item.accionoperativa || "SIN ACCION").toUpperCase();
+
+          if (
+            accionOperativaActiva !== "SIN ACCION" &&
+            accionOperativaActiva !== "REVISAR PARAMETRIZACION"
+          ) {
+            if (excedenteTotalActivo <= 0) {
+              accionOperativaActiva = "REPORTAR A COMPRAS";
+            } else if (String(item.statussemaforo || "").toUpperCase() === "ROJO") {
+              accionOperativaActiva = "RELLENO URGENTE";
+            } else if (String(item.statussemaforo || "").toUpperCase() === "AMBAR") {
+              accionOperativaActiva = "RELLENO PREVENTIVO";
+            }
+          }
+
+          let prioridadOrdenActiva = Number(item.prioridadorden || 999);
+          let prioridadEtiquetaActiva = item.prioridadetiqueta || "SIN CLASIFICAR";
+
+          if (accionOperativaActiva === "REPORTAR A COMPRAS") {
+            prioridadOrdenActiva = 1;
+            prioridadEtiquetaActiva = "CRITICO SIN RESPALDO";
+          } else if (accionOperativaActiva === "RELLENO URGENTE") {
+            prioridadOrdenActiva = 2;
+            prioridadEtiquetaActiva = "URGENTE";
+          } else if (accionOperativaActiva === "RELLENO PREVENTIVO") {
+            prioridadOrdenActiva = 3;
+            prioridadEtiquetaActiva = "PREVENTIVO";
+          } else if (accionOperativaActiva === "SIN ACCION") {
+            prioridadOrdenActiva = 5;
+            prioridadEtiquetaActiva = "SIN ACCION";
+          } else if (accionOperativaActiva === "REVISAR PARAMETRIZACION") {
+            prioridadOrdenActiva = 6;
+            prioridadEtiquetaActiva = "EXCEPCION";
+          }
+
+          const observacionActiva =
+            modoBalance === "IDUNICO"
+              ? `Balance por ID único. Excedente disponible: ${excedenteTotalActivo} pzas.`
+              : (item.observacion || "");
+
+          return {
+            ...item,
+
+            modoBalanceActivo: modoBalance,
+
+            excedenteBodegaActivo,
+            excedenteCasaBlancaActivo,
+            excedenteTotalActivo,
+
+            rellenoPosibleConExcedenteActivo,
+            rellenoCompletoActivo,
+
+            accionOperativaActiva,
+            observacionActiva,
+
+            prioridadOrdenActiva,
+            prioridadEtiquetaActiva
+          };
+        });
+      }, [registros, modoBalance]);
 
       const metrics = useMemo(() => {
+        const rows = registrosConBalanceActivo || [];
+
         return {
-          totalRegistros: resumen?.totalRegistros || 0,
-          verdes: resumen?.verdes || 0,
-          rellenosPreventivos: resumen?.rellenosPreventivos || 0,
-          rellenosUrgentes: resumen?.rellenosUrgentes || 0,
-          casosCompras: resumen?.casosCompras || 0,
-          bodega1: resumen?.bodega1 || 0,
-          bodega2: resumen?.bodega2 || 0,
-          bodega3: resumen?.bodega3 || 0
+          totalRegistros: rows.length,
+
+          verdes: rows.filter(x =>
+            String(x.statussemaforo || "").toUpperCase() === "VERDE"
+          ).length,
+
+          rellenosPreventivos: rows.filter(x =>
+            String(x.accionOperativaActiva || x.accionoperativa || "").toUpperCase() === "RELLENO PREVENTIVO"
+          ).length,
+
+          rellenosUrgentes: rows.filter(x =>
+            String(x.accionOperativaActiva || x.accionoperativa || "").toUpperCase() === "RELLENO URGENTE"
+          ).length,
+
+          casosCompras: rows.filter(x =>
+            String(x.accionOperativaActiva || x.accionoperativa || "").toUpperCase() === "REPORTAR A COMPRAS"
+          ).length,
+
+          bodega1: rows.filter(x => String(x.bodegakey || "").toUpperCase() === "B1").length,
+          bodega2: rows.filter(x => String(x.bodegakey || "").toUpperCase() === "B2").length,
+          bodega3: rows.filter(x => String(x.bodegakey || "").toUpperCase() === "B3").length
         };
-      }, [resumen]);
+      }, [registrosConBalanceActivo]);
 
       const getBodegaLabel = (key) => {
         const map = {
@@ -457,11 +691,17 @@
       };
 
       const recordsFiltered = useMemo(() => {
-        return (registros || []).filter(item => {
+        return (registrosConBalanceActivo || []).filter(item => {
           const codigo = String(item.codigo || "").toLowerCase();
           const descripcion = String(item.descripcion || "").toLowerCase();
           const ubicacion = String(item.ubicacionsurtido || "").toLowerCase();
-          const accion = String(item.accionoperativa || "").toUpperCase();
+
+          const accion = String(
+            item.accionOperativaActiva ||
+            item.accionoperativa ||
+            ""
+          ).toUpperCase();
+
           const status = String(item.statussemaforo || "").toUpperCase();
           const bodegaKey = String(item.bodegakey || "").toUpperCase();
 
@@ -478,9 +718,9 @@
           if (filterBodega !== "TODAS" && bodegaKey !== filterBodega) {
             return false;
           }
-
+          
           if (filterStatus === "ALL") {
-            return accion !== "SIN ACCION";
+            return true;
           }
 
           if (filterStatus === "VERDE") {
@@ -501,7 +741,14 @@
 
           return true;
         });
-      }, [registros, searchQuery, filterStatus, filterBodega]);
+
+      }, [
+        registrosConBalanceActivo,
+        searchQuery,
+        filterStatus,
+        filterBodega
+      ]);
+
 
       const openHoverMenu = (menuName) => {
         if (closeMenuTimeout.current) {
@@ -533,8 +780,9 @@
 
         if (sortBy === "PRIORIDAD") {
           salida.sort((a, b) => {
-            const pA = Number(a.prioridadorden || 999);
-            const pB = Number(b.prioridadorden || 999);
+            const pA = Number(a.prioridadOrdenActiva || a.prioridadorden || 999);
+            const pB = Number(b.prioridadOrdenActiva || b.prioridadorden || 999);
+
             if (pA !== pB) return pA - pB;
             return String(a.codigo || "").localeCompare(String(b.codigo || ""), "es", {
               sensitivity: "base",
@@ -584,7 +832,10 @@
         }
 
         if (sortBy === "EXCEDENTE_DESC") {
-          salida.sort((a, b) => Number(b.excedentetotal || 0) - Number(a.excedentetotal || 0));
+          salida.sort((a, b) =>
+            Number(b.excedenteTotalActivo ?? b.excedentetotal ?? 0) -
+            Number(a.excedenteTotalActivo ?? a.excedentetotal ?? 0)
+          );
         }
 
         return salida;
@@ -600,125 +851,495 @@
         return recordsFinal.slice(start, end);
       }, [recordsFinal, currentPage]);
 
-      const openDetalle = (item) => {
-        Swal.fire({
-          title: 'Detalle de Reabastecimiento',
-          html: `
-            <div class="text-left text-sm space-y-4 p-1 text-slate-700">
-              <div>
-                <p class="text-base font-extrabold text-slate-900">${item.codigo}</p>
-                <p class="text-xs text-slate-500 uppercase mt-1">${item.descripcion || 'SIN DESCRIPCIÓN'}</p>
-              </div>
+      const exportarExcelCompleto = () => {
+        if (!window.ExcelExportUtils || typeof window.ExcelExportUtils.exportarAXLSX !== "function") {
+          notify_(
+            "No se detectó el helper global de exportación XLSX.",
+            "error",
+            4200,
+            {
+              title: "Exportador no disponible",
+              sound: true
+            }
+          );
+          return;
+        }
 
-              <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
-                <div class="flex justify-between">
-                  <span>Ubicación surtido:</span>
-                  <strong>${item.ubicacionsurtido || 'SIN ASIGNAR'}</strong>
-                </div>
-                <div class="flex justify-between">
-                  <span>Zona / Bodega:</span>
-                  <strong>${item.bodegalabel || 'Sin ubicación'}</strong>
-                </div>
-                <div class="flex justify-between">
-                  <span>Existencia actual:</span>
-                  <strong>${Number(item.existenciaactual || 0)} PZAS</strong>
-                </div>
-                <div class="flex justify-between">
-                  <span>Mínimo declarado:</span>
-                  <strong>${Number(item.minimo || 0)} PZAS</strong>
-                </div>
-                <div class="flex justify-between">
-                  <span>Máximo declarado:</span>
-                  <strong>${Number(item.maximo || 0)} PZAS</strong>
-                </div>
-                <div class="flex justify-between">
-                  <span>Excedente Bodega:</span>
-                  <strong>${Number(item.excedentebodega || 0)} PZAS</strong>
-                </div>
-                <div class="flex justify-between">
-                  <span>Excedente Casa Blanca:</span>
-                  <strong>${Number(item.excedentecasablanca || 0)} PZAS</strong>
-                </div>
-                <div class="flex justify-between">
-                  <span>Total excedente:</span>
-                  <strong>${Number(item.excedentetotal || 0)} PZAS</strong>
-                </div>
-                <div class="flex justify-between">
-                  <span>Objetivo de relleno:</span>
-                  <strong>${Number(item.cantidadobjetivorelleno || 0)} PZAS</strong>
-                </div>
-                <div class="flex justify-between">
-                  <span>Relleno posible:</span>
-                  <strong>${Number(item.rellenoposibleconexcedente || 0)} PZAS</strong>
-                </div>
-              </div>
+        if (!Array.isArray(recordsFinal) || recordsFinal.length === 0) {
+          notify_(
+            "No existen registros disponibles para exportación.",
+            "warning",
+            3200,
+            {
+              title: "Sin datos para exportar",
+              sound: true
+            }
+          );
+          return;
+        }
 
-              <div class="p-4 rounded-2xl border border-slate-200 bg-white">
-                <p class="text-xs uppercase tracking-wider font-black text-slate-500 mb-2">Acción Operativa</p>
-                <p class="font-extrabold text-slate-900">${item.accionoperativa || 'SIN DEFINIR'}</p>
-                <p class="text-xs text-slate-500 mt-2">${item.observacion || ''}</p>
-              </div>
-            </div>
-          `,
-          background: '#ffffff',
-          confirmButtonColor: '#d93025',
-          confirmButtonText: 'Cerrar',
-          customClass: {
-            popup: 'rounded-[1.5rem]',
-            confirmButton: 'rounded-xl px-5 py-3'
-          }
+        const fecha = new Date().toISOString().slice(0, 10);
+
+        window.ExcelExportUtils.exportarAXLSX({
+          fileName: `Monitor_Reabastecimiento_${fecha}.xlsx`,
+          sheetName: "Reabastecimiento",
+          rows: recordsFinal,
+            columns: [
+              { key: "codigo", label: "Código" },
+              { key: "descripcion", label: "Descripción" },
+              { key: "ubicacionsurtido", label: "Ubicación Surtido" },
+              { key: "bodegalabel", label: "Bodega / Zona" },
+
+              { key: "existenciaactual", label: "Existencia Actual" },
+              { key: "minimo", label: "Mínimo" },
+              { key: "maximo", label: "Máximo" },
+              { key: "umbralpreventivo", label: "Umbral Preventivo" },
+
+              { key: "modoBalanceActivo", label: "Modo Balance" },
+
+              { key: "excedenteBodegaActivo", label: "Excedente Bodega Activo" },
+              { key: "excedenteCasaBlancaActivo", label: "Excedente Casa Blanca Activo" },
+              { key: "excedenteTotalActivo", label: "Excedente Total Activo" },
+
+              { key: "excedentebodega", label: "Excedente Bodega Existencias" },
+              { key: "excedentecasablanca", label: "Excedente Casa Blanca Existencias" },
+              { key: "excedentetotal", label: "Excedente Total Existencias" },
+
+              { key: "excedentebodegaIdUnico", label: "Excedente Bodega ID Único" },
+              { key: "excedentecasablancaIdUnico", label: "Excedente Casa Blanca ID Único" },
+              { key: "excedenteTotalIdUnico", label: "Excedente Total ID Único" },
+
+              { key: "statussemaforo", label: "Semáforo" },
+              { key: "accionOperativaActiva", label: "Acción Operativa Activa" },
+              { key: "prioridadEtiquetaActiva", label: "Prioridad Activa" },
+              { key: "cantidadobjetivorelleno", label: "Objetivo Relleno" },
+              { key: "rellenoPosibleConExcedenteActivo", label: "Relleno Posible Activo" },
+              { key: "observacionActiva", label: "Observación Activa" }
+            ]
         });
+
+        notify_(
+          `Se inició la exportación de ${recordsFinal.length} registros.`,
+          "success",
+          2200,
+          {
+            title: "Exportación iniciada",
+            sound: true
+          }
+        );
+
+        cerrarFabMenu_();
       };
 
-      return (
-        <div className="space-y-6 fade-in-up">
-          <header className="flex flex-col xl:flex-row justify-between xl:items-center gap-4 bg-white border border-[#dadce0] rounded-3xl p-6 shadow-sm">
-            <div className="space-y-1 shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-                <h1 className="text-3xl font-extrabold tracking-tight text-[#1c1d1f]">
-                  Monitor de Reabastecimiento
-                </h1>
+const escapeHtml_ = (value) => {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
+const compareEsLocal_ = (a, b) => {
+  return String(a || "").localeCompare(String(b || ""), "es", {
+    sensitivity: "base",
+    numeric: true
+  });
+};
+
+const buildDetalleIdUnicoHtml_ = (item) => {
+  const detalles = Array.isArray(item.detalleIdUnicoExcedentes)
+    ? [...item.detalleIdUnicoExcedentes]
+    : [];
+
+  detalles.sort((a, b) => {
+    const cmpBodega = compareEsLocal_(a.bodega, b.bodega);
+    if (cmpBodega !== 0) return cmpBodega;
+
+    const cmpUbicacion = compareEsLocal_(a.ubicacion, b.ubicacion);
+    if (cmpUbicacion !== 0) return cmpUbicacion;
+
+    const cmpSku = compareEsLocal_(a.sku, b.sku);
+    if (cmpSku !== 0) return cmpSku;
+
+    return compareEsLocal_(a.idUnico || a.idunico, b.idUnico || b.idunico);
+  });
+
+  if (detalles.length === 0) {
+    return `
+      <div style="margin-top:12px; padding:14px; border:1px dashed #cbd5e1; border-radius:18px; background:#f8fafc; text-align:center;">
+        <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#64748b;">
+          Sin detalle de ID único para este SKU
+        </div>
+      </div>
+    `;
+  }
+
+  const grupos = detalles.reduce((acc, row) => {
+    const bodega = String(row.bodega || "SIN BODEGA").toUpperCase();
+
+    if (!acc[bodega]) acc[bodega] = [];
+    acc[bodega].push(row);
+
+    return acc;
+  }, {});
+
+  const bodegasOrdenadas = Object.keys(grupos).sort((a, b) => compareEsLocal_(a, b));
+
+  return `
+    <div style="margin-top:14px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; text-align:left;">
+        <div style="width:4px; height:18px; background:#d93025; border-radius:999px;"></div>
+        <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#1c1d1f;">
+          Detalle de excedentes
+        </div>
+      </div>
+
+      ${bodegasOrdenadas.map((bodega) => {
+        const rows = grupos[bodega];
+
+        const totalBodega = rows.reduce((acc, row) => {
+          return acc + Number(row.cantidadIdUnico || 0);
+        }, 0);
+
+        const rowsHtml = rows.map((row) => `
+          <tr>
+            <td style="width:20%; padding:9px 10px; border-bottom:1px solid #e5e7eb; font-weight:800; color:#1c1d1f; text-align:center; vertical-align:middle;">
+              ${escapeHtml_(row.bodega)}
+            </td>
+
+            <td style="width:20%; padding:9px 10px; border-bottom:1px solid #e5e7eb; font-family:'JetBrains Mono', monospace; font-weight:800; color:#d93025; text-align:center; vertical-align:middle;">
+              ${escapeHtml_(row.ubicacion)}
+            </td>
+
+            <td style="width:22%; padding:9px 10px; border-bottom:1px solid #e5e7eb; font-family:'JetBrains Mono', monospace; font-weight:800; color:#1c1d1f; text-align:center; vertical-align:middle;">
+              ${escapeHtml_(row.sku)}
+            </td>
+
+            <td style="width:24%; padding:9px 10px; border-bottom:1px solid #e5e7eb; font-family:'JetBrains Mono', monospace; font-weight:900; color:#334155; text-align:center; vertical-align:middle;">
+              ${escapeHtml_(row.idUnico || row.idunico || "")}
+            </td>
+
+            <td style="width:14%; padding:9px 10px; border-bottom:1px solid #e5e7eb; font-weight:900; color:#1c1d1f; text-align:center; vertical-align:middle;">
+              ${Number(row.cantidadIdUnico || 0).toLocaleString()}
+            </td>
+          </tr>
+        `).join("");
+
+        return `
+          <div style="margin-bottom:14px; border:1px solid #dadce0; border-radius:16px; overflow:hidden; background:#ffffff;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; background:#f8f9fa; border-bottom:1px solid #dadce0;">
+              <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#1c1d1f; text-align:left;">
+                ${escapeHtml_(bodega)}
               </div>
 
-              <p className="text-[#5f6368] text-sm font-medium">
-                Salud operativa del surtido y trabajo pendiente real para abastecedores.
-              </p>
+              <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#5f6368; text-align:right;">
+                Total: ${totalBodega.toLocaleString()} pzas
+              </div>
             </div>
 
-            <div className="relative flex-1 min-w-0 xl:max-w-2xl">
-              <LocalIcon
-                name="search"
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                size={18}
-              />
-              <input
-                type="text"
-                placeholder="Filtrar por código, descripción o ubicación..."
-                className="w-full bg-slate-50 border border-[#dadce0] focus:border-[#d93025] focus:bg-white rounded-2xl pl-12 pr-4 py-3 text-sm text-[#1c1d1f] font-semibold placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#d93025]/30 transition-all"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+            <div style="overflow:auto;">
+              <table style="width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed;">
+                <colgroup>
+                  <col style="width:20%;">
+                  <col style="width:20%;">
+                  <col style="width:22%;">
+                  <col style="width:24%;">
+                  <col style="width:14%;">
+                </colgroup>
+
+                <thead>
+                  <tr style="background:#ffffff;">
+                    <th style="width:20%; padding:9px 10px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.11em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">Bodega</th>
+                    <th style="width:20%; padding:9px 10px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.11em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">Ubicación</th>
+                    <th style="width:22%; padding:9px 10px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.11em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">SKU</th>
+                    <th style="width:24%; padding:9px 10px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.11em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">ID único</th>
+                    <th style="width:14%; padding:9px 10px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.11em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">Cantidad</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  ${rowsHtml}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+};
+
+const openDetalle = (item) => {
+  const esIdUnico = item.modoBalanceActivo === "IDUNICO";
+
+  const existenciaActual = Number(item.existenciaactual || 0);
+  const minimo = Number(item.minimo || 0);
+  const maximo = Number(item.maximo || 0);
+  const objetivoRelleno = Number(item.cantidadobjetivorelleno || 0);
+
+  const rellenoPosible = Number(
+    item.rellenoPosibleConExcedenteActivo ??
+    item.rellenoposibleconexcedente ??
+    0
+  );
+
+  const excedenteBodega = Number(
+    item.excedenteBodegaActivo ??
+    item.excedentebodega ??
+    0
+  );
+
+  const excedenteCasaBlanca = Number(
+    item.excedenteCasaBlancaActivo ??
+    item.excedentecasablanca ??
+    0
+  );
+
+  const excedenteTotal = Number(
+    item.excedenteTotalActivo ??
+    item.excedentetotal ??
+    0
+  );
+
+  const porcentajeExistencia = maximo > 0
+    ? Math.min((existenciaActual / maximo) * 100, 100)
+    : 0;
+
+  const porcentajeCobertura = objetivoRelleno > 0
+    ? Math.min((rellenoPosible / objetivoRelleno) * 100, 100)
+    : 0;
+
+  const porcentajeBodega = excedenteTotal > 0
+    ? Math.min((excedenteBodega / excedenteTotal) * 100, 100)
+    : 0;
+
+  const porcentajeCasaBlanca = excedenteTotal > 0
+    ? Math.min((excedenteCasaBlanca / excedenteTotal) * 100, 100)
+    : 0;
+
+  const tieneDetalleIdUnico = Array.isArray(item.detalleIdUnicoExcedentes) &&
+    item.detalleIdUnicoExcedentes.length > 0;
+
+  const sectionHeader_ = (titulo) => `
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; text-align:left;">
+      <div style="width:4px; height:18px; background:#d93025; border-radius:999px;"></div>
+      <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#1c1d1f;">
+        ${escapeHtml_(titulo)}
+      </div>
+    </div>
+  `;
+
+
+  const smallLabel_ = (texto) => `
+    <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#94a3b8; margin-bottom:4px;">
+      ${escapeHtml_(texto)}
+    </div>
+  `;
+
+
+  Swal.fire({
+    title: "Detalle de Reabastecimiento",
+    html: `
+      <div style="text-align:left; color:#334155;">
+
+        <!-- ENCABEZADO SKU -->
+        <div style="margin-bottom:16px; background:#ffffff; border:1px solid #dadce0; border-radius:20px; padding:14px;">
+          <div style="display:grid; grid-template-columns:1fr auto; gap:14px; align-items:center;">
+            <div style="min-width:0;">
+              <div style="font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:0.14em; color:#94a3b8; margin-bottom:4px;">
+                SKU / Material
+              </div>
+
+              <div style="font-family:'JetBrains Mono', monospace; font-size:21px; font-weight:900; color:#d93025; line-height:1.1;">
+                ${escapeHtml_(item.codigo)}
+              </div>
+
+              <div style="margin-top:7px; padding:8px 10px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0; font-size:12px; font-weight:800; text-transform:uppercase; color:#334155; line-height:1.35;">
+                ${escapeHtml_(item.descripcion || "SIN DESCRIPCIÓN")}
+              </div>
             </div>
 
-            <div className="flex items-center gap-3 w-full xl:w-auto shrink-0">
-              <button
-                onClick={() => fetchDatabase("manual")}
-                disabled={loading}
-                className="w-full xl:w-auto flex items-center justify-center gap-2 px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl transition-all shadow-sm active:scale-95 disabled:opacity-50"
-              >
-                <LocalIcon
-                  name="refresh-cw"
-                  className={loading ? "animate-spin" : ""}
-                  size={16}
-                />
-                {loading ? "Sincronizando..." : "Forzar Actualización"}
-              </button>
+            <div style="justify-self:end; align-self:start; padding:8px 12px; border-radius:999px; background:${esIdUnico ? "#1c1d1f" : "#d93025"}; color:#ffffff; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; white-space:nowrap;">
+              ${esIdUnico ? "Balance ID único" : "Balance Existencias"}
             </div>
-          </header>
+          </div>
+        </div>
+
+        <!-- GRID PRINCIPAL -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+
+          <!-- UBICACIÓN -->
+          <div style="background:#ffffff; border:1px solid #dadce0; border-radius:18px; padding:14px;">
+            ${sectionHeader_("Ubicación de surtido")}
+
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:stretch;">
+              <div style="padding:10px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0; text-align:left;">
+                ${smallLabel_("Ubicación")}
+                <div style="font-family:'JetBrains Mono', monospace; font-size:18px; font-weight:900; color:#d93025; line-height:1.2;">
+                  ${escapeHtml_(item.ubicacionsurtido || "SIN ASIGNAR")}
+                </div>
+              </div>
+
+              <div style="padding:10px; border-radius:14px; background:#ffffff; border:1px solid #e5e7eb; text-align:right;">
+                ${smallLabel_("Zona / Bodega")}
+                <div style="font-size:15px; font-weight:900; color:#1c1d1f; line-height:1.2;">
+                  ${escapeHtml_(item.bodegalabel || "Sin ubicación")}
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+
+        <!-- ESTADO PISO -->
+        <div style="background:#ffffff; border:1px solid #dadce0; border-radius:18px; padding:14px;">
+          ${sectionHeader_("Estado en piso")}
+
+          <div>
+            ${smallLabel_("Existencia actual")}
+            <div style="font-size:32px; font-weight:900; color:#1c1d1f; line-height:1;">
+              ${existenciaActual.toLocaleString()}
+            </div>
+          </div>
+
+          <div style="height:9px; width:100%; background:#f1f5f9; border-radius:999px; overflow:hidden; margin-top:14px;">
+            <div style="height:100%; width:${porcentajeExistencia}%; background:${
+              existenciaActual <= minimo
+                ? "#d93025"
+                : existenciaActual >= maximo
+                  ? "#10b981"
+                  : "#f59e0b"
+            }; border-radius:999px;"></div>
+          </div>
+
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; width:100%;">
+            <div style="font-size:12px; font-weight:900; color:#d93025; text-align:left;">
+              Min: ${minimo.toLocaleString()}
+            </div>
+
+            <div style="font-size:12px; font-weight:900; color:#1c1d1f; text-align:right;">
+              Max: ${maximo.toLocaleString()}
+            </div>
+          </div>
+        </div>
+
+            </div>
+
+        <!-- GRID OPERATIVO -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+
+        <!-- REABASTECIMIENTO -->
+        <div style="background:#ffffff; border:1px solid #dadce0; border-radius:18px; padding:14px;">
+          ${sectionHeader_("Necesidad de reabastecimiento")}
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:start;">
+            <div style="padding:7px 9px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0; min-height:48px;">
+              <div style="font-size:11px; line-height:1; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#94a3b8; margin-bottom:3px;">
+                Objetivo
+              </div>
+
+              <div style="font-size:22px; line-height:1; font-weight:900; color:#1c1d1f;">
+                ${objetivoRelleno.toLocaleString()}
+              </div>
+            </div>
+
+            <div style="padding:7px 9px; border-radius:12px; background:${rellenoPosible >= objetivoRelleno && objetivoRelleno > 0 ? "#ecfdf5" : "#fff1f2"}; border:1px solid ${rellenoPosible >= objetivoRelleno && objetivoRelleno > 0 ? "#a7f3d0" : "#fecdd3"}; min-height:48px; text-align:right;">
+              <div style="font-size:11px; line-height:1; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#94a3b8; margin-bottom:3px;">
+                Posible
+              </div>
+
+              <div style="font-size:22px; line-height:1; font-weight:900; color:${rellenoPosible >= objetivoRelleno && objetivoRelleno > 0 ? "#059669" : "#d93025"};">
+                ${rellenoPosible.toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          <div style="height:8px; width:100%; background:#e2e8f0; border-radius:999px; overflow:hidden; margin-top:8px;">
+            <div style="height:100%; width:${porcentajeCobertura}%; background:${rellenoPosible >= objetivoRelleno && objetivoRelleno > 0 ? "#10b981" : "#d93025"}; border-radius:999px;"></div>
+          </div>
+
+          <div style="font-size:10px; font-weight:800; color:#64748b; margin-top:6px; text-align:left;">
+            Cobertura estimada: ${porcentajeCobertura.toFixed(0)}%
+          </div>
+        </div>
+
+          <!-- EXCEDENTE ACTIVO -->
+          <div style="background:#ffffff; border:1px solid #dadce0; border-radius:18px; padding:14px;">
+            ${sectionHeader_("Excedente disponible")}
+
+            <div>
+              ${smallLabel_("Total disponible")}
+              <div style="font-size:32px; font-weight:900; color:#1c1d1f; line-height:1;">
+                ${excedenteTotal.toLocaleString()}
+              </div>
+            </div>
+
+            <div style="height:9px; width:100%; background:#f1f5f9; border-radius:999px; overflow:hidden; display:flex; margin-top:14px;">
+              <div style="height:100%; width:${porcentajeBodega}%; background:#d93025;"></div>
+              <div style="height:100%; width:${porcentajeCasaBlanca}%; background:#1c1d1f;"></div>
+            </div>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; width:100%;">
+              <div style="font-size:12px; font-weight:900; color:#d93025; text-align:left;">
+                B: ${excedenteBodega.toLocaleString()}
+              </div>
+
+              <div style="font-size:12px; font-weight:900; color:#1c1d1f; text-align:right;">
+                CB: ${excedenteCasaBlanca.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        ${
+          tieneDetalleIdUnico
+            ? buildDetalleIdUnicoHtml_(item)
+            : `
+              <div style="margin-top:12px; padding:14px; border:1px dashed #cbd5e1; border-radius:18px; background:#f8fafc; text-align:center;">
+                <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#64748b;">
+                  Sin detalle de ID único para este SKU
+                </div>
+              </div>
+            `
+        }
+      </div>
+    `,
+    background: "#ffffff",
+    width: tieneDetalleIdUnico ? 980 : 760,
+    confirmButtonColor: "#d93025",
+    confirmButtonText: "Cerrar",
+    customClass: {
+      popup: "rounded-[1.5rem]",
+      confirmButton: "rounded-xl px-5 py-3"
+    }
+  });
+};
+
+
+      return (
+        <div className="h-full w-full min-h-0 relative">
+          
+          {isFabMenuMounted && ReactDOM.createPortal(
+            <div
+              className={`fixed inset-0 bg-slate-950/35 backdrop-blur-[1px] transition-opacity duration-200 ${
+                isFabClosing ? "opacity-0" : "opacity-100"
+              }`}
+              style={{ zIndex: 9000 }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                cerrarFabMenu_();
+              }}
+            ></div>,
+            document.body
+          )}
+
+          <div className="h-full w-full min-h-0 flex flex-col gap-4 fade-in-up">
+
 
           {/* MÉTRICOS PRINCIPALES */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
             <KPIBlock
               title="Inventario Saludable"
               value={metrics.verdes}
@@ -757,7 +1378,7 @@
           </div>
 
           {/* MÉTRICOS POR BODEGA */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
             <KPIBlock
               title="Bodega 1"
               value={metrics.bodega1}
@@ -786,16 +1407,19 @@
             />
           </div>
 
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 shrink-0">
             {/* FILTROS OPERATIVOS */}
             <div className="flex flex-wrap items-center gap-2">
-              {[
-                { id: 'ALL', label: 'Pendientes', count: null },
-                { id: 'VERDE', label: 'Saludables', count: metrics.verdes },
-                { id: 'PREVENTIVO', label: 'Preventivos', count: metrics.rellenosPreventivos },
-                { id: 'URGENTE', label: 'Urgentes', count: metrics.rellenosUrgentes },
-                { id: 'COMPRAS', label: 'Compras', count: metrics.casosCompras }
-              ].map(btn => (
+
+              {
+                [
+                  { id: 'ALL', label: 'Todos', count: metrics.totalRegistros },
+                  { id: 'VERDE', label: 'Saludables', count: metrics.verdes },
+                  { id: 'PREVENTIVO', label: 'Preventivos', count: metrics.rellenosPreventivos },
+                  { id: 'URGENTE', label: 'Urgentes', count: metrics.rellenosUrgentes },
+                  { id: 'COMPRAS', label: 'Compras', count: metrics.casosCompras }
+                ].map(btn => (
+
                 <button
                   key={btn.id}
                   onClick={() => setFilterStatus(btn.id)}
@@ -994,13 +1618,14 @@
             </div>
           </div>
 
-          <div className="bg-white border border-[#dadce0] rounded-[1.5rem] overflow-hidden shadow-sm">
-            <div className="overflow-auto custom-scroll max-h-[68vh]">
+          
+          <div className="flex-1 min-h-0 bg-white border border-[#dadce0] rounded-[1.5rem] overflow-hidden shadow-sm flex flex-col">
+            <div className="flex-1 min-h-0 overflow-auto custom-scroll">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-[#f8f9fa] border-b border-[#dadce0] sticky top-0 z-10">
                   <tr>
                     <th className="px-6 py-4 font-black uppercase tracking-tight text-[#1c1d1f] text-center min-w-[240px]">
-                      Identificación SKU
+                      SKU / Información
                     </th>
                     <th className="px-4 py-4 font-black uppercase tracking-tight text-[#1c1d1f] text-center min-w-[220px]">
                       Ubicación Surtido
@@ -1015,7 +1640,7 @@
                       Respaldo Excedentes
                     </th>
                     <th className="px-4 py-4 font-black uppercase tracking-tight text-[#1c1d1f] text-center min-w-[140px]">
-                      Semáforo
+                      Status Operativo
                     </th>
                     <th className="px-6 py-4 font-black uppercase tracking-tight text-[#1c1d1f] text-center min-w-[230px]">
                       Acción Operativa
@@ -1143,20 +1768,26 @@
                           <div className="w-full max-w-[220px] space-y-2">
                             <div className="flex items-center justify-between text-[14px] font-bold">
                               <span className="text-[#d93025]">
-                                B: {Number(item.excedentebodega || 0)}
+                                B: {Number(item.excedenteBodegaActivo ?? item.excedentebodega ?? 0)}
                               </span>
 
                               <span className="text-slate-900">
-                                CB: {Number(item.excedentecasablanca || 0)}
+                                CB: {Number(item.excedenteCasaBlancaActivo ?? item.excedentecasablanca ?? 0)}
                               </span>
                             </div>
 
                             <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
                               <div
-                                style={{
+                                style={{                                 
                                   width: `${
-                                    Number(item.excedentetotal || 0) > 0
-                                      ? Math.min((Number(item.excedentebodega || 0) / Number(item.excedentetotal || 1)) * 100, 100)
+                                    Number(item.excedenteTotalActivo ?? item.excedentetotal ?? 0) > 0
+                                      ? Math.min(
+                                          (
+                                            Number(item.excedenteBodegaActivo ?? item.excedentebodega ?? 0) /
+                                            Number(item.excedenteTotalActivo ?? item.excedentetotal ?? 1)
+                                          ) * 100,
+                                          100
+                                        )
                                       : 0
                                   }%`
                                 }}
@@ -1165,12 +1796,19 @@
                               ></div>
 
                               <div
-                                style={{
+                                style={{                                 
                                   width: `${
-                                    Number(item.excedentetotal || 0) > 0
-                                      ? Math.min((Number(item.excedentecasablanca || 0) / Number(item.excedentetotal || 1)) * 100, 100)
-                                      : 0
-                                  }%`
+                                    Number(item.excedenteTotalActivo ?? item.excedentetotal ?? 0) > 0
+                                      ? Math.min(
+                                          (
+                                            Number(item.excedenteCasaBlancaActivo ?? item.excedentecasablanca ?? 0) /
+                                            Number(item.excedenteTotalActivo ?? item.excedentetotal ?? 1)
+                                          ) * 100,
+                                          100
+                                        )
+                                     : 0
+                                    }%`
+
                                 }}
                                 className="h-full bg-slate-900 transition-all duration-500"
                                 title="Casa Blanca"
@@ -1179,8 +1817,15 @@
 
                             <div className="text-center">
                               <span className="text-[15px] font-extrabold text-slate-900">
-                                Total: {Number(item.excedentetotal || 0)}
+                                Total: {Number(item.excedenteTotalActivo ?? item.excedentetotal ?? 0)}
                               </span>
+
+                              <div className="mt-1">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                  Balance: {item.modoBalanceActivo === "IDUNICO" ? "ID único" : "Existencias"}
+                                </span>
+                              </div>
+
                             </div>
                           </div>
                         </div>
@@ -1194,7 +1839,7 @@
 
                       <td className="px-6 py-6 text-center align-middle">
                         <div className="flex flex-col items-center justify-center gap-3 h-full">
-                          <ActionBadge action={item.accionoperativa} />
+                          <ActionBadge action={item.accionOperativaActiva} />
 
                           <button
                             onClick={(e) => {
@@ -1207,7 +1852,7 @@
                           </button>
 
                           <p className="text-[11px] text-slate-500 font-semibold leading-snug max-w-[220px]">
-                            {item.observacion || ''}
+                            {item.observacionActiva || item.observacion || ''}
                           </p>
                         </div>
                       </td>
@@ -1277,6 +1922,117 @@
               </div>
             )}
           </div>
+
+          </div>
+
+          {/* MENÚ FLOTANTE GLOBALIZADO */} 
+              <div
+                ref={fabContainerRef}
+                className="app-fab-container"
+                style={{ zIndex: 9010 }}
+              >
+
+              {isFabMenuMounted && isSearchExpanded && (
+                <div className={`app-fab-row ${isSearchClosing || isFabClosing ? "app-fab-slide-right" : "app-fab-slide-left"}`}>
+                  <input
+                    ref={searchInputRef}
+                    autoFocus
+                    type="text"
+                    placeholder="Filtrar por código, descripción o ubicación..."
+                    className="app-fab-search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {isFabMenuMounted && (
+                <div className={`app-fab-stack ${isFabClosing ? "app-fab-out" : "app-fab-in"}`}>
+
+                  <div className="mr-fab-mode-panel">
+                    <div className="mr-fab-mode-title">
+                      Balance activo
+                    </div>
+
+                    <div className="mr-fab-mode-toggle">
+                      <button
+                        type="button"
+                        className={`mr-fab-mode-btn ${
+                          modoBalance === "EXISTENCIAS" ? "active-red" : "idle"
+                        }`}
+                        onClick={() => setModoBalance("EXISTENCIAS")}
+                        title="Usar balance desde hoja EXISTENCIAS"
+                      >
+                        Existencias
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`mr-fab-mode-btn ${
+                          modoBalance === "IDUNICO" ? "active-dark" : "idle"
+                        }`}
+                        onClick={() => setModoBalance("IDUNICO")}
+                        title="Usar balance calculado por ID único"
+                      >
+                        ID único
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className={`app-fab-action ${isSearchExpanded ? "dark" : ""}`}
+                    title={isSearchExpanded ? "Cerrar buscador" : "Buscar material"}
+                    onClick={toggleBuscador_}
+                  >
+                    <LocalIcon name={isSearchExpanded ? "x" : "search"} size={24} />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="app-fab-action"
+                    title="Actualizar monitor"
+                    onClick={() => fetchDatabase("manual")}
+                    disabled={loading}
+                  >
+                    <LocalIcon
+                      name="refresh-cw"
+                      size={24}
+                      className={loading ? "text-[#d93025] animate-spin" : ""}
+                    />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="app-fab-action primary"
+                    title="Exportar Excel"
+                    onClick={exportarExcelCompleto}
+                    disabled={loading || recordsFinal.length === 0}
+                  >
+                    <LocalIcon name="file-spreadsheet" size={24} />
+                  </button>
+
+                </div>
+              )}
+
+              
+              <button
+                type="button"
+                className={`app-fab-main ${isFabMenuOpen ? "open" : ""}`}
+                title={
+                  isFabMenuOpen
+                    ? "Cerrar acciones"
+                    : `Abrir acciones • Balance: ${modoBalance === "IDUNICO" ? "ID único" : "Existencias"}`
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFabMenu_();
+                }}
+              >
+                <LocalIcon name={isFabMenuOpen ? "x" : "ellipsis-vertical"} size={26} />
+              </button>
+
+            </div>
         </div>
       );
     };

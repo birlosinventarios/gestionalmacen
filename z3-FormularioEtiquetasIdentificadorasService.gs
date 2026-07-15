@@ -69,13 +69,14 @@ const FormularioEtiquetasIdentificadorasService = (() => {
     }
 
     const producto = mapaCatalogo[cod];
+
     if (!producto) {
       throw new Error(`El código "${cod}" no existe en el catálogo.`);
     }
 
     return {
       codigo: cod,
-      producto
+      producto: producto
     };
   }
 
@@ -87,14 +88,30 @@ const FormularioEtiquetasIdentificadorasService = (() => {
     }
 
     const medida = mapaMedidas[valor];
+
     if (!medida) {
       throw new Error(`El tipo de etiqueta "${valor}" no existe.`);
     }
 
     return {
       tipo: valor,
-      medida
+      medida: medida
     };
+  }
+
+  function _prepararHtmlOnline_(html) {
+    return String(html || "")
+      .replace(/<script[\s\S]*?<\/script>/gi, "");
+  }
+
+  function _renderEtiquetaIdentificadora_(loteNormalizado, fechaHora, modoImpresion) {
+    const tmpl = HtmlService.createTemplateFromFile("EtiquetaIdentificadoraImpresa");
+
+    tmpl.lote = loteNormalizado;
+    tmpl.fechaHora = fechaHora;
+    tmpl.modoImpresion = modoImpresion || "LOCAL";
+
+    return tmpl.evaluate().getContent();
   }
 
   function getBootstrap() {
@@ -108,13 +125,19 @@ const FormularioEtiquetasIdentificadorasService = (() => {
 
   function buscarProductoPorCodigo(codigo) {
     const cod = toStrUpper_(codigo);
+
     if (!cod) {
-      return { encontrado: false };
+      return {
+        encontrado: false
+      };
     }
 
     const producto = CatalogoRepository.getPorCodigo(cod)[0];
+
     if (!producto) {
-      return { encontrado: false };
+      return {
+        encontrado: false
+      };
     }
 
     return {
@@ -141,9 +164,11 @@ const FormularioEtiquetasIdentificadorasService = (() => {
     const ss = getSpreadsheetByFileKey_(SHEETS.ETIQUETAS.file);
     const config = _obtenerContextoTemporal_(ss);
 
+    const fechaHora = config.fecha + " " + config.hora;
+
     const marcaTiempoBase =
-      config.fecha.split('/').reverse().join('') +
-      config.hora.replace(/:/g, '');
+      config.fecha.split("/").reverse().join("") +
+      config.hora.replace(/:/g, "");
 
     const loteNormalizado = lote.map((item, index) => {
       const { codigo, producto } = _validarCodigo_(item.codigo, mapaCatalogo);
@@ -171,11 +196,43 @@ const FormularioEtiquetasIdentificadorasService = (() => {
       };
     });
 
-    const tmpl = HtmlService.createTemplateFromFile('EtiquetaIdentificadoraImpresa');
-    tmpl.lote = loteNormalizado;
-    tmpl.fechaHora = config.fecha + " " + config.hora;
+    const htmlImpresion = _renderEtiquetaIdentificadora_(
+      loteNormalizado,
+      fechaHora,
+      "LOCAL"
+    );
 
-    return tmpl.evaluate().getContent();
+    const htmlOnline = _prepararHtmlOnline_(
+      _renderEtiquetaIdentificadora_(
+        loteNormalizado,
+        fechaHora,
+        "ONLINE"
+      )
+    );
+
+    const printJob = {
+      tipo: "ETIQUETAS_IDENTIFICADORAS",
+      origen: "FormularioEtiquetasIdentificadoras",
+      formato: "HTML",
+      html: htmlOnline,
+      content: htmlOnline,
+      meta: {
+        modulo: "FormularioEtiquetasIdentificadoras",
+        total: loteNormalizado.length,
+        fechaHora: fechaHora,
+        etiqueta: "IDENTIFICADORA",
+        formatoEtiqueta: "HTML",
+        papel: "100x155mm"
+      }
+    };
+
+    return {
+      ok: true,
+      modoCompatible: ["LOCAL", "ONLINE"],
+      htmlImpresion: htmlImpresion,
+      printJob: printJob,
+      total: loteNormalizado.length
+    };
   }
 
   return {
@@ -185,20 +242,3 @@ const FormularioEtiquetasIdentificadorasService = (() => {
   };
 
 })();
-
-
-function debugFormularioEtiquetasIdentificadorasService() {
-  debugServiceCall_(
-    "FormularioEtiquetasIdentificadorasService.getBootstrap",
-    {},
-    () => FormularioEtiquetasIdentificadorasService.getBootstrap(),
-    { limit: 10 }
-  );
-
-  debugServiceCall_(
-    "FormularioEtiquetasIdentificadorasService.buscarProductoPorCodigo",
-    { codigo: "PLP-10X3" },
-    () => FormularioEtiquetasIdentificadorasService.buscarProductoPorCodigo("PLP-10X3"),
-    { limit: 10 }
-  );
-}

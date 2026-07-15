@@ -1,0 +1,152 @@
+<script>/** ImpresionModoUtilidades.HTML */</script>
+
+<script>
+  (function () {
+    if (!window.ImpresionModoUtilidades) {
+      window.ImpresionModoUtilidades = {};
+    }
+
+    const STORAGE_KEY = "APP_ALMACEN_PRINT_MODE";
+
+    const MODES = {
+      LOCAL: "LOCAL",
+      ONLINE: "ONLINE"
+    };
+
+    function getMode() {
+      const value = localStorage.getItem(STORAGE_KEY);
+      return value === MODES.ONLINE ? MODES.ONLINE : MODES.LOCAL;
+    }
+
+    function setMode(mode) {
+      const finalMode = mode === MODES.ONLINE ? MODES.ONLINE : MODES.LOCAL;
+      localStorage.setItem(STORAGE_KEY, finalMode);
+      window.dispatchEvent(new CustomEvent("app-print-mode-change", {
+        detail: { mode: finalMode }
+      }));
+      return finalMode;
+    }
+
+    function toggleMode() {
+      return setMode(getMode() === MODES.ONLINE ? MODES.LOCAL : MODES.ONLINE);
+    }
+
+    function abrirHtmlLocal(html, titulo = "Impresión") {
+      const win = window.open("", "_blank", "width=900,height=700");
+
+      if (!win) {
+        if (window.notificar) {
+          window.notificar("El navegador bloqueó la ventana de impresión.", "warning");
+        }
+        return false;
+      }
+
+      win.document.open();
+      win.document.write(html || "");
+      win.document.close();
+
+      win.onload = function () {
+        try {
+          win.focus();
+          setTimeout(function () {
+            win.print();
+          }, 350);
+        } catch (err) {
+          console.warn("No se pudo abrir impresión local automáticamente:", err);
+        }
+      };
+
+      return true;
+    }
+
+    function normalizarResultado(resultado) {
+      // Compatibilidad con servicios antiguos que regresan string HTML
+      if (typeof resultado === "string") {
+        return {
+          ok: true,
+          htmlImpresion: resultado,
+          printJob: null,
+          legacy: true
+        };
+      }
+
+      return resultado || {
+        ok: false,
+        htmlImpresion: "",
+        printJob: null
+      };
+    }
+
+    function imprimirResultado(resultado, options = {}) {
+      const res = normalizarResultado(resultado);
+      const mode = getMode();
+
+      const titulo = options.titulo || "Impresión";
+      const fallbackLocal = options.fallbackLocal !== false;
+
+      if (mode === MODES.LOCAL) {
+        abrirHtmlLocal(res.htmlImpresion || "", titulo);
+        return;
+      }
+
+      // ONLINE
+      if (!res.printJob) {
+        if (window.notificar) {
+          window.notificar("No hay paquete ONLINE para esta impresión. Se usará modo LOCAL.", "warning");
+        }
+
+        if (fallbackLocal) {
+          abrirHtmlLocal(res.htmlImpresion || "", titulo);
+        }
+
+        return;
+      }
+
+      if (window.notificar) {
+        window.notificar("Enviando impresión ONLINE...", "info");
+      }
+
+      google.script.run
+        .withSuccessHandler(function (respuesta) {
+          if (respuesta && respuesta.ok) {
+            if (window.notificar) {
+              window.notificar("Impresión ONLINE enviada correctamente.", "success");
+            }
+            return;
+          }
+
+          if (window.notificar) {
+            window.notificar("No se confirmó la impresión ONLINE. Se abrirá modo LOCAL.", "warning");
+          }
+
+          if (fallbackLocal) {
+            abrirHtmlLocal(res.htmlImpresion || "", titulo);
+          }
+        })
+        .withFailureHandler(function (err) {
+          console.error("❌ Error impresión ONLINE:", err);
+
+          if (window.notificar) {
+            window.notificar(
+              "Falló la impresión ONLINE. Se abrirá modo LOCAL.",
+              "warning"
+            );
+          }
+
+          if (fallbackLocal) {
+            abrirHtmlLocal(res.htmlImpresion || "", titulo);
+          }
+        })
+        .ImpresionPuenteController_imprimir(res.printJob);
+    }
+
+    window.ImpresionModoUtilidades = {
+      MODES,
+      getMode,
+      setMode,
+      toggleMode,
+      imprimirResultado,
+      abrirHtmlLocal
+    };
+  })();
+</script>

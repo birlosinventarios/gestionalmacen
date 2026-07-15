@@ -69,33 +69,6 @@
     animation: nbFadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
-  /* Botón exportar */
-  #render-negativos-birlos .btn-exportar-flotante {
-    width: 62px;
-    height: 62px;
-    border: none;
-    border-radius: 999px;
-    background: #d93025;
-    color: #ffffff;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 12px 30px rgba(217, 48, 37, 0.28);
-    transition: all 0.25s ease;
-  }
-
-  #render-negativos-birlos .btn-exportar-flotante:hover {
-    background: #a50e0e;
-    transform: translateY(-1px);
-  }
-
-  #render-negativos-birlos .btn-exportar-flotante:disabled {
-    background: #cbd5e1;
-    color: #64748b;
-    box-shadow: none;
-    cursor: not-allowed;
-  }
-
   #render-negativos-birlos .badge-exportar-flotante {
     position: absolute;
     top: -6px;
@@ -143,35 +116,62 @@
     background: #a50e0e;
   }
 
-  #render-negativos-birlos .animate-fab-in {
-    animation: fabInNB 0.25s ease-out;
-  }
+#render-negativos-birlos .nb-fab-mode-panel {
+  min-width: 220px;
+  background: #ffffff;
+  border: 1px solid #dadce0;
+  border-radius: 1rem;
+  padding: 8px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.14);
+}
 
-  @keyframes fabInNB {
-    from {
-      opacity: 0;
-      transform: translateY(12px) scale(0.96);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
+#render-negativos-birlos .nb-fab-mode-title {
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #5f6368;
+  padding: 2px 4px 7px;
+}
 
-  #render-negativos-birlos .animate-slide-left {
-    animation: slideLNB 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
+#render-negativos-birlos .nb-fab-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
 
-  @keyframes slideLNB {
-    from {
-      opacity: 0;
-      transform: translateX(40px) scale(0.9);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0) scale(1);
-    }
-  }
+#render-negativos-birlos .nb-fab-mode-btn {
+  min-height: 38px;
+  border-radius: 0.75rem;
+  border: none;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: all 0.18s ease;
+}
+
+#render-negativos-birlos .nb-fab-mode-btn.idle {
+  background: #f8f9fa;
+  color: #5f6368;
+}
+
+#render-negativos-birlos .nb-fab-mode-btn.idle:hover {
+  background: #f1f3f4;
+  color: #1c1d1f;
+}
+
+#render-negativos-birlos .nb-fab-mode-btn.active-red {
+  background: #d93025;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(217, 48, 37, 0.18);
+}
+
+#render-negativos-birlos .nb-fab-mode-btn.active-dark {
+  background: #1c1d1f;
+  color: #ffffff;
+}
+
 </style>
 
 <!-- Contenedor raíz -->
@@ -253,38 +253,36 @@
           : 'bg-emerald-50 text-emerald-700';
 
       return (
-        <div className="bg-white border border-[#dadce0] rounded-[1.5rem] p-6 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group min-h-[170px]">
+        <div className="bg-white border border-[#dadce0] rounded-[1.25rem] p-4 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group min-h-[112px]">
           <div className={`absolute top-0 left-0 right-0 h-1.5 ${topBarColor}`}></div>
 
-          <div className="h-full flex flex-col pt-2">
-            <div className="mb-1">
-              <p className="text-[18px] font-extrabold uppercase tracking-[0.14em] text-[#5f6368] leading-tight">
-                {title}
-              </p>
-            </div>
+          <div className="h-full flex flex-col pt-1">
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 h-full">
+              <div className="min-w-0">
+                <p className="text-[12px] font-black uppercase tracking-[0.12em] text-[#5f6368] leading-tight mb-2">
+                  {title}
+                </p>
 
-            <div className="grid grid-cols-[1fr_auto] items-end h-full gap-4">
-              <div className="flex flex-col justify-between h-full min-w-0">
                 <div className="flex items-end gap-2 flex-wrap">
-                  <h3 className="text-5xl font-black tracking-tight text-[#1c1d1f] leading-none">
+                  <h3 className="m-0 p-0 bg-transparent border-none text-[34px] font-black tracking-tight text-[#1c1d1f] leading-none">
                     {value}
                   </h3>
 
                   {unit && (
-                    <span className="text-[18px] font-bold text-[#5f6368] uppercase leading-none pb-1">
+                    <span className="text-[13px] font-black text-[#5f6368] uppercase leading-none pb-1">
                       {unit}
                     </span>
                   )}
                 </div>
 
                 {trend && (
-                  <div className="mt-4 flex items-center gap-2 flex-wrap">
-                    <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase ${trendColor}`}>
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${trendColor}`}>
                       {trend.text}
                     </span>
 
                     {trend.sub && (
-                      <span className="text-xs font-semibold text-[#5f6368]">
+                      <span className="text-[11px] font-semibold text-[#5f6368]">
                         {trend.sub}
                       </span>
                     )}
@@ -292,9 +290,9 @@
                 )}
               </div>
 
-              <div className="self-end justify-self-end">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${colorMap[indicatorColor]}`}>
-                  <LocalIcon name={iconName} size={40} />
+              <div className="justify-self-end">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${colorMap[indicatorColor]}`}>
+                  <LocalIcon name={iconName} size={28} />
                 </div>
               </div>
             </div>
@@ -313,13 +311,88 @@
       const [activeRow, setActiveRow] = useState(null);
       const [sortBy, setSortBy] = useState("NONE");
       const [hoverMenu, setHoverMenu] = useState(null);
+      const [modoBalance, setModoBalance] = useState("EXISTENCIAS");
+      
       const [isSearchExpanded, setIsSearchExpanded] = useState(false);
       const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
+      const [isFabMenuMounted, setIsFabMenuMounted] = useState(false);
+      const [isFabClosing, setIsFabClosing] = useState(false);
+      const [isSearchClosing, setIsSearchClosing] = useState(false);
+
 
       const closeMenuTimeout = useRef(null);
       const searchInputRef = useRef(null);
       const firstLoadDoneRef = useRef(false);
       const manualRefreshCountRef = useRef(0);
+      const fabContainerRef = useRef(null);
+
+      const abrirFabMenu_ = () => {
+        setIsFabMenuMounted(true);
+        setIsFabClosing(false);
+        setIsFabMenuOpen(true);
+      };
+
+      const cerrarFabMenu_ = () => {
+        setIsFabClosing(true);
+        setIsSearchClosing(true);
+
+        setTimeout(() => {
+          setIsFabMenuOpen(false);
+          setIsFabMenuMounted(false);
+          setIsFabClosing(false);
+          setIsSearchExpanded(false);
+          setIsSearchClosing(false);
+          setSearchQuery("");
+        }, 190);
+      };
+
+      const toggleFabMenu_ = () => {
+        if (isFabMenuOpen) {
+          cerrarFabMenu_();
+        } else {
+          abrirFabMenu_();
+        }
+      };
+
+      const abrirBuscador_ = () => {
+        setIsSearchClosing(false);
+        setIsSearchExpanded(true);
+        setTimeout(() => searchInputRef.current?.focus(), 120);
+      };
+
+      const cerrarBuscador_ = () => {
+        setIsSearchClosing(true);
+
+        setTimeout(() => {
+          setIsSearchExpanded(false);
+          setIsSearchClosing(false);
+          setSearchQuery("");
+        }, 180);
+      };
+
+      const toggleBuscador_ = () => {
+        if (isSearchExpanded) {
+          cerrarBuscador_();
+        } else {
+          abrirBuscador_();
+        }
+      };
+
+      useEffect(() => {
+        if (!isFabMenuOpen) return;
+
+        const handleKeyDown = (event) => {
+          if (event.key === "Escape") {
+            cerrarFabMenu_();
+          }
+        };
+
+        document.addEventListener("keydown", handleKeyDown, true);
+
+        return () => {
+          document.removeEventListener("keydown", handleKeyDown, true);
+        };
+      }, [isFabMenuOpen]);
 
       const fetchDatabase = useCallback((contexto = "init") => {
         const USAR_MOCK = false;
@@ -429,8 +502,18 @@
                 codigo: "T5S-1/4X31/2",
                 descripcion: "TORNILLO GRADO 5 CABEZA EXAGONAL 1/4 X 3 1/2",
                 almacenbirlos: -45,
+
                 excedentebodega: 150,
-                excedentecasablanca: 0
+                excedentecasablanca: 0,
+                excedenteTotalExistencias: 150,
+
+                excedentebodegaIdUnico: 42,
+                excedentecasablancaIdUnico: 0,
+                excedenteTotalIdUnico: 42,
+
+                idsUnicosExcedenteBodega: [],
+                idsUnicosExcedenteCasaBlanca: [],
+                modoBalanceDisponibleIdUnico: true
               }
             ];
 
@@ -528,47 +611,74 @@
           const bodegaKey = getBodegaKey(ubicacionPiso);
           const bodegaLabel = getBodegaLabel(bodegaKey);
 
+          const usandoIdUnico = modoBalance === "IDUNICO";
+
+          const excedenteBodegaActivo = usandoIdUnico
+            ? Number(item.excedentebodegaIdUnico || 0)
+            : Number(item.excedentebodega || 0);
+
+          const excedenteCasaBlancaActivo = usandoIdUnico
+            ? Number(item.excedentecasablancaIdUnico || 0)
+            : Number(item.excedentecasablanca || 0);
+
           const sumaExcedente =
-            Number(item.excedentebodega || 0) + Number(item.excedentecasablanca || 0);
+            excedenteBodegaActivo + excedenteCasaBlancaActivo;
 
           const deficit = Math.abs(Number(item.almacenbirlos || 0));
-          const traspasoViable = sumaExcedente >= deficit;
+          const traspasoViable = sumaExcedente >= deficit && deficit > 0;
 
           let estatusTecnico = "";
+
           if (sumaExcedente === 0) {
             estatusTecnico = "Solicitar conteo";
+          } else if (sumaExcedente < deficit) {
+            estatusTecnico = "Cobertura parcial";
           } else {
             estatusTecnico = "Revisar Excedentes";
           }
 
           return {
             ...item,
+
             ubicacionPiso,
             bodegakey: bodegaKey,
             bodegalabel: bodegaLabel,
+
+            modoBalanceActivo: modoBalance,
+
+            excedenteBodegaActivo,
+            excedenteCasaBlancaActivo,
             sumaExcedente,
+
             deficit,
             traspasoViable,
             estatusTecnico
           };
         });
-      }, [negativos, mapUbicacionesFloor]);
+      }, [negativos, mapUbicacionesFloor, modoBalance]);
 
       const metrics = useMemo(() => {
         const negativosActivos = consolidadoNegativos.length;
 
         const negativosSinExcedentes = consolidadoNegativos.filter(
-          item => item.estatusTecnico === "Solicitar conteo"
+          item => Number(item.sumaExcedente || 0) === 0
         ).length;
 
-        const negativosConExcedentes = consolidadoNegativos.filter(
-          item => item.estatusTecnico === "Revisar Excedentes"
+        const negativosCoberturaParcial = consolidadoNegativos.filter(
+          item =>
+            Number(item.sumaExcedente || 0) > 0 &&
+            Number(item.sumaExcedente || 0) < Number(item.deficit || 0)
+        ).length;
+
+        const negativosCoberturaCompleta = consolidadoNegativos.filter(
+          item => item.traspasoViable === true
         ).length;
 
         return {
           negativosActivos,
           negativosSinExcedentes,
-          negativosConExcedentes
+          negativosCoberturaParcial,
+          negativosCoberturaCompleta
         };
       }, [consolidadoNegativos]);
 
@@ -585,7 +695,12 @@
           }
 
           if (filterStatus === "READY") return item.traspasoViable;
-          if (filterStatus === "NO_STOCK") return !item.traspasoViable && item.sumaExcedente === 0;
+          if (filterStatus === "NO_STOCK") return Number(item.sumaExcedente || 0) === 0;
+
+          if (filterStatus === "PARTIAL") {
+            return Number(item.sumaExcedente || 0) > 0 &&
+                  Number(item.sumaExcedente || 0) < Number(item.deficit || 0);
+          }
 
           return true;
         });
@@ -670,16 +785,23 @@
           fileName: `Negativos_Birlos_${fecha}.xlsx`,
           sheetName: "Negativos",
           rows: consolidadoNegativos,
-          columns: [
-            { key: "codigo", label: "Código" },
-            { key: "descripcion", label: "Descripción" },
-            { key: "ubicacionPiso", label: "Ubicación Surtido" },
-            { key: "bodegalabel", label: "Bodega / Zona" },
-            { key: "almacenbirlos", label: "Saldo Piso Venta" },
-            { key: "excedentebodega", label: "Excedente Bodega" },
-            { key: "excedentecasablanca", label: "Excedente Casa Blanca" },
-            { key: "sumaExcedente", label: "Excedente Total" }
-          ]
+            columns: [
+              { key: "codigo", label: "Código" },
+              { key: "descripcion", label: "Descripción" },
+              { key: "ubicacionPiso", label: "Ubicación Surtido" },
+              { key: "bodegalabel", label: "Bodega / Zona" },
+              { key: "almacenbirlos", label: "Saldo Piso Venta" },
+              { key: "deficit", label: "Déficit" },
+              { key: "modoBalanceActivo", label: "Modo Balance" },
+              { key: "excedenteBodegaActivo", label: "Excedente Bodega Activo" },
+              { key: "excedenteCasaBlancaActivo", label: "Excedente Casa Blanca Activo" },
+              { key: "sumaExcedente", label: "Excedente Total Activo" },
+              { key: "excedentebodega", label: "Excedente Bodega Existencias" },
+              { key: "excedentecasablanca", label: "Excedente Casa Blanca Existencias" },
+              { key: "excedentebodegaIdUnico", label: "Excedente Bodega ID Único" },
+              { key: "excedentecasablancaIdUnico", label: "Excedente Casa Blanca ID Único" },
+              { key: "estatusTecnico", label: "Estatus Técnico" }
+            ]
         });
 
         notify_(
@@ -731,98 +853,270 @@
         });
       };
 
+      const escapeHtml_ = (value) => {
+        return String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      };
+
+      const compareEsLocal_ = (a, b) => {
+        return String(a || "").localeCompare(String(b || ""), "es", {
+          sensitivity: "base",
+          numeric: true
+        });
+      };
+
+      const buildDetalleIdUnicoHtml_ = (item) => {
+        const detalles = Array.isArray(item.detalleIdUnicoExcedentes)
+          ? [...item.detalleIdUnicoExcedentes]
+          : [];
+
+        detalles.sort((a, b) => {
+          const cmpBodega = compareEsLocal_(a.bodega, b.bodega);
+          if (cmpBodega !== 0) return cmpBodega;
+
+          const cmpUbicacion = compareEsLocal_(a.ubicacion, b.ubicacion);
+          if (cmpUbicacion !== 0) return cmpUbicacion;
+
+          return compareEsLocal_(a.sku, b.sku);
+        });
+
+        if (detalles.length === 0) {
+          return `
+            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center">
+              <div class="text-xs font-black uppercase tracking-wider text-slate-500">
+                Sin ID únicos vigentes para este SKU
+              </div>
+            </div>
+          `;
+        }
+
+        const grupos = detalles.reduce((acc, row) => {
+          const bodega = String(row.bodega || "SIN BODEGA").toUpperCase();
+
+          if (!acc[bodega]) acc[bodega] = [];
+          acc[bodega].push(row);
+
+          return acc;
+        }, {});
+
+        const bodegasOrdenadas = Object.keys(grupos).sort((a, b) => compareEsLocal_(a, b));
+
+        return bodegasOrdenadas.map((bodega) => {
+          const rows = grupos[bodega];
+
+          const totalBodega = rows.reduce((acc, row) => {
+            return acc + Number(row.cantidadIdUnico || 0);
+          }, 0);
+
+          const rowsHtml = rows.map((row) => `
+            <tr>
+              <td style="width:22%; padding:8px 10px; border-bottom:1px solid #e5e7eb; font-weight:800; color:#1c1d1f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                ${escapeHtml_(row.bodega)}
+              </td>
+
+              <td style="width:20%; padding:8px 10px; border-bottom:1px solid #e5e7eb; font-family:'JetBrains Mono', monospace; font-weight:800; color:#d93025; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                ${escapeHtml_(row.ubicacion)}
+              </td>
+
+              <td style="width:24%; padding:8px 10px; border-bottom:1px solid #e5e7eb; font-family:'JetBrains Mono', monospace; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                ${escapeHtml_(row.sku)}
+              </td>
+
+              <td style="width:20%; padding:8px 10px; border-bottom:1px solid #e5e7eb; font-family:'JetBrains Mono', monospace; font-weight:900; color:#1c1d1f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                ${escapeHtml_(row.idUnico || row.idunico || "")}
+              </td>
+
+              <td style="width:14%; padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:right; font-weight:900; white-space:nowrap;">
+                ${Number(row.cantidadIdUnico || 0).toLocaleString()}
+              </td>
+            </tr>
+          `).join("");
+
+          return `
+            <div style="margin-bottom:14px; border:1px solid #dadce0; border-radius:16px; overflow:hidden; background:#ffffff;">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; background:#f8f9fa; border-bottom:1px solid #dadce0;">
+                <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#1c1d1f;">
+                  ${escapeHtml_(bodega)}
+                </div>
+
+                <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#5f6368;">
+                  Total: ${totalBodega.toLocaleString()} pzas
+                </div>
+              </div>
+
+              <div style="overflow:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed;">
+                  <colgroup>
+                    <col style="width:22%;">
+                    <col style="width:20%;">
+                    <col style="width:24%;">
+                    <col style="width:20%;">
+                    <col style="width:14%;">
+                  </colgroup>
+
+                  <thead>
+                    <tr style="background:#ffffff;">
+                      <th style="width:22%; padding:8px 10px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">Bodega</th>
+                      <th style="width:20%; padding:8px 10px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">Ubicación</th>
+                      <th style="width:24%; padding:8px 10px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">SKU</th>
+                      <th style="width:20%; padding:8px 10px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">ID único</th>
+                      <th style="width:14%; padding:8px 10px; text-align:right; font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">Cantidad</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rowsHtml}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `;
+        }).join("");
+      };
+
       const getInfoExcedentes = (item) => {
+        const esIdUnico = item.modoBalanceActivo === "IDUNICO";
+
+        if (!esIdUnico) {
+          Swal.fire({
+            title: "Información de Excedentes",
+            html: `
+              <div class="text-left text-sm space-y-4 p-1 text-slate-700">
+                <p>
+                  Existencias de excedentes para el SKU <strong>${escapeHtml_(item.codigo)}</strong>.
+                </p>
+
+                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
+                  <div class="flex justify-between font-medium">
+                    <span>Negativo en Almacén Birlos:</span>
+                    <span class="text-red-600 font-extrabold font-mono-premium">-${Number(item.deficit || 0).toLocaleString()} PZAS</span>
+                  </div>
+
+                  <div class="flex justify-between text-xs text-slate-500">
+                    <span>Excedente en Bodega:</span>
+                    <span class="font-bold font-mono-premium text-slate-700">${Number(item.excedenteBodegaActivo || 0).toLocaleString()} PZAS</span>
+                  </div>
+
+                  <div class="flex justify-between text-xs text-slate-500">
+                    <span>Excedente en Casa Blanca:</span>
+                    <span class="font-bold font-mono-premium text-slate-700">${Number(item.excedenteCasaBlancaActivo || 0).toLocaleString()} PZAS</span>
+                  </div>
+
+                  <div class="flex justify-between text-xs text-slate-500">
+                    <span>Excedente total:</span>
+                    <span class="font-bold font-mono-premium text-slate-900">${Number(item.sumaExcedente || 0).toLocaleString()} PZAS</span>
+                  </div>
+                </div>
+              </div>
+            `,
+            background: "#ffffff",
+            showCancelButton: false,
+            confirmButtonColor: "#d93025",
+            confirmButtonText: "Cerrar",
+            customClass: {
+              popup: "rounded-[1.5rem]"
+            }
+          });
+
+          return;
+        }
+
         Swal.fire({
-          title: 'Información de Excedentes',
+          title: "Información de excedentes",
           html: `
             <div class="text-left text-sm space-y-4 p-1 text-slate-700">
-              <p>Existencias resumidas en base a los acomodos y surtidos de <strong>${item.codigo}</strong> en los almacenes de excedentes.</p>
+              <p>
+                Excedentes con saldo disponible para el SKU <strong>${escapeHtml_(item.codigo)}</strong>.
+              </p>
 
               <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2">
                 <div class="flex justify-between font-medium">
                   <span>Negativo en Almacén Birlos:</span>
-                  <span class="text-red-600 font-extrabold font-mono-premium">-${item.deficit} PZAS</span>
+                  <span class="text-red-600 font-extrabold font-mono-premium">-${Number(item.deficit || 0).toLocaleString()} PZAS</span>
                 </div>
+
                 <div class="flex justify-between text-xs text-slate-500">
-                  <span>Excedente en Bodega:</span>
-                  <span class="font-bold font-mono-premium text-slate-700">${item.excedentebodega} PZAS</span>
-                </div>
-                <div class="flex justify-between text-xs text-slate-500">
-                  <span>Excedente en Casa Blanca:</span>
-                  <span class="font-bold font-mono-premium text-slate-700">${item.excedentecasablanca} PZAS</span>
+                  <span>Excedente total:</span>
+                  <span class="font-bold font-mono-premium text-slate-900">${Number(item.sumaExcedente || 0).toLocaleString()} PZAS</span>
                 </div>
               </div>
+
+              ${buildDetalleIdUnicoHtml_(item)}
             </div>
           `,
-          background: '#ffffff',
-          showCancelButton: true,
-          confirmButtonColor: '#d93025',
-          confirmButtonText: 'Autorizar Operación',
-          cancelButtonText: 'Salir',
+          background: "#ffffff",
+          width: 900,
+          showCancelButton: false,
+          confirmButtonColor: "#d93025",
+          confirmButtonText: "Cerrar",
           customClass: {
-            popup: 'rounded-[1.5rem]',
-            cancelButton: 'rounded-xl px-5 py-3'
-          }
-        }).then((result) => {
-          if (result.isConfirmed) {
-            notify_(
-              `Acción confirmada para el SKU ${item.codigo}.`,
-              "success",
-              2200,
-              {
-                title: "Movimiento registrado",
-                sound: true
-              }
-            );
+            popup: "rounded-[1.5rem]"
           }
         });
       };
 
       return (
-        <div className="space-y-6 fade-in-up relative">
+          <div className="h-full w-full min-h-0 relative flex flex-col gap-4">
+        
+          {isFabMenuMounted && (
+            <div
+              className={`fixed inset-0 bg-slate-950/35 backdrop-blur-[1px] z-[40] transition-opacity duration-200 ${
+                isFabClosing ? "opacity-0" : "opacity-100"
+              }`}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                cerrarFabMenu_();
+              }}
+            ></div>
+          )}
 
           {/* Bloques de Métricos */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
             <KPIBlock
-              title="Negativos sin excedentes"
+              title="Sin excedente"
               value={metrics.negativosSinExcedentes}
               unit="SKUs"
               iconName="alert-triangle"
               indicatorColor="red"
-              trend={{ text: "Conteo Requerido", type: "negative" }}
+              trend={{ text: "Conteo requerido", type: "negative" }}
             />
 
             <KPIBlock
-              title="Negativos con excedentes"
-              value={metrics.negativosConExcedentes}
+              title="Cobertura parcial"
+              value={metrics.negativosCoberturaParcial}
               unit="SKUs"
               iconName="box"
               indicatorColor="amber"
-              trend={{ text: "Revisar Excedentes", type: "neutral" }}
+              trend={{ text: "No cubre déficit", type: "neutral" }}
             />
 
             <KPIBlock
-              title="Negativos Activos"
-              value={metrics.negativosActivos}
+              title="Cobertura completa"
+              value={metrics.negativosCoberturaCompleta}
               unit="SKUs"
-              iconName="clipboard-list"
-              indicatorColor="black"
-              trend={{ text: "En monitoreo", type: "dark" }}
+              iconName="shuffle"
+              indicatorColor="emerald"
+              trend={{ text: "Viable para revisar", type: "dark" }}
             />
           </div>
 
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 shrink-0">
             {/* Filtros operativos */}
             <div className="flex flex-wrap items-center gap-2">
               {[
-                { id: 'ALL', label: 'Negativos', count: consolidadoNegativos.length },
-                { id: 'READY', label: 'Con Excedente', count: consolidadoNegativos.filter(x => x.traspasoViable).length },
-                { id: 'NO_STOCK', label: 'Sin Excedente', count: consolidadoNegativos.filter(x => !x.traspasoViable && x.sumaExcedente === 0).length }
-              ].map(btn => (
+                  { id: 'ALL', label: 'Negativos', count: consolidadoNegativos.length },
+                  { id: 'READY', label: 'Cobertura completa', count: consolidadoNegativos.filter(x => x.traspasoViable).length },
+                  { id: 'PARTIAL', label: 'Cobertura parcial', count: consolidadoNegativos.filter(x => Number(x.sumaExcedente || 0) > 0 && Number(x.sumaExcedente || 0) < Number(x.deficit || 0)).length },
+                  { id: 'NO_STOCK', label: 'Sin excedente', count: consolidadoNegativos.filter(x => Number(x.sumaExcedente || 0) === 0).length }
+                ]
+                  .map(btn => (
                 <button
                   key={btn.id}
                   onClick={() => setFilterStatus(btn.id)}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
                     filterStatus === btn.id
                       ? 'bg-[#d93025] text-white shadow-sm'
                       : 'bg-slate-50 text-slate-500 border border-[#dadce0] hover:bg-slate-100'
@@ -835,6 +1129,7 @@
 
             {/* Segmentación / ordenamientos */}
             <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+
               {/* BODEGA */}
               <div
                 className="relative"
@@ -994,8 +1289,8 @@
           </div>
 
           {/* Tabla */}
-          <div className="bg-white border border-[#dadce0] rounded-[1.5rem] overflow-hidden shadow-sm">
-            <div className="overflow-auto custom-scroll max-h-[70vh]">
+          <div className="flex-1 min-h-0 bg-white border border-[#dadce0] rounded-[1.5rem] overflow-hidden shadow-sm">
+            <div className="h-full overflow-auto custom-scroll">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-[#f8f9fa] border-b border-[#dadce0] sticky top-0 z-10">
                   <tr>
@@ -1046,7 +1341,7 @@
                       }`}
                     >
                       {/* Identificación SKU */}
-                      <td className="px-8 py-8 max-w-sm align-middle">
+                      <td className="px-8 py-4 max-w-sm align-middle">
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-slate-900 font-extrabold text-[24px] tracking-tight font-mono-premium group-hover:text-[#d93025] transition-colors">
@@ -1086,11 +1381,11 @@
                           <div className="w-full max-w-[280px] space-y-2">
                             <div className="flex items-center justify-between text-[15px] font-bold">
                               <span className="text-[#d93025]">
-                                B: {item.excedentebodega}
+                                B: {item.excedenteBodegaActivo}
                               </span>
 
                               <span className="text-slate-900">
-                                CB: {item.excedentecasablanca}
+                                CB: {item.excedenteCasaBlancaActivo}
                               </span>
                             </div>
 
@@ -1099,7 +1394,7 @@
                                 style={{
                                   width: `${
                                     item.sumaExcedente > 0
-                                      ? Math.min((item.excedentebodega / item.sumaExcedente) * 100, 100)
+                                      ? Math.min((item.excedenteBodegaActivo / item.sumaExcedente) * 100, 100)
                                       : 0
                                   }%`
                                 }}
@@ -1111,7 +1406,7 @@
                                 style={{
                                   width: `${
                                     item.sumaExcedente > 0
-                                      ? Math.min((item.excedentecasablanca / item.sumaExcedente) * 100, 100)
+                                      ? Math.min((item.excedenteCasaBlancaActivo / item.sumaExcedente) * 100, 100)
                                       : 0
                                   }%`
                                 }}
@@ -1123,6 +1418,12 @@
                             <div className="text-center">
                               <span className="text-[16px] font-extrabold text-slate-900">
                                 Total: {item.sumaExcedente}
+                              </span>
+                            </div>
+
+                            <div className="mt-1">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                Balance: {item.modoBalanceActivo === "IDUNICO" ? "ID único" : "Existencias"}
                               </span>
                             </div>
                           </div>
@@ -1152,7 +1453,18 @@
                               <LocalIcon name="shuffle" size={14} />
                               Revisar Excedentes
                             </button>
-                          ) : (
+                            ) : Number(item.sumaExcedente || 0) > 0 ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  getInfoExcedentes(item);
+                                }}
+                                className="inline-flex items-center gap-2 text-[13px] font-black uppercase tracking-[0.08em] text-amber-700 bg-amber-50 px-4 py-3 rounded-xl border border-amber-200 hover:bg-amber-100 transition-all duration-200 active:scale-95"
+                              >
+                                <LocalIcon name="alert-circle" size={14} className="text-amber-600" />
+                                Cobertura Parcial
+                              </button>
+                            ) : (
                             <div className="inline-flex items-center gap-2 text-[13px] font-black uppercase tracking-[0.08em] text-slate-600 bg-slate-100 px-4 py-3 rounded-xl border border-slate-200">
                               <LocalIcon name="info" size={14} className="text-slate-500" />
                               Solicitar Conteo
@@ -1192,56 +1504,76 @@
             </div>
           </div>
 
-          {/* MENÚ FLOTANTE UNIFICADO */}
-          <div className="fixed bottom-10 right-10 z-[999] flex flex-col items-end gap-3">
+          
+            {/* MENÚ FLOTANTE GLOBALIZADO */}
+            <div
+              ref={fabContainerRef}
+              className="app-fab-container z-[60]"
+            >
 
-            {/* BUSCADOR EXPANDIBLE */}
-            {isFabMenuOpen && isSearchExpanded && (
-              <div className="flex items-center gap-3 animate-slide-left">
+
+            {isFabMenuMounted && isSearchExpanded && (
+              <div className={`app-fab-row ${isSearchClosing || isFabClosing ? "app-fab-slide-right" : "app-fab-slide-left"}`}>
                 <input
                   ref={searchInputRef}
                   autoFocus
                   type="text"
                   placeholder="Escribe un código, SKU o descripción..."
-                  className="w-96 bg-white/90 backdrop-blur-md border-2 border-[#d93025] rounded-[1.25rem] px-6 py-4 shadow-[0_20px_50px_rgba(217,48,37,0.15)] outline-none font-bold text-sm text-[#1c1d1f] transition-all duration-300 placeholder-gray-400 focus:ring-4 focus:ring-[#d93025]/20 focus:border-[#d93025]"
+                  className="app-fab-search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
             )}
 
-            {/* ACCIONES DESPLEGABLES */}
-            {isFabMenuOpen && (
-              <div className="flex flex-col items-end gap-3 animate-fab-in">
+            {isFabMenuMounted && (
+              <div className={`app-fab-stack ${isFabClosing ? "app-fab-out" : "app-fab-in"}`}>
 
-                {/* BUSCAR */}
+                <div className="nb-fab-mode-panel">
+                  <div className="nb-fab-mode-title">
+                    Balance activo
+                  </div>
+
+                  <div className="nb-fab-mode-toggle">
+                    <button
+                      type="button"
+                      className={`nb-fab-mode-btn ${
+                        modoBalance === "EXISTENCIAS" ? "active-red" : "idle"
+                      }`}
+                      onClick={() => setModoBalance("EXISTENCIAS")}
+                      title="Usar balance desde hoja EXISTENCIAS"
+                    >
+                      Existencias
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`nb-fab-mode-btn ${
+                        modoBalance === "IDUNICO" ? "active-dark" : "idle"
+                      }`}
+                      onClick={() => setModoBalance("IDUNICO")}
+                      title="Usar balance calculado por ID único"
+                    >
+                      ID único
+                    </button>
+                  </div>
+                </div>
+
                 <button
-                  onClick={() => {
-                    const nuevoEstado = !isSearchExpanded;
-                    setIsSearchExpanded(nuevoEstado);
-
-                    if (nuevoEstado) {
-                      setTimeout(() => searchInputRef.current?.focus(), 120);
-                    } else {
-                      setSearchQuery("");
-                    }
-                  }}
-                  className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 transform active:scale-95 hover:scale-105 ${
-                    isSearchExpanded
-                      ? 'bg-[#1c1d1f] text-white shadow-xl ring-4 ring-black/10'
-                      : 'bg-[rgba(217,48,37,0.12)] text-[#d93025] border border-[rgba(217,48,37,0.30)] shadow-sm hover:bg-[#d93025] hover:text-white hover:border-[#d93025] hover:shadow-xl hover:ring-4 hover:ring-[#d93025]/10'
-                  }`}
+                  type="button"
+                  className={`app-fab-action ${isSearchExpanded ? "dark" : ""}`}
                   title={isSearchExpanded ? "Cerrar buscador" : "Buscar material"}
+                  onClick={toggleBuscador_}
                 >
                   <LocalIcon name={isSearchExpanded ? "x" : "search"} size={24} />
                 </button>
 
-                {/* ACTUALIZAR */}
                 <button
+                  type="button"
+                  className="app-fab-action"
+                  title="Actualizar tabla"
                   onClick={() => fetchDatabase("manual")}
                   disabled={loading}
-                  className="w-16 h-16 bg-white/90 backdrop-blur-md border border-[#dadce0] rounded-[1.25rem] shadow-lg flex items-center justify-center text-[#5f6368] hover:text-[#d93025] hover:border-[#d93025]/40 transition-all duration-300 transform active:scale-95 hover:scale-105 disabled:opacity-50 disabled:pointer-events-none"
-                  title="Actualizar tabla"
                 >
                   <LocalIcon
                     name="refresh-cw"
@@ -1250,42 +1582,48 @@
                   />
                 </button>
 
-                {/* EXPORTAR */}
                 <button
                   type="button"
-                  className="btn-exportar-flotante relative"
-                  onClick={abrirPanelExportacion}
+                  className="app-fab-action primary relative"
+                  onClick={() => {
+                    abrirPanelExportacion();
+                    cerrarFabMenu_();
+                  }}
                   aria-controls="panelExportarNegativos"
                   disabled={loading || consolidadoNegativos.length === 0}
                   title="Abrir panel de exportación"
                 >
                   <LocalIcon name="file-spreadsheet" size={24} />
+
                   <span className="badge-exportar-flotante">
                     {consolidadoNegativos.length > 99 ? "99+" : consolidadoNegativos.length}
                   </span>
                 </button>
+
               </div>
             )}
 
-            {/* BOTÓN PRINCIPAL */}
-            <button
-              onClick={() => {
-                const nuevoEstado = !isFabMenuOpen;
-                setIsFabMenuOpen(nuevoEstado);
-
-                if (!nuevoEstado) {
-                  setIsSearchExpanded(false);
-                  setSearchQuery("");
+              <button
+                type="button"
+                className={`app-fab-main ${isFabMenuOpen ? "open" : ""} relative`}
+                title={
+                  isFabMenuOpen
+                    ? "Cerrar acciones"
+                    : `Abrir acciones • Balance: ${modoBalance === "IDUNICO" ? "ID único" : "Existencias"}`
                 }
-              }}
-              className={`w-16 h-16 rounded-[1.25rem] flex items-center justify-center transition-all duration-300 transform active:scale-95 hover:scale-105 ${
-                isFabMenuOpen
-                  ? 'bg-[#1c1d1f] text-white shadow-xl ring-4 ring-black/10'
-                  : 'bg-[rgba(217,48,37,0.12)] text-[#d93025] border border-[rgba(217,48,37,0.30)] shadow-sm hover:bg-[#d93025] hover:text-white hover:border-[#d93025] hover:shadow-xl hover:ring-4 hover:ring-[#d93025]/10'
-              }`}
-              title={isFabMenuOpen ? "Cerrar acciones" : "Abrir acciones"}
-            >
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFabMenu_();
+                }}
+              >
+
               <LocalIcon name={isFabMenuOpen ? "x" : "ellipsis-vertical"} size={26} />
+
+              {!isFabMenuOpen && (
+                <span className="badge-exportar-flotante">
+                  {modoBalance === "IDUNICO" ? "ID" : "EX"}
+                </span>
+              )}
             </button>
 
           </div>
@@ -1368,9 +1706,13 @@
                   <li>Ubicación Surtido</li>
                   <li>Bodega / Zona</li>
                   <li>Saldo Piso Venta</li>
-                  <li>Excedente Bodega</li>
-                  <li>Excedente Casa Blanca</li>
-                  <li>Excedente Total</li>
+                  <li>Modo balance activo</li>
+                  <li>Excedente Bodega activo</li>
+                  <li>Excedente Casa Blanca activo</li>
+                  <li>Excedente Total activo</li>
+                  <li>Balance Existencias</li>
+                  <li>Balance ID único</li>
+                  <li>Estatus técnico</li>
                 </ul>
               </div>
 
