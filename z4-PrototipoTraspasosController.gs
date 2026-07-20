@@ -7,8 +7,8 @@ function PrototipoTraspasosController_getBootstrap() {
   return PrototipoTraspasosService.getBootstrap();
 }
 
-function PrototipoTraspasosController_obtenerEstadoFolios() {
-  return PrototipoTraspasosService.obtenerEstadoFolios();
+function PrototipoTraspasosController_obtenerEstadoFolios(forceRefresh) {
+  return PrototipoTraspasosService.obtenerEstadoFolios(forceRefresh === true);
 }
 
 function PrototipoTraspasosController_procesarMovimientosFinal(cola) {

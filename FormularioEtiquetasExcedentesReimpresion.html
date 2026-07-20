@@ -1,757 +1,1549 @@
-<script>/** FormularioEtiquetasExcedentesReimpresion.html */</script>
-
-<div id="contenedorReimpresion" class="container mt-3">
-
-  <div class="card-formulario">
-    <div class="campo">
-      <label>ID</label>
-      <div class="input-con-icono">
-        <span class="material-icons">qr_code_scanner</span>
-        <input type="text" id="busquedaID" list="listaIDs" placeholder="Escanea o Selecciona un ID" oninput="aplicarFiltrosCruzados()">
-        <datalist id="listaIDs"></datalist>
-      </div>
-    </div>
-
-    <div class="campo">
-      <label>Codigo</label>
-      <div class="input-con-icono">
-        <span class="material-icons">inventory_2</span>
-        <input type="text" id="resCodigo" list="listaCodigos" placeholder="Escribe o selecciona un Codigo" oninput="aplicarFiltrosCruzados()">
-        <datalist id="listaCodigos"></datalist>
-      </div>
-    </div>
-
-    <div class="campo">
-      <label>Descripcion</label>
-      <div class="input-con-icono">
-        <span class="material-icons">description</span>
-        <input type="text" id="resDesc" readonly>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="col-6">
-        <div class="campo">
-          <label>Cantidad</label>
-          <div class="input-con-icono">
-            <span class="material-icons">tag</span>
-            <input type="text" id="resCant" readonly>
-          </div>
-        </div>
-      </div>
-      <div class="col-6">
-        <div class="campo">
-          <label>Ubicación Actual</label>
-          <div class="input-con-icono">
-            <span class="material-icons">place</span>
-            <input type="text" id="resUbi" list="listaUbicaciones" placeholder="Escribe o selecciona una Ubicacion" oninput="aplicarFiltrosCruzados()">
-            <datalist id="listaUbicaciones"></datalist>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <button class="btn-anadir-ajustado" onclick="agregarAListaReimpresion()" style="margin-top:15px;">
-      <span class="material-icons">add_circle</span> Añadir a la lista
-    </button>
-  </div>
-
-  <div class="contenedor-lista-traspasos">
-    <ul id="listaReimpresion" class="fila-traspasos-lista"></ul>
-  </div>
-
-  <button id="btnImprimirTodo" class="btn-anadir-ajustado" onclick="generarReimpresion()">
-    <span class="material-icons">print</span>
-    <span id="textoBoton">Imprimir</span>
-  </button>
-
-  <div id="snackbar"></div>
-</div>
-
-<?!= HtmlService.createHtmlOutputFromFile('FilaExcedentesReimpresion').getContent(); ?>
-
 <script>
-(function () {
-  // =========================================================
-  // ESTADO SEGURO DE LA VISTA
-  // =========================================================
-  window.FormularioEtiquetasExcedentesReimpresionState =
-    window.FormularioEtiquetasExcedentesReimpresionState || {
-      baseDatosExcedentes: [],
-      hashExcedentes: "",
-      listaParaImprimir: [],
-      snackbarTimeout: null,
-      bloqueadoPorLlenado: false,
-      bootstrap: {
+  /** FormularioEtiquetasExcedentesReimpresion.html */
+</script>
+
+<style>
+  #render-excedentes-reimpresion {
+    --er-primary: #d93025;
+    --er-primary-dark: #a50e0e;
+    --er-border: #dadce0;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden !important;
+  }
+
+  #render-excedentes-reimpresion .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  #render-excedentes-reimpresion .fade-in {
+    animation: fadeInReimpresion 0.3s ease-out;
+  }
+
+  @keyframes fadeInReimpresion {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-toast-in {
+    animation: toastInReimpresion 0.35s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+
+  .animate-toast-out {
+    animation: toastOutReimpresion 0.25s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+
+  @keyframes toastInReimpresion {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes toastOutReimpresion {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+
+  #render-excedentes-reimpresion .er-app-shell {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden !important;
+  }
+
+  #render-excedentes-reimpresion .er-main-layout {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    overflow: hidden !important;
+  }
+
+  #render-excedentes-reimpresion .er-left-panel {
+    width: clamp(620px, 42vw, 760px) !important;
+    min-width: 620px;
+    max-width: 760px;
+    height: 100%;
+    min-height: 0;
+    flex: 0 0 auto;
+    overflow: hidden !important;
+  }
+
+  #render-excedentes-reimpresion .er-right-panel {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important;
+    background: #ffffff;
+  }
+
+  #render-excedentes-reimpresion .er-results-toolbar {
+    flex: 0 0 auto;
+  }
+
+  #render-excedentes-reimpresion .er-table-scroll {
+    flex: 1 1 auto;
+    height: 0;
+    min-height: 0;
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+    position: relative;
+    padding-bottom: 96px;
+    overscroll-behavior: contain;
+  }
+
+  #render-excedentes-reimpresion .er-table-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  #render-excedentes-reimpresion .er-table-scroll::-webkit-scrollbar-thumb {
+    background: #dadce0;
+    border-radius: 10px;
+  }
+
+  #render-excedentes-reimpresion .er-label {
+    font-size: 13px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #6b7280;
+    min-height: 18px;
+    display: flex;
+    align-items: center;
+  }
+
+  #render-excedentes-reimpresion .er-input {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+  }
+
+  #render-excedentes-reimpresion .er-mono {
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.04em;
+  }
+
+  #render-excedentes-reimpresion .er-form-input-unificado {
+    min-height: 56px;
+    padding: 0 16px;
+    box-sizing: border-box;
+    line-height: 1.15;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    color: #111827;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  #render-excedentes-reimpresion .er-form-input-unificado::placeholder {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #9ca3af;
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+
+  #render-excedentes-reimpresion .er-form-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "id codigo"
+      "ubicacion ubicacion"
+      "detalle detalle"
+      "accion accion";
+    column-gap: 44px;
+    row-gap: 22px;
+    align-items: start;
+  }
+
+  #render-excedentes-reimpresion .er-grid-id {
+    grid-area: id;
+  }
+
+  #render-excedentes-reimpresion .er-grid-codigo {
+    grid-area: codigo;
+  }
+
+  #render-excedentes-reimpresion .er-grid-ubicacion {
+    grid-area: ubicacion;
+  }
+
+  #render-excedentes-reimpresion .er-grid-detalle {
+    grid-area: detalle;
+  }
+
+  #render-excedentes-reimpresion .er-grid-accion {
+    grid-area: accion;
+  }
+
+  #render-excedentes-reimpresion .er-field-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  #render-excedentes-reimpresion .er-id-card {
+    padding: 14px;
+    border-radius: 1rem;
+  }
+
+  #render-excedentes-reimpresion .er-product-placeholder {
+    min-height: 215px;
+    border: 1px dashed #e5e7eb;
+    border-radius: 1rem;
+    background: #fafafa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #c0c4cc;
+    padding: 18px;
+  }
+
+  #render-excedentes-reimpresion .er-product-placeholder-title {
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+
+  #render-excedentes-reimpresion .er-action-btn {
+    min-height: 64px;
+  }
+
+  #render-excedentes-reimpresion .er-results-table {
+    width: 100%;
+    min-width: 920px;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  #render-excedentes-reimpresion .er-results-head th {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(248, 249, 250, 0.96);
+    backdrop-filter: blur(8px);
+    padding: 16px 20px;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  #render-excedentes-reimpresion .er-results-row td {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+    background: #ffffff;
+    transition: background-color 0.18s ease;
+  }
+
+  #render-excedentes-reimpresion .er-results-row:hover td {
+    background: #fcfcfd;
+  }
+
+  #render-excedentes-reimpresion .er-code-main {
+    font-size: 16px;
+    font-weight: 900;
+    color: #111827;
+    letter-spacing: 0.04em;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1.15;
+  }
+
+  #render-excedentes-reimpresion .er-desc {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #9ca3af;
+    line-height: 1.3;
+    text-transform: uppercase;
+    max-width: 460px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #render-excedentes-reimpresion .er-folio-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 260px;
+    padding: 9px 12px;
+    border-radius: 9999px;
+    background: #f8fafc;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    font-family: 'JetBrains Mono', monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #render-excedentes-reimpresion .er-location-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 110px;
+    padding: 8px 12px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
+
+  #render-excedentes-reimpresion .er-location-chip-disponible {
+    border-color: #a7f3d0;
+    background: #ecfdf5;
+    color: #047857;
+  }
+
+  #render-excedentes-reimpresion .er-location-chip-ubicado {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #dc2626;
+  }
+
+  #render-excedentes-reimpresion .er-qty-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 98px;
+    padding: 10px 14px;
+    border-radius: 9999px;
+    background: #111827;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    font-family: 'JetBrains Mono', monospace;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+  }
+
+  #render-excedentes-reimpresion .er-delete-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #b91c1c;
+    background: #fff1f2;
+    border: 1px solid #fca5a5;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: all 0.18s ease;
+  }
+
+  #render-excedentes-reimpresion .er-delete-btn:hover {
+    color: #ffffff;
+    background: #dc2626;
+    border-color: #b91c1c;
+    box-shadow: 0 8px 18px rgba(220, 38, 38, 0.22);
+    transform: translateY(-1px) scale(1.03);
+  }
+
+  #render-excedentes-reimpresion .er-delete-btn:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  #render-excedentes-reimpresion .er-empty-state {
+    height: 100%;
+    min-height: 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    color: #9ca3af;
+  }
+
+  #render-excedentes-reimpresion .er-empty-title {
+    font-size: 13px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+    color: #9ca3af;
+  }
+
+  #render-excedentes-reimpresion .er-empty-sub {
+    font-size: 12px;
+    font-weight: 700;
+    color: #c0c4cc;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+</style>
+
+<div id="render-excedentes-reimpresion" class="h-full w-full flex flex-col bg-[#f8f9fa] overflow-hidden"></div>
+
+<script type="text/babel">
+  window.cargar_FormularioEtiquetasExcedentesReimpresion = () => {
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
+      const fn = window.notificar || window.lanzarNotificacion;
+      if (typeof fn === "function") {
+        fn(mensaje, tipo, timer, options);
+      }
+    };
+
+    const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
+      const now = Date.now();
+      const last = ref.current[key] || 0;
+      if (now - last < cooldown) return;
+      ref.current[key] = now;
+      notify_(mensaje, tipo, timer, options);
+    };
+
+    const shellNotifyStateRef = { current: {} };
+    const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
+
+    const LocalIcon = ({ name, size = 18, className = "" }) => {
+      const iconRef = useRef(null);
+
+      useEffect(() => {
+        if (window.lucide && iconRef.current) {
+          iconRef.current.innerHTML = "";
+          const i = document.createElement("i");
+          i.setAttribute("data-lucide", name.toLowerCase());
+          i.style.width = `${size}px`;
+          i.style.height = `${size}px`;
+          if (className) i.className = className;
+          iconRef.current.appendChild(i);
+          window.lucide.createIcons();
+        }
+      }, [name, size, className]);
+
+      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+    };
+
+    const VistaExcedentesReimpresion = () => {
+      const [baseDatos, setBaseDatos] = useState([]);
+      const [baseHash, setBaseHash] = useState("");
+      const [cargando, setCargando] = useState(true);
+      const [procesando, setProcesando] = useState(false);
+
+      const [filtros, setFiltros] = useState({
+        id: "",
+        codigo: "",
+        ubicacion: ""
+      });
+
+      const [seleccionado, setSeleccionado] = useState(null);
+      const [cola, setCola] = useState([]);
+
+      const [bootstrap, setBootstrap] = useState({
         ids: [],
         codigos: [],
         ubicaciones: []
-      },
-      lastNotifyAt: {},
-      primeraConexionNotificada: false
-    };
-
-  const state = window.FormularioEtiquetasExcedentesReimpresionState;
-
-  // =========================================================
-  // HELPERS DE NOTIFICACIÓN
-  // =========================================================
-  function notify_(mensaje, tipo = "info", timer = 2500, options = {}) {
-    const fn = window.notificar || window.lanzarNotificacion;
-
-    if (typeof fn === "function") {
-      fn(mensaje, tipo, timer, options);
-      return;
-    }
-
-    // Fallback local solo si la vista corre fuera del shell
-    const x = document.getElementById("snackbar");
-    if (!x) return;
-
-    if (state.snackbarTimeout) {
-      clearTimeout(state.snackbarTimeout);
-    }
-
-    x.innerText = mensaje;
-    x.className = `show ${tipo || ""}`;
-
-    state.snackbarTimeout = setTimeout(() => {
-      x.className = x.className.replace("show", "");
-    }, Math.min(timer, 1800));
-  }
-
-  function notifyOnce_(key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) {
-    const now = Date.now();
-    const last = state.lastNotifyAt[key] || 0;
-    if (now - last < cooldown) return;
-    state.lastNotifyAt[key] = now;
-    notify_(mensaje, tipo, timer, options);
-  }
-
-  // =========================================================
-  // HELPERS INTERNOS
-  // =========================================================
-  function normalizarTexto(valor) {
-    return String(valor || "").trim().toUpperCase();
-  }
-
-  function getViewRoot_() {
-    return document.getElementById("contenedorReimpresion");
-  }
-
-  function bindOnce(el, key, eventName, handler) {
-    if (!el) return;
-    const flag = `bound_${key}`;
-    if (el.dataset[flag]) return;
-
-    el.addEventListener(eventName, handler);
-    el.dataset[flag] = "1";
-  }
-
-  function llenarDatalist(id, array) {
-    const dl = document.getElementById(id);
-    if (!dl) return;
-
-    dl.innerHTML = "";
-    (array || []).slice().sort().forEach(v => {
-      if (v) {
-        const opt = document.createElement("option");
-        opt.value = v;
-        dl.appendChild(opt);
-      }
-    });
-  }
-
-  function actualizarDataListsManual(datos) {
-    const ids = [...new Set((datos || []).map(i => i.IDUNICO).filter(Boolean))];
-    const codigos = [...new Set((datos || []).map(i => i.CODIGO).filter(Boolean))];
-    const ubis = [...new Set((datos || []).map(i => i.UBICACION).filter(Boolean))];
-
-    llenarDatalist("listaIDs", ids);
-    llenarDatalist("listaCodigos", codigos);
-    llenarDatalist("listaUbicaciones", ubis);
-  }
-
-  function llenarFormulario(d) {
-    if (!d || Array.isArray(d)) return;
-
-    const elID = document.getElementById('busquedaID');
-    const elCod = document.getElementById('resCodigo');
-    const elUbi = document.getElementById('resUbi');
-    const elDesc = document.getElementById('resDesc');
-    const elCant = document.getElementById('resCant');
-
-    if (elID && elID.value !== String(d.IDUNICO || "")) elID.value = d.IDUNICO || "";
-    if (elCod && elCod.value !== String(d.CODIGO || "")) elCod.value = d.CODIGO || "";
-    if (elUbi && elUbi.value !== String(d.UBICACION || "")) elUbi.value = d.UBICACION || "";
-    if (elDesc) elDesc.value = d.DESCRIPCION || "";
-    if (elCant) elCant.value = d.CANTIDAD || "";
-
-    if (elID) {
-      elID.dataset.actualId = d.IDUNICO || "";
-    }
-  }
-
-  function limpiarCamposDetalle() {
-    const resDesc = document.getElementById('resDesc');
-    const resCant = document.getElementById('resCant');
-    const busquedaID = document.getElementById('busquedaID');
-
-    if (resDesc) resDesc.value = "";
-    if (resCant) resCant.value = "";
-    if (busquedaID) busquedaID.dataset.actualId = "";
-  }
-
-  function limpiarFormularioBusqueda() {
-    state.bloqueadoPorLlenado = true;
-
-    const ids = ["busquedaID", "resCodigo", "resDesc", "resCant", "resUbi"];
-    ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = "";
-    });
-
-    const elID = document.getElementById('busquedaID');
-    if (elID) elID.dataset.actualId = "";
-
-    actualizarDataListsManual(state.baseDatosExcedentes);
-
-    state.bloqueadoPorLlenado = false;
-
-    if (elID) elID.focus();
-  }
-
-  function actualizarVistaReimpresionInterna() {
-    const listaUI = document.getElementById('listaReimpresion');
-    const btnPrint = document.getElementById('btnImprimirTodo');
-    const textoBoton = document.getElementById('textoBoton');
-    const plantillaEl = document.getElementById('plantillaExcedenteReimpresion');
-
-    if (!listaUI || !btnPrint || !textoBoton || !plantillaEl) return;
-
-    const plantilla = plantillaEl.innerHTML;
-
-    listaUI.innerHTML = "";
-    state.listaParaImprimir.forEach((item, index) => {
-      let html = plantilla
-        .replace(/{{idUnico}}/g, item.idUnico)
-        .replace(/{{codigo}}/g, item.codigo)
-        .replace(/{{descripcion}}/g, item.descripcion)
-        .replace(/{{cantidad}}/g, item.cantidad)
-        .replace(/{{ubicacion}}/g, item.ubicacion)
-        .replace(/{{index}}/g, index);
-
-      listaUI.insertAdjacentHTML('beforeend', html);
-    });
-
-    btnPrint.style.display = state.listaParaImprimir.length > 0 ? "block" : "none";
-    textoBoton.innerText = `Imprimir (${state.listaParaImprimir.length})`;
-  }
-
-  // =========================================================
-  // BOOTSTRAP + SINCRONIZACIÓN
-  // =========================================================
-  function hidratarBootstrap_(bootstrap) {
-    state.bootstrap.ids = bootstrap.ids || [];
-    state.bootstrap.codigos = bootstrap.codigos || [];
-    state.bootstrap.ubicaciones = bootstrap.ubicaciones || [];
-
-    // Guardamos en cache global para reutilización
-    window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
-    window.DATA_ALMACEN_CACHE.reimpresionExcedentesBootstrap = bootstrap;
-  }
-
-  function sincronizarBaseDeDatos(contexto = "auto") {
-    const elID = document.getElementById("busquedaID");
-    const elCod = document.getElementById("resCodigo");
-    const elUbi = document.getElementById("resUbi");
-
-    const valID = elID ? elID.value : "";
-    const valCod = elCod ? elCod.value : "";
-    const valUbi = elUbi ? elUbi.value : "";
-
-    const estaFiltrando = valID || valCod || valUbi;
-
-    if (contexto !== "auto") {
-      notify_("Sincronizando base de reimpresión...", "info", 1400, {
-        title: "Actualizando base",
-        sound: false
       });
-    }
 
-    google.script.run
-      .withSuccessHandler(function (datos) {
-        if (!Array.isArray(datos)) return;
+      const localNotifyRef = useRef({});
+      const notifyOnce_ = createNotifyOnce_(localNotifyRef);
+      const idInputRef = useRef(null);
 
-        const nuevoHash = JSON.stringify(datos);
-        if (nuevoHash === state.hashExcedentes) return;
+      const normalizarTexto = (valor) => String(valor || "").trim().toUpperCase();
 
-        const esPrimeraCarga = (state.baseDatosExcedentes.length === 0);
+      const enfocarId = () => {
+        setTimeout(() => {
+          idInputRef.current?.focus();
+          idInputRef.current?.select?.();
+        }, 0);
+      };
 
-        state.baseDatosExcedentes = datos;
-        state.hashExcedentes = nuevoHash;
+      const limpiarBusqueda = () => {
+        setFiltros({
+          id: "",
+          codigo: "",
+          ubicacion: ""
+        });
+        setSeleccionado(null);
+        enfocarId();
+      };
 
-        if (!estaFiltrando && !state.bloqueadoPorLlenado) {
-          actualizarDataListsManual(state.baseDatosExcedentes);
+      const hidratarBootstrap = (data) => {
+        const nuevoBootstrap = {
+          ids: data?.ids || [],
+          codigos: data?.codigos || [],
+          ubicaciones: data?.ubicaciones || []
+        };
+
+        setBootstrap(nuevoBootstrap);
+
+        window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+        window.DATA_ALMACEN_CACHE.reimpresionExcedentesBootstrap = nuevoBootstrap;
+      };
+
+      const normalizarBaseItem = (item) => {
+        const ubicacionActual = normalizarTexto(
+          item?.ESTADOACTUALEXCEDENTES ||
+          item?.UBICACION ||
+          "DISPONIBLE"
+        );
+
+        const estatus = normalizarTexto(
+          item?.ESTATUS ||
+          "DISPONIBLE"
+        );
+
+        return {
+          IDUNICO: String(item?.IDUNICO || ""),
+          CODIGO: normalizarTexto(item?.CODIGO),
+          DESCRIPCION: normalizarTexto(item?.DESCRIPCION),
+          CANTIDAD: Number(item?.CANTIDAD || 0),
+          UBICACION: ubicacionActual || "DISPONIBLE",
+          ESTATUS: estatus,
+          ESTADOACTUALEXCEDENTES: ubicacionActual,
+          IDPRODUCTO: String(item?.IDPRODUCTO || "")
+        };
+      };
+
+
+
+      const sincronizarBase = (contexto = "auto") => {
+        if (contexto !== "auto") {
+          notify_("Sincronizando base de reimpresión...", "info", 1400, {
+            title: "Actualizando base",
+            sound: false
+          });
         }
 
-        if (esPrimeraCarga && !state.primeraConexionNotificada) {
-          state.primeraConexionNotificada = true;
-          notify_("Base de excedentes conectada correctamente.", "success", 2200, {
-            title: "Base conectada",
-            sound: false
-          });
-        } else if (contexto !== "auto") {
-          notify_("Base de reimpresión actualizada.", "success", 1600, {
-            title: "Actualización completada",
-            sound: false
-          });
-        } else {
-          notifyOnce_(
-            "cambios-reimpresion",
-            "Se detectaron cambios en la base de reimpresión.",
-            "info",
-            1500,
-            {
-              title: "Base actualizada",
+        google.script.run
+          .withSuccessHandler((datos) => {
+            if (!Array.isArray(datos)) return;
+
+            const baseNormalizada = datos.map(normalizarBaseItem);
+            const nuevoHash = JSON.stringify(baseNormalizada);
+
+            if (nuevoHash === baseHash) {
+              if (contexto !== "auto") {
+                notify_("Base de reimpresión sin cambios.", "info", 1400, {
+                  title: "Base actualizada",
+                  sound: false
+                });
+              }
+              return;
+            }
+
+            setBaseHash(nuevoHash);
+            setBaseDatos(baseNormalizada);
+
+            if (contexto === "init") {
+              notify_("Base de excedentes conectada correctamente.", "success", 1800, {
+                title: "Base conectada",
+                sound: false
+              });
+            } else if (contexto !== "auto") {
+              notify_("Base de reimpresión actualizada.", "success", 1600, {
+                title: "Actualización completada",
+                sound: false
+              });
+            } else {
+              notifyOnce_(
+                "cambios-reimpresion-excedentes",
+                "Se detectaron cambios en la base de reimpresión.",
+                "info",
+                1500,
+                {
+                  title: "Base actualizada",
+                  sound: false
+                },
+                12000
+              );
+            }
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ Error al sincronizar base de excedentes:", err);
+
+            if (contexto === "auto") {
+              notifyOnce_(
+                "error-sync-reimpresion-excedentes",
+                "No se pudo sincronizar automáticamente la base de reimpresión.",
+                "error",
+                3200,
+                {
+                  title: "Error de sincronización",
+                  sound: false
+                },
+                12000
+              );
+            } else {
+              notify_(
+                "No se pudo actualizar la base de reimpresión.",
+                "error",
+                4200,
+                {
+                  title: "Error de sincronización",
+                  sound: true
+                }
+              );
+            }
+          })
+          .FormularioEtiquetasExcedentesReimpresionController_obtenerBase();
+      };
+
+      useEffect(() => {
+        const inicializar = () => {
+          try {
+            notify_("Inicializando reimpresión de excedentes...", "info", 1600, {
+              title: "Cargando vista",
               sound: false
-            },
-            12000
-          );
-        }
-      })
-      .withFailureHandler(function (err) {
-        console.error("❌ Error al sincronizar base de excedentes:", err);
+            });
 
-        if (contexto === "auto") {
-          notifyOnce_(
-            "error-sync-reimpresion",
-            "No se pudo sincronizar automáticamente la base de reimpresión.",
-            "error",
+            const cacheBootstrap = window.DATA_ALMACEN_CACHE?.reimpresionExcedentesBootstrap || null;
+
+            if (cacheBootstrap) {
+              hidratarBootstrap(cacheBootstrap);
+              setCargando(false);
+
+              notify_("Datos base cargados desde memoria local.", "success", 1600, {
+                title: "Sistema listo",
+                sound: false
+              });
+
+              sincronizarBase("init");
+              return;
+            }
+
+            google.script.run
+              .withSuccessHandler((data) => {
+                hidratarBootstrap(data || {});
+                setCargando(false);
+
+                notify_("Configuración de reimpresión cargada correctamente.", "success", 2000, {
+                  title: "Sistema listo",
+                  sound: false
+                });
+
+                sincronizarBase("init");
+              })
+              .withFailureHandler((err) => {
+                console.error("❌ Error al cargar bootstrap de reimpresión:", err);
+                setCargando(false);
+
+                notify_(
+                  "No se pudo cargar la base de reimpresión.",
+                  "error",
+                  4200,
+                  {
+                    title: "Error de carga",
+                    sound: true
+                  }
+                );
+              })
+              .FormularioEtiquetasExcedentesReimpresionController_getBootstrap();
+
+          } catch (err) {
+            console.error("❌ Error inesperado en reimpresión:", err);
+            setCargando(false);
+
+            notify_(
+              "No se pudo inicializar la vista de reimpresión.",
+              "error",
+              4200,
+              {
+                title: "Error inesperado",
+                sound: true
+              }
+            );
+          }
+        };
+
+        inicializar();
+      }, []);
+
+      useEffect(() => {
+        if (!cargando && !procesando) {
+          enfocarId();
+        }
+      }, [cargando, procesando]);
+
+      useEffect(() => {
+        const root = document.getElementById("render-excedentes-reimpresion");
+        if (!root) return;
+
+        const parent = root.parentElement;
+        if (!parent) return;
+
+        const previousOverflow = parent.style.overflow;
+        const previousMinHeight = parent.style.minHeight;
+        const previousHeight = parent.style.height;
+
+        parent.style.overflow = "hidden";
+        parent.style.minHeight = "0";
+
+        if (!parent.style.height) {
+          parent.style.height = "100%";
+        }
+
+        return () => {
+          parent.style.overflow = previousOverflow;
+          parent.style.minHeight = previousMinHeight;
+          parent.style.height = previousHeight;
+        };
+      }, []);
+
+      const filtrosNormalizados = useMemo(() => {
+        return {
+          id: normalizarTexto(filtros.id),
+          codigo: normalizarTexto(filtros.codigo),
+          ubicacion: normalizarTexto(filtros.ubicacion)
+        };
+      }, [filtros]);
+
+      const filtrados = useMemo(() => {
+        const valID = filtrosNormalizados.id;
+        const valCod = filtrosNormalizados.codigo;
+        const valUbi = filtrosNormalizados.ubicacion;
+
+        if (!valID && !valCod && !valUbi) {
+          return baseDatos;
+        }
+
+        return baseDatos.filter(item => {
+          const matchID = !valID || String(item.IDUNICO || "").toUpperCase().includes(valID);
+          const matchCod = !valCod || String(item.CODIGO || "").toUpperCase().includes(valCod);
+          const matchUbi = !valUbi || String(item.UBICACION || "").toUpperCase().includes(valUbi);
+          return matchID && matchCod && matchUbi;
+        });
+      }, [baseDatos, filtrosNormalizados]);
+
+      useEffect(() => {
+        const valID = filtrosNormalizados.id;
+
+        if (!filtrosNormalizados.id && !filtrosNormalizados.codigo && !filtrosNormalizados.ubicacion) {
+          setSeleccionado(null);
+          return;
+        }
+
+        const itemExacto = filtrados.find(item =>
+          String(item.IDUNICO || "").trim().toUpperCase() === valID
+        );
+
+        if (itemExacto) {
+          setSeleccionado(itemExacto);
+          return;
+        }
+
+        if (filtrados.length === 1) {
+          setSeleccionado(filtrados[0]);
+          return;
+        }
+
+        setSeleccionado(null);
+      }, [filtrados, filtrosNormalizados]);
+
+      const idsDisponibles = useMemo(() => {
+        const origen = filtrados.length ? filtrados : baseDatos;
+        return [...new Set(origen.map(item => item.IDUNICO).filter(Boolean))].sort();
+      }, [filtrados, baseDatos]);
+
+      const codigosDisponibles = useMemo(() => {
+        const origen = filtrados.length ? filtrados : baseDatos;
+        return [...new Set(origen.map(item => item.CODIGO).filter(Boolean))].sort();
+      }, [filtrados, baseDatos]);
+
+      const ubicacionesDisponibles = useMemo(() => {
+        const origen = filtrados.length ? filtrados : baseDatos;
+        return [...new Set(origen.map(item => item.UBICACION).filter(Boolean))].sort();
+      }, [filtrados, baseDatos]);
+
+      const handleFiltroChange = (campo, valor) => {
+        const valorNormalizado = normalizarTexto(valor);
+
+        setFiltros(prev => {
+          if (campo === "id") {
+            return {
+              ...prev,
+              id: valorNormalizado
+            };
+          }
+
+          if (campo === "codigo") {
+            return {
+              ...prev,
+              codigo: valorNormalizado
+            };
+          }
+
+          if (campo === "ubicacion") {
+            return {
+              ...prev,
+              ubicacion: valorNormalizado
+            };
+          }
+
+          return prev;
+        });
+      };
+
+      useEffect(() => {
+        const intervalId = setInterval(() => {
+          sincronizarBase("auto");
+        }, 3000);
+
+        return () => {
+          clearInterval(intervalId);
+        };
+      }, []);
+
+      const agregarALista = () => {
+        if (!seleccionado || !seleccionado.IDUNICO) {
+          notify_(
+            "Selecciona un ID válido de la lista antes de continuar.",
+            "warning",
             3200,
             {
-              title: "Error de sincronización",
-              sound: false
-            },
-            12000
-          );
-        } else {
-          notify_(
-            "No se pudo actualizar la base de reimpresión.",
-            "error",
-            4200,
-            {
-              title: "Error de sincronización",
+              title: "Selección inválida",
               sound: true
             }
           );
+          return;
         }
-      })
-      .FormularioEtiquetasExcedentesReimpresionController_obtenerBase();
-  }
 
-  // =========================================================
-  // INIT DE VISTA
-  // =========================================================
-  window.inicializarVistaEtiquetasExcedentesReimpresion = function () {
-    const root = getViewRoot_();
+        if (cola.some(item => item.idUnico === seleccionado.IDUNICO)) {
+          notify_(
+            "Este ID ya fue agregado a la lista de reimpresión.",
+            "error",
+            3200,
+            {
+              title: "Elemento duplicado",
+              sound: true
+            }
+          );
+          return;
+        }
 
-    if (root && root.dataset.feerInit === "1") {
-      console.log("⏭️ [Reimpresión Excedentes] Inicialización omitida: esta instancia ya fue montada.");
-      return;
-    }
+        const nuevoItem = {
+          idUnico: seleccionado.IDUNICO,
+          codigo: seleccionado.CODIGO,
+          descripcion: seleccionado.DESCRIPCION,
+          cantidad: seleccionado.CANTIDAD,
+          ubicacion: seleccionado.ESTADOACTUALEXCEDENTES || seleccionado.UBICACION || "DISPONIBLE",
+          estatus: seleccionado.ESTATUS || "DISPONIBLE",
+          rowId: seleccionado.IDUNICO
+        };
 
-    if (root) {
-      root.dataset.feerInit = "1";
-    }
 
-    console.log("📦 [Reimpresión Excedentes] Inicializando vista...");
 
-    notify_("Inicializando reimpresión de excedentes...", "info", 1600, {
-      title: "Cargando vista",
-      sound: false
-    });
+        setCola(prev => [nuevoItem, ...prev]);
+        limpiarBusqueda();
 
-    // Si hay ciclo previo, se limpia
-    if (window.intervaloReimpresion) {
-      clearInterval(window.intervaloReimpresion);
-      window.intervaloReimpresion = null;
-      console.log("🧹 Intervalo de reimpresión previo limpiado.");
-    }
-
-    const cacheBootstrap = window.DATA_ALMACEN_CACHE?.reimpresionExcedentesBootstrap || null;
-
-    // 1) Reutilizar bootstrap de cache si existe
-    if (cacheBootstrap) {
-      console.log("⚡ [Reimpresión Excedentes] Cargando bootstrap desde cache...");
-      hidratarBootstrap_(cacheBootstrap);
-
-      llenarDatalist("listaIDs", state.bootstrap.ids);
-      llenarDatalist("listaCodigos", state.bootstrap.codigos);
-      llenarDatalist("listaUbicaciones", state.bootstrap.ubicaciones);
-
-      notify_("Datos base cargados desde memoria local.", "success", 1600, {
-        title: "Sistema listo",
-        sound: false
-      });
-
-      sincronizarBaseDeDatos("init");
-      iniciarCicloReimpresion_();
-      return;
-    }
-
-    // 2) Si ya existe bootstrap en memoria local
-    if (
-      state.bootstrap.ids.length > 0 ||
-      state.bootstrap.codigos.length > 0 ||
-      state.bootstrap.ubicaciones.length > 0
-    ) {
-      console.log("⚡ [Reimpresión Excedentes] Reutilizando bootstrap local...");
-
-      llenarDatalist("listaIDs", state.bootstrap.ids);
-      llenarDatalist("listaCodigos", state.bootstrap.codigos);
-      llenarDatalist("listaUbicaciones", state.bootstrap.ubicaciones);
-
-      notify_("Datos base reutilizados desde memoria local.", "success", 1600, {
-        title: "Sistema listo",
-        sound: false
-      });
-
-      sincronizarBaseDeDatos("init");
-      iniciarCicloReimpresion_();
-      return;
-    }
-
-    // 3) Fallback al controller nuevo
-    console.warn("⚠️ [Reimpresión Excedentes] Solicitando bootstrap específico...");
-
-    notify_("Solicitando configuración de reimpresión...", "info", 1800, {
-      title: "Sincronización requerida",
-      sound: false
-    });
-
-    google.script.run
-      .withSuccessHandler(function (bootstrap) {
-        console.log("✅ [Reimpresión Excedentes] Bootstrap recibido:", bootstrap);
-
-        hidratarBootstrap_(bootstrap);
-
-        llenarDatalist("listaIDs", state.bootstrap.ids);
-        llenarDatalist("listaCodigos", state.bootstrap.codigos);
-        llenarDatalist("listaUbicaciones", state.bootstrap.ubicaciones);
-
-        notify_("Configuración de reimpresión cargada correctamente.", "success", 2000, {
-          title: "Sistema listo",
+        notify_("Item añadido correctamente a la lista de reimpresión.", "success", 1600, {
+          title: "Añadido a lista",
           sound: false
         });
+      };
 
-        sincronizarBaseDeDatos("init");
-        iniciarCicloReimpresion_();
-      })
-      .withFailureHandler(function (err) {
-        console.error("❌ Error al cargar bootstrap de reimpresión:", err);
+      
+      const generarReimpresion = () => {
+        if (cola.length === 0) {
+          notify_(
+            "La lista de reimpresión está vacía.",
+            "warning",
+            3200,
+            {
+              title: "Lista vacía",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        if (
+          !window.ImpresionModoUtilidades ||
+          typeof window.ImpresionModoUtilidades.getMode !== "function" ||
+          typeof window.ImpresionModoUtilidades.imprimirResultado !== "function"
+        ) {
+          notify_(
+            "No se encontró el módulo global de impresión.",
+            "error",
+            4200,
+            {
+              title: "Impresión no disponible",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        setProcesando(true);
+
+        const modoImpresion = window.ImpresionModoUtilidades.getMode();
+
+        let ventanaLocal = null;
+
+        if (modoImpresion === "LOCAL") {
+          ventanaLocal = window.open("", "_blank", "width=900,height=700");
+
+          if (!ventanaLocal) {
+            setProcesando(false);
+
+            notify_(
+              "La ventana fue bloqueada. Permite los pop-ups para continuar.",
+              "warning",
+              4200,
+              {
+                title: "Pop-up bloqueado",
+                sound: true
+              }
+            );
+
+            return;
+          }
+
+          ventanaLocal.document.open();
+          ventanaLocal.document.write(`
+            <html>
+              <head>
+                <title>Generando reimpresión...</title>
+                <style>
+                  body {
+                    font-family: Arial, sans-serif;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100vh;
+                    margin: 0;
+                    color: #5f6368;
+                    background-color: #f8f9fa;
+                  }
+
+                  .spinner {
+                    width: 50px;
+                    height: 50px;
+                    border: 5px solid #f3f3f3;
+                    border-top: 5px solid #d93025;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                    margin-bottom: 20px;
+                  }
+
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+
+                  .loader {
+                    text-align: center;
+                    max-width: 420px;
+                    padding: 0 24px;
+                  }
+
+                  .loader h3 {
+                    margin: 0 0 8px 0;
+                    font-size: 22px;
+                    font-weight: 700;
+                    color: #1c1d1f;
+                    letter-spacing: 0.04em;
+                  }
+
+                  .loader p {
+                    margin: 0;
+                    font-size: 14px;
+                    color: #5f6368;
+                    line-height: 1.5;
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="spinner"></div>
+                <div class="loader">
+                  <h3>Preparando reimpresión...</h3>
+                  <p>Espera un momento mientras se genera la reimpresión de etiquetas de excedentes.</p>
+                </div>
+              </body>
+            </html>
+          `);
+          ventanaLocal.document.close();
+        }
 
         notify_(
-          "No se pudo cargar la base de reimpresión.",
-          "error",
-          4200,
+          modoImpresion === "ONLINE"
+            ? "Preparando reimpresión de excedentes para impresión ONLINE..."
+            : "Preparando reimpresión de excedentes para impresión LOCAL...",
+          "info",
+          1600,
           {
-            title: "Error de carga",
-            sound: true
+            title: "Generando etiquetas",
+            sound: false
           }
         );
-      })
-      .FormularioEtiquetasExcedentesReimpresionController_getBootstrap();
-  };
 
-  window.initVista = window.inicializarVistaEtiquetasExcedentesReimpresion;
-  console.log("🧩 [Reimpresión Excedentes] initVista definida:", typeof window.initVista);
+        const lote = cola.map(item => ({
+          idUnico: item.idUnico,
+          codigo: item.codigo,
+          descripcion: item.descripcion,
+          cantidad: item.cantidad,
+          ubicacion: item.ubicacion
+        }));
 
-  function iniciarCicloReimpresion_() {
-    window.intervaloReimpresion = setInterval(function () {
-      const vistaActiva = document.getElementById('contenedorReimpresion');
+        google.script.run
+          .withSuccessHandler((resultado) => {
+            const res = typeof resultado === "string"
+              ? {
+                  ok: true,
+                  htmlImpresion: resultado,
+                  printJob: null,
+                  legacy: true
+                }
+              : resultado;
 
-      if (!vistaActiva) {
-        clearInterval(window.intervaloReimpresion);
-        window.intervaloReimpresion = null;
-        console.log("🛑 Ciclo de reimpresión detenido por cambio de vista.");
-        return;
-      }
+            if (!res || !res.htmlImpresion) {
+              if (ventanaLocal && !ventanaLocal.closed) {
+                ventanaLocal.close();
+              }
 
-      sincronizarBaseDeDatos("auto");
-    }, 3000);
-  }
+              setProcesando(false);
 
-  // =========================================================
-  // FILTROS CRUZADOS
-  // =========================================================
-  window.aplicarFiltrosCruzados = function () {
-    if (state.bloqueadoPorLlenado) return;
+              notify_(
+                "No se recibió una impresión válida desde el servidor.",
+                "error",
+                4200,
+                {
+                  title: "Respuesta inválida",
+                  sound: true
+                }
+              );
 
-    const elID = document.getElementById("busquedaID");
-    const elCod = document.getElementById("resCodigo");
-    const elUbi = document.getElementById("resUbi");
+              return;
+            }
 
-    const valID = elID ? elID.value.trim() : "";
-    const valCod = elCod ? elCod.value.trim() : "";
-    const valUbi = elUbi ? elUbi.value.trim() : "";
+            const modoActual = window.ImpresionModoUtilidades.getMode();
 
-    const searchID = valID.toUpperCase();
-    const searchCod = valCod.toUpperCase();
-    const searchUbi = valUbi.toUpperCase();
+            if (modoActual === "ONLINE" && !res.printJob) {
+              if (ventanaLocal && !ventanaLocal.closed) {
+                ventanaLocal.close();
+              }
 
-    if (!valID && !valCod && !valUbi) {
-      limpiarCamposDetalle();
-      actualizarDataListsManual(state.baseDatosExcedentes);
-      return;
-    }
+              setProcesando(false);
 
-    const filtrados = state.baseDatosExcedentes.filter(item => {
-      const matchID = !valID || String(item.IDUNICO).toUpperCase().includes(searchID);
-      const matchCod = !valCod || String(item.CODIGO).toUpperCase().includes(searchCod);
-      const matchUbi = !valUbi || String(item.UBICACION).toUpperCase().includes(searchUbi);
-      return matchID && matchCod && matchUbi;
-    });
+              notify_(
+                "La vista generó HTML, pero no generó paquete ONLINE.",
+                "error",
+                5200,
+                {
+                  title: "Impresión ONLINE no disponible",
+                  sound: true
+                }
+              );
 
-    actualizarDataListsManual(filtrados);
+              return;
+            }
 
-    if (filtrados.length === 1) {
-      state.bloqueadoPorLlenado = true;
-      llenarFormulario(filtrados[0]);
-      setTimeout(() => { state.bloqueadoPorLlenado = false; }, 200);
-    } else {
-      const itemExacto = filtrados.find(i =>
-        String(i.IDUNICO).trim().toUpperCase() === searchID
+            try {
+              window.ImpresionModoUtilidades.imprimirResultado(res, {
+                titulo: "Reimpresión de etiquetas de excedentes",
+                fallbackLocal: false,
+                ventanaLocal: ventanaLocal
+              });
+
+              setCola([]);
+              limpiarBusqueda();
+              setProcesando(false);
+
+              notify_(
+                modoActual === "ONLINE"
+                  ? "Reimpresión de excedentes enviada por ONLINE."
+                  : "Reimpresión de excedentes lista para impresión LOCAL.",
+                "success",
+                2800,
+                {
+                  title: modoActual === "ONLINE"
+                    ? "Impresión ONLINE"
+                    : "Impresión LOCAL",
+                  sound: true
+                }
+              );
+
+            } catch (errorImpresion) {
+              console.error("❌ Error ejecutando reimpresión:", errorImpresion);
+
+              if (ventanaLocal && !ventanaLocal.closed) {
+                ventanaLocal.close();
+              }
+
+              setProcesando(false);
+
+              notify_(
+                errorImpresion && errorImpresion.message
+                  ? errorImpresion.message
+                  : "No se pudo ejecutar la reimpresión.",
+                "error",
+                5200,
+                {
+                  title: "Error de impresión",
+                  sound: true
+                }
+              );
+            }
+          })
+          .withFailureHandler((err) => {
+            if (ventanaLocal && !ventanaLocal.closed) {
+              ventanaLocal.close();
+            }
+
+            console.error("❌ Error al procesar reimpresión:", err);
+            setProcesando(false);
+
+            notify_(
+              err && err.message
+                ? err.message
+                : "No se pudo generar la reimpresión de etiquetas.",
+              "error",
+              4200,
+              {
+                title: "Error de impresión",
+                sound: true
+              }
+            );
+          })
+          .FormularioEtiquetasExcedentesReimpresionController_procesarReimpresion(lote);
+      };
+
+      return (
+        <div className="er-app-shell flex flex-col h-full w-full relative">
+          <div className="er-main-layout">
+
+            <div className="er-left-panel border-r border-[#dadce0] bg-white px-6 pt-4 pb-6 shrink-0 z-10">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  agregarALista();
+                }}
+                className="h-full flex flex-col"
+              >
+                <div className="er-form-grid">
+
+                  <div className="er-grid-id er-field-block">
+                    <label className="er-label ml-1">
+                      ID
+                    </label>
+
+                    <input
+                      ref={idInputRef}
+                      list="lista-ids-reimpresion"
+                      disabled={cargando || procesando}
+                      className={`w-full border rounded-xl px-4 er-input er-form-input-unificado uppercase outline-none transition-all ${
+                        cargando || procesando
+                          ? "bg-gray-200 cursor-not-allowed text-gray-500"
+                          : "bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                      }`}
+                      placeholder={cargando ? "Cargando base..." : "Escanea o selecciona un ID"}
+                      value={filtros.id}
+                      onChange={(e) => handleFiltroChange("id", e.target.value)}
+                    />
+
+                    <datalist id="lista-ids-reimpresion">
+                      {idsDisponibles.map((id, index) => (
+                        <option key={`${index}-${id}`} value={id} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div className="er-grid-codigo er-field-block">
+                    <label className="er-label ml-1">
+                      Código
+                    </label>
+
+                    <input
+                      list="lista-codigos-reimpresion"
+                      disabled={cargando || procesando}
+                      className={`w-full border rounded-xl px-4 er-input er-form-input-unificado uppercase outline-none transition-all ${
+                        cargando || procesando
+                          ? "bg-gray-200 cursor-not-allowed text-gray-500"
+                          : "bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                      }`}
+                      placeholder="Escribe o selecciona código"
+                      value={filtros.codigo}
+                      onChange={(e) => handleFiltroChange("codigo", e.target.value)}
+                    />
+
+                    <datalist id="lista-codigos-reimpresion">
+                      {codigosDisponibles.map((codigo, index) => (
+                        <option key={`${index}-${codigo}`} value={codigo} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div className="er-grid-ubicacion er-field-block">
+                    <label className="er-label ml-1">
+                      Ubicación actual
+                    </label>
+
+                    <input
+                      list="lista-ubicaciones-reimpresion"
+                      disabled={cargando || procesando}
+                      className={`w-full border rounded-xl px-4 er-input er-form-input-unificado uppercase outline-none transition-all ${
+                        cargando || procesando
+                          ? "bg-gray-200 cursor-not-allowed text-gray-500"
+                          : "bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                      }`}
+                      placeholder="Escribe o selecciona ubicación"
+                      value={filtros.ubicacion}
+                      onChange={(e) => handleFiltroChange("ubicacion", e.target.value)}
+                    />
+
+                    <datalist id="lista-ubicaciones-reimpresion">
+                      {ubicacionesDisponibles.map((ubicacion, index) => (
+                        <option key={`${index}-${ubicacion}`} value={ubicacion} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div className="er-grid-detalle">
+                    {seleccionado ? (
+                      <div className="er-id-card bg-[#1c1d1f] space-y-3 border border-gray-800 fade-in shadow-xl">
+                        <div className="flex items-start gap-2.5">
+                          <div className="p-1.5 bg-gray-800 rounded-lg">
+                            <LocalIcon name="qr-code" size={15} className="text-red-500" />
+                          </div>
+
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[12px] font-black text-gray-500 uppercase tracking-[0.18em]">
+                              ID seleccionado
+                            </span>
+                            <span className="text-white er-mono text-[14px] font-black mt-1 break-all">
+                              {seleccionado.IDUNICO}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-2.5 border-t border-gray-800 pt-2.5">
+                          <div className="p-1.5 bg-gray-800 rounded-lg">
+                            <LocalIcon name="tag" size={15} className="text-red-500" />
+                          </div>
+
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[12px] font-black text-gray-500 uppercase tracking-[0.18em]">
+                              Código
+                            </span>
+                            <span className="text-white er-mono text-[17px] font-black mt-1 break-all">
+                              {seleccionado.CODIGO}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-2.5 border-t border-gray-800 pt-2.5">
+                          <div className="p-1.5 bg-gray-800 rounded-lg">
+                            <LocalIcon name="file-text" size={15} className="text-red-500" />
+                          </div>
+
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[12px] font-black text-gray-500 uppercase tracking-[0.18em]">
+                              Descripción
+                            </span>
+                            <span className="text-gray-300 text-[15px] font-bold leading-snug uppercase italic mt-1 break-words">
+                              {seleccionado.DESCRIPCION || "Sin descripción"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 border-t border-gray-800 pt-3">
+                          <div className="flex flex-col">
+                            <span className="text-[11px] font-black text-gray-500 uppercase tracking-[0.16em]">
+                              Cantidad
+                            </span>
+                            <span className="text-white er-mono text-[18px] font-black">
+                              {seleccionado.CANTIDAD}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col text-right">
+                            <span className="text-[11px] font-black text-gray-500 uppercase tracking-[0.16em]">
+                              Ubicación
+                            </span>
+                            <span className="text-gray-300 er-mono text-[13px] font-black">
+                              {seleccionado.UBICACION || "S/U"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="er-product-placeholder">
+                        <div>
+                          <div className="er-product-placeholder-title">
+                            Esperando selección
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="er-grid-accion">
+                    <button
+                      type="submit"
+                      disabled={cargando || procesando}
+                      className="er-action-btn w-full bg-[#d93025] hover:bg-[#a50e0e] text-white py-4 rounded-xl font-black uppercase text-[16px] tracking-[0.18em] shadow-lg shadow-red-100 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                      <LocalIcon name="plus" size={25} />
+                      Añadir a lista
+                    </button>
+                  </div>
+
+                </div>
+              </form>
+            </div>
+
+            <div className="er-right-panel min-w-0">
+
+              <div className="er-results-toolbar bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-start gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-[#1c1d1f] text-white flex items-center justify-center shadow-md">
+                    <LocalIcon name="list-checks" size={22} />
+                  </div>
+
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
+                      Lista de reimpresión
+                    </span>
+                    <span className="text-[15px] font-black uppercase tracking-[0.08em] text-gray-900">
+                      {cola.length} {cola.length === 1 ? "etiqueta añadida" : "etiquetas añadidas"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="er-table-scroll">
+
+                <table className="er-results-table">
+                  <thead className="er-results-head">
+                    <tr>
+                      <th className="text-center">
+                        Código / Descripción
+                      </th>
+                      <th className="text-center">
+                        ID
+                      </th>
+                      <th className="text-center">
+                        Ubicación
+                      </th>
+                      <th className="text-center">
+                        Cantidad
+                      </th>
+                      <th className="text-center">
+                        Acción
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {cola.map(item => (
+                      <tr key={item.rowId} className="er-results-row fade-in">
+                        <td>
+                          <div className="flex flex-col">
+                            <span className="er-code-main">
+                              {item.codigo}
+                            </span>
+                            <span className="er-desc">
+                              {item.descripcion || "SIN DESCRIPCIÓN"}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="text-center">
+                          <span className="er-folio-pill" title={item.idUnico}>
+                            {item.idUnico}
+                          </span>
+                        </td>
+
+                        <td className="text-center">
+                          <span
+                            className={
+                              normalizarTexto(item.ubicacion) === "DISPONIBLE"
+                                ? "er-location-chip er-location-chip-disponible"
+                                : "er-location-chip er-location-chip-ubicado"
+                            }
+                          >
+                            {item.ubicacion || "S/U"}
+                          </span>
+                        </td>
+
+
+                        <td className="text-center">
+                          <span className="er-qty-pill">
+                            {item.cantidad}
+                          </span>
+                        </td>
+
+                        <td className="text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCola(prev => prev.filter(c => c.rowId !== item.rowId));
+                              notify_("Elemento removido de la lista de reimpresión.", "warning", 1400, {
+                                title: "Elemento removido",
+                                sound: false
+                              });
+                              enfocarId();
+                            }}
+                            className="er-delete-btn"
+                            title="Quitar de la lista"
+                          >
+                            <LocalIcon name="trash-2" size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {cola.length === 0 && (
+                  <div className="er-empty-state">
+                    <LocalIcon name="package" size={52} />
+                    <p className="er-empty-title">
+                      Esperando reimpresiones
+                    </p>
+                    <p className="er-empty-sub">
+                      Las etiquetas añadidas aparecerán aquí
+                    </p>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          </div>
+
+          {cola.length > 0 && (
+            <div className="absolute bottom-6 right-6 z-30">
+              <button
+                type="button"
+                onClick={generarReimpresion}
+                disabled={procesando}
+                className="bg-[#1c1d1f] hover:bg-black text-white px-6 py-4 rounded-2xl shadow-xl font-black uppercase tracking-[0.15em] flex items-center gap-3 disabled:opacity-50 disabled:pointer-events-none"
+              >
+                <LocalIcon
+                  name={procesando ? "loader-2" : "printer"}
+                  size={20}
+                  className={procesando ? "animate-spin" : ""}
+                />
+                {procesando
+                  ? "Procesando..."
+                  : `Imprimir ${cola.length} ${cola.length === 1 ? "etiqueta" : "etiquetas"}`
+                }
+              </button>
+            </div>
+          )}
+        </div>
       );
+    };
 
-      if (itemExacto) {
-        state.bloqueadoPorLlenado = true;
-        llenarFormulario(itemExacto);
-        setTimeout(() => { state.bloqueadoPorLlenado = false; }, 200);
-      } else {
-        const resDesc = document.getElementById('resDesc');
-        const resCant = document.getElementById('resCant');
-        const busquedaID = document.getElementById('busquedaID');
+    const rootDiv = document.getElementById("render-excedentes-reimpresion");
 
-        if (resDesc) resDesc.value = "";
-        if (resCant) resCant.value = "";
-        if (busquedaID) busquedaID.dataset.actualId = "";
-      }
-    }
-  };
-
-  // =========================================================
-  // GESTIÓN DE LISTA
-  // =========================================================
-  window.agregarAListaReimpresion = function () {
-    const inputID = document.getElementById('busquedaID');
-    const valorId = inputID ? inputID.dataset.actualId : "";
-
-    if (!valorId || (inputID && inputID.value !== valorId)) {
+    if (!rootDiv) {
       notify_(
-        "Selecciona un ID válido de la lista antes de continuar.",
-        "warning",
-        3200,
-        {
-          title: "Selección inválida",
-          sound: true
-        }
-      );
-      return;
-    }
-
-    if (state.listaParaImprimir.some(item => item.idUnico === valorId)) {
-      notify_(
-        "Este ID ya fue agregado a la lista de reimpresión.",
+        "No se encontró el contenedor principal de reimpresión de excedentes.",
         "error",
-        3200,
-        {
-          title: "Elemento duplicado",
-          sound: true
-        }
-      );
-      return;
-    }
-
-    state.listaParaImprimir.push({
-      idUnico: valorId,
-      codigo: document.getElementById('resCodigo')?.value || "",
-      descripcion: document.getElementById('resDesc')?.value || "",
-      cantidad: document.getElementById('resCant')?.value || "",
-      ubicacion: document.getElementById('resUbi')?.value || ""
-    });
-
-    actualizarVistaReimpresionInterna();
-    limpiarFormularioBusqueda();
-
-    notify_("Item añadido correctamente a la lista de reimpresión.", "success", 1600, {
-      title: "Añadido a la lista",
-      sound: false
-    });
-  };
-
-  window.quitarDeListaReimpresion = function (index) {
-    state.listaParaImprimir.splice(index, 1);
-    actualizarVistaReimpresionInterna();
-
-    notify_("Elemento removido de la lista de reimpresión.", "warning", 1400, {
-      title: "Elemento removido",
-      sound: false
-    });
-  };
-
-  // =========================================================
-  // IMPRESIÓN FINAL
-  // =========================================================
-  window.generarReimpresion = function () {
-    if (state.listaParaImprimir.length === 0) {
-      notify_(
-        "La lista de reimpresión está vacía.",
-        "warning",
-        3200,
-        {
-          title: "Lista vacía",
-          sound: true
-        }
-      );
-      return;
-    }
-
-    const btn = document.getElementById('btnImprimirTodo');
-    const textoBoton = document.getElementById('textoBoton');
-
-    if (!btn || !textoBoton) return;
-
-    btn.disabled = true;
-    textoBoton.innerText = "⏳ Generando...";
-
-    notify_("Preparando lote de reimpresión...", "info", 1600, {
-      title: "Generando etiquetas",
-      sound: false
-    });
-
-    const win = window.open("", "_blank");
-    if (!win) {
-      notify_(
-        "La ventana fue bloqueada. Permite los pop-ups para continuar.",
-        "warning",
         4200,
         {
-          title: "Pop-up bloqueado",
+          title: "Error de interfaz",
           sound: true
         }
       );
-      btn.disabled = false;
-      textoBoton.innerText = "Imprimir";
+      console.warn("⚠️ [Reimpresión Excedentes] No se encontró #render-excedentes-reimpresion");
       return;
     }
 
-    win.document.write(`
-      <html>
-        <head>
-          <title>Generando etiquetas...</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              height: 100vh;
-              margin: 0;
-              color: #5f6368;
-              background-color: #f8f9fa;
-            }
+    const yaInicializado = rootDiv.dataset.erMounted === "1";
 
-            .spinner {
-              width: 50px;
-              height: 50px;
-              border: 5px solid #f3f3f3;
-              border-top: 5px solid #d93025;
-              border-radius: 50%;
-              animation: spin 1s linear infinite;
-              margin-bottom: 20px;
-            }
-
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-
-            .loader {
-              text-align: center;
-              max-width: 420px;
-              padding: 0 24px;
-            }
-
-            .loader h3 {
-              margin: 0 0 8px 0;
-              font-size: 22px;
-              font-weight: 700;
-              color: #1c1d1f;
-              letter-spacing: 0.04em;
-            }
-
-            .loader p {
-              margin: 0;
-              font-size: 14px;
-              color: #5f6368;
-              line-height: 1.5;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="spinner"></div>
-          <div class="loader">
-            <h3>Preparando etiquetas...</h3>
-            <p>Espera un momento mientras se genera la impresión del excedente.</p>
-          </div>
-        </body>
-      </html>
-    `);
-    win.document.close();
-
-    google.script.run
-      .withSuccessHandler(function (html) {
-        win.document.open();
-        win.document.write(html);
-        win.document.close();
-
-        state.listaParaImprimir = [];
-        actualizarVistaReimpresionInterna();
-
-        btn.disabled = false;
-        textoBoton.innerText = "Imprimir";
-
-        notify_("Reimpresión enviada correctamente.", "success", 2200, {
-          title: "Impresión lista",
-          sound: true
-        });
-      })
-      .withFailureHandler(function (err) {
-        console.error("❌ Error al procesar reimpresión:", err);
-        win.close();
-
-        btn.disabled = false;
-        textoBoton.innerText = "Imprimir";
-
-        notify_(
-          "No se pudo generar la reimpresión de etiquetas.",
-          "error",
-          4200,
+    if (window.__FORMULARIO_EXCEDENTES_REIMPRESION_ROOT__) {
+      try {
+        window.__FORMULARIO_EXCEDENTES_REIMPRESION_ROOT__.unmount();
+      } catch (e) {
+        console.warn("⚠️ [Reimpresión Excedentes] No se pudo desmontar root previo:", e);
+        notifyOnceShell_(
+          "reimpresion-root-previo",
+          "Se liberó una instancia previa de reimpresión de excedentes.",
+          "warning",
+          1600,
           {
-            title: "Error de impresión",
-            sound: true
-          }
+            title: "Reinicialización",
+            sound: false
+          },
+          10000
         );
-      })
-      .FormularioEtiquetasExcedentesReimpresionController_procesarReimpresion(state.listaParaImprimir);
+      }
+
+      window.__FORMULARIO_EXCEDENTES_REIMPRESION_ROOT__ = null;
+    }
+
+    try {
+      rootDiv.dataset.erMounted = "1";
+      window.__FORMULARIO_EXCEDENTES_REIMPRESION_ROOT__ = ReactDOM.createRoot(rootDiv);
+      window.__FORMULARIO_EXCEDENTES_REIMPRESION_ROOT__.render(<VistaExcedentesReimpresion />);
+
+      if (!yaInicializado) {
+        notifyOnceShell_(
+          "reimpresion-vista-montada",
+          "Vista de reimpresión de excedentes lista para operar.",
+          "success",
+          1500,
+          {
+            title: "Vista cargada",
+            sound: false
+          },
+          12000
+        );
+      }
+    } catch (e) {
+      console.error("❌ [Reimpresión Excedentes] Error montando root React:", e);
+      notify_(
+        "Ocurrió un error al montar la vista de reimpresión de excedentes.",
+        "error",
+        4200,
+        {
+          title: "Error de montaje",
+          sound: true
+        }
+      );
+    }
   };
 
-  // Compatibilidad si alguna parte vieja lo usa
-  window.lanzarNotificacion = window.notificar || window.lanzarNotificacion || notify_;
-
-  // No auto-init aquí.
-  // El shell es quien llama window.initVista().
-})();
+  window.initVista = window.cargar_FormularioEtiquetasExcedentesReimpresion;
+  console.log("🧩 [FormularioEtiquetasExcedentesReimpresion] initVista definida:", typeof window.initVista);
 </script>

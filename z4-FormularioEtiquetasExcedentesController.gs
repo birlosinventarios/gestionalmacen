@@ -1,3 +1,7 @@
+/**
+ * FormularioEtiquetasExcedentesController.gs
+ */
+
 function FormularioEtiquetasExcedentesController_getBootstrap() {
   try {
     return FormularioEtiquetasExcedentesService.getBootstrap();
@@ -18,7 +22,11 @@ function FormularioEtiquetasExcedentesController_buscarProductoPorCodigo(codigo)
 
 function FormularioEtiquetasExcedentesController_procesarLote(lote) {
   try {
-    console.log("📦 Procesando lote:", lote.length);
+    console.log(
+      "📦 Procesando lote:",
+      Array.isArray(lote) ? lote.length : 0
+    );
+
     return FormularioEtiquetasExcedentesService.procesarLote(lote);
   } catch (error) {
     console.error("❌ Error procesarLote:", error);

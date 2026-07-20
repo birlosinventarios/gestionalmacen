@@ -113,14 +113,37 @@ const FormularioEtiquetasExcedentesService = (() => {
   function _mapPrintItem_(item, mapaCatalogo) {
     const { codigo, producto } = _validarCodigo_(item.codigo, mapaCatalogo);
 
+    const descripcion = toStrUpper_(item.descripcion || producto.descripcion);
+    const idproducto = toStr_(item.id || producto.idproducto);
+    const cantidad = _validarCantidad_(item.cantidad, codigo);
+    const idUnico = _validarIdUnico_(item.idUnico, codigo);
+    const cajaNo = toNum_(item.cajaNo);
+    const totalCajas = toNum_(item.totalCajas);
+
+    if (!descripcion) {
+      throw new Error(`El código "${codigo}" no tiene descripción.`);
+    }
+
+    if (!idproducto) {
+      throw new Error(`El código "${codigo}" no tiene ID producto.`);
+    }
+
+    if (cajaNo <= 0) {
+      throw new Error(`La caja del código "${codigo}" no es válida.`);
+    }
+
+    if (totalCajas <= 0) {
+      throw new Error(`El total de cajas del código "${codigo}" no es válido.`);
+    }
+
     return {
       codigo: codigo,
-      descripcion: toStrUpper_(item.descripcion || producto.descripcion),
-      cantidad: _validarCantidad_(item.cantidad, codigo),
-      id: toStr_(item.id || producto.idproducto),
-      idUnico: _validarIdUnico_(item.idUnico, codigo),
-      cajaNo: toNum_(item.cajaNo),
-      totalCajas: toNum_(item.totalCajas)
+      descripcion: descripcion,
+      cantidad: cantidad,
+      id: idproducto,
+      idUnico: idUnico,
+      cajaNo: cajaNo,
+      totalCajas: totalCajas
     };
   }
 
@@ -203,7 +226,9 @@ const FormularioEtiquetasExcedentesService = (() => {
 
       SpreadsheetApp.flush();
 
-      if (typeof ExcedentesRepository !== "undefined" && ExcedentesRepository.clearCache) {
+      if (typeof clearOperationalCaches_ === "function") {
+        clearOperationalCaches_();
+      } else if (typeof ExcedentesRepository !== "undefined" && ExcedentesRepository.clearCache) {
         ExcedentesRepository.clearCache();
       }
 
@@ -235,7 +260,7 @@ const FormularioEtiquetasExcedentesService = (() => {
           fechaHora: fechaHora,
           etiqueta: "EXCEDENTES",
           formatoEtiqueta: "HTML",
-          papel: "100x155mm"
+          papel: "150x100mm"
         }
       };
 

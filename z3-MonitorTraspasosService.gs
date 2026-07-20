@@ -140,7 +140,9 @@ const MonitorTraspasosService = (() => {
 
       SpreadsheetApp.flush();
 
-      if (typeof TraspasosRepository !== "undefined" && TraspasosRepository.clearCache) {
+      if (typeof clearOperationalCaches_ === "function") {
+        clearOperationalCaches_();
+      } else if (typeof TraspasosRepository !== "undefined" && TraspasosRepository.clearCache) {
         TraspasosRepository.clearCache();
       }
 
@@ -166,19 +168,3 @@ const MonitorTraspasosService = (() => {
   };
 
 })();
-
-function debugMonitorTraspasosService() {
-  debugServiceCall_(
-    "MonitorTraspasosService.getBootstrap",
-    {},
-    () => MonitorTraspasosService.getBootstrap(),
-    { limit: 10 }
-  );
-
-  debugServiceCall_(
-    "MonitorTraspasosService.obtenerPendientes",
-    {},
-    () => MonitorTraspasosService.obtenerPendientes(),
-    { limit: 10 }
-  );
-}

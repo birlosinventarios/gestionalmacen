@@ -1,4 +1,6 @@
-<script>/** ImpresionModoUtilidades.HTML */</script>
+<script>
+  /** ImpresionModoUtilidades.HTML */
+</script>
 
 <script>
   (function () {
@@ -20,10 +22,15 @@
 
     function setMode(mode) {
       const finalMode = mode === MODES.ONLINE ? MODES.ONLINE : MODES.LOCAL;
+
       localStorage.setItem(STORAGE_KEY, finalMode);
+
       window.dispatchEvent(new CustomEvent("app-print-mode-change", {
-        detail: { mode: finalMode }
+        detail: {
+          mode: finalMode
+        }
       }));
+
       return finalMode;
     }
 
@@ -31,8 +38,8 @@
       return setMode(getMode() === MODES.ONLINE ? MODES.LOCAL : MODES.ONLINE);
     }
 
-    function abrirHtmlLocal(html, titulo = "Impresión") {
-      const win = window.open("", "_blank", "width=900,height=700");
+    function abrirHtmlLocal(html, titulo = "Impresión", ventanaExistente = null) {
+      const win = ventanaExistente || window.open("", "_blank", "width=900,height=700");
 
       if (!win) {
         if (window.notificar) {
@@ -41,26 +48,181 @@
         return false;
       }
 
-      win.document.open();
-      win.document.write(html || "");
-      win.document.close();
+      const esperar = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-      win.onload = function () {
+      const esperarFrames = (w, frames = 2) => {
+        return new Promise(resolve => {
+          let count = 0;
+
+          const step = () => {
+            count++;
+
+            if (count >= frames) {
+              resolve();
+              return;
+            }
+
+            w.requestAnimationFrame(step);
+          };
+
+          w.requestAnimationFrame(step);
+        });
+      };
+
+      const esperarDocumentoListo = async (w) => {
         try {
-          win.focus();
-          setTimeout(function () {
-            win.print();
-          }, 350);
+          if (w.document.readyState === "complete") return;
+
+          await new Promise(resolve => {
+            const done = () => resolve();
+
+            w.addEventListener("load", done, { once: true });
+
+            setTimeout(done, 2500);
+          });
         } catch (err) {
-          console.warn("No se pudo abrir impresión local automáticamente:", err);
+          console.warn("No se pudo esperar load de documento:", err);
         }
       };
 
-      return true;
+      const esperarFuentes = async (w) => {
+        try {
+          if (w.document.fonts && typeof w.document.fonts.ready?.then === "function") {
+            await Promise.race([
+              w.document.fonts.ready,
+              esperar(2500)
+            ]);
+          }
+        } catch (err) {
+          console.warn("No se pudo esperar document.fonts.ready:", err);
+        }
+      };
+
+      const esperarImagenes = async (w) => {
+        try {
+          const imagenes = Array.from(w.document.images || []);
+
+          await Promise.all(
+            imagenes.map(img => {
+              if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+
+              if (typeof img.decode === "function") {
+                return img.decode().catch(() => {});
+              }
+
+              return new Promise(resolve => {
+                img.onload = resolve;
+                img.onerror = resolve;
+                setTimeout(resolve, 2500);
+              });
+            })
+          );
+        } catch (err) {
+          console.warn("No se pudo esperar carga de imágenes:", err);
+        }
+      };
+
+      const esperarQRVisual = async (w) => {
+        const maxIntentos = 30;
+        const delay = 150;
+
+        for (let i = 0; i < maxIntentos; i++) {
+          try {
+            const posiblesQR = Array.from(
+              w.document.querySelectorAll(
+                "canvas, svg, img, .qr, .qrcode, [data-qr], [data-qrcode]"
+              )
+            );
+
+            const hayQRVisible = posiblesQR.some(el => {
+              const rect = el.getBoundingClientRect();
+
+              if (!rect || rect.width <= 0 || rect.height <= 0) {
+                return false;
+              }
+
+              if (el.tagName === "IMG") {
+                return el.complete && el.naturalWidth > 0;
+              }
+
+              if (el.tagName === "CANVAS") {
+                return el.width > 0 && el.height > 0;
+              }
+
+              return true;
+            });
+
+            if (hayQRVisible) {
+              await esperarFrames(w, 2);
+              return true;
+            }
+          } catch (err) {
+            console.warn("No se pudo validar QR visual:", err);
+          }
+
+          await esperar(delay);
+        }
+
+        return false;
+      };
+
+      const esperarReadyPersonalizado = async (w) => {
+        try {
+          if (w.__APP_PRINT_READY && typeof w.__APP_PRINT_READY.then === "function") {
+            await Promise.race([
+              w.__APP_PRINT_READY,
+              esperar(3500)
+            ]);
+          }
+        } catch (err) {
+          console.warn("No se pudo esperar __APP_PRINT_READY:", err);
+        }
+      };
+
+      try {
+        win.document.open();
+        win.document.write(html || "");
+        win.document.close();
+
+        setTimeout(async function () {
+          try {
+            await esperarDocumentoListo(win);
+            await esperarFuentes(win);
+            await esperarImagenes(win);
+            await esperarReadyPersonalizado(win);
+            await esperarQRVisual(win);
+            await esperarFrames(win, 3);
+            await esperar(250);
+
+            win.focus();
+            win.print();
+
+          } catch (err) {
+            console.warn("No se pudo abrir impresión local automáticamente:", err);
+
+            try {
+              win.focus();
+              win.print();
+            } catch (fallbackErr) {
+              console.warn("Fallback de impresión local falló:", fallbackErr);
+            }
+          }
+        }, 100);
+
+        return true;
+
+      } catch (err) {
+        console.error("No se pudo escribir la impresión local:", err);
+
+        if (window.notificar) {
+          window.notificar("No se pudo preparar la impresión local.", "error");
+        }
+
+        return false;
+      }
     }
 
     function normalizarResultado(resultado) {
-      // Compatibilidad con servicios antiguos que regresan string HTML
       if (typeof resultado === "string") {
         return {
           ok: true,
@@ -83,20 +245,26 @@
 
       const titulo = options.titulo || "Impresión";
       const fallbackLocal = options.fallbackLocal !== false;
+      const ventanaLocal = options.ventanaLocal || null;
+
+      console.log("[IMPRESION] Modo actual:", mode);
+      console.log("[IMPRESION] Resultado normalizado:", res);
 
       if (mode === MODES.LOCAL) {
-        abrirHtmlLocal(res.htmlImpresion || "", titulo);
+        abrirHtmlLocal(res.htmlImpresion || "", titulo, ventanaLocal);
         return;
       }
 
-      // ONLINE
       if (!res.printJob) {
         if (window.notificar) {
-          window.notificar("No hay paquete ONLINE para esta impresión. Se usará modo LOCAL.", "warning");
+          window.notificar(
+            "No hay paquete ONLINE para esta impresión. Se usará modo LOCAL.",
+            "warning"
+          );
         }
 
         if (fallbackLocal) {
-          abrirHtmlLocal(res.htmlImpresion || "", titulo);
+          abrirHtmlLocal(res.htmlImpresion || "", titulo, ventanaLocal);
         }
 
         return;
@@ -112,15 +280,19 @@
             if (window.notificar) {
               window.notificar("Impresión ONLINE enviada correctamente.", "success");
             }
+
             return;
           }
 
           if (window.notificar) {
-            window.notificar("No se confirmó la impresión ONLINE. Se abrirá modo LOCAL.", "warning");
+            window.notificar(
+              "No se confirmó la impresión ONLINE. Se abrirá modo LOCAL.",
+              "warning"
+            );
           }
 
           if (fallbackLocal) {
-            abrirHtmlLocal(res.htmlImpresion || "", titulo);
+            abrirHtmlLocal(res.htmlImpresion || "", titulo, ventanaLocal);
           }
         })
         .withFailureHandler(function (err) {
@@ -134,7 +306,7 @@
           }
 
           if (fallbackLocal) {
-            abrirHtmlLocal(res.htmlImpresion || "", titulo);
+            abrirHtmlLocal(res.htmlImpresion || "", titulo, ventanaLocal);
           }
         })
         .ImpresionPuenteController_imprimir(res.printJob);

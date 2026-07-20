@@ -4,7 +4,14 @@
 
 function probarImpresionFija() {
   const URL_IMPRESORA = "https://trowel-narrow-collector.ngrok-free.dev/print";
-  const TOKEN_SECRETO = "Birlosytornillos123456";
+  const TOKEN_SECRETO = PropertiesService
+    .getScriptProperties()
+    .getProperty("PRINT_BRIDGE_TOKEN");
+
+  if (!TOKEN_SECRETO) {
+    throw new Error("No está configurado PRINT_BRIDGE_TOKEN en Script Properties.");
+  }
+
 
   const contenidoTicket =
     "================================================\n" +

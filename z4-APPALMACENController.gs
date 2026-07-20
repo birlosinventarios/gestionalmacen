@@ -1,6 +1,8 @@
+
 /**
  * APPALMACENController.gs
  */
+
 // CONFIGURACIÓN DE VISTAS PERMITIDAS
 // =========================================================
 var APPALMACEN_VISTAS_PERMITIDAS = Object.freeze([
@@ -10,6 +12,7 @@ var APPALMACEN_VISTAS_PERMITIDAS = Object.freeze([
   "FormularioEtiquetasIdentificadoras",
   "FormularioEtiquetasExcedentes",
   "FormularioEtiquetasExcedentesReimpresion",
+  "FormularioDetallesProducto",
   "HistorialTraspasos",
   "GestorExcedentes",
   "NegativosBirlos",
@@ -21,6 +24,7 @@ var APPALMACEN_VISTAS_PERMITIDAS = Object.freeze([
   "AuditoriaExcedentesDetalle",
   "AuditoriaExcedentesCaptura"
 ]);
+
 
 // =========================================================
 // HELPERS PRIVADOS

@@ -113,24 +113,3 @@ function AuditoriaExcedentesDetalleController_ping() {
     };
   });
 }
-
-/**
- * =========================================================
- * DEBUGGERS
- * =========================================================
- */
-
-function debugAuditoriaExcedentesDetalleController_ping() {
-  return AuditoriaExcedentesDetalleController_ping();
-}
-
-function debugAuditoriaExcedentesDetalleController_abrirUbicacion() {
-  return AuditoriaExcedentesDetalleController_abrirUbicacion({
-    idauditoria: "AUD-PRUEBA-001",
-    ubicacion: "B1-19"
-  });
-}
-
-function debugAuditoriaExcedentesDetalleController_obtenerEsperadosPorUbicacion() {
-  return AuditoriaExcedentesDetalleController_obtenerEsperadosPorUbicacion("AUD-PRUEBA-001", "B1-19");
-}

@@ -16,29 +16,80 @@ const FormularioEtiquetasExcedentesReimpresionService = (() => {
   }
 
   /**
-   * Mapea un registro del repository al formato que espera la vista:
-   * IDUNICO, CODIGO, DESCRIPCION, CANTIDAD, UBICACION
-   *
-   * Nota:
-   * - Por ahora UBICACION sigue viniendo desde item.status
-   *   porque así está hoy tu ExcedentesRepository.
-   * - Ya lo normalizamos aquí con el nombre correcto para la vista.
+   * Mapea el estado consolidado calculado por EstadoActualExcedentesService
+   * al formato que espera la vista de reimpresión.
    */
-  function _mapBaseItemToView_(item) {
+  function _mapEstadoActualToView_(item) {
+    const ubicacionActual = toStrUpper_(item.ubicacionActual || "");
+    const estatusRegistro = toStrUpper_(item.estatusRegistro || "");
+    const estatusLogico = toStrUpper_(item.estatusLogico || "");
+
+    let ubicacionVisual = "";
+
+    if (ubicacionActual) {
+      ubicacionVisual = ubicacionActual;
+    } else if (estatusRegistro === "DISPONIBLE") {
+      ubicacionVisual = "DISPONIBLE";
+    } else {
+      ubicacionVisual = "SIN UBICACION";
+    }
+
     return {
-      IDUNICO: toStr_(item.idunico),
+      IDUNICO: toStr_(item.idUnico),
       CODIGO: toStrUpper_(item.codigo),
       DESCRIPCION: toStrUpper_(item.descripcion),
-      CANTIDAD: toNum_(item.cantidad),
-      UBICACION: toStrUpper_(item.status), // ← aquí ya sale renombrado como UBICACION
-      IDPRODUCTO: toStr_(item.idproducto)
+
+      CANTIDAD: toNum_(item.saldoActual || item.saldoBase || 0),
+
+      // Lo que verá la vista en la columna Ubicación.
+      UBICACION: ubicacionVisual,
+
+      // Ubicación física real calculada desde traspasos.
+      ESTADOACTUALEXCEDENTES: ubicacionActual,
+
+      // Estatus de BD-Excedentes y estatus lógico calculado.
+      ESTATUS: estatusRegistro || "DISPONIBLE",
+      ESTATUSLOGICO: estatusLogico,
+
+      BODEGAACTUAL: toStrUpper_(item.bodegaActual || ""),
+      IDPRODUCTO: toStr_(item.idproducto || "")
     };
   }
 
+  /**
+   * Fuente correcta para reimpresión:
+   * EstadoActualExcedentesService ya calcula la ubicación actual real
+   * usando TraspasosRepository + BD-Excedentes.
+   */
   function _obtenerBaseNormalizada_() {
+    if (
+      typeof EstadoActualExcedentesService !== "undefined" &&
+      typeof EstadoActualExcedentesService.getVigentes === "function"
+    ) {
+      return EstadoActualExcedentesService.getVigentes()
+        .filter(x => x && x.idUnico && x.codigo)
+        .map(_mapEstadoActualToView_);
+    }
+
+    // Fallback defensivo si por alguna razón no existe el servicio consolidado.
     return ExcedentesRepository.getAll()
       .filter(x => x.idunico && x.codigo)
-      .map(_mapBaseItemToView_);
+      .map(function (item) {
+        const estatus = toStrUpper_(item.status || "");
+
+        return {
+          IDUNICO: toStr_(item.idunico),
+          CODIGO: toStrUpper_(item.codigo),
+          DESCRIPCION: toStrUpper_(item.descripcion),
+          CANTIDAD: toNum_(item.cantidad),
+          UBICACION: estatus === "DISPONIBLE" ? "DISPONIBLE" : "SIN UBICACION",
+          ESTADOACTUALEXCEDENTES: "",
+          ESTATUS: estatus || "DISPONIBLE",
+          ESTATUSLOGICO: "",
+          BODEGAACTUAL: "",
+          IDPRODUCTO: toStr_(item.idproducto)
+        };
+      });
   }
 
   function _obtenerValoresUnicos_(lista, campo) {
@@ -91,9 +142,6 @@ const FormularioEtiquetasExcedentesReimpresionService = (() => {
     };
   }
 
-  /**
-   * Bootstrap ligero para la vista
-   */
   function getBootstrap() {
     const base = _obtenerBaseNormalizada_();
 
@@ -105,26 +153,18 @@ const FormularioEtiquetasExcedentesReimpresionService = (() => {
     };
   }
 
-  /**
-   * Devuelve toda la base en el formato que la vista actual ya usa
-   */
   function obtenerBase() {
     return _obtenerBaseNormalizada_();
   }
 
-  /**
-   * Genera el HTML de reimpresión usando la plantilla existente.
-   * No guarda nada en BD; solo prepara impresión.
-   */
-  function procesarReimpresion(lista) {
-    _validarListaReimpresion_(lista);
+  function _prepararHtmlOnline_(html) {
+    return String(html || "")
+      .replace(/<script[\s\S]*?<\/script>/gi, "");
+  }
 
-    const ss = getSpreadsheetByFileKey_(SHEETS.EXCEDENTES.file);
-    const config = _obtenerContextoTemporal_(ss);
+  function _renderEtiquetaExcedentesReimpresion_(loteValidado, fechaHora, modoImpresion) {
+    const tmpl = HtmlService.createTemplateFromFile("EtiquetaExcedentesImpresa");
 
-    const loteValidado = lista.map(_validarItemReimpresion_);
-
-    const tmpl = HtmlService.createTemplateFromFile('EtiquetaExcedentesImpresa');
     tmpl.lote = loteValidado.map(item => ({
       codigo: item.codigo,
       descripcion: item.descripcion,
@@ -134,8 +174,58 @@ const FormularioEtiquetasExcedentesReimpresionService = (() => {
       idUnico: item.idUnico
     }));
 
-    tmpl.fechaHora = config.fecha + " " + config.hora;
+    tmpl.fechaHora = fechaHora;
+    tmpl.modoImpresion = modoImpresion || "LOCAL";
+
     return tmpl.evaluate().getContent();
+  }
+
+  function procesarReimpresion(lista) {
+    _validarListaReimpresion_(lista);
+
+    const ss = getSpreadsheetByFileKey_(SHEETS.EXCEDENTES.file);
+    const config = _obtenerContextoTemporal_(ss);
+
+    const fechaHora = config.fecha + " " + config.hora;
+    const loteValidado = lista.map(_validarItemReimpresion_);
+
+    const htmlImpresion = _renderEtiquetaExcedentesReimpresion_(
+      loteValidado,
+      fechaHora,
+      "LOCAL"
+    );
+
+    const htmlOnline = _prepararHtmlOnline_(
+      _renderEtiquetaExcedentesReimpresion_(
+        loteValidado,
+        fechaHora,
+        "ONLINE"
+      )
+    );
+
+    const printJob = {
+      tipo: "REIMPRESION_ETIQUETAS_EXCEDENTES",
+      origen: "FormularioEtiquetasExcedentesReimpresion",
+      formato: "HTML",
+      html: htmlOnline,
+      content: htmlOnline,
+      meta: {
+        modulo: "FormularioEtiquetasExcedentesReimpresion",
+        total: loteValidado.length,
+        fechaHora: fechaHora,
+        etiqueta: "EXCEDENTES_REIMPRESION",
+        formatoEtiqueta: "HTML",
+        papel: "150x100mm"
+      }
+    };
+
+    return {
+      ok: true,
+      modoCompatible: ["LOCAL", "ONLINE"],
+      htmlImpresion: htmlImpresion,
+      printJob: printJob,
+      total: loteValidado.length
+    };
   }
 
   return {

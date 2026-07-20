@@ -643,35 +643,3 @@ const AuditoriaExcedentesDetalleService = (() => {
   };
 
 })();
-
-/**
- * =========================================================
- * DEBUGGERS
- * =========================================================
- */
-
-function debugAuditoriaExcedentesDetalleService_abrirUbicacion() {
-  return AuditoriaExcedentesDetalleService.abrirUbicacion({
-    idauditoria: "AUD-PRUEBA-001",
-    ubicacion: "B1-19"
-  });
-}
-
-function debugAuditoriaExcedentesDetalleService_registrarEscaneoIdUnico() {
-  return AuditoriaExcedentesDetalleService.registrarEscaneoIdUnico({
-    idauditoria: "AUD-PRUEBA-001",
-    ubicacion: "B1-19",
-    idunico: "202605141622201581"
-  });
-}
-
-function debugAuditoriaExcedentesDetalleService_cerrarUbicacion() {
-  return AuditoriaExcedentesDetalleService.cerrarUbicacion({
-    idauditoria: "AUD-PRUEBA-001",
-    ubicacion: "B1-19"
-  });
-}
-
-function debugAuditoriaExcedentesDetalleService_getDetalleUbicacion() {
-  return AuditoriaExcedentesDetalleService.getDetalleUbicacion("AUD-PRUEBA-001", "B1-19");
-}

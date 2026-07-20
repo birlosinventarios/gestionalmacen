@@ -42,12 +42,14 @@ const EstadoActualExcedentesService = (() => {
      */
     STATUS_BD_INVALIDOS: Object.freeze([
       "SURTIDO",
+      "PARCIAL",
       "CERRADO",
       "CANCELADO",
       "ELIMINADO",
       "BAJA",
       "INACTIVO"
     ])
+
   });
 
   // =========================================================
@@ -197,8 +199,11 @@ const EstadoActualExcedentesService = (() => {
   // INDEXACIÓN BD-EXCEDENTES
   // =========================================================
   function _indexarExcedentesPorIdUnico_() {
-    const rows = ExcedentesRepository.getAll()
-      .filter(item => _toSafeStr_(item.idunico));
+    const rows = (
+      ExcedentesRepository.getAllRaw
+        ? ExcedentesRepository.getAllRaw()
+        : ExcedentesRepository.getAll()
+    ).filter(item => _toSafeStr_(item.idunico));
 
     /**
      * Si por alguna razón existe más de una fila por IdUnico,
@@ -231,14 +236,24 @@ const EstadoActualExcedentesService = (() => {
   // INDEXACIÓN TRASPASOS
   // =========================================================
   function _indexarUltimoMovimientoPorIdUnico_() {
-    const movimientos = TraspasosRepository.getAll()
-      .filter(m => _toSafeStr_(m.idunico));
+    const movimientos = (
+      TraspasosRepository.getAllRaw
+        ? TraspasosRepository.getAllRaw()
+        : TraspasosRepository.getAll()
+    ).filter(m => _toSafeStr_(m.idunico));
+
 
     return movimientos.reduce((acc, mov) => {
       const id = _toSafeStr_(mov.idunico);
       const ts = _timestampFromMovimiento_(mov);
 
-      if (!acc[id] || ts >= acc[id]._timestamp) {
+      const fila = _toSafeNum_(mov.fila || 0);
+
+      if (
+        !acc[id] ||
+        ts > acc[id]._timestamp ||
+        (ts === acc[id]._timestamp && fila >= _toSafeNum_(acc[id]._fila || 0))
+      ) {
         acc[id] = {
           idUnico: id,
           ultimoTipo: _toSafeUpper_(mov.tipomovimiento),
@@ -252,10 +267,10 @@ const EstadoActualExcedentesService = (() => {
           descripcionMovimiento: _toSafeUpper_(mov.descripcion),
           ultimaFecha: formatDate_(mov.fechatraspaso),
           ultimaHora: formatTime_(mov.horatraspaso),
-          _timestamp: ts
+          _timestamp: ts,
+          _fila: fila
         };
       }
-
       return acc;
     }, {});
   }
@@ -604,231 +619,4 @@ const EstadoActualExcedentesService = (() => {
   };
 
 })();
-
-/**
- * =========================================================
- * DEBUGGERS
- * =========================================================
- */
-
-function debugEstadoActualExcedentesService_getAll() {
-  return debugServiceCall_(
-    "EstadoActualExcedentesService.getAll",
-    {},
-    () => EstadoActualExcedentesService.getAll(),
-    { limit: 20 }
-  );
-}
-
-function debugEstadoActualExcedentesService_getVigentes() {
-  return debugServiceCall_(
-    "EstadoActualExcedentesService.getVigentes",
-    {},
-    () => EstadoActualExcedentesService.getVigentes(),
-    { limit: 20 }
-  );
-}
-
-function debugEstadoActualExcedentesService_getAuditablesGlobal() {
-  return debugServiceCall_(
-    "EstadoActualExcedentesService.getAuditables [GLOBAL]",
-    {
-      tipoAuditoria: "GLOBAL",
-      bodegaObjetivo: "TODAS"
-    },
-    () => EstadoActualExcedentesService.getAuditables({
-      tipoAuditoria: "GLOBAL",
-      bodegaObjetivo: "TODAS"
-    }),
-    { limit: 20 }
-  );
-}
-
-function debugEstadoActualExcedentesService_getAuditablesBodega() {
-  const BODEGA_PRUEBA = "BODEGA 1";
-
-  return debugServiceCall_(
-    "EstadoActualExcedentesService.getAuditables [POR_BODEGA]",
-    {
-      tipoAuditoria: "POR_BODEGA",
-      bodegaObjetivo: BODEGA_PRUEBA
-    },
-    () => EstadoActualExcedentesService.getAuditables({
-      tipoAuditoria: "POR_BODEGA",
-      bodegaObjetivo: BODEGA_PRUEBA
-    }),
-    { limit: 20 }
-  );
-}
-
-function debugEstadoActualExcedentesService_getPorIdUnico() {
-  const IDUNICO_PRUEBA = "20260514154729157481";
-
-  return debugServiceCall_(
-    "EstadoActualExcedentesService.getPorIdUnico",
-    { idUnico: IDUNICO_PRUEBA },
-    () => EstadoActualExcedentesService.getPorIdUnico(IDUNICO_PRUEBA),
-    { limit: 10 }
-  );
-}
-
-function debugEstadoActualExcedentesService_getUnoPorIdUnico() {
-  const IDUNICO_PRUEBA = "20260514154729157481";
-
-  return debugServiceCall_(
-    "EstadoActualExcedentesService.getUnoPorIdUnico",
-    { idUnico: IDUNICO_PRUEBA },
-    () => EstadoActualExcedentesService.getUnoPorIdUnico(IDUNICO_PRUEBA),
-    { limit: 10 }
-  );
-}
-
-function debugEstadoActualExcedentesService_getPorUbicacion() {
-  const UBICACION_PRUEBA = "B1-01";
-
-  return debugServiceCall_(
-    "EstadoActualExcedentesService.getPorUbicacion",
-    { ubicacion: UBICACION_PRUEBA },
-    () => EstadoActualExcedentesService.getPorUbicacion(UBICACION_PRUEBA),
-    { limit: 20 }
-  );
-}
-
-function debugEstadoActualExcedentesService_getPorBodega() {
-  const BODEGA_PRUEBA = "BODEGA 1";
-
-  return debugServiceCall_(
-    "EstadoActualExcedentesService.getPorBodega",
-    { bodega: BODEGA_PRUEBA },
-    () => EstadoActualExcedentesService.getPorBodega(BODEGA_PRUEBA),
-    { limit: 20 }
-  );
-}
-
-function debugEstadoActualExcedentesService_getResumen() {
-  return debugServiceCall_(
-    "EstadoActualExcedentesService.getResumen",
-    {},
-    () => EstadoActualExcedentesService.getResumen(),
-    { limit: 10 }
-  );
-}
-
-function debugEstadoActualExcedentesService_clearCache() {
-  return debugServiceCall_(
-    "EstadoActualExcedentesService.clearCache",
-    {},
-    () => {
-      EstadoActualExcedentesService.clearCache();
-      return { ok: true, mensaje: "Cache limpiado correctamente" };
-    },
-    { limit: 10 }
-  );
-}
-
-/**
- * Debug puntual para revisar una ubicación específica
- */
-function debugEstadoActualExcedentesService_B1_01() {
-  EstadoActualExcedentesService.clearCache();
-  ExcedentesRepository.clearCache();
-  TraspasosRepository.clearCache();
-
-  const data = EstadoActualExcedentesService.getPorUbicacion("B1-01");
-
-  console.log("==================================================");
-  console.log("[DEBUG] Estado actual real de B1-01");
-  console.log("TOTAL:", data.length);
-  console.log(JSON.stringify(data, null, 2));
-  console.log("==================================================");
-
-  return data;
-}
-
-/**
- * Debug maestro
- */
-function debugEstadoActualExcedentesService() {
-  console.log("==================================================");
-  console.log("[DEBUG MASTER] EstadoActualExcedentesService");
-  console.log("==================================================");
-
-  debugEstadoActualExcedentesService_clearCache();
-  debugEstadoActualExcedentesService_getAll();
-  debugEstadoActualExcedentesService_getVigentes();
-  debugEstadoActualExcedentesService_getAuditablesGlobal();
-  debugEstadoActualExcedentesService_getAuditablesBodega();
-  debugEstadoActualExcedentesService_getPorIdUnico();
-  debugEstadoActualExcedentesService_getUnoPorIdUnico();
-  debugEstadoActualExcedentesService_getPorUbicacion();
-  debugEstadoActualExcedentesService_getPorBodega();
-  debugEstadoActualExcedentesService_getResumen();
-
-  console.log("==================================================");
-  console.log("[DEBUG MASTER] FIN EstadoActualExcedentesService");
-  console.log("==================================================");
-}
-
-
-
-
-function debugEstadoActual_ids_B1_01_faltantes() {
-  EstadoActualExcedentesService.clearCache();
-  ExcedentesRepository.clearCache();
-  TraspasosRepository.clearCache();
-
-  var ids = [
-    "20260514154729157481",
-    "2026051416054731671",
-    "2026051416054731672",
-    "2026051416060330821",
-    "2026051416062372431",
-    "2026051416064631391",
-    "2026051416065731391",
-    "202605141607203621",
-    "202605141607203622",
-    "202605141607203623",
-    "202605141607203624",
-    "2026051416073431541"
-  ];
-
-  var salida = ids.map(function (id) {
-    var bd = ExcedentesRepository.getPorIdUnico(id) || [];
-    var tr = TraspasosRepository.getPorIdUnico(id) || [];
-    var estado = EstadoActualExcedentesService.getUnoPorIdUnico(id);
-
-    return {
-      idUnico: id,
-
-      existeEnBD: bd.length > 0,
-      totalFilasBD: bd.length,
-      statusBD: bd.length ? String(bd[0].status || "") : "",
-      codigoBD: bd.length ? String(bd[0].codigo || "") : "",
-      fechaBD: bd.length ? String(bd[0].fechaexcedente || "") : "",
-      horaBD: bd.length ? String(bd[0].horaexcedente || "") : "",
-
-      existeEnTraspasos: tr.length > 0,
-      totalFilasTraspasos: tr.length,
-
-      ultimoMovimientoTipo: estado ? estado.ultimoMovimientoTipo : "",
-      ultimaUbicacionEntrada: estado ? estado.ultimaUbicacionEntrada : "",
-      ultimaUbicacionSalida: estado ? estado.ultimaUbicacionSalida : "",
-      ultimaSerieMovimiento: estado ? estado.ultimaSerieMovimiento : "",
-      ubicacionActual: estado ? estado.ubicacionActual : "",
-      bodegaActual: estado ? estado.bodegaActual : "",
-      estatusLogico: estado ? estado.estatusLogico : "",
-      existeBDSegunEstado: estado ? estado.existeBD : false,
-      validoBD: estado ? estado.validoBD : false,
-      vigente: estado ? estado.vigente : false,
-      auditable: estado ? estado.auditable : false
-    };
-  });
-
-  console.log("==================================================");
-  console.log("[DEBUG] IDS FALTANTES B1-01");
-  console.log(JSON.stringify(salida, null, 2));
-  console.log("==================================================");
-
-  return salida;
-}
 

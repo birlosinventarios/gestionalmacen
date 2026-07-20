@@ -1,6 +1,6 @@
 <script>/** GestorExcedentes.html */</script>
 
-<div id="vista-excedentes-root" class="h-full w-full bg-[#f8f9fa] overflow-hidden relative"></div>
+<div id="vista-excedentes-root" class="ge-root"></div>
 
 <script type="text/babel">
   console.log("🧩 GestorExcedentes BUILD: 2026-07-06-FAB-SIN-SWITCH-01");
@@ -47,28 +47,106 @@
     };
 
     // =========================================================
-    // COMPONENTE: TARJETA DE MÉTRICAS
+    // COMPONENTE: TARJETA DE MÉTRICAS ESTILO PREMIUM
+    // Basado en KPIBlock de NegativosBirlos
     // =========================================================
-    const SummaryCard = ({ label, value, iconName, colorClass, unit = "reg" }) => (
-      <div className={`bg-white px-5 py-4 rounded-[1.25rem] border ${colorClass || 'border-gray-100'} shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:-translate-y-0.5 min-h-[104px]`}>
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${colorClass || 'bg-slate-50 text-slate-700 border-slate-100'} shadow-inner shrink-0`}>
-          <LocalIcon name={iconName} size={26} />
-        </div>
+    const SummaryCard = ({
+      label,
+      value,
+      iconName,
+      unit = "reg",
+      decimals = 0,
+      indicatorColor = "emerald",
+      trend = null
+    }) => {
+      const numero = Number(value || 0);
 
-        <div className="flex flex-col min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#5f6368] mb-1 leading-tight">
-            {label}
-          </p>
+      const valorFormateado = numero.toLocaleString("es-MX", {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
 
-          <h3 className="text-[30px] font-black text-[#1c1d1f] tracking-tighter leading-none">
-            {Number(value || 0).toLocaleString()}
-            <span className="text-[12px] font-bold text-gray-400 ml-2 italic">
-              {unit}
-            </span>
-          </h3>
+      const colorMap = {
+        red: "bg-red-50 text-red-600 border border-red-100",
+        amber: "bg-amber-50 text-amber-600 border border-amber-100",
+        blue: "bg-blue-50 text-blue-600 border border-blue-100",
+        emerald: "bg-emerald-50 text-emerald-600 border border-emerald-100",
+        black: "bg-slate-100 text-slate-900 border border-slate-300",
+        slate: "bg-slate-50 text-slate-700 border border-slate-200"
+      };
+
+      const topBarColor =
+        indicatorColor === "red"
+          ? "bg-red-500"
+          : indicatorColor === "amber"
+          ? "bg-amber-500"
+          : indicatorColor === "blue"
+          ? "bg-blue-500"
+          : indicatorColor === "black"
+          ? "bg-slate-900"
+          : indicatorColor === "slate"
+          ? "bg-slate-400"
+          : "bg-emerald-500";
+
+      const trendColor =
+        trend?.type === "negative"
+          ? "bg-red-50 text-red-600"
+          : trend?.type === "neutral"
+          ? "bg-amber-50 text-amber-700"
+          : trend?.type === "info"
+          ? "bg-blue-50 text-blue-700"
+          : trend?.type === "dark"
+          ? "bg-slate-100 text-slate-900 border border-slate-300"
+          : "bg-emerald-50 text-emerald-700";
+
+      return (
+        <div className="ge-kpi-card p-4 relative overflow-hidden group min-h-[112px]">
+          <div className={`absolute top-0 left-0 right-0 h-1.5 ${topBarColor}`}></div>
+
+          <div className="h-full flex flex-col pt-1">
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3 h-full">
+              <div className="min-w-0">
+                <p className="text-[12px] font-black uppercase tracking-[0.12em] text-[#5f6368] leading-tight mb-2">
+                  {label}
+                </p>
+
+                <div className="flex items-end gap-2 flex-wrap">
+                  <h3 className="m-0 p-0 bg-transparent border-none text-[34px] font-black tracking-tight text-[#1c1d1f] leading-none">
+                    {valorFormateado}
+                  </h3>
+
+                  {unit && (
+                    <span className="text-[13px] font-black text-[#5f6368] uppercase leading-none pb-1">
+                      {unit}
+                    </span>
+                  )}
+                </div>
+
+                {trend && (
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${trendColor}`}>
+                      {trend.text}
+                    </span>
+
+                    {trend.sub && (
+                      <span className="text-[11px] font-semibold text-[#5f6368]">
+                        {trend.sub}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="justify-self-end">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${colorMap[indicatorColor] || colorMap.slate}`}>
+                  <LocalIcon name={iconName} size={28} />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    );
+      );
+    };
 
     // =========================================================
     // LÓGICA DE BODEGA POR SERIE
@@ -160,7 +238,10 @@
           setIsFabClosing(false);
           setIsSearchExpanded(false);
           setIsSearchClosing(false);
-          setFiltro("");
+
+          // Importante:
+          // No limpiar filtro al cerrar el fondo negro/FAB.
+          // Así la búsqueda permanece aplicada.
         }, 190);
       };
 
@@ -184,9 +265,12 @@
         setTimeout(() => {
           setIsSearchExpanded(false);
           setIsSearchClosing(false);
-          setFiltro("");
+
+          // No limpiar filtro al cerrar el buscador.
+          // El usuario puede borrar manualmente el texto si quiere reiniciar la búsqueda.
         }, 180);
       };
+
 
       const toggleBuscador_ = () => {
         if (isSearchExpanded) {
@@ -333,20 +417,49 @@
           .GestorExcedentesController_obtenerVista();
       };
 
+      const normalizarBusqueda_ = (valor) => {
+        return String(valor || "")
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, "");
+      };
+
+      const coincideBusqueda_ = (item, filtroTexto) => {
+        const f = normalizarBusqueda_(filtroTexto);
+
+        if (!f) return true;
+
+        const ubicacionActual = item.eserie || item.ubicacionActual || "";
+        const bodegaActual = item.ebodegaActual || "";
+        const nombreBodega = obtenerNombreBodega(item);
+
+        const campos = [
+          item.ecodigo,
+          item.eidUnico,
+          item.edescripcion,
+          ubicacionActual,
+          bodegaActual,
+          nombreBodega,
+          item.estatusRegistro,
+          item.estatusLogico,
+          item.estadoOperativo
+        ];
+
+        return campos.some(campo =>
+          normalizarBusqueda_(campo).includes(f)
+        );
+      };
+
       // ---------------------------------------------------------
       // DETECCIÓN DE BODEGAS CON EXISTENCIA SEGÚN BÚSQUEDA
       // ---------------------------------------------------------
       const bodegasConExistenciaBuscada = useMemo(() => {
         const resultado = new Set();
-        const f = filtro.toLowerCase().trim();
 
-        if (!f) return resultado;
+        if (!filtro.trim()) return resultado;
 
         data.forEach(item => {
-          const coincide =
-            (item.ecodigo && item.ecodigo.toLowerCase().includes(f)) ||
-            (item.eidUnico && item.eidUnico.toLowerCase().includes(f)) ||
-            (item.edescripcion && item.edescripcion.toLowerCase().includes(f));
+          const coincide = coincideBusqueda_(item, filtro);
 
           if (coincide && Number(item.esaldo) > 0) {
             resultado.add(obtenerNombreBodega(item));
@@ -363,19 +476,26 @@
         let filtrados = data;
 
         if (bodegaSeleccionada !== "Todos") {
-          filtrados = filtrados.filter(item => obtenerNombreBodega(item) === bodegaSeleccionada);
+          filtrados = filtrados.filter(item =>
+            obtenerNombreBodega(item) === bodegaSeleccionada
+          );
         }
 
         if (!filtro.trim()) return filtrados;
 
-        const f = filtro.toLowerCase().trim();
-
         return filtrados.filter(item =>
-          (item.ecodigo && item.ecodigo.toLowerCase().includes(f)) ||
-          (item.eidUnico && item.eidUnico.toLowerCase().includes(f)) ||
-          (item.edescripcion && item.edescripcion.toLowerCase().includes(f))
+          coincideBusqueda_(item, filtro)
         );
       }, [data, filtro, bodegaSeleccionada]);
+      
+      const porcentajePendientesUbicar = useMemo(() => {
+        const vigentes = Number(resumen.idsUnicosVigentes || 0);
+        const pendientes = Number(resumen.idsUnicosPendientes || 0);
+
+        if (vigentes <= 0) return 0;
+
+        return (pendientes / vigentes) * 100;
+      }, [resumen]);
 
       // Segmentación fija
       const opcionBodegas = [
@@ -390,7 +510,7 @@
       ];
 
       return (
-        <div className="h-full w-full flex flex-col relative bg-[#f8f9fa]">
+        <div className="ge-view-shell">
 
           {isFabMenuMounted && ReactDOM.createPortal(
             <div
@@ -407,29 +527,45 @@
           )}
 
           {/* MÉTRICAS */}
-          <div className="px-6 md:px-8 pt-4 pb-3 grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+          <div className="px-6 md:px-8 pt-4 pb-3 grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0 fade-in-up">
             <SummaryCard
-              label="IDs únicos con ubicación"
+              label="IDs con ubicación"
               value={resumen.idsUnicosConUbicacion}
+              unit="IDs"
               iconName="map-pinned"
-              colorClass="bg-emerald-50 text-emerald-600 border-emerald-100"
-              unit="ids"
+              indicatorColor="emerald"
+              trend={{
+                text: "Ubicados",
+                type: "positive",
+                sub: "Listos para auditoría"
+              }}
             />
 
             <SummaryCard
-              label="IDs únicos pendientes"
+              label="Pendientes por ubicar"
               value={resumen.idsUnicosPendientes}
+              unit="IDs"
               iconName="clock-3"
-              colorClass="bg-amber-50 text-amber-600 border-amber-100"
-              unit="ids"
+              indicatorColor="amber"
+              trend={{
+                text: "Requieren acomodo",
+                type: "neutral",
+                sub: "Sin ubicación física"
+              }}
             />
 
             <SummaryCard
-              label="IDs únicos vigentes"
-              value={resumen.idsUnicosVigentes}
-              iconName="shield-check"
-              colorClass="bg-slate-50 text-slate-700 border-slate-100"
-              unit="ids"
+              label="% pendiente de ubicación"
+              value={porcentajePendientesUbicar}
+              unit="%"
+              iconName="percent"
+              indicatorColor="red"
+              decimals={2}
+              trend={{
+                text: "Indicador crítico",
+                type: "negative",
+                sub: "Pendientes / vigentes"
+              }}
             />
           </div>
 
@@ -462,28 +598,33 @@
           </div>
 
           {/* TABLA */}
-          <div className="flex-1 min-h-0 overflow-auto px-6 md:px-8 pb-32">
-            <div className="bg-white rounded-[1.5rem] border border-[#dadce0] overflow-hidden shadow-sm">
-              <table className="w-full text-left">
-                <thead className="bg-[#f8f9fa] border-b border-[#dadce0] sticky top-0 z-10">
+          <div className="ge-table-zone px-6 md:px-8 pb-4">
+            <div className="ge-table-card">
+
+              <div className="ge-table-scroll gestor-tabla-scroll">
+                <table className="w-full text-left min-w-[1100px]">
+
+
+
+                <thead className="ge-table-head">
                   <tr>
-                    <th style={{ fontSize: '20px' }} className="px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[18%]">
+                    <th style={{ fontSize: '20px' }} className="ge-table-th px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[18%]">
                       SKU / ID único
                     </th>
 
-                    <th style={{ fontSize: '20px' }} className="px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[34%]">
+                    <th style={{ fontSize: '20px' }} className="ge-table-th px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[34%]">
                       Descripción
                     </th>
 
-                    <th style={{ fontSize: '20px' }} className="px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[14%]">
+                    <th style={{ fontSize: '20px' }} className="ge-table-th px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[14%]">
                       Balance
                     </th>
 
-                    <th style={{ fontSize: '20px' }} className="px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[18%]">
+                    <th style={{ fontSize: '20px' }} className="ge-table-th px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[18%]">
                       Ubicación
                     </th>
 
-                    <th style={{ fontSize: '20px' }} className="px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[16%]">
+                    <th style={{ fontSize: '20px' }} className="ge-table-th px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[16%]">
                       Estado
                     </th>
                   </tr>
@@ -559,6 +700,7 @@
                   })}
                 </tbody>
               </table>
+              </div>
 
               {!loading && datosFiltrados.length === 0 && (
                 <div className="p-20 flex flex-col items-center justify-center text-center">
@@ -726,6 +868,22 @@
       transform: translateX(0) scale(1);
     }
   }
+  
+  @keyframes geFadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  #vista-excedentes-root .fade-in-up {
+    animation: geFadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
 
   .bodega-pulso-rojo {
     color: #d93025 !important;
@@ -744,4 +902,104 @@
       background-color: rgba(217, 48, 37, 0.05);
     }
   }
+
+  
+  #vista-excedentes-root.ge-root {
+    --local-primary: #d93025;
+    --local-primary-dark: #a50e0e;
+    --local-border: #dadce0;
+    --local-bg-light: #f8f9fa;
+    --local-text-main: #1c1d1f;
+    --local-text-sec: #5f6368;
+
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden !important;
+    position: relative;
+    background: #f8f9fa;
+  }
+
+  #vista-excedentes-root .ge-view-shell {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden !important;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    background: #f8f9fa;
+  }
+
+  #vista-excedentes-root .ge-table-zone {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden !important;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #vista-excedentes-root .ge-table-card {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden !important;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+
+    background: #ffffff;
+    border: 1px solid #dadce0;
+    border-radius: 1.5rem;
+    box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
+  }
+
+  #vista-excedentes-root .ge-table-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+    scrollbar-width: thin;
+    scrollbar-color: #dadce0 transparent;
+  }
+
+  #vista-excedentes-root .ge-table-head .ge-table-th {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: #f8f9fa;
+    box-shadow: 0 1px 0 #dadce0;
+  }
+
+  #vista-excedentes-root .gestor-tabla-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  #vista-excedentes-root .gestor-tabla-scroll::-webkit-scrollbar-thumb {
+    background: #dadce0;
+    border-radius: 9999px;
+  }
+
+  #vista-excedentes-root .gestor-tabla-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  #vista-excedentes-root .ge-kpi-card {
+    background: #ffffff;
+    border: 1px solid #dadce0;
+    border-radius: 1.25rem;
+    box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
+    transition: all 0.25s ease;
+  }
+
+  #vista-excedentes-root .ge-kpi-card:hover {
+    box-shadow: 0 8px 22px rgba(60, 64, 67, 0.12);
+    transform: translateY(-1px);
+  }
+
 </style>

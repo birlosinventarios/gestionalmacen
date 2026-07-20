@@ -379,28 +379,163 @@
 <? } ?>
 
 <script>
-  let imagenesCargadas = 0;
-  const totalImagenesEsperadas = (Number("<?= lote.length ?>") || 0) * 2;
-  let impresionLanzada = false;
+  (function () {
+    var imagenesCargadas = 0;
+    var totalImagenesEsperadas = (Number("<?= lote.length ?>") || 0) * 2;
 
-  function lanzarImpresion() {
-    if (!impresionLanzada) {
-      impresionLanzada = true;
-      window.print();
+    window.registrarImagenLista = function () {
+      imagenesCargadas++;
+
+      console.log(
+        "[EtiquetaIdentificadoraImpresa] Imagen registrada:",
+        imagenesCargadas,
+        "/",
+        totalImagenesEsperadas
+      );
+    };
+
+    function esperar(ms) {
+      return new Promise(function (resolve) {
+        setTimeout(resolve, ms);
+      });
     }
-  }
 
-  function registrarImagenLista() {
-    imagenesCargadas++;
-    if (imagenesCargadas >= totalImagenesEsperadas) {
-      setTimeout(lanzarImpresion, 500);
+    function esperarLoadDocumento() {
+      if (document.readyState === "complete") {
+        return Promise.resolve();
+      }
+
+      return new Promise(function (resolve) {
+        window.addEventListener("load", resolve, { once: true });
+        setTimeout(resolve, 3500);
+      });
     }
-  }
 
-  window.onload = function () {
-    if (totalImagenesEsperadas === 0) return;
-    setTimeout(lanzarImpresion, 5000);
-  };
+    function esperarFuentes() {
+      try {
+        if (document.fonts && document.fonts.ready) {
+          return Promise.race([
+            document.fonts.ready,
+            esperar(3000)
+          ]);
+        }
+      } catch (error) {
+        console.warn("[EtiquetaIdentificadoraImpresa] No se pudo esperar fuentes:", error);
+      }
+
+      return Promise.resolve();
+    }
+
+    function esperarImagen(img) {
+      return new Promise(function (resolve) {
+        if (img.complete && img.naturalWidth > 0) {
+          if (typeof img.decode === "function") {
+            img.decode().then(resolve).catch(resolve);
+            return;
+          }
+
+          resolve();
+          return;
+        }
+
+        img.addEventListener("load", function () {
+          if (typeof img.decode === "function") {
+            img.decode().then(resolve).catch(resolve);
+            return;
+          }
+
+          resolve();
+        }, { once: true });
+
+        img.addEventListener("error", function () {
+          console.warn("[EtiquetaIdentificadoraImpresa] Imagen no cargó:", img.src);
+          resolve();
+        }, { once: true });
+
+        setTimeout(resolve, 4500);
+      });
+    }
+
+    function esperarImagenes() {
+      var imagenes = Array.from(document.images || []);
+
+      if (!imagenes.length) {
+        return Promise.resolve();
+      }
+
+      return Promise.all(imagenes.map(esperarImagen));
+    }
+
+    function esperarQRVisual() {
+      var intentos = 0;
+      var maxIntentos = 45;
+
+      return new Promise(function (resolve) {
+        function revisar() {
+          intentos++;
+
+          var qrs = Array.from(document.querySelectorAll(".qr-container img"));
+
+          var todosListos = qrs.every(function (img) {
+            var rect = img.getBoundingClientRect();
+
+            return (
+              img.complete &&
+              img.naturalWidth > 0 &&
+              rect &&
+              rect.width > 0 &&
+              rect.height > 0
+            );
+          });
+
+          if (todosListos || intentos >= maxIntentos) {
+            resolve();
+            return;
+          }
+
+          setTimeout(revisar, 100);
+        }
+
+        revisar();
+      });
+    }
+
+    function esperarFrames(cantidad) {
+      cantidad = cantidad || 4;
+
+      return new Promise(function (resolve) {
+        var count = 0;
+
+        function step() {
+          count++;
+
+          if (count >= cantidad) {
+            resolve();
+            return;
+          }
+
+          requestAnimationFrame(step);
+        }
+
+        requestAnimationFrame(step);
+      });
+    }
+
+    window.__APP_PRINT_READY = (async function () {
+      await esperarLoadDocumento();
+      await esperarFuentes();
+      await esperarImagenes();
+      await esperarQRVisual();
+      await esperarFrames(4);
+      await esperar(300);
+
+      document.documentElement.setAttribute("data-print-ready", "1");
+
+      console.log("[EtiquetaIdentificadoraImpresa] Documento listo para impresión.");
+
+      return true;
+    })();
+  })();
 </script>
 
 </body>

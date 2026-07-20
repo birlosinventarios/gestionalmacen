@@ -221,7 +221,9 @@ const HistorialTraspasosService = (() => {
 
       SpreadsheetApp.flush();
 
-      if (typeof TraspasosRepository !== "undefined" && TraspasosRepository.clearCache) {
+      if (typeof clearOperationalCaches_ === "function") {
+        clearOperationalCaches_();
+      } else if (typeof TraspasosRepository !== "undefined" && TraspasosRepository.clearCache) {
         TraspasosRepository.clearCache();
       }
 

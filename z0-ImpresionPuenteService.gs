@@ -1,6 +1,7 @@
 /**
  * ImpresionPuenteService.gs
  * Servicio para enviar impresiones ONLINE por puente web/ngrok/server local.
+ * token: "Birlosytornillos123456"
  */
 
 const ImpresionPuenteService = (() => {
@@ -8,7 +9,7 @@ const ImpresionPuenteService = (() => {
   const DEFAULT_CONFIG = Object.freeze({
     PRINT_BRIDGE_URL: "https://trowel-narrow-collector.ngrok-free.dev/print",
     PRINT_BRIDGE_HEALTH_URL: "https://trowel-narrow-collector.ngrok-free.dev/health",
-    PRINT_BRIDGE_TOKEN: "Birlosytornillos123456"
+    PRINT_BRIDGE_TOKEN: ""
   });
 
   function _getConfig_() {
@@ -59,7 +60,11 @@ const ImpresionPuenteService = (() => {
       throw new Error("No se recibió un paquete de impresión válido.");
     }
 
-    const content = String(printJob.content || "");
+    const content = String(
+      printJob.content ||
+      printJob.html ||
+      ""
+    );
 
     if (!content.trim()) {
       throw new Error("El paquete de impresión ONLINE no contiene contenido.");
@@ -67,7 +72,7 @@ const ImpresionPuenteService = (() => {
 
     const payload = {
       content: content,
-      html: printJob.html || "",
+      html: printJob.html || content,
       formato: printJob.formato || "TEXT",
       tipo: printJob.tipo || "GENERICA",
       origen: printJob.origen || "APPALMACEN",

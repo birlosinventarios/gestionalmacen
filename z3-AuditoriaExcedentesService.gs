@@ -207,8 +207,22 @@ const AuditoriaExcedentesService = (() => {
     };
   }
 
-  function _summarizeConfiabilidad_(valor) {
+  function _summarizeConfiabilidad_(valor, esperados) {
+    const totalEsperados = _toNum_(esperados);
+
+    if (totalEsperados <= 0) {
+      return {
+        valor: 0,
+        nivel: "SIN_DATOS",
+        color: "slate",
+        label: "SIN DATOS",
+        min: 0,
+        max: 0
+      };
+    }
+
     const pct = _round2_(valor);
+
     return {
       valor: pct,
       ..._getConfiabilidadState_(pct)
@@ -293,7 +307,7 @@ const AuditoriaExcedentesService = (() => {
       faltantes,
       sobrantes,
       confiabilidad,
-      confiabilidadState: _summarizeConfiabilidad_(confiabilidad)
+      confiabilidadState: _summarizeConfiabilidad_(confiabilidad, esperados)
     };
   }
 
@@ -386,7 +400,7 @@ const AuditoriaExcedentesService = (() => {
       idunicossobrantestotales: sobrantes,
 
       confiabilidadtotal: confiabilidad,
-      confiabilidadState: _summarizeConfiabilidad_(confiabilidad),
+      confiabilidadState: _summarizeConfiabilidad_(confiabilidad, esperados),
 
       totalFilasDetalle: detalle.length,
       totalMarcadores: markers.length,
@@ -503,9 +517,16 @@ const AuditoriaExcedentesService = (() => {
   }
 
   function obtenerAuditoriaActiva(idauditoria) {
-    const audit = _getAuditoriaOrThrow_(idauditoria);
-    const detalle = AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria);
-    const resumen = recalcularResumen(idauditoria, { persistir: false });
+  const audit = _getAuditoriaOrThrow_(idauditoria);
+
+  const detalle = AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh
+    ? AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh(idauditoria)
+    : AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria);
+
+  const resumen = recalcularResumen(idauditoria, {
+    persistir: false,
+    usarFresh: true
+  });
 
     return {
       auditoria: {
@@ -521,6 +542,15 @@ const AuditoriaExcedentesService = (() => {
     options = options || {};
 
     const persistir = !(options && options.persistir === false);
+
+    /**
+     * Si se va a persistir el resumen, conviene recalcular desde hoja fresca.
+     * Esto evita resumir con cache viejo justo después de inserts/updates.
+     */
+    if (persistir && options.usarFresh !== false) {
+      options.usarFresh = true;
+    }
+
     const metricos = _calcularMetricosAuditoriaDesdeDetalle_(idauditoria, options);
 
     const patch = {
@@ -566,7 +596,11 @@ const AuditoriaExcedentesService = (() => {
       });
     }
 
-    const resumen = recalcularResumen(idauditoria, { persistir: false });
+    const resumen = recalcularResumen(idauditoria, {
+      persistir: false,
+      usarFresh: true
+    });
+
     const horafin = _fmtTime_();
     const duracionmin = _minutesDiff_(audit.fecha, audit.horainicio, horafin);
 
@@ -640,8 +674,16 @@ const AuditoriaExcedentesService = (() => {
 
   function obtenerDetalleAuditoria(idauditoria) {
     const audit = _getAuditoriaOrThrow_(idauditoria);
-    const detalle = AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria);
-    const resumen = recalcularResumen(idauditoria, { persistir: false });
+
+    const detalle = AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh
+      ? AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh(idauditoria)
+      : AuditoriaExcedentesDetalleRepository.getByIdAuditoria(idauditoria);
+
+    const resumen = recalcularResumen(idauditoria, {
+      persistir: false,
+      usarFresh: true
+    });
+
 
     return {
       auditoria: {
@@ -1437,6 +1479,15 @@ const AuditoriaExcedentesService = (() => {
       return false;
     }
   }
+
+
+/**
+ * Reservado para full refresh o debug.
+ *
+ * IMPORTANTE:
+ * No usar dentro de obtenerPulsoAuditoriaEnVivo(),
+ * porque el pulso ligero no debe consultar Sheets.
+ */
 
   function _aecLive_mergePulsoLiveConSheets_(idauditoria, live) {
     const id = _toStr_(idauditoria);

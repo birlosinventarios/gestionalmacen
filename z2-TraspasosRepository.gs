@@ -57,6 +57,36 @@ const TraspasosRepository = (() => {
         .sort((a, b) => a.codigo.localeCompare(b.codigo));
     },
 
+    getAllRaw: function() {
+      return [...getData_()];
+    },
+    
+    getAllByFechaHora: function() {
+      return [...getData_()].sort((a, b) => {
+        const fa = a.fechatraspaso instanceof Date ? a.fechatraspaso.getTime() : 0;
+        const fb = b.fechatraspaso instanceof Date ? b.fechatraspaso.getTime() : 0;
+
+        const ha = a.horatraspaso instanceof Date
+          ? a.horatraspaso.getHours() * 3600000 +
+            a.horatraspaso.getMinutes() * 60000 +
+            a.horatraspaso.getSeconds() * 1000
+          : 0;
+
+        const hb = b.horatraspaso instanceof Date
+          ? b.horatraspaso.getHours() * 3600000 +
+            b.horatraspaso.getMinutes() * 60000 +
+            b.horatraspaso.getSeconds() * 1000
+          : 0;
+
+        const ta = fa + ha;
+        const tb = fb + hb;
+
+        if (ta !== tb) return ta - tb;
+
+        return Number(a.fila || 0) - Number(b.fila || 0);
+      });
+    },
+
     // Devuelve ultimos traspasos 
     getUltimos: function(limit) {
       return [...getData_()].slice(-limit);
@@ -129,7 +159,7 @@ const TraspasosRepository = (() => {
 
     // Devuelve todos los traspasos por folio   
     getPorFolio: function(folio) {
-      const filtro = toNum_(folio || "");
+      const filtro = toStr_(folio || "");
       return getData_().filter(t => t.folio === filtro);
     },
 
@@ -203,237 +233,3 @@ const TraspasosRepository = (() => {
   };
 
 })();
-
-function debugTraspasosRepository() {
-
-  // ===============================
-  //  VARIABLES DE PRUEBA
-  // ===============================
-
-  const CODIGO_PRUEBA = "T5S-1/2X3";
-  const DESCRIPCION_PRUEBA = "TORNILLO GRADO 5 ESTANDAR DE 1/2 x 3";
-  const IDUNICO_PRUEBA = "20260515170044177941";
-  const FECHA_PRUEBA = "14/05/2026";
-  const HORA_PRUEBA = "15:51:20";
-  const TIPOMOVIMIENTO_PRUEBA = "Acomodo";
-  const SERIE_PRUEBA = "B1-19";
-  const BODEGASALIDA_PRUEBA = "Bodega 1";
-  const UBICACIONSALIDA_PRUEBA = "B1-19";
-  const BODEGAENTRADA_PRUEBA = "Bodega 1";
-  const UBICACIONENTRADA_PRUEBA = "B1-19";
-  const SOLICITANTE_PRUEBA = "SIGIFREDO DE LA CRUZ";
-  const FOLIO_PRUEBA = "1111";
-  const RESPONSABLE_PRUEBA = "SIGIFREDO DE LA CRUZ RAMOS";
-  const LIMITE = 50;
- 
-  // ===============================
-  //  getAll
-  // ===============================
-
-  const all = TraspasosRepository.getAll();
-  console.log("[getAll] total:", all.length);
-  console.log("[getAll] muestra:", JSON.stringify(all.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getUltimos
-  // ===============================
-
-  const ultimos = TraspasosRepository.getUltimos(LIMITE);
-  console.log("[getUltimos] total:", ultimos.length);
-  console.log("[getUltimos] muestra:", JSON.stringify(ultimos.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorFecha
-  // ===============================
-
-  const porfecha = TraspasosRepository.getPorFecha(FECHA_PRUEBA);
-  console.log(`[getPorFecha(${FECHA_PRUEBA})] total:`, porfecha.length);
-  console.log("[getPorFecha] muestra:", JSON.stringify(porfecha.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorHora
-  // ===============================
-
-  const porHora = TraspasosRepository.getPorHora(HORA_PRUEBA);
-  console.log(`[getPorHora(${HORA_PRUEBA})] total:`, porHora.length);
-  console.log("[getPorHora] muestra:", JSON.stringify(porHora.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorTipoMovimiento
-  // ===============================
-
-  const tipomovimiento = TraspasosRepository.getPorTipoMovimiento(TIPOMOVIMIENTO_PRUEBA);
-  console.log(`[getPorTipoMovimiento(${TIPOMOVIMIENTO_PRUEBA})] total:`, tipomovimiento.length);
-  console.log("[getPorTipoMovimiento] muestra:", JSON.stringify(tipomovimiento.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorSerie
-  // ===============================
-
-  const serie = TraspasosRepository.getPorSerie(SERIE_PRUEBA);
-  console.log(`[getPorSerie(${SERIE_PRUEBA})] total:`, serie.length);
-  console.log("[getPorSerie] muestra:", JSON.stringify(serie.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorBodegaSalida
-  // ===============================
-
-  const bodegasalida = TraspasosRepository.getPorBodegaSalida(BODEGASALIDA_PRUEBA);
-  console.log(`[getPorBodegaSalida(${BODEGASALIDA_PRUEBA})] total:`, bodegasalida.length);
-  console.log("[getPorBodegaSalida] muestra:", JSON.stringify(bodegasalida.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorUbicacionSalida
-  // ===============================
-
-  const ubicacionsalida = TraspasosRepository.getPorUbicacionSalida(UBICACIONSALIDA_PRUEBA);
-  console.log(`[getPorUbicacionSalida(${UBICACIONSALIDA_PRUEBA})] total:`, ubicacionsalida.length);
-  console.log("[getPorUbicacionSalida] muestra:", JSON.stringify(ubicacionsalida.slice(0, 5), null, 3));
-
-
-  // ===============================
-  //  getPorBodegaEntrada
-  // ===============================
-
-  const bodegaentrada = TraspasosRepository.getPorBodegaEntrada(BODEGAENTRADA_PRUEBA);
-  console.log(`[getPorBodegaEntrada(${BODEGAENTRADA_PRUEBA})] total:`, bodegaentrada.length);
-  console.log("[getPorBodegaEntrada] muestra:", JSON.stringify(bodegaentrada.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorUbicacionEntrada
-  // ===============================
-
-  const ubicacionentrada = TraspasosRepository.getPorUbicacionEntrada(UBICACIONENTRADA_PRUEBA);
-  console.log(`[getPorUbicacionEntrada(${UBICACIONENTRADA_PRUEBA})] total:`, ubicacionentrada.length);
-  console.log("[getPorUbicacionEntrada] muestra:", JSON.stringify(ubicacionentrada.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorSolicitante
-  // ===============================
-
-  const porSolicitante = TraspasosRepository.getPorSolicitante(SOLICITANTE_PRUEBA);
-  console.log(`[getPorSolicitante(${SOLICITANTE_PRUEBA})] total:`, porSolicitante.length);
-  console.log("[getPorSolicitante] muestra:", JSON.stringify(porSolicitante.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorCodigo
-  // ===============================
-
-  const porCodigo = TraspasosRepository.getPorCodigo(CODIGO_PRUEBA);
-  console.log(`[getPorCodigo(${CODIGO_PRUEBA})] total:`, porCodigo.length);
-  console.log("[getPorCodigo] muestra:", JSON.stringify(porCodigo.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorDescripcion
-  // ===============================
-
-  const porDescripcion = TraspasosRepository.getPorDescripcion(DESCRIPCION_PRUEBA);
-  console.log(`[getPorDescripcion(${DESCRIPCION_PRUEBA})] total:`, porDescripcion.length);
-  console.log("[getPorDescripcion] muestra:", JSON.stringify(porDescripcion.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorFolio
-  // ===============================
-
-  const porFolio = TraspasosRepository.getPorFolio(FOLIO_PRUEBA);
-  console.log(`[getPorFolio(${FOLIO_PRUEBA})] total:`, porFolio.length);
-  console.log("[getPorFolio] muestra:", JSON.stringify(porFolio.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorResponsable
-  // ===============================
-
-  const porResponsable = TraspasosRepository.getPorResponsable(RESPONSABLE_PRUEBA);
-  console.log(`[getPorResponsable(${RESPONSABLE_PRUEBA})] total:`, porResponsable.length);
-  console.log("[getPorResponsable] muestra:", JSON.stringify(porResponsable.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getPorIdUnico
-  // ===============================
-
-  const idunico = TraspasosRepository.getPorIdUnico(IDUNICO_PRUEBA);
-  console.log(`[getPorIdUnico(${IDUNICO_PRUEBA})] total:`, idunico.length);
-  console.log("[getPorIdUnico] muestra:", JSON.stringify(idunico.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getSeries
-  // ===============================
-
-  const series = TraspasosRepository.getSeries();
-  console.log("[getSeries] total:", series.length);
-  console.log("[getSeries] muestra:", JSON.stringify(series.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getBodegasSalida
-  // ===============================
-
-  const bodegassalida = TraspasosRepository.getBodegasSalida();
-  console.log("[getBodegasSalida] total:", bodegassalida.length);
-  console.log("[getBodegasSalida] muestra:", JSON.stringify(bodegassalida.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getUbicacionesSalida
-  // ===============================
-
-  const ubicacionessalida = TraspasosRepository.getUbicacionesSalida();
-  console.log("[getUbicacionesSalida] total:", ubicacionessalida.length);
-  console.log("[getUbicacionesSalida] muestra:", JSON.stringify(ubicacionessalida.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getBodegasEntrada
-  // ===============================
-
-  const bodegasentrada = TraspasosRepository.getBodegasEntrada();
-  console.log("[getBodegasEntrada] total:", bodegasentrada.length);
-  console.log("[getBodegasEntrada] muestra:", JSON.stringify(bodegasentrada.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getUbicacionesEntrada
-  // ===============================
-
-  const ubicacionesentrada = TraspasosRepository.getUbicacionesEntrada();
-  console.log("[getUbicacionesEntrada] total:", ubicacionesentrada.length);
-  console.log("[getUbicacionesEntrada] muestra:", JSON.stringify(ubicacionesentrada.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getSolicitantes
-  // ===============================
-
-  const solicitantes = TraspasosRepository.getSolicitantes();
-  console.log("[getSolicitantes] total:", solicitantes.length);
-  console.log("[getSolicitantes] muestra:", JSON.stringify(solicitantes.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getCodigos
-  // ===============================
-
-  const codigos = TraspasosRepository.getCodigos();
-  console.log("[getCodigos] total:", codigos.length);
-  console.log("[getCodigos] muestra:", JSON.stringify(codigos.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getFolios
-  // ===============================
-
-  const folios = TraspasosRepository.getFolios();
-  console.log("[getFolios] total:", folios.length);
-  console.log("[getFolios] muestra:", JSON.stringify(folios.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getResponsables
-  // ===============================
-
-  const responsables = TraspasosRepository.getResponsables();
-  console.log("[getResponsables] total:", responsables.length);
-  console.log("[getResponsables] muestra:", JSON.stringify(responsables.slice(0, 5), null, 3));
-
-  // ===============================
-  //  getIdUnicos
-  // ===============================
-
-  const idunicos = TraspasosRepository.getIdUnicos();
-  console.log("[getIdUnicos] total:", idunicos.length);
-  console.log("[getIdUnicos] muestra:", JSON.stringify(idunicos.slice(0, 5), null, 3));
-
-
-}

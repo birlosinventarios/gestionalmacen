@@ -115,12 +115,14 @@ const PrototipoTraspasosService = (() => {
   function _inferirBodegaPorUbicacion_(ubicacion) {
     const u = _toSafeUpper_(ubicacion);
 
-    if (u.startsWith("B1")) return "Bodega 1";
-    if (u.startsWith("B2")) return "Bodega 2";
-    if (u.startsWith("B3")) return "Bodega 3";
-    if (u.startsWith("BM")) return "Bodega Mostrador";
-    if (u.startsWith("CB1")) return "Casa Blanca 1";
-    if (u.startsWith("CB2")) return "Casa Blanca 2";
+    if (u.startsWith("B1")) return "BODEGA 1";
+    if (u.startsWith("B2")) return "BODEGA 2";
+    if (u.startsWith("B3")) return "BODEGA 3";
+    if (u.startsWith("BM")) return "BODEGA MOSTRADOR";
+    if (u.startsWith("CB1")) return "CASA BLANCA 1";
+    if (u.startsWith("CB2")) return "CASA BLANCA 2";
+    if (u.startsWith("CU")) return "CUARTO ALTO RIESGO";
+    if (u.startsWith("MO")) return "MOSTRADOR";
 
     return DOMAIN.BODEGA_PRINCIPAL;
   }
@@ -366,10 +368,16 @@ const PrototipoTraspasosService = (() => {
     hoja.getRange(startRow, 1, rows.length, 15).setValues(rows);
   }
 
-  function _crearHtmlRemanentes_(remanentes, config) {
+  function _prepararHtmlOnline_(html) {
+    return String(html || "")
+      .replace(/<script[\s\S]*?<\/script>/gi, "");
+  }
+
+  function _crearHtmlRemanentes_(remanentes, config, modoImpresion) {
     if (!remanentes || remanentes.length === 0) return "";
 
-    const tmpl = HtmlService.createTemplateFromFile('EtiquetaExcedentesImpresa');
+    const tmpl = HtmlService.createTemplateFromFile("EtiquetaExcedentesImpresa");
+
     tmpl.lote = remanentes.map(item => ({
       codigo: item.codigo,
       descripcion: item.descripcion,
@@ -380,6 +388,8 @@ const PrototipoTraspasosService = (() => {
     }));
 
     tmpl.fechaHora = config.fecha + " " + config.hora;
+    tmpl.modoImpresion = modoImpresion || "LOCAL";
+
     return tmpl.evaluate().getContent();
   }
 
@@ -390,24 +400,39 @@ const PrototipoTraspasosService = (() => {
     return _buildBootstrap();
   }
 
-  function obtenerEstadoFolios() {
+  function _limpiarCachesOperacionales_() {
+    if (typeof clearOperationalCaches_ === "function") {
+      clearOperationalCaches_();
+      return;
+    }
+
+    if (typeof ExcedentesRepository !== "undefined" && ExcedentesRepository.clearCache) {
+      ExcedentesRepository.clearCache();
+    }
+
+    if (typeof TraspasosRepository !== "undefined" && TraspasosRepository.clearCache) {
+      TraspasosRepository.clearCache();
+    }
+
+    if (typeof EstadoActualExcedentesService !== "undefined" && EstadoActualExcedentesService.clearCache) {
+      EstadoActualExcedentesService.clearCache();
+    }
+
+    if (typeof GestorExcedentesService !== "undefined" && GestorExcedentesService.clearCache) {
+      GestorExcedentesService.clearCache();
+    }
+  }  
+
+  function obtenerEstadoFolios(forceRefresh) {
+    if (forceRefresh === true) {
+      _limpiarCachesOperacionales_();
+    }
+
     return _obtenerEstadoFolios_();
   }
 
   /**
    * Procesa la cola del prototipo.
-   *
-   * item esperado (shape aproximado):
-   * {
-   *   tipo: "Acomodo" | "Surtido",
-   *   solicitante,
-   *   codigo,              // aquí llega el folio/ID escaneado
-   *   cantidad,
-   *   ubicacion,           // nueva ubicación (en Acomodo) o actual (en Surtido)
-   *   idSeleccionado,      // opcional, si el frontend lo manda
-   *   sku,                 // opcional
-   *   descripcion          // opcional
-   * }
    */
   function procesarMovimientosFinal(cola) {
     if (!Array.isArray(cola) || cola.length === 0) {
@@ -598,19 +623,66 @@ const PrototipoTraspasosService = (() => {
 
       SpreadsheetApp.flush();
 
-      if (typeof ExcedentesRepository !== "undefined" && ExcedentesRepository.clearCache) {
-        ExcedentesRepository.clearCache();
+      if (typeof clearOperationalCaches_ === "function") {
+        clearOperationalCaches_();
+      } else {
+        if (typeof ExcedentesRepository !== "undefined" && ExcedentesRepository.clearCache) {
+          ExcedentesRepository.clearCache();
+        }
+
+        if (typeof TraspasosRepository !== "undefined" && TraspasosRepository.clearCache) {
+          TraspasosRepository.clearCache();
+        }
+
+        if (typeof EstadoActualExcedentesService !== "undefined" && EstadoActualExcedentesService.clearCache) {
+          EstadoActualExcedentesService.clearCache();
+        }
+
+        if (typeof GestorExcedentesService !== "undefined" && GestorExcedentesService.clearCache) {
+          GestorExcedentesService.clearCache();
+        }
       }
 
-      if (typeof TraspasosRepository !== "undefined" && TraspasosRepository.clearCache) {
-        TraspasosRepository.clearCache();
-      }
+      const fechaHora = config.fecha + " " + config.hora;
+
+      const htmlImpresion = _crearHtmlRemanentes_(
+        remanentesGenerados,
+        config,
+        "LOCAL"
+      );
+
+      const htmlOnline = _prepararHtmlOnline_(
+        _crearHtmlRemanentes_(
+          remanentesGenerados,
+          config,
+          "ONLINE"
+        )
+      );
+
+      const printJob = remanentesGenerados.length > 0
+        ? {
+            tipo: "REMANENTES_TRASPASOS",
+            origen: "PrototipoTraspasos",
+            formato: "HTML",
+            html: htmlOnline,
+            content: htmlOnline,
+            meta: {
+              modulo: "PrototipoTraspasos",
+              total: remanentesGenerados.length,
+              fechaHora: fechaHora,
+              etiqueta: "REMANENTE_EXCEDENTE",
+              formatoEtiqueta: "HTML",
+              papel: "150x100mm"
+            }
+          }
+        : null;
 
       return {
         ok: true,
         totalProcesados: cola.length,
         remanentesGenerados: remanentesGenerados.length,
-        htmlImpresion: _crearHtmlRemanentes_(remanentesGenerados, config),
+        htmlImpresion: htmlImpresion,
+        printJob: printJob,
         estadoFolios: _obtenerEstadoFolios_()
       };
 

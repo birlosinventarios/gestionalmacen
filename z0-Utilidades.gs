@@ -1,6 +1,6 @@
 
 /**
- * Utilities.gs
+ * Utilidades.gs
  * Auxiliares
  */
 
@@ -597,3 +597,54 @@ function execController_(controllerName, label, executor) {
   }
 }
 
+/**
+ * Limpia cachés operativos que afectan saldos, movimientos,
+ * excedentes, estado actual y vistas consolidadas.
+ */
+function clearOperationalCaches_() {
+  try {
+    if (typeof CatalogoRepository !== "undefined" && CatalogoRepository.clearCache) {
+      CatalogoRepository.clearCache();
+    }
+
+    if (typeof ExcedentesRepository !== "undefined" && ExcedentesRepository.clearCache) {
+      ExcedentesRepository.clearCache();
+    }
+
+    if (typeof TraspasosRepository !== "undefined" && TraspasosRepository.clearCache) {
+      TraspasosRepository.clearCache();
+    }
+
+    if (typeof ExistenciasRepository !== "undefined" && ExistenciasRepository.clearCache) {
+      ExistenciasRepository.clearCache();
+    }
+
+    if (typeof MaxMinRepository !== "undefined" && MaxMinRepository.clearCache) {
+      MaxMinRepository.clearCache();
+    }
+
+    if (typeof UbicacionesSurtidoRepository !== "undefined" && UbicacionesSurtidoRepository.clearCache) {
+      UbicacionesSurtidoRepository.clearCache();
+    }
+
+    if (typeof UbicacionesExcedentesRepository !== "undefined" && UbicacionesExcedentesRepository.clearCache) {
+      UbicacionesExcedentesRepository.clearCache();
+    }
+
+    if (typeof EstadoActualExcedentesService !== "undefined" && EstadoActualExcedentesService.clearCache) {
+      EstadoActualExcedentesService.clearCache();
+    }
+
+    if (typeof GestorExcedentesService !== "undefined" && GestorExcedentesService.clearCache) {
+      GestorExcedentesService.clearCache();
+    }
+
+    console.log("[CACHE] clearOperationalCaches_ :: OK");
+
+    return true;
+
+  } catch (error) {
+    console.warn("[CACHE] clearOperationalCaches_ :: ERROR", error && error.message);
+    return false;
+  }
+}

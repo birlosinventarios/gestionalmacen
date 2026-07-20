@@ -631,8 +631,10 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
    * para que captura, detalle, dashboard y cabecera usen la misma regla.
    */
   return AuditoriaExcedentesService.recalcularResumen(idauditoria, {
-    persistir: true
+    persistir: true,
+    usarFresh: true
   });
+
 }
 
   // =========================================================
@@ -834,6 +836,14 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
     const faltantes = Array.isArray(payload && payload.faltantes)
       ? payload.faltantes
       : [];
+/**
+ * TODO:
+ * Validar los faltantes recibidos desde frontend contra el universo esperado
+ * calculado en servidor para esta ubicación.
+ *
+ * Esto evitará diferencias si el frontend trae un paquete viejo.
+ */
+
     const observaciones = toStr_(payload && payload.observaciones);
 
     if (!idauditoria) {

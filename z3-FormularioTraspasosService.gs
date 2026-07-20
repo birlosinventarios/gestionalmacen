@@ -389,7 +389,9 @@ const FormularioTraspasosService = (() => {
 
       SpreadsheetApp.flush();
 
-      if (typeof TraspasosRepository !== "undefined" && TraspasosRepository.clearCache) {
+      if (typeof clearOperationalCaches_ === "function") {
+        clearOperationalCaches_();
+      } else if (typeof TraspasosRepository !== "undefined" && TraspasosRepository.clearCache) {
         TraspasosRepository.clearCache();
       }
 
@@ -414,26 +416,3 @@ const FormularioTraspasosService = (() => {
   };
 
 })();
-
-function debugFormularioTraspasosService() {
-  debugServiceCall_(
-    "FormularioTraspasosService.getBootstrap",
-    {},
-    () => FormularioTraspasosService.getBootstrap(),
-    { limit: 5 }
-  );
-
-  debugServiceCall_(
-    "FormularioTraspasosService.buscarProductoPorCodigo",
-    { codigo: "PLP-10X3" },
-    () => FormularioTraspasosService.buscarProductoPorCodigo("PLP-10X3"),
-    { limit: 5 }
-  );
-
-  debugServiceCall_(
-    "FormularioTraspasosService.obtenerUbicacionesPorBodega",
-    { bodega: "BODEGA 1" },
-    () => FormularioTraspasosService.obtenerUbicacionesPorBodega("BODEGA 1"),
-    { limit: 5 }
-  );
-}

@@ -4,7 +4,7 @@
   var LOGO_QR_URL = 'https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png';
 
   var QR_CONFIG = {
-    size: 800,                    // ← subido para alta resolución
+    size: 800,
     margin: 3,
     ecLevel: 'H',
     dark: '000000',
@@ -430,29 +430,173 @@
 <? } ?>
 
 <script>
-  let imagenesCargadas = 0;
-  const totalImagenesEsperadas = <?= TOTAL_IMAGENES_ESPERADAS ?>;
-  let impresionLanzada = false;
+  (function () {
+    let imagenesCargadas = 0;
+    const totalImagenesEsperadas = <?= TOTAL_IMAGENES_ESPERADAS ?>;
 
-  function lanzarImpresion() {
-    if (!impresionLanzada) {
-      impresionLanzada = true;
-      console.log("Lanzando impresión...");
-      window.print();
+    /*
+      Compatibilidad:
+      Los img actuales todavía llaman registrarCarga() en onload/onerror.
+      La dejamos viva para no romper esos handlers,
+      pero YA NO imprime.
+    */
+    window.registrarCarga = function () {
+      imagenesCargadas++;
+      console.log(
+        "[EtiquetaExcedentesImpresa] Imagen registrada:",
+        imagenesCargadas,
+        "/",
+        totalImagenesEsperadas
+      );
+    };
+
+    function esperar(ms) {
+      return new Promise(function (resolve) {
+        setTimeout(resolve, ms);
+      });
     }
-  }
 
-  function registrarCarga() {
-    imagenesCargadas++;
-    if (imagenesCargadas >= totalImagenesEsperadas) {
-      lanzarImpresion();
+    function esperarLoadDocumento() {
+      if (document.readyState === "complete") {
+        return Promise.resolve();
+      }
+
+      return new Promise(function (resolve) {
+        window.addEventListener("load", resolve, { once: true });
+        setTimeout(resolve, 3500);
+      });
     }
-  }
 
-  window.onload = function () {
-    if (totalImagenesEsperadas === 0) return;
-    setTimeout(lanzarImpresion, 3500);
-  };
+    function esperarFuentes() {
+      try {
+        if (document.fonts && document.fonts.ready) {
+          return Promise.race([
+            document.fonts.ready,
+            esperar(3000)
+          ]);
+        }
+      } catch (error) {
+        console.warn("[EtiquetaExcedentesImpresa] No se pudo esperar fuentes:", error);
+      }
+
+      return Promise.resolve();
+    }
+
+    function esperarImagen(img) {
+      return new Promise(function (resolve) {
+        if (img.complete && img.naturalWidth > 0) {
+          if (typeof img.decode === "function") {
+            img.decode().then(resolve).catch(resolve);
+            return;
+          }
+
+          resolve();
+          return;
+        }
+
+        img.onload = function () {
+          if (typeof img.decode === "function") {
+            img.decode().then(resolve).catch(resolve);
+            return;
+          }
+
+          resolve();
+        };
+
+        img.onerror = function () {
+          console.warn("[EtiquetaExcedentesImpresa] Imagen no cargó:", img.src);
+          resolve();
+        };
+
+        setTimeout(resolve, 4500);
+      });
+    }
+
+    function esperarImagenes() {
+      const imagenes = Array.from(document.images || []);
+
+      if (!imagenes.length) {
+        return Promise.resolve();
+      }
+
+      return Promise.all(imagenes.map(esperarImagen));
+    }
+
+    function esperarQRVisual() {
+      let intentos = 0;
+      const maxIntentos = 45;
+
+      return new Promise(function (resolve) {
+        function revisar() {
+          intentos++;
+
+          const qrs = Array.from(document.querySelectorAll(".qr-container img"));
+
+          const todosListos = qrs.every(function (img) {
+            const rect = img.getBoundingClientRect();
+
+            return (
+              img.complete &&
+              img.naturalWidth > 0 &&
+              rect &&
+              rect.width > 0 &&
+              rect.height > 0
+            );
+          });
+
+          if (todosListos || intentos >= maxIntentos) {
+            resolve();
+            return;
+          }
+
+          setTimeout(revisar, 100);
+        }
+
+        revisar();
+      });
+    }
+
+    function esperarFrames(cantidad) {
+      cantidad = cantidad || 4;
+
+      return new Promise(function (resolve) {
+        let count = 0;
+
+        function step() {
+          count++;
+
+          if (count >= cantidad) {
+            resolve();
+            return;
+          }
+
+          requestAnimationFrame(step);
+        }
+
+        requestAnimationFrame(step);
+      });
+    }
+
+    /*
+      Esta promesa es la que espera ImpresionModoUtilidades.abrirHtmlLocal().
+      IMPORTANTE:
+      Aquí ya NO se llama window.print().
+    */
+    window.__APP_PRINT_READY = (async function () {
+      await esperarLoadDocumento();
+      await esperarFuentes();
+      await esperarImagenes();
+      await esperarQRVisual();
+      await esperarFrames(4);
+      await esperar(300);
+
+      document.documentElement.setAttribute("data-print-ready", "1");
+
+      console.log("[EtiquetaExcedentesImpresa] Documento listo para impresión.");
+
+      return true;
+    })();
+  })();
 </script>
 
 </body>

@@ -48,6 +48,10 @@ const ExistenciasRepository = (() => {
       return [...getData_()]
         .sort((a, b) => a.codigo.localeCompare(b.codigo));
     },
+    
+    getAllRaw: function() {
+      return [...getData_()];
+    },
 
     /**
      * Registros por ID producto
@@ -126,119 +130,3 @@ const ExistenciasRepository = (() => {
 
 })();
 
-
-
-function debugExistenciasRepository() {
-
-  // ===============================
-  //  VARIABLES DE PRUEBA
-  // ===============================
-  const CODIGO_PRUEBA = "T5S-1/4X31/2";
-  const DESCRIPCION_PRUEBA = "TORNILLO GRADO 5 ESTANDAR DE 1/4 X 3 1/2";
-  const IDPRODUCTO_PRUEBA = 158;
-  const LIMITE = 5;
-
-  // ===============================
-  //  getAll
-  // ===============================
-  debugRepositoryCall_(
-    "ExistenciasRepository.getAll",
-    {},
-    () => ExistenciasRepository.getAll(),
-    { limit: LIMITE }
-  );
-
-  // ===============================
-  //  getPorIdProducto
-  // ===============================
-  debugRepositoryCall_(
-    "ExistenciasRepository.getPorIdProducto",
-    { idproducto: IDPRODUCTO_PRUEBA },
-    () => ExistenciasRepository.getPorIdProducto(IDPRODUCTO_PRUEBA),
-    { limit: LIMITE }
-  );
-
-  // ===============================
-  //  getPorCodigo
-  // ===============================
-  debugRepositoryCall_(
-    "ExistenciasRepository.getPorCodigo",
-    { codigo: CODIGO_PRUEBA },
-    () => ExistenciasRepository.getPorCodigo(CODIGO_PRUEBA),
-    { limit: LIMITE }
-  );
-
-  // ===============================
-  //  getPorDescripcion
-  // ===============================
-  debugRepositoryCall_(
-    "ExistenciasRepository.getPorDescripcion",
-    { descripcion: DESCRIPCION_PRUEBA },
-    () => ExistenciasRepository.getPorDescripcion(DESCRIPCION_PRUEBA),
-    { limit: LIMITE }
-  );
-
-  // ===============================
-  //  getExistenciasBirlos
-  // ===============================
-  debugRepositoryCall_(
-    "ExistenciasRepository.getExistenciasBirlos",
-    {},
-    () => ExistenciasRepository.getExistenciasBirlos(),
-    { limit: LIMITE }
-  );
-
-  // ===============================
-  //  getExcedentesBodega
-  // ===============================
-  debugRepositoryCall_(
-    "ExistenciasRepository.getExcedentesBodega",
-    {},
-    () => ExistenciasRepository.getExcedentesBodega(),
-    { limit: LIMITE }
-  );
-
-  // ===============================
-  //  getExcedentesCasaBlanca
-  // ===============================
-  debugRepositoryCall_(
-    "ExistenciasRepository.getExcedentesCasaBlanca",
-    {},
-    () => ExistenciasRepository.getExcedentesCasaBlanca(),
-    { limit: LIMITE }
-  );
-
-  // ===============================
-  //  getNegativosBirlos
-  // ===============================
-  debugRepositoryCall_(
-    "ExistenciasRepository.getNegativosBirlos",
-    {},
-    () => ExistenciasRepository.getNegativosBirlos(),
-    { limit: LIMITE }
-  );
-
-  // ===============================
-  //  getNegativosBodega
-  // ===============================
-  debugRepositoryCall_(
-    "ExistenciasRepository.getNegativosBodega",
-    {},
-    () => ExistenciasRepository.getNegativosBodega(),
-    { limit: LIMITE }
-  );
-
-  // ===============================
-  //  getNegativosCasaBlanca
-  // ===============================
-  debugRepositoryCall_(
-    "ExistenciasRepository.getNegativosCasaBlanca",
-    {},
-    () => ExistenciasRepository.getNegativosCasaBlanca(),
-    { limit: LIMITE }
-  );
-}
-
-function debugMethodsExistenciasRepository() {
-  return debugRepositoryMethods_("ExistenciasRepository", ExistenciasRepository);
-}

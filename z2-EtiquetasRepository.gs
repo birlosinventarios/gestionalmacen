@@ -64,30 +64,3 @@ const EtiquetasRepository = (() => {
 
 })();
 
-
-
-function debugEtiquetasRepository() {
-
-  // ===============================
-  //  VARIABLES DE PRUEBA
-  // ===============================
-
-  const NOMBRE_PRUEBA = "Etiqueta #1";
- 
-  // ===============================
-  //  getAll
-  // ===============================
-
-  const all = EtiquetasRepository.getAll();
-  console.log("[getAll] total:", all.length);
-  console.log("[getAll] muestra:", JSON.stringify(all.slice(0, 5), null, 3));
-
-    // ===============================
-  //  getPorNombre
-  // ===============================
-
-  const pornombre = EtiquetasRepository.getPorNombre(NOMBRE_PRUEBA);
-  console.log(`[getPorNombre(${NOMBRE_PRUEBA})] total:`, pornombre.length);
-  console.log("[getPorNombre] muestra:", JSON.stringify(pornombre.slice(0, 5), null, 3));
-
-}

@@ -1,0 +1,1798 @@
+<script>
+  /** FormularioDetallesProducto.html */
+</script>
+
+<style>
+  #render-detalles-producto {
+    --dp-primary: #d93025;
+    --dp-primary-dark: #a50e0e;
+    --dp-border: #dadce0;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden !important;
+  }
+
+  #render-detalles-producto .font-mono,
+  #render-detalles-producto .dp-mono {
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.04em;
+  }
+
+  #render-detalles-producto .fade-in {
+    animation: fadeInDetallesProducto 0.3s ease-out;
+  }
+
+  @keyframes fadeInDetallesProducto {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-toast-in {
+    animation: toastInDetallesProducto 0.35s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+
+  .animate-toast-out {
+    animation: toastOutDetallesProducto 0.25s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+
+  @keyframes toastInDetallesProducto {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes toastOutDetallesProducto {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+
+  #render-detalles-producto .dp-app-shell {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden !important;
+  }
+
+  #render-detalles-producto .dp-main-layout {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    overflow: hidden !important;
+  }
+
+  #render-detalles-producto .dp-left-panel {
+    width: clamp(680px, 44vw, 820px) !important;
+    min-width: 680px;
+    max-width: 820px;
+    height: 100%;
+    min-height: 0;
+    flex: 0 0 auto;
+    overflow: hidden !important;
+  }
+
+  #render-detalles-producto .dp-left-panel-inner {
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-right: 4px;
+    overscroll-behavior: contain;
+  }
+
+  #render-detalles-producto .dp-left-panel-inner::-webkit-scrollbar,
+  #render-detalles-producto .dp-table-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  #render-detalles-producto .dp-left-panel-inner::-webkit-scrollbar-thumb,
+  #render-detalles-producto .dp-table-scroll::-webkit-scrollbar-thumb {
+    background: #dadce0;
+    border-radius: 10px;
+  }
+
+  #render-detalles-producto .dp-right-panel {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important;
+    background: #ffffff;
+  }
+
+  #render-detalles-producto .dp-results-toolbar {
+    flex: 0 0 auto;
+  }
+
+  #render-detalles-producto .dp-table-scroll {
+    flex: 1 1 auto;
+    height: 0;
+    min-height: 0;
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+    position: relative;
+    padding-bottom: 96px;
+    overscroll-behavior: contain;
+  }
+
+  #render-detalles-producto .dp-label {
+    font-size: 13px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #6b7280;
+    min-height: 18px;
+    display: flex;
+    align-items: center;
+  }
+
+  #render-detalles-producto .dp-input {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+  }
+
+  #render-detalles-producto .dp-form-input {
+    min-height: 56px;
+    padding: 0 16px;
+    box-sizing: border-box;
+    line-height: 1.15;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    color: #111827;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  #render-detalles-producto .dp-form-input::placeholder {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #9ca3af;
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+
+  #render-detalles-producto .dp-form-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "codigo id"
+      "producto producto"
+      "tipohilo hilo"
+      "largocuerpo largocabeza"
+      "anchocuerpo anchocabeza"
+      "largototal anchototal"
+      "peso roscado"
+      "largoroscado resumen"
+      "accion accion";
+    column-gap: 34px;
+    row-gap: 18px;
+    align-items: start;
+  }
+
+  #render-detalles-producto .dp-grid-codigo { grid-area: codigo; }
+  #render-detalles-producto .dp-grid-id { grid-area: id; }
+  #render-detalles-producto .dp-grid-producto { grid-area: producto; }
+  #render-detalles-producto .dp-grid-tipohilo { grid-area: tipohilo; }
+  #render-detalles-producto .dp-grid-hilo { grid-area: hilo; }
+  #render-detalles-producto .dp-grid-largocuerpo { grid-area: largocuerpo; }
+  #render-detalles-producto .dp-grid-largocabeza { grid-area: largocabeza; }
+  #render-detalles-producto .dp-grid-anchocuerpo { grid-area: anchocuerpo; }
+  #render-detalles-producto .dp-grid-anchocabeza { grid-area: anchocabeza; }
+  #render-detalles-producto .dp-grid-largototal { grid-area: largototal; }
+  #render-detalles-producto .dp-grid-anchototal { grid-area: anchototal; }
+  #render-detalles-producto .dp-grid-peso { grid-area: peso; }
+  #render-detalles-producto .dp-grid-roscado { grid-area: roscado; }
+  #render-detalles-producto .dp-grid-largoroscado { grid-area: largoroscado; }
+  #render-detalles-producto .dp-grid-resumen { grid-area: resumen; }
+  #render-detalles-producto .dp-grid-accion { grid-area: accion; }
+
+  #render-detalles-producto .dp-field-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  #render-detalles-producto .dp-product-card {
+    padding: 14px;
+    border-radius: 1rem;
+  }
+
+  #render-detalles-producto .dp-product-placeholder {
+    min-height: 132px;
+    border: 1px dashed #e5e7eb;
+    border-radius: 1rem;
+    background: #fafafa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #c0c4cc;
+    padding: 18px;
+  }
+
+  #render-detalles-producto .dp-product-placeholder-title {
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+
+  #render-detalles-producto .dp-summary-card {
+    min-height: 104px;
+    border-radius: 1rem;
+    background: linear-gradient(135deg, #1c1d1f 0%, #111827 100%);
+    border: 1px solid #111827;
+    box-shadow: 0 12px 28px rgba(17, 24, 39, 0.16);
+    padding: 14px;
+  }
+
+  #render-detalles-producto .dp-summary-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    padding: 4px 10px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+  }
+
+  #render-detalles-producto .dp-action-btn {
+    min-height: 64px;
+  }
+
+  #render-detalles-producto .dp-results-table {
+    width: 100%;
+    min-width: 1180px;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  #render-detalles-producto .dp-results-head th {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(248, 249, 250, 0.96);
+    backdrop-filter: blur(8px);
+    padding: 16px 20px;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: center !important;
+  }
+
+  #render-detalles-producto .dp-results-row td {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+    background: #ffffff;
+    transition: background-color 0.18s ease;
+    text-align: center !important;
+  }
+
+  #render-detalles-producto .dp-results-row:hover td {
+    background: #fcfcfd;
+  }
+
+  #render-detalles-producto .dp-results-row td > div {
+    align-items: center !important;
+    text-align: center !important;
+  }
+
+  #render-detalles-producto .dp-code-main {
+    font-size: 16px;
+    font-weight: 900;
+    color: #111827;
+    letter-spacing: 0.04em;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1.15;
+    text-align: center !important;
+  }
+
+  #render-detalles-producto .dp-desc {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #9ca3af;
+    line-height: 1.3;
+    text-transform: uppercase;
+    max-width: 360px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center !important;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  #render-detalles-producto .dp-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 96px;
+    padding: 8px 12px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  #render-detalles-producto .dp-chip-red {
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #dc2626;
+  }
+
+  #render-detalles-producto .dp-chip-green {
+    border: 1px solid #a7f3d0;
+    background: #ecfdf5;
+    color: #047857;
+  }
+
+  #render-detalles-producto .dp-chip-blue {
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+  }
+
+  #render-detalles-producto .dp-chip-amber {
+    border: 1px solid #fcd34d;
+    background: #fffbeb;
+    color: #92400e;
+  }
+
+  #render-detalles-producto .dp-pill-dark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 82px;
+    padding: 10px 14px;
+    border-radius: 9999px;
+    background: #111827;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    font-family: 'JetBrains Mono', monospace;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  #render-detalles-producto .dp-edit-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #b91c1c;
+    background: #fff1f2;
+    border: 1px solid #fca5a5;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: all 0.18s ease;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  #render-detalles-producto .dp-edit-btn:hover {
+    color: #ffffff;
+    background: #dc2626;
+    border-color: #b91c1c;
+    box-shadow: 0 8px 18px rgba(220, 38, 38, 0.22);
+    transform: translateY(-1px) scale(1.03);
+  }
+
+  #render-detalles-producto .dp-empty-state {
+    height: 100%;
+    min-height: 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    color: #9ca3af;
+  }
+
+  #render-detalles-producto .dp-empty-title {
+    font-size: 13px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+    color: #9ca3af;
+  }
+
+  #render-detalles-producto .dp-empty-sub {
+    font-size: 12px;
+    font-weight: 700;
+    color: #c0c4cc;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+</style>
+
+<div id="render-detalles-producto" class="h-full w-full flex flex-col bg-[#f8f9fa] overflow-hidden"></div>
+
+<script type="text/babel">
+  window.cargar_FormularioDetallesProducto = () => {
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
+      const fn = window.notificar || window.lanzarNotificacion;
+      if (typeof fn === "function") {
+        fn(mensaje, tipo, timer, options);
+      }
+    };
+
+    const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
+      const now = Date.now();
+      const last = ref.current[key] || 0;
+      if (now - last < cooldown) return;
+      ref.current[key] = now;
+      notify_(mensaje, tipo, timer, options);
+    };
+
+    const shellNotifyStateRef = { current: {} };
+    const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
+
+    const LocalIcon = ({ name, size = 18, className = "" }) => {
+      const iconRef = useRef(null);
+
+      useEffect(() => {
+        if (window.lucide && iconRef.current) {
+          iconRef.current.innerHTML = "";
+          const i = document.createElement("i");
+          i.setAttribute("data-lucide", name.toLowerCase());
+          i.style.width = `${size}px`;
+          i.style.height = `${size}px`;
+          if (className) i.className = className;
+          iconRef.current.appendChild(i);
+          window.lucide.createIcons();
+        }
+      }, [name, size, className]);
+
+      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+    };
+
+    const VistaDetallesProducto = () => {
+      const [cargando, setCargando] = useState(true);
+      const [guardando, setGuardando] = useState(false);
+
+      const [catalogo, setCatalogo] = useState([]);
+      const [detalles, setDetalles] = useState([]);
+      const [codigos, setCodigos] = useState([]);
+      const [mapaCatalogo, setMapaCatalogo] = useState({});
+      const [mapaDetallesPorCodigo, setMapaDetallesPorCodigo] = useState({});
+
+      const codigoInputRef = useRef(null);
+      const localNotifyRef = useRef({});
+      const notifyOnce_ = createNotifyOnce_(localNotifyRef);
+
+      const normalizarTexto = (valor) => String(valor || "").trim().toUpperCase();
+
+      const toNumberSafe = (valor) => {
+        const n = Number(valor);
+        return isNaN(n) ? 0 : n;
+      };
+
+      const round4 = (valor) => {
+        const n = Number(valor || 0);
+        return Number(n.toFixed(4));
+      };
+
+      const formInicial = {
+        id: "",
+        codigo: "",
+        descripcion: "",
+        tipoHilo: "",
+        hilo: "",
+        largoCuerpo: "",
+        largoCabeza: "",
+        anchoCuerpo: "",
+        anchoCabeza: "",
+        pesoTeorico: "",
+        roscado: "",
+        largoRoscado: ""
+      };
+
+      const [form, setForm] = useState(formInicial);
+
+      const limpiarNumeroDecimal = (valor) => {
+        let v = String(valor ?? "");
+
+        v = v
+          .replace(",", ".")
+          .replace(/[^0-9.]/g, "");
+
+        const partes = v.split(".");
+        if (partes.length > 2) {
+          v = partes[0] + "." + partes.slice(1).join("");
+        }
+
+        return v;
+      };
+
+      const actualizarCampo = (campo, valor) => {
+        if (campo === "tipoHilo") {
+          setForm(prev => ({
+            ...prev,
+            tipoHilo: normalizarTexto(valor)
+          }));
+          return;
+        }
+
+        if (campo === "hilo") {
+          const limpio = limpiarNumeroDecimal(valor);
+
+          setForm(prev => ({
+            ...prev,
+            hilo: limpio
+          }));
+          return;
+        }
+
+        if (campo === "largoCuerpo") {
+          const limpio = limpiarNumeroDecimal(valor);
+
+          setForm(prev => ({
+            ...prev,
+            largoCuerpo: limpio,
+            largoRoscado: normalizarTexto(prev.roscado) === "COMPLETO"
+              ? limpio
+              : prev.largoRoscado
+          }));
+          return;
+        }
+
+        if (campo === "largoCabeza") {
+          const limpio = limpiarNumeroDecimal(valor);
+
+          setForm(prev => ({
+            ...prev,
+            largoCabeza: limpio
+          }));
+          return;
+        }
+
+        if (campo === "anchoCuerpo") {
+          const limpio = limpiarNumeroDecimal(valor);
+
+          setForm(prev => ({
+            ...prev,
+            anchoCuerpo: limpio
+          }));
+          return;
+        }
+
+        if (campo === "anchoCabeza") {
+          const limpio = limpiarNumeroDecimal(valor);
+
+          setForm(prev => ({
+            ...prev,
+            anchoCabeza: limpio
+          }));
+          return;
+        }
+
+        if (campo === "pesoTeorico") {
+          const limpio = limpiarNumeroDecimal(valor);
+
+          setForm(prev => ({
+            ...prev,
+            pesoTeorico: limpio
+          }));
+          return;
+        }
+
+        if (campo === "roscado") {
+          const roscado = normalizarTexto(valor);
+
+          setForm(prev => ({
+            ...prev,
+            roscado: roscado,
+            largoRoscado: roscado === "COMPLETO"
+              ? String(prev.largoCuerpo || "")
+              : prev.largoRoscado
+          }));
+          return;
+        }
+
+        if (campo === "largoRoscado") {
+          const limpio = limpiarNumeroDecimal(valor);
+
+          setForm(prev => {
+            if (normalizarTexto(prev.roscado) === "COMPLETO") {
+              return prev;
+            }
+
+            return {
+              ...prev,
+              largoRoscado: limpio
+            };
+          });
+          return;
+        }
+
+        console.warn("Campo no reconocido:", campo);
+      };
+
+      const enfocarCodigo = () => {
+        setTimeout(() => {
+          codigoInputRef.current?.focus();
+          codigoInputRef.current?.select?.();
+        }, 0);
+      };
+
+      const limpiarForm = () => {
+        setForm(formInicial);
+        enfocarCodigo();
+      };
+
+
+      const largoTotal = useMemo(() => {
+        return round4(toNumberSafe(form.largoCuerpo) + toNumberSafe(form.largoCabeza));
+      }, [form.largoCuerpo, form.largoCabeza]);
+
+      const anchoTotal = useMemo(() => {
+        return round4(Math.max(toNumberSafe(form.anchoCuerpo), toNumberSafe(form.anchoCabeza)));
+      }, [form.anchoCuerpo, form.anchoCabeza]);
+
+      const registrosPendientes = useMemo(() => {
+        const idsConDetalle = new Set(detalles.map(x => String(x.ID || "")));
+        return catalogo.filter(x => !idsConDetalle.has(String(x.ID || ""))).length;
+      }, [catalogo, detalles]);
+
+      const resumen = useMemo(() => {
+        return {
+          catalogo: catalogo.length,
+          capturados: detalles.length,
+          pendientes: registrosPendientes
+        };
+      }, [catalogo, detalles, registrosPendientes]);
+      
+      const codigosPendientes = useMemo(() => {
+        return codigos.filter(codigo => {
+          const codigoNormalizado = normalizarTexto(codigo);
+
+          if (!codigoNormalizado) return false;
+
+          return !mapaDetallesPorCodigo[codigoNormalizado];
+        });
+      }, [codigos, mapaDetallesPorCodigo]);
+
+      const codigoSeleccionado = useMemo(() => {
+        return normalizarTexto(form.codigo);
+      }, [form.codigo]);
+
+      const productoSeleccionado = useMemo(() => {
+        if (!codigoSeleccionado) return null;
+        return mapaCatalogo[codigoSeleccionado] || null;
+      }, [codigoSeleccionado, mapaCatalogo]);
+
+      const detalleSeleccionado = useMemo(() => {
+        if (!codigoSeleccionado) return null;
+        return mapaDetallesPorCodigo[codigoSeleccionado] || null;
+      }, [codigoSeleccionado, mapaDetallesPorCodigo]);
+
+      const tieneCodigoSeleccionado = !!codigoSeleccionado;
+      const tieneDetalleSeleccionado = !!detalleSeleccionado;
+
+      const aplicarProducto = (producto, detalle = null) => {
+        if (!producto) return;
+
+        setForm(prev => ({
+          ...prev,
+          id: String(producto.ID || producto.id || ""),
+          codigo: normalizarTexto(producto.CODIGO || producto.codigo),
+          descripcion: normalizarTexto(producto.DESCRIPCION || producto.descripcion),
+          tipoHilo: normalizarTexto(detalle?.TIPOHILO || ""),
+          hilo: detalle?.HILO !== undefined && detalle?.HILO !== null ? String(detalle.HILO) : "",
+          largoCuerpo: detalle?.LARGOCUERPO !== undefined && detalle?.LARGOCUERPO !== null ? String(detalle.LARGOCUERPO) : "",
+          largoCabeza: detalle?.LARGOCABEZA !== undefined && detalle?.LARGOCABEZA !== null ? String(detalle.LARGOCABEZA) : "",
+          anchoCuerpo: detalle?.ANCHOCUERPO !== undefined && detalle?.ANCHOCUERPO !== null ? String(detalle.ANCHOCUERPO) : "",
+          anchoCabeza: detalle?.ANCHOCABEZA !== undefined && detalle?.ANCHOCABEZA !== null ? String(detalle.ANCHOCABEZA) : "",
+          pesoTeorico: detalle?.PESOTEORICO !== undefined && detalle?.PESOTEORICO !== null ? String(detalle.PESOTEORICO) : "",
+          roscado: normalizarTexto(detalle?.ROSCADO || ""),
+          largoRoscado: detalle?.LARGOROSCADO !== undefined && detalle?.LARGOROSCADO !== null ? String(detalle.LARGOROSCADO) : ""
+        }));
+      };
+
+      const hidratarBootstrap = (data) => {
+        const listaCatalogo = data?.catalogo || [];
+        const listaDetalles = data?.detalles || [];
+        const listaCodigos = data?.codigos || [];
+        const mapaCat = data?.mapaCatalogo || {};
+        const mapaDetCod = data?.mapaDetallesPorCodigo || {};
+
+        setCatalogo(listaCatalogo);
+        setDetalles(listaDetalles);
+        setCodigos(listaCodigos);
+        setMapaCatalogo(mapaCat);
+        setMapaDetallesPorCodigo(mapaDetCod);
+
+        window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+        window.DATA_ALMACEN_CACHE.detallesProductoBootstrap = {
+          catalogo: listaCatalogo,
+          detalles: listaDetalles,
+          codigos: listaCodigos,
+          mapaCatalogo: mapaCat,
+          mapaDetallesPorCodigo: mapaDetCod
+        };
+      };
+
+      useEffect(() => {
+        const cargar = () => {
+          try {
+            notify_("Inicializando detalles de producto...", "info", 1600, {
+              title: "Cargando vista",
+              sound: false
+            });
+
+            const cache = window.DATA_ALMACEN_CACHE?.detallesProductoBootstrap || null;
+
+            if (cache) {
+              hidratarBootstrap(cache);
+              setCargando(false);
+
+              notify_("Detalles de producto cargados desde memoria local.", "success", 1600, {
+                title: "Sistema listo",
+                sound: false
+              });
+
+              return;
+            }
+
+            google.script.run
+              .withSuccessHandler((data) => {
+                hidratarBootstrap(data || {});
+                setCargando(false);
+
+                notify_("Base de detalles de producto cargada correctamente.", "success", 2000, {
+                  title: "Sistema listo",
+                  sound: false
+                });
+              })
+              .withFailureHandler((err) => {
+                console.error("Error cargando detalles producto:", err);
+                setCargando(false);
+
+                notify_(
+                  err && err.message ? err.message : "No se pudo cargar la base de detalles de producto.",
+                  "error",
+                  4200,
+                  {
+                    title: "Error de carga",
+                    sound: true
+                  }
+                );
+              })
+              .DetallesProductoController_getBootstrap();
+
+          } catch (err) {
+            console.error("Error inesperado detalles producto:", err);
+            setCargando(false);
+
+            notify_("No se pudo inicializar la vista de detalles producto.", "error", 4200, {
+              title: "Error inesperado",
+              sound: true
+            });
+          }
+        };
+
+        cargar();
+      }, []);
+
+      useEffect(() => {
+        if (!cargando && !guardando) {
+          enfocarCodigo();
+        }
+      }, [cargando, guardando]);
+
+      useEffect(() => {
+        const root = document.getElementById("render-detalles-producto");
+        if (!root) return;
+
+        const parent = root.parentElement;
+        if (!parent) return;
+
+        const previousOverflow = parent.style.overflow;
+        const previousMinHeight = parent.style.minHeight;
+        const previousHeight = parent.style.height;
+
+        parent.style.overflow = "hidden";
+        parent.style.minHeight = "0";
+
+        if (!parent.style.height) {
+          parent.style.height = "100%";
+        }
+
+        return () => {
+          parent.style.overflow = previousOverflow;
+          parent.style.minHeight = previousMinHeight;
+          parent.style.height = previousHeight;
+        };
+      }, []);
+
+      const handleCodigoChange = (e) => {
+        const codigo = normalizarTexto(e.target.value);
+        const producto = mapaCatalogo[codigo];
+        const detalle = mapaDetallesPorCodigo[codigo];
+
+        if (!codigo) {
+          limpiarForm();
+          return;
+        }
+
+        setForm(prev => ({
+          ...prev,
+          codigo
+        }));
+
+
+        if (producto) {
+          aplicarProducto(producto, detalle || null);
+        }
+      };
+
+      const resolverCodigo = (codigoParam) => {
+        const codigo = normalizarTexto(codigoParam);
+
+        if (!codigo) {
+          limpiarForm();
+          return;
+        }
+
+        const productoCache = mapaCatalogo[codigo];
+
+        if (productoCache) {
+          aplicarProducto(productoCache, mapaDetallesPorCodigo[codigo] || null);
+
+          notifyOnce_(
+            `producto-detalle-${codigo}`,
+            mapaDetallesPorCodigo[codigo]
+              ? "Producto localizado con detalle existente."
+              : "Producto localizado. Captura los detalles faltantes.",
+            "success",
+            1400,
+            {
+              title: "Producto encontrado",
+              sound: false
+            },
+            1600
+          );
+
+          return;
+        }
+
+        notify_("Consultando producto en CATALOGO...", "info", 1400, {
+          title: "Buscando producto",
+          sound: false
+        });
+
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (!res || !res.encontrado) {
+              notify_(
+                `El código "${codigo}" no existe en CATALOGO.`,
+                "error",
+                3200,
+                {
+                  title: "Código no encontrado",
+                  sound: true
+                }
+              );
+
+              setForm(prev => ({
+                ...prev,
+                codigo,
+                id: "",
+                descripcion: "",
+                tipoHilo: "",
+                hilo: "",
+                largoCuerpo: "",
+                largoCabeza: "",
+                anchoCuerpo: "",
+                anchoCabeza: "",
+                pesoTeorico: "",
+                roscado: "",
+                largoRoscado: ""
+              }));
+
+              return;
+            }
+
+            aplicarProducto(res.producto, res.detalle || null);
+
+            notify_("Producto localizado correctamente.", "success", 1400, {
+              title: "Producto encontrado",
+              sound: false
+            });
+          })
+          .withFailureHandler((err) => {
+            console.error("Error buscando producto:", err);
+
+            notify_(
+              err && err.message ? err.message : "No se pudo buscar el producto.",
+              "error",
+              4200,
+              {
+                title: "Error de búsqueda",
+                sound: true
+              }
+            );
+          })
+          .DetallesProductoController_buscarProductoPorCodigo(codigo);
+      };
+
+      const validarForm = () => {
+        if (!form.id || !form.codigo || !form.descripcion) {
+          return "Selecciona un producto válido desde CATALOGO.";
+        }
+
+        if (!["METRICO", "STANDARD"].includes(normalizarTexto(form.tipoHilo))) {
+          return "Selecciona un tipo de hilo válido: METRICO o STANDARD.";
+        }
+
+        if (toNumberSafe(form.hilo) <= 0) {
+          return "HILO debe ser mayor a cero.";
+        }
+
+        if (toNumberSafe(form.largoCuerpo) <= 0) {
+          return "LARGOCUERPO debe ser mayor a cero.";
+        }
+
+        if (form.largoCabeza === "" || Number(form.largoCabeza) < 0) {
+          return "LARGOCABEZA debe ser cero o mayor.";
+        }
+
+        if (toNumberSafe(form.anchoCuerpo) <= 0) {
+          return "ANCHOCUERPO debe ser mayor a cero.";
+        }
+
+        if (toNumberSafe(form.anchoCabeza) <= 0) {
+          return "ANCHOCABEZA debe ser mayor a cero.";
+        }
+
+        if (toNumberSafe(form.pesoTeorico) <= 0) {
+          return "PESOTEORICO debe ser mayor a cero.";
+        }
+
+        if (!["COMPLETO", "PARCIAL"].includes(normalizarTexto(form.roscado))) {
+          return "Selecciona ROSCADO: COMPLETO o PARCIAL.";
+        }
+
+        if (normalizarTexto(form.roscado) === "PARCIAL") {
+          if (toNumberSafe(form.largoRoscado) <= 0) {
+            return "LARGOROSCADO debe ser mayor a cero.";
+          }
+
+          if (toNumberSafe(form.largoRoscado) >= toNumberSafe(form.largoCuerpo)) {
+            return "Si ROSCADO es PARCIAL, LARGOROSCADO debe ser menor a LARGOCUERPO.";
+          }
+        }
+
+        return "";
+      };
+
+      const guardarDetalle = () => {
+        const error = validarForm();
+
+        if (error) {
+          notify_(error, "warning", 3600, {
+            title: "Validación pendiente",
+            sound: true
+          });
+          return;
+        }
+
+        const payload = {
+          ID: form.id,
+          CODIGO: form.codigo,
+          TIPOHILO: normalizarTexto(form.tipoHilo),
+          HILO: toNumberSafe(form.hilo),
+          LARGOCUERPO: toNumberSafe(form.largoCuerpo),
+          LARGOCABEZA: toNumberSafe(form.largoCabeza),
+          ANCHOCUERPO: toNumberSafe(form.anchoCuerpo),
+          ANCHOCABEZA: toNumberSafe(form.anchoCabeza),
+          PESOTEORICO: toNumberSafe(form.pesoTeorico),
+          ROSCADO: normalizarTexto(form.roscado),
+          LARGOROSCADO: normalizarTexto(form.roscado) === "COMPLETO"
+            ? toNumberSafe(form.largoCuerpo)
+            : toNumberSafe(form.largoRoscado)
+        };
+
+        setGuardando(true);
+
+        notify_("Guardando detalle del producto...", "info", 1600, {
+          title: "Procesando",
+          sound: false
+        });
+
+        google.script.run
+          .withSuccessHandler((res) => {
+            setGuardando(false);
+
+            if (!res || !res.ok) {
+              notify_("No se recibió confirmación válida del servidor.", "error", 4200, {
+                title: "Respuesta inválida",
+                sound: true
+              });
+              return;
+            }
+
+            const detalle = res.detalle;
+
+            setDetalles(prev => {
+              const sinActual = prev.filter(x => String(x.ID) !== String(detalle.ID));
+              return [detalle, ...sinActual].sort((a, b) =>
+                String(a.CODIGO || "").localeCompare(String(b.CODIGO || ""), "es", {
+                  sensitivity: "base",
+                  numeric: true
+                })
+              );
+            });
+
+            setMapaDetallesPorCodigo(prev => ({
+              ...prev,
+              [normalizarTexto(detalle.CODIGO)]: detalle
+            }));
+
+            if (window.DATA_ALMACEN_CACHE) {
+              window.DATA_ALMACEN_CACHE.detallesProductoBootstrap = null;
+            }
+
+            notify_(
+              res.accion === "ACTUALIZADO"
+                ? "Detalle de producto actualizado correctamente."
+                : "Detalle de producto creado correctamente.",
+              "success",
+              2400,
+              {
+                title: res.accion === "ACTUALIZADO" ? "Registro actualizado" : "Registro creado",
+                sound: true
+              }
+            );
+
+            
+            aplicarProducto(
+              {
+                ID: detalle.ID,
+                CODIGO: detalle.CODIGO,
+                DESCRIPCION: detalle.DESCRIPCION
+              },
+              detalle
+            );
+
+          })
+          .withFailureHandler((err) => {
+            console.error("Error guardando detalle:", err);
+            setGuardando(false);
+
+            notify_(
+              err && err.message ? err.message : "No se pudo guardar el detalle del producto.",
+              "error",
+              5200,
+              {
+                title: "Error al guardar",
+                sound: true
+              }
+            );
+          })
+          .DetallesProductoController_guardarDetalle(payload);
+      };
+
+      const cargarDetalleEnFormulario = (detalle) => {
+        if (!detalle) return;
+
+        setForm({
+          id: String(detalle.ID || ""),
+          codigo: normalizarTexto(detalle.CODIGO),
+          descripcion: normalizarTexto(detalle.DESCRIPCION),
+          tipoHilo: normalizarTexto(detalle.TIPOHILO),
+          hilo: detalle.HILO !== undefined && detalle.HILO !== null ? String(detalle.HILO) : "",
+          largoCuerpo: detalle.LARGOCUERPO !== undefined && detalle.LARGOCUERPO !== null ? String(detalle.LARGOCUERPO) : "",
+          largoCabeza: detalle.LARGOCABEZA !== undefined && detalle.LARGOCABEZA !== null ? String(detalle.LARGOCABEZA) : "",
+          anchoCuerpo: detalle.ANCHOCUERPO !== undefined && detalle.ANCHOCUERPO !== null ? String(detalle.ANCHOCUERPO) : "",
+          anchoCabeza: detalle.ANCHOCABEZA !== undefined && detalle.ANCHOCABEZA !== null ? String(detalle.ANCHOCABEZA) : "",
+          pesoTeorico: detalle.PESOTEORICO !== undefined && detalle.PESOTEORICO !== null ? String(detalle.PESOTEORICO) : "",
+          roscado: normalizarTexto(detalle.ROSCADO),
+          largoRoscado: detalle.LARGOROSCADO !== undefined && detalle.LARGOROSCADO !== null ? String(detalle.LARGOROSCADO) : ""
+        });
+
+        notify_("Detalle cargado para edición.", "info", 1400, {
+          title: "Editando producto",
+          sound: false
+        });
+      };
+
+      return (
+        <div className="dp-app-shell flex flex-col h-full w-full relative">
+          <div className="dp-main-layout">
+
+            <div className="dp-left-panel border-r border-[#dadce0] bg-white px-6 pt-4 pb-6 shrink-0 z-10">
+              <div className="dp-left-panel-inner">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    guardarDetalle();
+                  }}
+                  className="min-h-full flex flex-col"
+                >
+                  <div className="dp-form-grid">
+
+                    <div className="dp-grid-codigo dp-field-block">
+                      <label className="dp-label ml-1">
+                        Código pendiente ({codigosPendientes.length})
+                      </label>
+
+                      <div className="relative group">
+                        <input
+                          ref={codigoInputRef}
+                          list="lista-codigos-detalles-producto"
+                          disabled={cargando || guardando}
+                          className={`w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all ${
+                            cargando || guardando
+                              ? "bg-gray-200 cursor-not-allowed text-gray-500"
+                              : "bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                          }`}
+                          placeholder={cargando ? "Cargando catálogo..." : "Selecciona código pendiente"}
+                          value={form.codigo}
+                          onChange={handleCodigoChange}
+                          onBlur={() => resolverCodigo(form.codigo)}
+                          onKeyDown={(e) => {
+                            if (e.key !== "Enter") return;
+                            e.preventDefault();
+                            resolverCodigo(e.currentTarget.value);
+                          }}
+                        />
+
+                        <datalist id="lista-codigos-detalles-producto">
+                          {codigosPendientes.map((codigo, index) => (
+                            <option key={`${index}-${codigo}`} value={codigo} />
+                          ))}
+                        </datalist>
+
+                        {form.id && (
+                          <div className="absolute right-3 top-3 text-green-500 animate-pulse">
+                            <LocalIcon name="check-circle" size={16} />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="dp-grid-id dp-field-block">
+                      <label className="dp-label ml-1">ID producto</label>
+
+                      <input
+                        type="text"
+                        readOnly
+                        className="w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all bg-gray-200 text-gray-600 cursor-not-allowed border-gray-300 dp-mono"
+                        placeholder="ID automático"
+                        value={form.id}
+                      />
+                    </div>
+
+                    <div className="dp-grid-producto">
+                      {form.codigo ? (
+                        <div className="dp-product-card bg-[#1c1d1f] space-y-3 border border-gray-800 fade-in shadow-xl">
+                          <div className="flex items-start gap-2.5">
+                            <div className="p-1.5 bg-gray-800 rounded-lg">
+                              <LocalIcon name="tag" size={15} className="text-red-500" />
+                            </div>
+
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[12px] font-black text-gray-500 uppercase tracking-[0.18em]">
+                                Producto vinculado
+                              </span>
+                              <span className="text-white dp-mono text-[17px] font-black mt-1 break-all">
+                                {form.codigo || "Sin código"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-2.5 border-t border-gray-800 pt-2.5">
+                            <div className="p-1.5 bg-gray-800 rounded-lg">
+                              <LocalIcon name="file-text" size={15} className="text-red-500" />
+                            </div>
+
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[12px] font-black text-gray-500 uppercase tracking-[0.18em]">
+                                Descripción
+                              </span>
+                              <span className="text-gray-300 text-[15px] font-bold leading-snug uppercase italic mt-1 break-words">
+                                {form.descripcion || "No se encontró registro en CATALOGO"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="dp-product-placeholder">
+                          <div>
+                            <div className="dp-product-placeholder-title">
+                              Esperando producto
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="dp-grid-tipohilo dp-field-block">
+                      <label className="dp-label ml-1">Tipo hilo</label>
+
+                      <select
+                        disabled={cargando || guardando}
+                        className="w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                        value={form.tipoHilo}
+                        onChange={(e) => actualizarCampo("tipoHilo", e.target.value)}
+                      >
+                        <option value="">Selecciona</option>
+                        <option value="METRICO">Métrico</option>
+                        <option value="STANDARD">Standard</option>
+                      </select>
+                    </div>
+
+                    <div className="dp-grid-hilo dp-field-block">
+                      <label className="dp-label ml-1">Hilo</label>
+
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        disabled={cargando || guardando}
+                        className="w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                        placeholder={form.tipoHilo === "METRICO" ? "Ej: 1.25" : "Ej: 13"}
+                        value={form.hilo}
+                        onChange={(e) => actualizarCampo("hilo", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="dp-grid-largocuerpo dp-field-block">
+                      <label className="dp-label ml-1">Largo cuerpo mm</label>
+
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        disabled={cargando || guardando}
+                        className="w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                        placeholder="Ej: 50"
+                        value={form.largoCuerpo}
+                        onChange={(e) => actualizarCampo("largoCuerpo", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="dp-grid-largocabeza dp-field-block">
+                      <label className="dp-label ml-1">Largo cabeza mm</label>
+
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        disabled={cargando || guardando}
+                        className="w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                        placeholder="Ej: 5"
+                        value={form.largoCabeza}
+                        onChange={(e) => actualizarCampo("largoCabeza", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="dp-grid-anchocuerpo dp-field-block">
+                      <label className="dp-label ml-1">Ancho cuerpo mm</label>
+
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        disabled={cargando || guardando}
+                        className="w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                        placeholder="Ej: 8"
+                        value={form.anchoCuerpo}
+                        onChange={(e) => actualizarCampo("anchoCuerpo", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="dp-grid-anchocabeza dp-field-block">
+                      <label className="dp-label ml-1">Ancho cabeza mm</label>
+
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        disabled={cargando || guardando}
+                        className="w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                        placeholder="Ej: 13"
+                        value={form.anchoCabeza}
+                        onChange={(e) => actualizarCampo("anchoCabeza", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="dp-grid-largototal dp-field-block">
+                      <label className="dp-label ml-1">Largo total mm</label>
+
+                      <input
+                        type="text"
+                        readOnly
+                        className="w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all bg-gray-200 text-gray-700 cursor-not-allowed border-gray-300 dp-mono"
+                        value={largoTotal || ""}
+                        placeholder="Auto"
+                      />
+                    </div>
+
+                    <div className="dp-grid-anchototal dp-field-block">
+                      <label className="dp-label ml-1">Ancho total mm</label>
+
+                      <input
+                        type="text"
+                        readOnly
+                        className="w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all bg-gray-200 text-gray-700 cursor-not-allowed border-gray-300 dp-mono"
+                        value={anchoTotal || ""}
+                        placeholder="Auto"
+                      />
+                    </div>
+
+                    <div className="dp-grid-peso dp-field-block">
+                      <label className="dp-label ml-1">Peso teórico g</label>
+
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        disabled={cargando || guardando}
+                        className="w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                        placeholder="Ej: 18.5"
+                        value={form.pesoTeorico}
+                        onChange={(e) => actualizarCampo("pesoTeorico", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="dp-grid-roscado dp-field-block">
+                      <label className="dp-label ml-1">Roscado</label>
+
+                      <select
+                        disabled={cargando || guardando}
+                        className="w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                        value={form.roscado}
+                        onChange={(e) => actualizarCampo("roscado", e.target.value)}
+                      >
+                        <option value="">Selecciona</option>
+                        <option value="COMPLETO">Completo</option>
+                        <option value="PARCIAL">Parcial</option>
+                      </select>
+                    </div>
+
+                    <div className="dp-grid-largoroscado dp-field-block">
+                      <label className="dp-label ml-1">Largo roscado mm</label>
+
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        readOnly={form.roscado === "COMPLETO"}
+                        disabled={cargando || guardando}
+                        className={`w-full border rounded-xl px-4 dp-input dp-form-input uppercase outline-none transition-all ${
+                          form.roscado === "COMPLETO"
+                            ? "bg-gray-200 text-gray-700 cursor-not-allowed border-gray-300"
+                            : "bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                        }`}
+                        placeholder={form.roscado === "COMPLETO" ? "Igual a largo cuerpo" : "Ej: 25"}
+                        value={form.roscado === "COMPLETO" ? form.largoCuerpo : form.largoRoscado}
+                        onChange={(e) => actualizarCampo("largoRoscado", e.target.value)}
+                      />
+                    </div>
+
+                    <div className="dp-grid-resumen">
+                      <div className="dp-summary-card">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="dp-summary-badge">Cálculo automático</span>
+                          <div className="text-white opacity-90">
+                            <LocalIcon name="calculator" size={18} />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">
+                              Largo total
+                            </span>
+                            <span className="block text-white dp-mono text-[20px] font-black">
+                              {largoTotal || 0}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">
+                              Ancho total
+                            </span>
+                            <span className="block text-white dp-mono text-[20px] font-black">
+                              {anchoTotal || 0}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="dp-grid-accion">
+                      <button
+                        type="submit"
+                        disabled={cargando || guardando}
+                        className="dp-action-btn w-full bg-[#d93025] hover:bg-[#a50e0e] text-white py-4 rounded-xl font-black uppercase text-[16px] tracking-[0.18em] shadow-lg shadow-red-100 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:pointer-events-none"
+                      >
+                        <LocalIcon
+                          name={guardando ? "loader-2" : "save"}
+                          size={25}
+                          className={guardando ? "animate-spin" : ""}
+                        />
+                        {guardando ? "Guardando..." : "Guardar detalle"}
+                      </button>
+                    </div>
+
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div className="dp-right-panel min-w-0">
+              <div className="dp-results-toolbar bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-[#1c1d1f] text-white flex items-center justify-center shadow-md">
+                    <LocalIcon name="clipboard-list" size={22} />
+                  </div>
+
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
+                      Detalle del producto seleccionado
+                    </span>
+
+                    <span className="text-[15px] font-black uppercase tracking-[0.08em] text-gray-900">
+                      {tieneCodigoSeleccionado
+                        ? codigoSeleccionado
+                        : "Sin producto seleccionado"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.16em]">
+                      Catálogo
+                    </span>
+                    <span className="block text-[18px] font-black font-mono leading-none">
+                      {resumen.catalogo}
+                    </span>
+                  </div>
+
+                  <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.16em]">
+                      Capturados
+                    </span>
+                    <span className="block text-[18px] font-black font-mono leading-none">
+                      {resumen.capturados}
+                    </span>
+                  </div>
+
+                  <div className="px-3 py-2 rounded-xl bg-red-50 border border-red-100 text-red-700">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.16em]">
+                      Pendientes
+                    </span>
+                    <span className="block text-[18px] font-black font-mono leading-none">
+                      {resumen.pendientes}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="dp-table-scroll">
+                {!tieneCodigoSeleccionado && (
+                  <div className="dp-empty-state">
+                    <LocalIcon name="mouse-pointer-click" size={52} />
+                    <p className="dp-empty-title">Selecciona un producto</p>
+                    <p className="dp-empty-sub">
+                      El panel mostrará únicamente el detalle del código seleccionado
+                    </p>
+                  </div>
+                )}
+
+                {tieneCodigoSeleccionado && !productoSeleccionado && (
+                  <div className="dp-empty-state">
+                    <LocalIcon name="search-x" size={52} />
+                    <p className="dp-empty-title">Producto no localizado</p>
+                    <p className="dp-empty-sub">
+                      El código seleccionado no existe en catálogo
+                    </p>
+                  </div>
+                )}
+
+                {tieneCodigoSeleccionado && productoSeleccionado && !tieneDetalleSeleccionado && (
+                  <div className="h-full min-h-[420px] flex items-center justify-center p-8">
+                    <div className="w-full max-w-2xl bg-white border border-dashed border-red-200 rounded-[1.5rem] p-8 text-center shadow-sm fade-in">
+                      <div className="w-16 h-16 mx-auto rounded-2xl bg-red-50 text-red-600 border border-red-100 flex items-center justify-center mb-5">
+                        <LocalIcon name="file-plus-2" size={34} />
+                      </div>
+
+                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400 mb-2">
+                        Código seleccionado
+                      </div>
+
+                      <div className="dp-mono text-[24px] font-black text-[#1c1d1f] mb-2 break-all">
+                        {codigoSeleccionado}
+                      </div>
+
+                      <div className="text-[15px] font-bold text-gray-500 uppercase leading-snug mb-6">
+                        {normalizarTexto(productoSeleccionado.DESCRIPCION || productoSeleccionado.descripcion) || "Sin descripción"}
+                      </div>
+
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[12px] font-black uppercase tracking-[0.12em]">
+                        <LocalIcon name="alert-circle" size={16} />
+                        Sin datos registrados
+                      </div>
+
+                      <p className="mt-5 text-[13px] font-bold text-gray-400 uppercase tracking-[0.08em]">
+                        Captura las medidas en el panel izquierdo y presiona guardar detalle.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {tieneCodigoSeleccionado && productoSeleccionado && tieneDetalleSeleccionado && (
+                  <div className="p-6 fade-in">
+                    <div className="bg-white border border-[#dadce0] rounded-[1.5rem] shadow-sm overflow-hidden">
+                      <div className="bg-[#1c1d1f] px-6 py-5 text-white flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400 mb-2">
+                            Datos registrados
+                          </div>
+
+                          <div className="dp-mono text-[26px] font-black leading-none break-all">
+                            {detalleSeleccionado.CODIGO}
+                          </div>
+
+                          <div className="mt-3 text-[14px] font-bold uppercase text-gray-300 leading-snug">
+                            {detalleSeleccionado.DESCRIPCION || "SIN DESCRIPCIÓN"}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => cargarDetalleEnFormulario(detalleSeleccionado)}
+                          className="shrink-0 inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-[#d93025] hover:bg-[#a50e0e] text-white text-[12px] font-black uppercase tracking-[0.12em] transition-all active:scale-95"
+                          title="Editar detalle registrado"
+                        >
+                          <LocalIcon name="pencil" size={16} />
+                          Editar
+                        </button>
+                      </div>
+
+                      <div className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-4">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">
+                            Tipo de hilo
+                          </div>
+
+                          <span className={detalleSeleccionado.TIPOHILO === "METRICO" ? "dp-chip dp-chip-blue" : "dp-chip dp-chip-amber"}>
+                            {detalleSeleccionado.TIPOHILO || "SIN DATO"}
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">
+                            Hilo
+                          </div>
+
+                          <span className="dp-pill-dark">
+                            {detalleSeleccionado.HILO || 0}
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">
+                            Largo cuerpo
+                          </div>
+
+                          <span className="dp-pill-dark">
+                            {detalleSeleccionado.LARGOCUERPO || 0}
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">
+                            Largo cabeza
+                          </div>
+
+                          <span className="dp-pill-dark">
+                            {detalleSeleccionado.LARGOCABEZA || 0}
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">
+                            Largo total
+                          </div>
+
+                          <span className="dp-pill-dark">
+                            {detalleSeleccionado.LARGOTOTAL || 0}
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">
+                            Ancho cuerpo
+                          </div>
+
+                          <span className="dp-pill-dark">
+                            {detalleSeleccionado.ANCHOCUERPO || 0}
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">
+                            Ancho cabeza
+                          </div>
+
+                          <span className="dp-pill-dark">
+                            {detalleSeleccionado.ANCHOCABEZA || 0}
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">
+                            Ancho total
+                          </div>
+
+                          <span className="dp-pill-dark">
+                            {detalleSeleccionado.ANCHOTOTAL || 0}
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">
+                            Peso teórico
+                          </div>
+
+                          <span className="dp-pill-dark">
+                            {detalleSeleccionado.PESOTEORICO || 0} g
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">
+                            Roscado
+                          </div>
+
+                          <span className={detalleSeleccionado.ROSCADO === "COMPLETO" ? "dp-chip dp-chip-green" : "dp-chip dp-chip-red"}>
+                            {detalleSeleccionado.ROSCADO || "SIN DATO"}
+                          </span>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 xl:col-span-2">
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400 mb-2">
+                            Largo roscado
+                          </div>
+
+                          <span className="dp-pill-dark">
+                            {detalleSeleccionado.LARGOROSCADO || 0}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const rootDiv = document.getElementById("render-detalles-producto");
+
+    if (!rootDiv) {
+      notify_(
+        "No se encontró el contenedor principal de detalles producto.",
+        "error",
+        4200,
+        {
+          title: "Error de interfaz",
+          sound: true
+        }
+      );
+      console.warn("No se encontró #render-detalles-producto");
+      return;
+    }
+
+    const yaInicializado = rootDiv.dataset.dpMounted === "1";
+
+    if (window.__FORMULARIO_DETALLES_PRODUCTO_ROOT__) {
+      try {
+        window.__FORMULARIO_DETALLES_PRODUCTO_ROOT__.unmount();
+      } catch (e) {
+        console.warn("No se pudo desmontar root previo de detalles producto:", e);
+
+        notifyOnceShell_(
+          "detalles-producto-root-previo",
+          "Se liberó una instancia previa de detalles producto.",
+          "warning",
+          1600,
+          {
+            title: "Reinicialización",
+            sound: false
+          },
+          10000
+        );
+      }
+
+      window.__FORMULARIO_DETALLES_PRODUCTO_ROOT__ = null;
+    }
+
+    try {
+      rootDiv.dataset.dpMounted = "1";
+      window.__FORMULARIO_DETALLES_PRODUCTO_ROOT__ = ReactDOM.createRoot(rootDiv);
+      window.__FORMULARIO_DETALLES_PRODUCTO_ROOT__.render(<VistaDetallesProducto />);
+
+      if (!yaInicializado) {
+        notifyOnceShell_(
+          "detalles-producto-vista-montada",
+          "Vista de detalles producto lista para operar.",
+          "success",
+          1500,
+          {
+            title: "Vista cargada",
+            sound: false
+          },
+          12000
+        );
+      }
+    } catch (e) {
+      console.error("Error montando vista detalles producto:", e);
+
+      notify_(
+        "Ocurrió un error al montar la vista de detalles producto.",
+        "error",
+        4200,
+        {
+          title: "Error de montaje",
+          sound: true
+        }
+      );
+    }
+  };
+
+  window.initVista = window.cargar_FormularioDetallesProducto;
+  console.log("[FormularioDetallesProducto] initVista definida:", typeof window.initVista);
+</script>

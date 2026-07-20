@@ -1,758 +1,958 @@
-<script>/** FormularioEtiquetasIdentificadoras.html */</script>
-
-<div class="container">
-
-  <div class="campo">
-    <label for="tipoetiquetaInput">Tipo de etiqueta</label>
-    <div class="input-con-icono">
-      <input type="text" id="tipoetiquetaInput" list="listaTipos" placeholder="Escribe o selecciona un tamaño">
-      <span class="material-icons">label</span>
-    </div>
-    <datalist id="listaTipos"></datalist>
-  </div>
-
-  <div class="campo">
-    <label for="codigoInput">Codigo</label>
-    <div class="input-con-icono">
-      <input type="text" id="codigoInput" list="listaCodigos" placeholder="Escribe o selecciona un código" onchange="buscarPorCodigo()">
-      <span class="material-icons">qr_code</span>
-    </div>
-    <datalist id="listaCodigos"></datalist>
-  </div>
-
-  <div class="campo">
-    <label for="descripcionInput">Descripcion</label>
-    <div class="input-con-icono">
-      <input type="text" id="descripcionInput" readonly style="background-color: #eee;">
-      <span class="material-icons">description</span>
-    </div>
-  </div>
-
-  <div class="campo">
-    <label for="idInput">ID</label>
-    <div class="input-con-icono">
-      <input type="text" id="idInput" readonly style="background-color: #eee;">
-      <span class="material-icons">fingerprint</span>
-    </div>
-  </div>
-
-  <div style="display: flex; justify-content: center;">
-    <button class="btn-anadir-ajustado" onclick="agregarALista()">
-      <span class="material-icons">add</span>Añadir a la Fila
-    </button>
-  </div>
-
-  <div class="cola-container" style="margin-top: 20px; border-top: 2px solid var(--border-color); padding-top: 15px;">
-    <label>Etiquetas en fila: <span id="contador" class="badge">0</span></label>
-    <ul id="listaEtiquetas" class="lista-etiquetas"></ul>
-
-    <button id="btnImprimirTodo" onclick="generar()">
-      <span class="material-icons">print</span>
-      <span id="textoBoton">Imprimir</span>
-    </button>
-  </div>
-
-  <div id="snackbar"></div>
-</div>
-
-<?!= HtmlService.createHtmlOutputFromFile('FilaEtiquetasIdentificadoras').getContent(); ?>
-
 <script>
-(function () {
-  // =========================================================
-  // ESTADO SEGURO DE LA VISTA
-  // =========================================================
-  window.EtiquetasIdentificadorasState = window.EtiquetasIdentificadorasState || {
-    mapaCatalogo: {},
-    mapaMedidas: {},
-    listaNombresEtiquetas: [],
-    listaCodigos: [],
-    snackbarTimeout: null,
-    initDone: false,
-    lastNotifyAt: {}
-  };
+  /** FormularioEtiquetasIdentificadoras.html */
+</script>
 
-  window.colaDeImpresionEtiquetas = window.colaDeImpresionEtiquetas || [];
+<style>
+  #render-etiquetas-identificadoras {
+    --local-primary: #d93025;
+    --local-primary-dark: #a50e0e;
+    --local-border: #dadce0;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden !important;
+  }
 
-  const state = window.EtiquetasIdentificadorasState;
+  #render-etiquetas-identificadoras .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
 
-  // =========================================================
-  // HELPERS DE NOTIFICACIÓN
-  // =========================================================
-  function notify_(mensaje, tipo = "info", timer = 2500, options = {}) {
-    const fn = window.notificar || window.lanzarNotificacion;
+  #render-etiquetas-identificadoras .fade-in {
+    animation: fadeInEtiquetas 0.3s ease-out;
+  }
 
-    if (typeof fn === "function") {
-      fn(mensaje, tipo, timer, options);
-      return;
+  @keyframes fadeInEtiquetas {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
     }
-
-    // Fallback local únicamente si la vista corre fuera del shell
-    const x = document.getElementById("snackbar");
-    if (!x) return;
-
-    if (state.snackbarTimeout) {
-      clearTimeout(state.snackbarTimeout);
+    to {
+      opacity: 1;
+      transform: translateY(0);
     }
+  }
 
-    x.innerText = mensaje;
-    x.className = "show " + tipo;
-    x.style.visibility = "visible";
-    x.style.opacity = "1";
+  #render-etiquetas-identificadoras .custom-scroll-container::-webkit-scrollbar {
+    width: 6px;
+  }
 
-    const cerrar = function () {
-      x.style.opacity = "0";
-      setTimeout(function () {
-        x.className = "";
-        x.style.visibility = "hidden";
-      }, 400);
+  #render-etiquetas-identificadoras .custom-scroll-container::-webkit-scrollbar-thumb {
+    background: #dadce0;
+    border-radius: 10px;
+  }
+
+  .animate-toast-in {
+    animation: toastInEtiquetas 0.35s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+
+  .animate-toast-out {
+    animation: toastOutEtiquetas 0.25s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  }
+
+  @keyframes toastInEtiquetas {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes toastOutEtiquetas {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+
+  #render-etiquetas-identificadoras .ei-label {
+    font-size: 13px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #6b7280;
+    min-height: 18px;
+    display: flex;
+    align-items: center;
+  }
+
+  #render-etiquetas-identificadoras .ei-input {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+  }
+
+  #render-etiquetas-identificadoras .ei-mono {
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.04em;
+  }
+
+  #render-etiquetas-identificadoras .ei-id-card {
+    padding: 14px;
+    border-radius: 1rem;
+  }
+
+  #render-etiquetas-identificadoras .ei-results-shell {
+    height: 100%;
+    background: #ffffff;
+  }
+
+  #render-etiquetas-identificadoras .ei-results-table {
+    width: 100%;
+    border-collapse: separate;
+    min-width: 760px;
+  }
+
+  #render-etiquetas-identificadoras .ei-results-head th {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(248, 249, 250, 0.96);
+    backdrop-filter: blur(8px);
+    padding: 16px 20px;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  #render-etiquetas-identificadoras .ei-results-row td {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+    background: #ffffff;
+    transition: background-color 0.18s ease;
+  }
+
+  #render-etiquetas-identificadoras .ei-results-row:hover td {
+    background: #fcfcfd;
+  }
+
+  #render-etiquetas-identificadoras .ei-code-main {
+    font-size: 16px;
+    font-weight: 900;
+    color: #111827;
+    letter-spacing: 0.04em;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1.15;
+  }
+
+  #render-etiquetas-identificadoras .ei-desc {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #9ca3af;
+    line-height: 1.3;
+    text-transform: uppercase;
+    max-width: 440px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #render-etiquetas-identificadoras .ei-type-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 138px;
+    padding: 8px 12px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #dc2626;
+  }
+
+  #render-etiquetas-identificadoras .ei-id-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 92px;
+    padding: 10px 14px;
+    border-radius: 9999px;
+    background: #111827;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    font-family: 'JetBrains Mono', monospace;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+  }
+
+  #render-etiquetas-identificadoras .ei-delete-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #b91c1c;
+    background: #fff1f2;
+    border: 1px solid #fca5a5;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: all 0.18s ease;
+  }
+
+  #render-etiquetas-identificadoras .ei-delete-btn:hover {
+    color: #ffffff;
+    background: #dc2626;
+    border-color: #b91c1c;
+    box-shadow: 0 8px 18px rgba(220, 38, 38, 0.22);
+    transform: translateY(-1px) scale(1.03);
+  }
+
+  #render-etiquetas-identificadoras .ei-delete-btn:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  #render-etiquetas-identificadoras .ei-empty-state {
+    height: 100%;
+    min-height: 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    color: #9ca3af;
+  }
+
+  #render-etiquetas-identificadoras .ei-empty-title {
+    font-size: 13px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.32em;
+    color: #9ca3af;
+  }
+
+  #render-etiquetas-identificadoras .ei-empty-sub {
+    font-size: 12px;
+    font-weight: 700;
+    color: #c0c4cc;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  #render-etiquetas-identificadoras .ei-form-input-unificado {
+    min-height: 56px;
+    padding: 0 16px;
+    box-sizing: border-box;
+    line-height: 1.15;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    color: #111827;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  #render-etiquetas-identificadoras .ei-form-input-unificado::placeholder {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #9ca3af;
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+
+  #render-etiquetas-identificadoras .ei-form-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "codigo id"
+      "producto tamano"
+      "producto accion";
+    column-gap: 44px;
+    row-gap: 22px;
+    align-items: start;
+  }
+
+  #render-etiquetas-identificadoras .ei-grid-codigo {
+    grid-area: codigo;
+  }
+
+  #render-etiquetas-identificadoras .ei-grid-id {
+    grid-area: id;
+  }
+
+  #render-etiquetas-identificadoras .ei-grid-producto {
+    grid-area: producto;
+  }
+
+  #render-etiquetas-identificadoras .ei-grid-tamano {
+    grid-area: tamano;
+  }
+
+  #render-etiquetas-identificadoras .ei-grid-accion {
+    grid-area: accion;
+  }
+
+  #render-etiquetas-identificadoras .ei-field-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  #render-etiquetas-identificadoras .ei-product-placeholder {
+    min-height: 146px;
+    border: 1px dashed #e5e7eb;
+    border-radius: 1rem;
+    background: #fafafa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #c0c4cc;
+    padding: 18px;
+  }
+
+  #render-etiquetas-identificadoras .ei-product-placeholder-title {
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+
+  #render-etiquetas-identificadoras .ei-size-card {
+    min-height: auto;
+  }
+
+  #render-etiquetas-identificadoras .ei-action-btn {
+    min-height: 64px;
+  }
+
+
+/* =========================================================
+   CONTROL DE LARGO / ANCHO DE LA VISTA
+   SOLO EL PANEL DERECHO TIENE SCROLL
+   ========================================================= */
+
+#render-etiquetas-identificadoras .ei-app-shell {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden !important;
+}
+
+#render-etiquetas-identificadoras .ei-main-layout {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden !important;
+}
+
+#render-etiquetas-identificadoras .ei-left-panel {
+  width: clamp(560px, 40vw, 720px) !important;
+  min-width: 560px;
+  max-width: 720px;
+  height: 100%;
+  min-height: 0;
+  flex: 0 0 auto;
+  overflow: hidden !important;
+}
+
+#render-etiquetas-identificadoras .ei-right-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+}
+
+#render-etiquetas-identificadoras .ei-results-toolbar {
+  flex: 0 0 auto;
+}
+
+#render-etiquetas-identificadoras .ei-table-scroll {
+  flex: 1 1 auto;
+  height: 0;
+  min-height: 0;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  position: relative;
+  padding-bottom: 96px;
+  overscroll-behavior: contain;
+}
+
+#render-etiquetas-identificadoras .ei-table-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+#render-etiquetas-identificadoras .ei-table-scroll::-webkit-scrollbar-thumb {
+  background: #dadce0;
+  border-radius: 10px;
+}
+
+
+</style>
+
+<div id="render-etiquetas-identificadoras" class="h-full w-full flex flex-col bg-[#f8f9fa] overflow-hidden"></div>
+
+<script type="text/babel">
+  window.cargar_FormularioEtiquetasIdentificadoras = () => {
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // =========================================================
+    // CONSTANTES
+    // =========================================================
+    const TIPO_ETIQUETA_FIJO = "IDENTIFICADORA";
+    const ALTO_FIJO = 100;
+    const ANCHO_FIJO = 150;
+
+    // =========================================================
+    // HELPERS DE NOTIFICACIÓN
+    // =========================================================
+    const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
+      const fn = window.notificar || window.lanzarNotificacion;
+      if (typeof fn === "function") {
+        fn(mensaje, tipo, timer, options);
+      }
     };
 
-    state.snackbarTimeout = setTimeout(cerrar, Math.min(timer, 1800));
-    x.onclick = cerrar;
-  }
+    const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
+      const now = Date.now();
+      const last = ref.current[key] || 0;
+      if (now - last < cooldown) return;
+      ref.current[key] = now;
+      notify_(mensaje, tipo, timer, options);
+    };
 
-  function notifyOnce_(key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) {
-    const now = Date.now();
-    const last = state.lastNotifyAt[key] || 0;
-    if (now - last < cooldown) return;
-    state.lastNotifyAt[key] = now;
-    notify_(mensaje, tipo, timer, options);
-  }
+    const shellNotifyStateRef = { current: {} };
+    const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
 
-  // =========================================================
-  // UTILIDADES INTERNAS
-  // =========================================================
-  function normalizarTexto(valor) {
-    return String(valor || "").trim().toUpperCase();
-  }
+    // =========================================================
+    // ICONO LOCAL
+    // =========================================================
+    const LocalIcon = ({ name, size = 18, className = "" }) => {
+      const iconRef = useRef(null);
 
-  function getViewRoot_() {
-    return document.querySelector('.container');
-  }
-
-  function limpiarCamposInterno() {
-    const idInput = document.getElementById('idInput');
-    const descripcionInput = document.getElementById('descripcionInput');
-    const codigoInput = document.getElementById('codigoInput');
-
-    if (idInput) idInput.value = '';
-    if (descripcionInput) descripcionInput.value = '';
-    if (codigoInput) {
-      codigoInput.value = '';
-      codigoInput.focus();
-    }
-  }
-
-  function poblarDatalistsEtiquetas_() {
-    console.log("🧾 [Etiquetas] poblarDatalistsEtiquetas_()");
-    console.log("🧾 [Etiquetas] listaCodigos total:", state.listaCodigos.length);
-    console.log("🧾 [Etiquetas] listaNombresEtiquetas total:", state.listaNombresEtiquetas.length);
-
-    const dlCodigos = document.getElementById('listaCodigos');
-    if (dlCodigos) {
-      dlCodigos.innerHTML = state.listaCodigos
-        .map(c => `<option value="${c}">`)
-        .join('');
-    }
-
-    const dlTipos = document.getElementById('listaTipos');
-    if (dlTipos) {
-      dlTipos.innerHTML = state.listaNombresEtiquetas
-        .map(n => `<option value="${n}">`)
-        .join('');
-    }
-  }
-
-  function existeNormalizado_(lista, valorNormalizado) {
-    return (lista || []).some(item => normalizarTexto(item) === valorNormalizado);
-  }
-
-  function validarValorEnListaInterno(idInput, listaPermitida, nombreCampo) {
-    const input = document.getElementById(idInput);
-    if (!input) return false;
-
-    const valor = normalizarTexto(input.value);
-    if (valor === "") return false;
-
-    const existe = existeNormalizado_(listaPermitida, valor);
-
-    if (!existe) {
-      notify_(
-        `El ${nombreCampo} "${valor}" no es válido.`,
-        "error",
-        3200,
-        {
-          title: "Valor no permitido",
-          sound: true
+      useEffect(() => {
+        if (window.lucide && iconRef.current) {
+          iconRef.current.innerHTML = '';
+          const i = document.createElement('i');
+          i.setAttribute('data-lucide', name.toLowerCase());
+          i.style.width = `${size}px`;
+          i.style.height = `${size}px`;
+          if (className) i.className = className;
+          iconRef.current.appendChild(i);
+          window.lucide.createIcons();
         }
-      );
+      }, [name, size, className]);
 
-      input.value = "";
+      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+    };
 
-      if (idInput === 'codigoInput') {
-        limpiarCamposInterno();
-      }
+    // =========================================================
+    // COMPONENTE PRINCIPAL
+    // =========================================================
+    const VistaEtiquetasIdentificadoras = () => {
+      const [cola, setCola] = useState([]);
+      const [procesando, setProcesando] = useState(false);
+      const [cargando, setCargando] = useState(true);
 
-      input.focus();
-      return false;
-    }
+      const [mapaCatalogo, setMapaCatalogo] = useState({});
+      const [codigos, setCodigos] = useState([]);
 
-    return true;
-  }
-
-  function bindOnce(el, key, eventName, handler) {
-    if (!el) return;
-    const flag = `bound_${key}`;
-    if (el.dataset[flag]) return;
-
-    el.addEventListener(eventName, handler);
-    el.dataset[flag] = "1";
-  }
-
-  function vincularEventosDOMEtiquetas_() {
-    const tipoInput = document.getElementById('tipoetiquetaInput');
-    const codigoInput = document.getElementById('codigoInput');
-
-    bindOnce(tipoInput, 'validarTipoEtiqueta', 'change', function () {
-      validarValorEnListaInterno('tipoetiquetaInput', state.listaNombresEtiquetas, "tipo de etiqueta");
-    });
-
-    bindOnce(codigoInput, 'validarCodigoEtiqueta', 'change', function () {
-      validarValorEnListaInterno('codigoInput', state.listaCodigos, "código");
-    });
-  }
-
-  // =========================================================
-  // INIT DE VISTA
-  // =========================================================
-  console.log("🏷️ [Etiquetas] Script de la vista ejecutado");
-  console.log("📦 [Etiquetas] DATA_ALMACEN_CACHE visible en vista:", window.DATA_ALMACEN_CACHE);
-
-  window.inicializarVistaEtiquetas = function () {
-    const root = getViewRoot_();
-
-    if (root && root.dataset.eiInit === "1") {
-      console.log("⏭️ [Etiquetas] Inicialización omitida: esta instancia ya fue montada.");
-      return;
-    }
-
-    if (root) {
-      root.dataset.eiInit = "1";
-    }
-
-    console.log("🏷️ [Etiquetas] inicializarVistaEtiquetas() ejecutada");
-    console.log("📦 [Etiquetas] Cache completo:", window.DATA_ALMACEN_CACHE);
-
-    notify_("Inicializando vista de etiquetas identificadoras...", "info", 1600, {
-      title: "Cargando vista",
-      sound: false
-    });
-
-    vincularEventosDOMEtiquetas_();
-
-    const cache = window.DATA_ALMACEN_CACHE || {};
-
-    const mapaCatalogoCache = cache.mapaCatalogo || cache.mapaProductos || {};
-    const mapaMedidasCache = cache.mapaMedidas || {};
-    const codigosCache = cache.codigos || [];
-    const nombresEtiquetasCache = cache.nombresEtiquetas || [];
-
-    const cacheCompletaEtiquetas =
-      Object.keys(mapaCatalogoCache).length > 0 &&
-      Object.keys(mapaMedidasCache).length > 0 &&
-      codigosCache.length > 0 &&
-      nombresEtiquetasCache.length > 0;
-
-    // 1) Si la cache global ya trae todos los datos que esta vista necesita
-    if (cacheCompletaEtiquetas) {
-      console.log("⚡ [Etiquetas] Cargando datos completos desde DATA_ALMACEN_CACHE...");
-
-      state.mapaCatalogo = mapaCatalogoCache;
-      state.mapaMedidas = mapaMedidasCache;
-      state.listaCodigos = codigosCache;
-      state.listaNombresEtiquetas = nombresEtiquetasCache;
-
-      poblarDatalistsEtiquetas_();
-
-      notify_("Datos de etiquetas cargados desde memoria local.", "success", 1800, {
-        title: "Sistema listo",
-        sound: false
+      const [form, setForm] = useState({
+        codigo: '',
+        descripcion: '',
+        id: '',
+        producto: null
       });
-      return;
-    }
 
-    // 2) Si ya estaban cargados en memoria local
-    if (
-      Object.keys(state.mapaCatalogo).length > 0 ||
-      Object.keys(state.mapaMedidas).length > 0 ||
-      state.listaCodigos.length > 0 ||
-      state.listaNombresEtiquetas.length > 0
-    ) {
-      console.log("⚡ [Etiquetas] Reutilizando datos ya cargados en memoria local...");
-      poblarDatalistsEtiquetas_();
+      const codigoInputRef = useRef(null);
+      const localNotifyRef = useRef({});
+      const notifyOnce_ = createNotifyOnce_(localNotifyRef);
 
-      notify_("Datos reutilizados desde memoria local.", "success", 1800, {
-        title: "Sistema listo",
-        sound: false
-      });
-      return;
-    }
+      // =========================================================
+      // HELPERS
+      // =========================================================
+      const normalizarTexto = (valor) => String(valor || "").trim().toUpperCase();
 
-    // 3) Fallback al controller nuevo
-    console.warn("⚠️ [Etiquetas] La cache no tiene datos suficientes. Solicitando bootstrap específico...");
+      const enfocarCodigo = () => {
+        setTimeout(() => {
+          codigoInputRef.current?.focus();
+          codigoInputRef.current?.select?.();
+        }, 0);
+      };
 
-    notify_("Solicitando catálogo y configuraciones de etiquetas...", "info", 1800, {
-      title: "Sincronización requerida",
-      sound: false
-    });
+      const limpiarCampos = () => {
+        setForm({
+          codigo: '',
+          descripcion: '',
+          id: '',
+          producto: null
+        });
 
-    google.script.run
-      .withSuccessHandler(function (data) {
-        console.log("✅ [Etiquetas] Bootstrap recibido:", data);
+        enfocarCodigo();
+      };
 
-        state.mapaCatalogo = data.mapaCatalogo || {};
-        state.mapaMedidas = data.mapaMedidas || {};
-        state.listaCodigos = data.codigos || [];
-        state.listaNombresEtiquetas = data.nombresEtiquetas || [];
-
-        // Mezclar en cache global
+      const guardarBootstrapEnCache = (bootstrap) => {
         window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
-        window.DATA_ALMACEN_CACHE.codigos = state.listaCodigos;
-        window.DATA_ALMACEN_CACHE.mapaCatalogo = state.mapaCatalogo;
-        window.DATA_ALMACEN_CACHE.mapaMedidas = state.mapaMedidas;
-        window.DATA_ALMACEN_CACHE.nombresEtiquetas = state.listaNombresEtiquetas;
 
-        poblarDatalistsEtiquetas_();
-
-        notify_("Datos de etiquetas cargados correctamente.", "success", 2200, {
-          title: "Sistema listo",
-          sound: false
-        });
-      })
-      .withFailureHandler(function (err) {
-        console.error("❌ [Etiquetas] Error cargando bootstrap:", err);
-
-        notify_(
-          "No se pudo cargar la información inicial de etiquetas.",
-          "error",
-          4200,
-          {
-            title: "Error de carga",
-            sound: true
-          }
-        );
-      })
-      .FormularioEtiquetasIdentificadorasController_getBootstrap();
-  };
-
-  // Alias esperado por tu shell
-  window.initVista = window.inicializarVistaEtiquetas;
-
-  // =========================================================
-  // FUNCIONES PÚBLICAS (para onclick / onchange inline)
-  // =========================================================
-  window.buscarPorCodigo = function () {
-    const input = document.getElementById('codigoInput');
-    const codigo = normalizarTexto(input ? input.value : "");
-
-    if (codigo === "") return;
-
-    if (!existeNormalizado_(state.listaCodigos, codigo)) {
-      notify_(
-        `El código "${codigo}" no existe.`,
-        "error",
-        3200,
-        {
-          title: "Código no válido",
-          sound: true
-        }
-      );
-      limpiarCamposInterno();
-      return;
-    }
-
-    const producto = state.mapaCatalogo[codigo];
-    if (producto) {
-      document.getElementById('idInput').value = producto.idproducto || "";
-      document.getElementById('descripcionInput').value = producto.descripcion || "";
-
-      notifyOnce_(
-        "codigo-resuelto-local",
-        "Producto localizado correctamente.",
-        "success",
-        1300,
-        {
-          title: "Código encontrado",
-          sound: false
-        },
-        1200
-      );
-      return;
-    }
-
-    notify_("Consultando producto en el servidor...", "info", 1400, {
-      title: "Buscando producto",
-      sound: false
-    });
-
-    // Fallback al backend
-    google.script.run
-      .withSuccessHandler(function (res) {
-        if (!res || !res.encontrado) {
-          notify_(
-            `El código "${codigo}" no fue encontrado.`,
-            "error",
-            3200,
-            {
-              title: "Sin resultados",
-              sound: true
-            }
-          );
-          limpiarCamposInterno();
-          return;
+        if (bootstrap.codigos) {
+          window.DATA_ALMACEN_CACHE.codigos = bootstrap.codigos;
         }
 
-        document.getElementById('idInput').value = res.idproducto || "";
-        document.getElementById('descripcionInput').value = res.descripcion || "";
-
-        notify_("Producto localizado correctamente.", "success", 1400, {
-          title: "Código encontrado",
-          sound: false
-        });
-      })
-      .withFailureHandler(function (err) {
-        console.error("❌ Error buscando producto:", err);
-
-        notify_(
-          "Ocurrió un error al buscar el producto.",
-          "error",
-          4200,
-          {
-            title: "Error de búsqueda",
-            sound: true
-          }
-        );
-      })
-      .FormularioEtiquetasIdentificadorasController_buscarProductoPorCodigo(codigo);
-  };
-
-  window.limpiarCampos = function () {
-    limpiarCamposInterno();
-
-    notify_("Campos limpiados.", "info", 1200, {
-      title: "Formulario limpio",
-      sound: false
-    });
-  };
-
-  window.agregarALista = function () {
-    const tipo = normalizarTexto(document.getElementById('tipoetiquetaInput')?.value);
-    const cod = normalizarTexto(document.getElementById('codigoInput')?.value);
-    const desc = document.getElementById('descripcionInput')?.value || "";
-    const id = document.getElementById('idInput')?.value || "";
-
-    if (!existeNormalizado_(state.listaNombresEtiquetas, tipo)) {
-      notify_(
-        "Selecciona un tipo de etiqueta válido de la lista.",
-        "error",
-        3200,
-        {
-          title: "Tipo inválido",
-          sound: true
+        if (bootstrap.mapaCatalogo) {
+          window.DATA_ALMACEN_CACHE.mapaCatalogo = bootstrap.mapaCatalogo;
         }
-      );
-      return;
-    }
+      };
 
-    if (!existeNormalizado_(state.listaCodigos, cod) || !id) {
-      notify_(
-        "El código no es válido o todavía no se encontró correctamente.",
-        "error",
-        3200,
-        {
-          title: "Código inválido",
-          sound: true
-        }
-      );
-      return;
-    }
+      const leerCacheEtiquetas = () => {
+        const cache = window.DATA_ALMACEN_CACHE || {};
+        return {
+          mapaCatalogo: cache.mapaCatalogo || cache.mapaProductos || {},
+          codigos: cache.codigos || []
+        };
+      };
 
-    const tipoReal = state.listaNombresEtiquetas.find(x => normalizarTexto(x) === tipo) || tipo;
-    const medidas = state.mapaMedidas[tipoReal] || state.mapaMedidas[tipo];
-    if (!medidas) {
-      notify_(
-        "No se encontraron las medidas de la etiqueta seleccionada.",
-        "error",
-        3600,
-        {
-          title: "Medidas no disponibles",
-          sound: true
-        }
-      );
-      return;
-    }
-
-    window.colaDeImpresionEtiquetas.push({
-      tipo: tipoReal,
-      codigo: cod,
-      descripcion: desc,
-      id: id,
-      alto: medidas.alto,
-      ancho: medidas.ancho
-    });
-
-    window.actualizarVistaLista();
-    limpiarCamposInterno();
-
-    notify_("Etiqueta añadida correctamente a la fila.", "success", 1500, {
-      title: "Añadido a la fila",
-      sound: false
-    });
-  };
-
-  window.actualizarVistaLista = function () {
-    const listaUL = document.getElementById('listaEtiquetas');
-    const btnPrint = document.getElementById('btnImprimirTodo');
-    const contador = document.getElementById('contador');
-    const textoBoton = document.getElementById('textoBoton');
-
-    const plantillaEl = document.getElementById('plantillaEtiqueta');
-    if (!listaUL || !btnPrint || !contador || !textoBoton || !plantillaEl) return;
-
-    const plantilla = plantillaEl.innerHTML;
-
-    window.colaDeImpresionEtiquetas.sort((a, b) => {
-      const comparacionTipo = a.tipo.localeCompare(b.tipo);
-      if (comparacionTipo === 0) return a.codigo.localeCompare(b.codigo);
-      return comparacionTipo;
-    });
-
-    listaUL.innerHTML = "";
-    contador.innerText = window.colaDeImpresionEtiquetas.length;
-
-    window.colaDeImpresionEtiquetas.forEach((item, index) => {
-      const htmlFila = plantilla
-        .replace(/{{INDEX}}/g, index)
-        .replace("{{TIPO}}", item.tipo)
-        .replace("{{CODIGO}}", item.codigo)
-        .replace("{{DESCRIPCION}}", item.descripcion)
-        .replace("{{ALTO}}", item.alto)
-        .replace("{{ANCHO}}", item.ancho);
-
-      listaUL.insertAdjacentHTML('beforeend', htmlFila);
-    });
-
-    if (window.colaDeImpresionEtiquetas.length > 0) {
-      btnPrint.classList.add('visible');
-      textoBoton.innerText = `Imprimir Lote (${window.colaDeImpresionEtiquetas.length})`;
-    } else {
-      btnPrint.classList.remove('visible');
-      textoBoton.innerText = "Imprimir";
-    }
-  };
-
-  window.quitarDeLista = function (index) {
-    window.colaDeImpresionEtiquetas.splice(index, 1);
-    window.actualizarVistaLista();
-
-    notify_("Etiqueta eliminada de la fila.", "warning", 1400, {
-      title: "Elemento removido",
-      sound: false
-    });
-  };
-
-  window.generar = function () {
-    if (window.colaDeImpresionEtiquetas.length === 0) {
-      notify_(
-        "Agrega etiquetas a la lista antes de imprimir.",
-        "warning",
-        3200,
-        {
-          title: "Fila vacía",
-          sound: true
-        }
-      );
-      return;
-    }
-
-    window.colaDeImpresionEtiquetas.sort((a, b) => {
-      if (a.tipo < b.tipo) return -1;
-      if (a.tipo > b.tipo) return 1;
-      return 0;
-    });
-
-    const btn = document.getElementById("btnImprimirTodo");
-    const textoBoton = document.getElementById("textoBoton");
-
-    if (!btn || !textoBoton) {
-      console.error("❌ No se encontró el botón de impresión o el span textoBoton");
-
-      notify_(
-        "No se encontró el control de impresión en la vista.",
-        "error",
-        4200,
-        {
-          title: "Error de interfaz",
-          sound: true
-        }
-      );
-
-      return;
-    }
-
-    const modoImpresion =
-      window.ImpresionModoUtilidades &&
-      typeof window.ImpresionModoUtilidades.getMode === "function"
-        ? window.ImpresionModoUtilidades.getMode()
-        : "LOCAL";
-
-    textoBoton.innerText = "⏳ Generando...";
-    btn.disabled = true;
-
-    notify_(
-      modoImpresion === "ONLINE"
-        ? "Preparando etiquetas para impresión ONLINE..."
-        : "Preparando etiquetas para impresión LOCAL...",
-      "info",
-      1800,
-      {
-        title: "Generando etiquetas",
-        sound: false
-      }
-    );
-
-    let win = null;
-
-    if (modoImpresion === "LOCAL") {
-      win = window.open("", "_blank");
-
-      if (!win) {
-        notify_(
-          "La ventana fue bloqueada. Permite los pop-ups para continuar.",
-          "warning",
-          4200,
-          {
-            title: "Pop-up bloqueado",
-            sound: true
-          }
+      const codigosDisponibles = useMemo(() => {
+        const idsEnCola = new Set(
+          cola.map(item => normalizarTexto(item.codigo)).filter(Boolean)
         );
 
-        btn.disabled = false;
-        textoBoton.innerText = "Imprimir";
-        return;
-      }
+        return codigos
+          .map(c => normalizarTexto(c))
+          .filter(Boolean)
+          .filter(c => !idsEnCola.has(c));
+      }, [codigos, cola]);
 
-      win.document.write(`
-        <html>
-          <head>
-            <title>Generando etiquetas...</title>
-            <style>
-              body {
-                font-family: Arial, sans-serif;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                height: 100vh;
-                margin: 0;
-                color: #5f6368;
-                background-color: #f8f9fa;
-              }
+      const resumenCola = useMemo(() => {
+        return {
+          total: cola.length
+        };
+      }, [cola]);
 
-              .spinner {
-                width: 50px;
-                height: 50px;
-                border: 5px solid #f3f3f3;
-                border-top: 5px solid #d93025;
-                border-radius: 50%;
-                animation: spin 1s linear infinite;
-                margin-bottom: 20px;
-              }
+      const existeCodigoEnCola = (codigo) => {
+        const c = normalizarTexto(codigo);
+        if (!c) return false;
 
-              @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
+        return cola.some(item => normalizarTexto(item.codigo) === c);
+      };
 
-              .loader {
-                text-align: center;
-                max-width: 420px;
-                padding: 0 24px;
-              }
+      // =========================================================
+      // CARGA INICIAL
+      // =========================================================
+      useEffect(() => {
+        const cargarBootstrap = () => {
+          try {
+            notify_("Inicializando vista de etiquetas identificadoras...", "info", 1600, {
+              title: "Cargando vista",
+              sound: false
+            });
 
-              .loader h3 {
-                margin: 0 0 8px 0;
-                font-size: 22px;
-                font-weight: 700;
-                color: #1c1d1f;
-                letter-spacing: 0.04em;
-              }
+            const cache = leerCacheEtiquetas();
 
-              .loader p {
-                margin: 0;
-                font-size: 14px;
-                color: #5f6368;
-                line-height: 1.5;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="spinner"></div>
-            <div class="loader">
-              <h3>Preparando etiquetas...</h3>
-              <p>Espera un momento mientras se genera la impresión de la etiqueta.</p>
-            </div>
-          </body>
-        </html>
-      `);
+            if (
+              Object.keys(cache.mapaCatalogo).length > 0 &&
+              Array.isArray(cache.codigos) &&
+              cache.codigos.length > 0
+            ) {
+              setMapaCatalogo(cache.mapaCatalogo);
+              setCodigos(cache.codigos.map(x => normalizarTexto(x)));
+              setCargando(false);
 
-      win.document.close();
-    }
+              notify_("Datos de etiquetas cargados desde memoria local.", "success", 1800, {
+                title: "Sistema listo",
+                sound: false
+              });
 
-    google.script.run
-      .withSuccessHandler(function (resultado) {
-        const res = typeof resultado === "string"
-          ? {
-              ok: true,
-              htmlImpresion: resultado,
-              printJob: null,
-              legacy: true
+              return;
             }
-          : resultado;
 
-        if (!res || !res.htmlImpresion) {
-          if (win && !win.closed) {
-            win.close();
-          }
+            google.script.run
+              .withSuccessHandler((data) => {
+                const mapa = data?.mapaCatalogo || {};
+                const listaCodigos = (data?.codigos || []).map(x => normalizarTexto(x));
 
-          btn.disabled = false;
-          textoBoton.innerText = "Imprimir";
+                setMapaCatalogo(mapa);
+                setCodigos(listaCodigos);
 
-          notify_(
-            "No se recibió una impresión válida desde el servidor.",
-            "error",
-            4200,
-            {
-              title: "Respuesta inválida",
-              sound: true
-            }
-          );
+                guardarBootstrapEnCache({
+                  mapaCatalogo: mapa,
+                  codigos: listaCodigos
+                });
 
-          return;
-        }
+                setCargando(false);
 
-        if (modoImpresion === "ONLINE") {
-          if (!res.printJob) {
-            btn.disabled = false;
-            textoBoton.innerText = "Imprimir";
+                notify_("Datos de etiquetas cargados correctamente.", "success", 2200, {
+                  title: "Sistema listo",
+                  sound: false
+                });
+              })
+              .withFailureHandler((err) => {
+                console.error("❌ [Etiquetas] Error cargando bootstrap:", err);
+                setCargando(false);
+
+                notify_(
+                  "No se pudo cargar la información inicial de etiquetas.",
+                  "error",
+                  4200,
+                  {
+                    title: "Error de carga",
+                    sound: true
+                  }
+                );
+              })
+              .FormularioEtiquetasIdentificadorasController_getBootstrap();
+
+          } catch (err) {
+            console.error("❌ [Etiquetas] Error inesperado:", err);
+            setCargando(false);
 
             notify_(
-              "No se recibió paquete ONLINE para imprimir.",
+              "No se pudo inicializar la vista de etiquetas.",
               "error",
               4200,
               {
-                title: "Impresión ONLINE no disponible",
+                title: "Error inesperado",
+                sound: true
+              }
+            );
+          }
+        };
+
+        cargarBootstrap();
+      }, []);
+
+      useEffect(() => {
+        if (!cargando && !procesando) {
+          enfocarCodigo();
+        }
+      }, [cargando, procesando]);
+
+      useEffect(() => {
+        const root = document.getElementById("render-etiquetas-identificadoras");
+        if (!root) return;
+
+        const parent = root.parentElement;
+        if (!parent) return;
+
+        const previousOverflow = parent.style.overflow;
+        const previousMinHeight = parent.style.minHeight;
+        const previousHeight = parent.style.height;
+
+        parent.style.overflow = "hidden";
+        parent.style.minHeight = "0";
+
+        if (!parent.style.height) {
+          parent.style.height = "100%";
+        }
+
+        return () => {
+          parent.style.overflow = previousOverflow;
+          parent.style.minHeight = previousMinHeight;
+          parent.style.height = previousHeight;
+        };
+      }, []);
+
+      // =========================================================
+      // BUSCAR PRODUCTO
+      // =========================================================
+      const resolverCodigo = (codigoParam) => {
+        const codigo = normalizarTexto(codigoParam);
+
+        if (!codigo) {
+          setForm(prev => ({
+            ...prev,
+            codigo: '',
+            descripcion: '',
+            id: '',
+            producto: null
+          }));
+          return;
+        }
+
+        if (!codigos.map(x => normalizarTexto(x)).includes(codigo)) {
+          notify_(
+            `El código "${codigo}" no existe.`,
+            "error",
+            3200,
+            {
+              title: "Código no válido",
+              sound: true
+            }
+          );
+
+          setForm(prev => ({
+            ...prev,
+            codigo,
+            descripcion: '',
+            id: '',
+            producto: null
+          }));
+
+          return;
+        }
+
+        const producto = mapaCatalogo[codigo];
+
+        if (producto) {
+          setForm(prev => ({
+            ...prev,
+            codigo,
+            descripcion: producto.descripcion || "",
+            id: producto.idproducto || "",
+            producto
+          }));
+
+          notifyOnce_(
+            `codigo-resuelto-${codigo}`,
+            "Producto localizado correctamente.",
+            "success",
+            1300,
+            {
+              title: "Código encontrado",
+              sound: false
+            },
+            1200
+          );
+
+          return;
+        }
+
+        notify_("Consultando producto en el servidor...", "info", 1400, {
+          title: "Buscando producto",
+          sound: false
+        });
+
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (!res || !res.encontrado) {
+              notify_(
+                `El código "${codigo}" no fue encontrado.`,
+                "error",
+                3200,
+                {
+                  title: "Sin resultados",
+                  sound: true
+                }
+              );
+
+              setForm(prev => ({
+                ...prev,
+                descripcion: '',
+                id: '',
+                producto: null
+              }));
+
+              return;
+            }
+
+            const productoFallback = {
+              idproducto: res.idproducto || "",
+              codigo,
+              descripcion: res.descripcion || ""
+            };
+
+            setMapaCatalogo(prev => ({
+              ...prev,
+              productoFallback
+            }));
+
+            setForm(prev => ({
+              ...prev,
+              codigo,
+              descripcion: productoFallback.descripcion,
+              id: productoFallback.idproducto,
+              producto: productoFallback
+            }));
+
+            notify_("Producto localizado correctamente.", "success", 1400, {
+              title: "Código encontrado",
+              sound: false
+            });
+          })
+          .withFailureHandler((err) => {
+            console.error("❌ Error buscando producto:", err);
+
+            notify_(
+              "Ocurrió un error al buscar el producto.",
+              "error",
+              4200,
+              {
+                title: "Error de búsqueda",
+                sound: true
+              }
+            );
+          })
+          .FormularioEtiquetasIdentificadorasController_buscarProductoPorCodigo(codigo);
+      };
+
+      const handleCodigoChange = (e) => {
+        const valor = normalizarTexto(e.target.value);
+
+        setForm(prev => ({
+          ...prev,
+          codigo: valor,
+          descripcion: '',
+          id: '',
+          producto: null
+        }));
+
+        const producto = mapaCatalogo[valor];
+
+        if (producto) {
+          setForm(prev => ({
+            ...prev,
+            codigo: valor,
+            descripcion: producto.descripcion || "",
+            id: producto.idproducto || "",
+            producto
+          }));
+        }
+      };
+
+      // =========================================================
+      // AGREGAR A COLA
+      // =========================================================
+      const handleAdd = (e) => {
+        if (e && typeof e.preventDefault === 'function') {
+          e.preventDefault();
+        }
+
+        const codigo = normalizarTexto(form.codigo);
+
+        if (!codigo) {
+          notify_(
+            "Captura o selecciona un código antes de continuar.",
+            "warning",
+            2800,
+            {
+              title: "Código requerido",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        if (!form.id || !form.descripcion) {
+          notify_(
+            "El código todavía no se encontró correctamente.",
+            "error",
+            3200,
+            {
+              title: "Código inválido",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        if (existeCodigoEnCola(codigo)) {
+          notify_(
+            `El código ${codigo} ya está agregado en la fila.`,
+            "warning",
+            3000,
+            {
+              title: "Código duplicado",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        const nuevoItem = {
+          tipo: TIPO_ETIQUETA_FIJO,
+          codigo,
+          descripcion: form.descripcion,
+          id: form.id,
+
+          // Metadatos fijos para compatibilidad con el service.
+          // La plantilla impresa ya controla el tamaño físico.
+          alto: ALTO_FIJO,
+          ancho: ANCHO_FIJO,
+
+          rowId: `${Date.now()}&${codigo}&#ETIQ`
+        };
+
+        setCola(prev => [nuevoItem, ...prev]);
+
+        notify_("Etiqueta añadida correctamente a la fila.", "success", 1500, {
+          title: "Añadido a fila",
+          sound: false
+        });
+
+        limpiarCampos();
+      };
+
+      // =========================================================
+      // GENERAR / IMPRIMIR
+      // =========================================================
+      const generar = () => {
+        if (cola.length === 0) {
+          notify_(
+            "Agrega etiquetas a la lista antes de imprimir.",
+            "warning",
+            3200,
+            {
+              title: "Fila vacía",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        if (
+          !window.ImpresionModoUtilidades ||
+          typeof window.ImpresionModoUtilidades.getMode !== "function" ||
+          typeof window.ImpresionModoUtilidades.imprimirResultado !== "function"
+        ) {
+          notify_(
+            "No se encontró el módulo global de impresión.",
+            "error",
+            4200,
+            {
+              title: "Impresión no disponible",
+              sound: true
+            }
+          );
+          return;
+        }
+
+        setProcesando(true);
+
+        const modoImpresion = window.ImpresionModoUtilidades.getMode();
+
+        let ventanaLocal = null;
+
+        if (modoImpresion === "LOCAL") {
+          ventanaLocal = window.open("", "_blank", "width=900,height=700");
+
+          if (!ventanaLocal) {
+            setProcesando(false);
+
+            notify_(
+              "La ventana fue bloqueada. Permite los pop-ups para continuar.",
+              "warning",
+              4200,
+              {
+                title: "Pop-up bloqueado",
                 sound: true
               }
             );
@@ -760,125 +960,574 @@
             return;
           }
 
-          notify_("Enviando etiquetas identificadoras al PrintServer...", "info", 2200, {
-            title: "Impresión ONLINE",
+          ventanaLocal.document.open();
+          ventanaLocal.document.write(`
+            <html>
+              <head>
+                <title>Generando etiquetas...</title>
+                <style>
+                  body {
+                    font-family: Arial, sans-serif;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100vh;
+                    margin: 0;
+                    color: #5f6368;
+                    background-color: #f8f9fa;
+                  }
+
+                  .spinner {
+                    width: 50px;
+                    height: 50px;
+                    border: 5px solid #f3f3f3;
+                    border-top: 5px solid #d93025;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                    margin-bottom: 20px;
+                  }
+
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+
+                  .loader {
+                    text-align: center;
+                    max-width: 420px;
+                    padding: 0 24px;
+                  }
+
+                  .loader h3 {
+                    margin: 0 0 8px 0;
+                    font-size: 22px;
+                    font-weight: 700;
+                    color: #1c1d1f;
+                    letter-spacing: 0.04em;
+                  }
+
+                  .loader p {
+                    margin: 0;
+                    font-size: 14px;
+                    color: #5f6368;
+                    line-height: 1.5;
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="spinner"></div>
+                <div class="loader">
+                  <h3>Preparando etiquetas...</h3>
+                  <p>Espera un momento mientras se genera la impresión de etiquetas identificadoras.</p>
+                </div>
+              </body>
+            </html>
+          `);
+          ventanaLocal.document.close();
+        }
+
+        notify_(
+          modoImpresion === "ONLINE"
+            ? "Preparando etiquetas identificadoras para impresión ONLINE..."
+            : "Preparando etiquetas identificadoras para impresión LOCAL...",
+          "info",
+          1800,
+          {
+            title: "Generando etiquetas",
             sound: false
-          });
+          }
+        );
 
-          google.script.run
-            .withSuccessHandler(function (respuestaOnline) {
-              if (respuestaOnline && respuestaOnline.ok) {
-                window.colaDeImpresionEtiquetas = [];
-                window.actualizarVistaLista();
+        google.script.run
+          .withSuccessHandler((resultado) => {
+            const res = typeof resultado === "string"
+              ? {
+                  ok: true,
+                  htmlImpresion: resultado,
+                  printJob: null,
+                  legacy: true
+                }
+              : resultado;
 
-                btn.disabled = false;
-                textoBoton.innerText = "Imprimir";
-
-                notify_("Etiquetas identificadoras enviadas correctamente por ONLINE.", "success", 3000, {
-                  title: "Impresión ONLINE",
-                  sound: true
-                });
-
-                return;
+            if (!res || !res.htmlImpresion) {
+              if (ventanaLocal && !ventanaLocal.closed) {
+                ventanaLocal.close();
               }
 
-              btn.disabled = false;
-              textoBoton.innerText = "Imprimir";
+              setProcesando(false);
 
               notify_(
-                "El PrintServer respondió, pero no confirmó la impresión.",
-                "warning",
+                "No se recibió una impresión válida desde el servidor.",
+                "error",
                 4200,
                 {
-                  title: "Impresión no confirmada",
+                  title: "Respuesta inválida",
                   sound: true
                 }
               );
-            })
-            .withFailureHandler(function (errOnline) {
-              console.error("❌ Error impresión ONLINE:", errOnline);
 
-              btn.disabled = false;
-              textoBoton.innerText = "Imprimir";
+              return;
+            }
+
+            const modoActual = window.ImpresionModoUtilidades.getMode();
+
+            if (modoActual === "ONLINE" && !res.printJob) {
+              if (ventanaLocal && !ventanaLocal.closed) {
+                ventanaLocal.close();
+              }
+
+              setProcesando(false);
 
               notify_(
-                errOnline && errOnline.message
-                  ? errOnline.message
-                  : "No se pudieron imprimir las etiquetas identificadoras por ONLINE.",
+                "La vista generó HTML, pero no generó paquete ONLINE.",
                 "error",
                 5200,
                 {
-                  title: "Error ONLINE",
+                  title: "Impresión ONLINE no disponible",
                   sound: true
                 }
               );
-            })
-            .ImpresionPuenteController_imprimir(res.printJob);
 
-          return;
-        }
+              return;
+            }
 
-        if (win && !win.closed) {
-          win.document.open();
-          win.document.write(res.htmlImpresion);
-          win.document.close();
-        }
+            try {
+              window.ImpresionModoUtilidades.imprimirResultado(res, {
+                titulo: "Etiquetas identificadoras",
+                fallbackLocal: false,
+                ventanaLocal: ventanaLocal
+              });
 
-        window.colaDeImpresionEtiquetas = [];
-        window.actualizarVistaLista();
+              setCola([]);
+              limpiarCampos();
+              setProcesando(false);
 
-        btn.disabled = false;
-        textoBoton.innerText = "Imprimir";
+              notify_(
+                modoActual === "ONLINE"
+                  ? "Etiquetas identificadoras enviadas por ONLINE."
+                  : "Etiquetas identificadoras listas para impresión LOCAL.",
+                "success",
+                2800,
+                {
+                  title: modoActual === "ONLINE"
+                    ? "Impresión ONLINE"
+                    : "Impresión LOCAL",
+                  sound: true
+                }
+              );
 
-        notify_("Etiquetas identificadoras generadas correctamente.", "success", 2400, {
-          title: "Impresión LOCAL lista",
+            } catch (errorImpresion) {
+              console.error("❌ Error ejecutando impresión:", errorImpresion);
+
+              if (ventanaLocal && !ventanaLocal.closed) {
+                ventanaLocal.close();
+              }
+
+              setProcesando(false);
+
+              notify_(
+                errorImpresion && errorImpresion.message
+                  ? errorImpresion.message
+                  : "No se pudo ejecutar la impresión.",
+                "error",
+                5200,
+                {
+                  title: "Error de impresión",
+                  sound: true
+                }
+              );
+            }
+          })
+          .withFailureHandler((err) => {
+            if (ventanaLocal && !ventanaLocal.closed) {
+              ventanaLocal.close();
+            }
+
+            console.error("❌ Error al generar etiquetas:", err);
+            setProcesando(false);
+
+            notify_(
+              err && err.message
+                ? err.message
+                : "No se pudieron generar las etiquetas.",
+              "error",
+              4200,
+              {
+                title: "Error de impresión",
+                sound: true
+              }
+            );
+          })
+          .FormularioEtiquetasIdentificadorasController_procesarLote(cola);
+      };
+
+      // =========================================================
+      // UI
+      // =========================================================
+      return (
+        <div className="ei-app-shell flex flex-col h-full w-full relative">
+          <div className="ei-main-layout">
+
+            {/* PANEL LATERAL */}
+            <div className="ei-left-panel border-r border-[#dadce0] bg-white px-6 pt-4 pb-6 shrink-0 z-10">
+              <form onSubmit={handleAdd} className="h-full flex flex-col">
+
+                <div className="ei-form-grid">
+
+                  {/* CÓDIGO */}
+                  <div className="ei-grid-codigo ei-field-block">
+                    <label className="ei-label ml-1">
+                      Código
+                    </label>
+
+                    <div className="relative group">
+                      <input
+                        ref={codigoInputRef}
+                        list="lista-codigos-identificadoras"
+                        disabled={cargando || procesando}
+                        className={`w-full border rounded-xl px-4 ei-input ei-form-input-unificado uppercase outline-none transition-all ${
+                          cargando || procesando
+                            ? 'bg-gray-200 cursor-not-allowed text-gray-500'
+                            : 'bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white'
+                        }`}
+                        placeholder={cargando ? "Cargando catálogo..." : "Selecciona un código"}
+                        value={form.codigo}
+                        onChange={handleCodigoChange}
+                        onBlur={() => resolverCodigo(form.codigo)}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          e.preventDefault();
+
+                          const codigo = normalizarTexto(e.currentTarget.value);
+
+                          if (!codigo) {
+                            notify_(
+                              "Captura un código válido antes de continuar.",
+                              "warning",
+                              2200,
+                              {
+                                title: "Código vacío",
+                                sound: true
+                              }
+                            );
+                            return;
+                          }
+
+                          resolverCodigo(codigo);
+
+                          setTimeout(() => {
+                            handleAdd({
+                              preventDefault: () => {}
+                            });
+                          }, 80);
+                        }}
+                      />
+
+                      <datalist id="lista-codigos-identificadoras">
+                        {codigosDisponibles.map((codigo, index) => (
+                          <option key={`${index}-${codigo}`} value={codigo} />
+                        ))}
+                      </datalist>
+
+                      {form.id && (
+                        <div className="absolute right-3 top-3 text-green-500 animate-pulse">
+                          <LocalIcon name="check-circle" size={16} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ID PRODUCTO */}
+                  <div className="ei-grid-id ei-field-block">
+                    <label className="ei-label ml-1">
+                      ID producto
+                    </label>
+
+                    <input
+                      type="text"
+                      readOnly
+                      className="w-full border rounded-xl px-4 ei-input ei-form-input-unificado uppercase outline-none transition-all bg-gray-200 text-gray-600 cursor-not-allowed border-gray-300 ei-mono"
+                      placeholder="ID automático"
+                      value={form.id}
+                    />
+                  </div>
+
+                  {/* TARJETA PRODUCTO */}
+                  <div className="ei-grid-producto">
+                    {form.codigo ? (
+                      <div className="ei-id-card bg-[#1c1d1f] space-y-3 border border-gray-800 fade-in shadow-xl">
+                        <div className="flex items-start gap-2.5">
+                          <div className="p-1.5 bg-gray-800 rounded-lg">
+                            <LocalIcon name="tag" size={15} className="text-red-500" />
+                          </div>
+
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[12px] font-black text-gray-500 uppercase tracking-[0.18em]">
+                              Código vinculado
+                            </span>
+                            <span className="text-white ei-mono text-[17px] font-black mt-1 break-all">
+                              {form.codigo || "Sin código"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-2.5 border-t border-gray-800 pt-2.5">
+                          <div className="p-1.5 bg-gray-800 rounded-lg">
+                            <LocalIcon name="file-text" size={15} className="text-red-500" />
+                          </div>
+
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[12px] font-black text-gray-500 uppercase tracking-[0.18em]">
+                              Descripción
+                            </span>
+                            <span className="text-gray-300 text-[15px] font-bold leading-snug uppercase italic mt-1 break-words">
+                              {form.descripcion || "No se encontró registro en la base de datos"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="ei-product-placeholder">
+                        <div>
+                          <div className="ei-product-placeholder-title">
+                            Esperando código
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* TAMAÑO FIJO */}
+                  <div className="ei-grid-tamano">
+                    <div className="ei-size-card px-3 pt-1.5 pb-3 rounded-xl bg-slate-100 border border-slate-200">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                        Tamaño fijo
+                      </span>
+                      <p className="text-[12px] font-semibold text-slate-700 mt-1 leading-snug">
+                        Todas las etiquetas identificadoras se imprimen sobre las etiquetas de 150 mm x 100 mm.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* BOTÓN */}
+                  <div className="ei-grid-accion">
+                    <button
+                      type="submit"
+                      disabled={cargando || procesando}
+                      className="ei-action-btn w-full bg-[#d93025] hover:bg-[#a50e0e] text-white py-4 rounded-xl font-black uppercase text-[16px] tracking-[0.18em] shadow-lg shadow-red-100 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                      <LocalIcon name="plus" size={25} />
+                      Añadir a fila
+                    </button>
+                  </div>
+
+                </div>
+              </form>
+            </div>
+
+            {/* TABLA DE RESULTADOS */}
+            <div className="ei-right-panel min-w-0 ei-results-shell">
+
+              <div className="ei-results-toolbar bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-[#1c1d1f] text-white flex items-center justify-center shadow-md">
+                    <LocalIcon name="list-checks" size={22} />
+                  </div>
+
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
+                      Fila de impresión
+                    </span>
+                    <span className="text-[15px] font-black uppercase tracking-[0.08em] text-gray-900">
+                      {resumenCola.total} {resumenCola.total === 1 ? 'etiqueta añadida' : 'etiquetas añadidas'}
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+
+              <div className="ei-table-scroll custom-scroll-container">
+
+                <table className="ei-results-table">
+                  <thead className="ei-results-head">
+                    <tr>
+                      <th className="text-center">
+                        Código / Descripción
+                      </th>
+                      <th className="text-center">
+                        Tipo
+                      </th>
+                      <th className="text-center">
+                        ID
+                      </th>
+                      <th className="text-center">
+                        Acción
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {cola.map(item => (
+                      <tr key={item.rowId} className="ei-results-row fade-in">
+                        <td>
+                          <div className="flex flex-col">
+                            <span className="ei-code-main">{item.codigo}</span>
+                            <span className="ei-desc">
+                              {item.descripcion || 'SIN DESCRIPCIÓN'}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="text-center">
+                          <span className="ei-type-chip">
+                            {item.tipo}
+                          </span>
+                        </td>
+
+                        <td className="text-center">
+                          <span className="ei-id-pill">
+                            {item.id}
+                          </span>
+                        </td>
+
+                        <td className="text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCola(prev => prev.filter(c => c.rowId !== item.rowId));
+                              notify_("Etiqueta removida de la fila.", "warning", 1400, {
+                                title: "Elemento removido",
+                                sound: false
+                              });
+                              enfocarCodigo();
+                            }}
+                            className="ei-delete-btn"
+                            title="Quitar de la fila"
+                          >
+                            <LocalIcon name="trash-2" size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {cola.length === 0 && (
+                  <div className="ei-empty-state">
+                    <LocalIcon name="package" size={52} />
+                    <p className="ei-empty-title">
+                      Esperando etiquetas
+                    </p>
+                    <p className="ei-empty-sub">
+                      Las etiquetas añadidas aparecerán aquí
+                    </p>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          </div>
+
+          {/* BOTÓN FINAL */}
+          {cola.length > 0 && (
+            <div className="absolute bottom-6 right-6 z-30">
+              <button
+                type="button"
+                onClick={generar}
+                disabled={procesando}
+                className="bg-[#1c1d1f] hover:bg-black text-white px-6 py-4 rounded-2xl shadow-xl font-black uppercase tracking-[0.15em] flex items-center gap-3 disabled:opacity-50 disabled:pointer-events-none"
+              >
+                <LocalIcon
+                  name={procesando ? "loader-2" : "printer"}
+                  size={20}
+                  className={procesando ? "animate-spin" : ""}
+                />
+                {procesando
+                  ? "Procesando..."
+                  : `Imprimir ${resumenCola.total} ${resumenCola.total === 1 ? "etiqueta" : "etiquetas"}`
+                }
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+
+    // =========================================================
+    // RENDER EN CONTENEDOR
+    // =========================================================
+    const rootDiv = document.getElementById('render-etiquetas-identificadoras');
+
+    if (!rootDiv) {
+      notify_(
+        "No se encontró el contenedor principal de etiquetas identificadoras.",
+        "error",
+        4200,
+        {
+          title: "Error de interfaz",
           sound: true
-        });
-      })
-      .withFailureHandler(function (err) {
-        if (win && !win.closed) {
-          win.close();
         }
+      );
+      console.warn("⚠️ [Etiquetas] No se encontró #render-etiquetas-identificadoras");
+      return;
+    }
 
-        console.error("❌ Error al generar etiquetas:", err);
+    const yaInicializado = rootDiv.dataset.eiMounted === "1";
 
-        btn.disabled = false;
-        textoBoton.innerText = "Imprimir";
-
-        notify_(
-          err && err.message
-            ? err.message
-            : "No se pudieron generar las etiquetas.",
-          "error",
-          4200,
+    if (window.__FORMULARIO_ETIQUETAS_IDENTIFICADORAS_ROOT__) {
+      try {
+        window.__FORMULARIO_ETIQUETAS_IDENTIFICADORAS_ROOT__.unmount();
+      } catch (e) {
+        console.warn("⚠️ [Etiquetas] No se pudo desmontar root previo:", e);
+        notifyOnceShell_(
+          "etiquetas-root-previo",
+          "Se liberó una instancia previa de etiquetas identificadoras.",
+          "warning",
+          1600,
           {
-            title: "Error de impresión",
-            sound: true
-          }
+            title: "Reinicialización",
+            sound: false
+          },
+          10000
         );
-      })
-      .FormularioEtiquetasIdentificadorasController_procesarLote(window.colaDeImpresionEtiquetas);
-  };
+      }
+      window.__FORMULARIO_ETIQUETAS_IDENTIFICADORAS_ROOT__ = null;
+    }
 
-  window.solicitarAccesoMantenimiento = function () {
-    const pass = prompt("Introduzca la contraseña para acceder a Mantenimiento:");
-    if (pass === "1234") {
-      notify_("Acceso concedido.", "success", 1800, {
-        title: "Mantenimiento",
-        sound: false
-      });
-    } else if (pass !== null) {
-      notify_("La contraseña es incorrecta.", "error", 3200, {
-        title: "Acceso denegado",
-        sound: true
-      });
+    try {
+      rootDiv.dataset.eiMounted = "1";
+      window.__FORMULARIO_ETIQUETAS_IDENTIFICADORAS_ROOT__ = ReactDOM.createRoot(rootDiv);
+      window.__FORMULARIO_ETIQUETAS_IDENTIFICADORAS_ROOT__.render(<VistaEtiquetasIdentificadoras />);
+
+      if (!yaInicializado) {
+        notifyOnceShell_(
+          "etiquetas-vista-montada",
+          "Vista de etiquetas identificadoras lista para operar.",
+          "success",
+          1500,
+          {
+            title: "Vista cargada",
+            sound: false
+          },
+          12000
+        );
+      }
+    } catch (e) {
+      console.error("❌ [Etiquetas] Error montando root React:", e);
+      notify_(
+        "Ocurrió un error al montar la vista de etiquetas identificadoras.",
+        "error",
+        4200,
+        {
+          title: "Error de montaje",
+          sound: true
+        }
+      );
     }
   };
 
-  // Exponemos también esta por si otra parte la llama
-  window.validarValorEnLista = function (idInput, listaPermitida, nombreCampo) {
-    return validarValorEnListaInterno(idInput, listaPermitida, nombreCampo);
-  };
-
-})();
+  window.initVista = window.cargar_FormularioEtiquetasIdentificadoras;
+  console.log("🏷️ [FormularioEtiquetasIdentificadoras] initVista definida:", typeof window.initVista);
 </script>

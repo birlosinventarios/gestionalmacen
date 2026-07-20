@@ -1,21 +1,5 @@
 /**
  * AuditoriaExcedentesLiveCache.gs
- *
- * Canal vivo para monitoreo casi en tiempo real de Auditoría de Excedentes.
- *
- * Objetivo:
- * - Captura escribe en Sheets como verdad oficial.
- * - Captura también emite cambios agregados a CacheService.
- * - Detalle primero consulta CacheService para mostrar progreso en vivo.
- * - Si no hay cache, Detalle puede seguir usando la lógica actual desde Sheets.
- *
- * Seguridad / robustez:
- * - No usa eval.
- * - No guarda HTML ni datos ejecutables.
- * - Normaliza y limita longitudes.
- * - Usa LockService para evitar condiciones de carrera.
- * - No guarda detalle completo de etiquetas, solo métricos agregados.
- * - Tiene protección básica contra aplicar dos veces el mismo lote.
  */
 
 const AuditoriaExcedentesLiveCache = (() => {

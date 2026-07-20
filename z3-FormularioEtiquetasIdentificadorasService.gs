@@ -87,6 +87,28 @@ const FormularioEtiquetasIdentificadorasService = (() => {
       throw new Error("El tipo de etiqueta es obligatorio.");
     }
 
+    /*
+      NUEVO MODELO:
+      Las etiquetas identificadoras ya no dependen del catálogo de medidas.
+      El tamaño físico real lo controla EtiquetaIdentificadoraImpresa.html:
+      Papel: 150mm x 100mm
+      Área segura: 145mm x 95mm
+    */
+    if (valor === "IDENTIFICADORA") {
+      return {
+        tipo: "IDENTIFICADORA",
+        medida: {
+          ancho: 150,
+          alto: 100
+        }
+      };
+    }
+
+    /*
+      Compatibilidad con el modelo anterior:
+      Si en el futuro vuelves a usar otros tipos de etiqueta,
+      todavía se validan contra mapaMedidas.
+    */
     const medida = mapaMedidas[valor];
 
     if (!medida) {
@@ -217,13 +239,13 @@ const FormularioEtiquetasIdentificadorasService = (() => {
       html: htmlOnline,
       content: htmlOnline,
       meta: {
-        modulo: "FormularioEtiquetasIdentificadoras",
-        total: loteNormalizado.length,
-        fechaHora: fechaHora,
-        etiqueta: "IDENTIFICADORA",
-        formatoEtiqueta: "HTML",
-        papel: "100x155mm"
-      }
+      modulo: "FormularioEtiquetasIdentificadoras",
+      total: loteNormalizado.length,
+      fechaHora: fechaHora,
+      etiqueta: "IDENTIFICADORA",
+      formatoEtiqueta: "HTML",
+      papel: "150x100mm"
+    }
     };
 
     return {
