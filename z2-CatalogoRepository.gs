@@ -45,6 +45,12 @@ function getData_() {
         .sort((a, b) => a.codigo.localeCompare(b.codigo));
     },
 
+    getAllRaw: function() {
+      return [
+        ...getData_()
+      ];
+    },    
+
     //  Devuelve todos los codigos 
     getCodigos: function() {
       return getField_("codigo");

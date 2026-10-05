@@ -1,0 +1,1648 @@
+<script>
+  /** VerificacionEntrada.html - Recepción continua contra CFDI. */
+</script>
+<style>
+  #render-verificacion-entrada {
+    --ve-primary: var(--primary, #d93025);
+    --ve-primary-dark: var(--primary-dark, #a50e0e);
+    --ve-primary-soft: rgba(217, 48, 37, 0.1);
+    --ve-success: #1e8e3e;
+    --ve-success-dark: #157337;
+    --ve-success-soft: rgba(30, 142, 62, 0.1);
+    --ve-warning: #d97706;
+    --ve-warning-dark: #b45309;
+    --ve-warning-soft: rgba(217, 119, 6, 0.1);
+    --ve-ink: var(--text-main, #1c1d1f);
+    --ve-muted: var(--text-secondary, #5f6368);
+    --ve-border: var(--border-color, #dadce0);
+    --ve-bg: var(--bg-color, #f8f9fa);
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    color: var(--ve-ink);
+    font-size: 16px;
+  }
+  #render-verificacion-entrada * {
+    box-sizing: border-box;
+  }
+  #render-verificacion-entrada button,
+  #render-verificacion-entrada input,
+  #render-verificacion-entrada textarea {
+    font-family: inherit;
+  }
+  .ve-scroll::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  .ve-scroll::-webkit-scrollbar-thumb {
+    background: #b8bcc3;
+    border-radius: 99px;
+  }
+  @keyframes veSpin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes vePulse {
+    50% {
+      opacity: 0.5;
+      transform: scale(0.82);
+    }
+  }
+  @keyframes veEnter {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes veFlash {
+    0% {
+      box-shadow: inset 0 0 0 0 rgba(217, 48, 37, 0.3);
+    }
+    60% {
+      box-shadow: inset 0 0 0 999px rgba(217, 48, 37, 0.08);
+    }
+  }
+  .animate-spin {
+    animation: veSpin 0.8s linear infinite;
+  }
+  .ve-enter {
+    animation: veEnter 0.28s ease-out both;
+  }
+  .ve-flash td {
+    animation: veFlash 0.85s ease-in-out 2;
+  }
+  .ve-page {
+    height: 100%;
+    padding: 16px 24px 24px;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at top right, rgba(217, 48, 37, 0.055), transparent 34%), var(--ve-bg);
+  }
+  .ve-workspace {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid var(--ve-border);
+    border-radius: 22px;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.11);
+  }
+  .ve-header {
+    flex: 0 0 auto;
+    min-height: 132px;
+    position: relative;
+    padding: 20px 20px 20px 24px;
+    display: grid;
+    grid-template-columns: minmax(320px, 0.98fr) minmax(460px, 1.45fr) minmax(170px, auto);
+    align-items: center;
+    gap: 20px;
+    color: #fff;
+    background:
+      radial-gradient(circle at top right, rgba(217, 48, 37, 0.35), transparent 38%),
+      linear-gradient(135deg, #1c1d1f, #25272b 55%, #17181a);
+  }
+  .ve-header:before,
+  .ve-toolbar:before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 7px;
+    background: var(--ve-primary);
+  }
+  .ve-header > * {
+    position: relative;
+    z-index: 2;
+  }
+  .ve-identity {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    align-items: center;
+    gap: 15px;
+  }
+  .ve-header-icon,
+  .ve-toolbar-icon,
+  .ve-validation-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ve-header-icon {
+    width: 54px;
+    height: 54px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .ve-eyebrow {
+    margin: 0 0 6px;
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 12px;
+    font-weight: 950;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .ve-title {
+    margin: 0;
+    color: #fff;
+    font:
+      950 27px/1.18 "JetBrains Mono",
+      monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ve-subtitle {
+    margin: 9px 0 0;
+    color: rgba(255, 255, 255, 0.76);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.055em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ve-header-chips {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .ve-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(105px, 1fr));
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 16px;
+  }
+  .ve-metric {
+    min-height: 78px;
+    padding: 14px 13px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 7px;
+    color: var(--ve-ink);
+    border-right: 1px solid var(--ve-border);
+  }
+  .ve-metric:last-child {
+    border-right: 0;
+  }
+  .ve-metric:before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 10px;
+    right: 10px;
+    height: 4px;
+    background: var(--ve-ink);
+  }
+  .ve-metric.green:before {
+    background: var(--ve-success);
+  }
+  .ve-metric.amber:before {
+    background: var(--ve-warning);
+  }
+  .ve-metric.red:before {
+    background: var(--ve-primary);
+  }
+  .ve-metric-value {
+    font-size: 27px;
+    font-weight: 950;
+  }
+  .ve-metric-label {
+    color: var(--ve-muted);
+    font-size: 11px;
+    font-weight: 950;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+  .ve-header-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .ve-button {
+    min-height: 48px;
+    padding: 0 17px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    border: 1px solid transparent;
+    border-radius: 13px;
+    font-size: 12px;
+    font-weight: 950;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: 0.16s;
+  }
+  .ve-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+  .ve-button:disabled {
+    opacity: 0.46;
+    cursor: not-allowed;
+  }
+  .ve-button.header {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .ve-button.primary {
+    color: #fff;
+    background: var(--ve-primary);
+  }
+  .ve-button.success {
+    color: #fff;
+    background: var(--ve-success);
+  }
+  .ve-button.soft {
+    color: var(--ve-muted);
+    background: #fff;
+    border-color: var(--ve-border);
+  }
+  .ve-button.danger {
+    color: #991b1b;
+    background: #fee2e2;
+    border-color: #fecaca;
+  }
+  .ve-chip {
+    min-height: 32px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 950;
+    letter-spacing: 0.065em;
+    text-transform: uppercase;
+  }
+  .ve-chip.green {
+    color: var(--ve-success-dark);
+    background: var(--ve-success-soft);
+  }
+  .ve-chip.amber {
+    color: var(--ve-warning-dark);
+    background: var(--ve-warning-soft);
+  }
+  .ve-chip.red {
+    color: var(--ve-primary-dark);
+    background: var(--ve-primary-soft);
+  }
+  .ve-chip.slate {
+    color: var(--ve-ink);
+    background: rgba(28, 29, 31, 0.07);
+  }
+  .ve-header .ve-chip {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  .ve-toolbar {
+    flex: 0 0 auto;
+    min-height: 70px;
+    padding: 10px 16px 10px 20px;
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(300px, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+    background: linear-gradient(135deg, #fff, #f8f9fa);
+    border-bottom: 1px solid var(--ve-border);
+  }
+  .ve-toolbar:before {
+    width: 5px;
+  }
+  .ve-toolbar-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ve-toolbar-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+    color: #fff;
+    background: var(--ve-ink);
+  }
+  .ve-toolbar-eyebrow {
+    color: var(--ve-primary);
+    font-size: 10px;
+    font-weight: 950;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .ve-toolbar-title {
+    margin-top: 4px;
+    font:
+      950 17px/1.2 "JetBrains Mono",
+      monospace;
+  }
+  .ve-toolbar-context {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .ve-live {
+    min-height: 38px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--ve-border);
+    border-radius: 10px;
+    color: var(--ve-muted);
+    font-size: 11px;
+    font-weight: 950;
+    text-transform: uppercase;
+  }
+  .ve-live.ready {
+    color: var(--ve-success-dark);
+    background: rgba(30, 142, 62, 0.08);
+  }
+  .ve-live.warning {
+    color: var(--ve-warning-dark);
+    background: rgba(217, 119, 6, 0.08);
+  }
+  .ve-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: vePulse 1.8s infinite;
+  }
+  .ve-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .ve-table-wrap {
+    height: 100%;
+    overflow: auto;
+  }
+  .ve-table {
+    width: 100%;
+    min-width: 1180px;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .ve-table th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    height: 54px;
+    padding: 0 15px;
+    background: #1c1d1f;
+    color: #fff;
+    border-bottom: 3px solid var(--ve-primary);
+    font-size: 11px;
+    text-transform: uppercase;
+    text-align: left;
+  }
+  .ve-table td {
+    padding: 15px;
+    border-right: 1px solid #f3f4f6;
+    border-bottom: 1px solid #eef1f4;
+    background: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ve-row:nth-child(even) td {
+    background: #fcfcfd;
+  }
+  .ve-row:hover td {
+    background: #fff8f7;
+  }
+  .ve-code {
+    font:
+      900 16px/1.35 "JetBrains Mono",
+      monospace;
+  }
+  .ve-description {
+    color: var(--ve-muted);
+    font-size: 13px;
+    font-weight: 750;
+    line-height: 1.5;
+    text-transform: uppercase;
+  }
+  .ve-progress {
+    height: 10px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #edf0f2;
+  }
+  .ve-progress > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    transition: width 0.25s;
+  }
+  .ve-empty {
+    height: 100%;
+    min-height: 300px;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: #9aa0a6;
+    text-align: center;
+  }
+  .ve-empty-title {
+    color: var(--ve-ink);
+    font-size: 18px;
+    font-weight: 950;
+    text-transform: uppercase;
+  }
+  .ve-empty-text {
+    max-width: 620px;
+  }
+  .ve-loader {
+    width: 42px;
+    height: 42px;
+    border: 4px solid #eef1f4;
+    border-top-color: var(--ve-primary);
+    border-radius: 50%;
+    animation: veSpin 0.8s linear infinite;
+  }
+  .ve-upload-stage {
+    height: 100%;
+    overflow: auto;
+    padding: 26px;
+  }
+  .ve-upload-grid {
+    min-height: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(380px, 0.95fr);
+    align-items: center;
+    gap: 26px;
+  }
+  .ve-dropzone {
+    min-height: 380px;
+    padding: 38px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    border: 2px dashed #c9cdd3;
+    border-radius: 22px;
+    text-align: center;
+  }
+  .ve-dropzone.drag {
+    border-color: var(--ve-primary);
+    background: #fff8f7;
+  }
+  .ve-upload-icon {
+    width: 82px;
+    height: 82px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 23px;
+    color: #fff;
+    background: var(--ve-primary);
+  }
+  .ve-upload-title {
+    margin: 0;
+    font-size: 28px;
+  }
+  .ve-upload-copy {
+    max-width: 560px;
+    color: var(--ve-muted);
+    line-height: 1.7;
+  }
+  .ve-upload-button {
+    min-width: 280px;
+    min-height: 62px;
+  }
+  .ve-file-note {
+    color: #707782;
+    font-size: 12px;
+    font-weight: 850;
+    text-transform: uppercase;
+  }
+  .ve-preview {
+    padding: 24px;
+    border: 1px solid var(--ve-border);
+    border-radius: 20px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  }
+  .ve-preview-title {
+    margin: 0 0 18px;
+    font-size: 19px;
+    text-transform: uppercase;
+  }
+  .ve-preview-list {
+    display: grid;
+    gap: 11px;
+  }
+  .ve-preview-row {
+    min-height: 52px;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr);
+    gap: 12px;
+    border: 1px solid #edf0f2;
+    border-radius: 11px;
+  }
+  .ve-preview-label {
+    color: var(--ve-muted);
+    font-size: 11px;
+    font-weight: 950;
+    text-transform: uppercase;
+  }
+  .ve-preview-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 900;
+  }
+  .ve-scanner-capture {
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+  .ve-scanner-capture input {
+    width: 1px;
+    height: 1px;
+  }
+  .ve-close-bar {
+    flex: 0 0 auto;
+    min-height: 82px;
+    padding: 12px 18px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 18px;
+    border-top: 1px solid var(--ve-border);
+  }
+  .ve-validation-state {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: center;
+    gap: 13px;
+  }
+  .ve-validation-icon {
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--ve-border);
+    border-radius: 13px;
+  }
+  .ve-validation-state.accepted .ve-validation-icon {
+    color: var(--ve-success);
+  }
+  .ve-validation-state.rejected .ve-validation-icon {
+    color: var(--ve-primary);
+  }
+  .ve-validation-state.waiting .ve-validation-icon {
+    color: var(--ve-warning);
+  }
+  .ve-validation-state.validating .ve-validation-icon {
+    color: #1a73e8;
+  }
+  .ve-validation-eyebrow {
+    color: var(--ve-muted);
+    font-size: 10px;
+    font-weight: 950;
+    text-transform: uppercase;
+  }
+  .ve-validation-title {
+    margin-top: 4px;
+    font:
+      950 17px/1.3 "JetBrains Mono",
+      monospace;
+  }
+  .ve-validation-detail {
+    margin-top: 5px;
+    color: var(--ve-muted);
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ve-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.45);
+  }
+  .ve-panel {
+    width: 470px;
+    max-width: 100%;
+    padding: 24px;
+    background: #fff;
+    border-radius: 20px;
+  }
+  .ve-panel-head {
+    display: flex;
+    justify-content: space-between;
+  }
+  .ve-textarea {
+    width: 100%;
+    min-height: 110px;
+    padding: 15px;
+    border: 1px solid var(--ve-border);
+    border-radius: 13px;
+  }
+  .ve-help {
+    color: var(--ve-muted);
+  }
+  .w-full {
+    width: 100%;
+  }
+  .mt-4 {
+    margin-top: 16px;
+  }
+  .mt-3 {
+    margin-top: 12px;
+  }
+  .mt-2 {
+    margin-top: 8px;
+  }
+  @media (max-width: 1180px) {
+    .ve-header {
+      grid-template-columns: minmax(290px, 1fr) auto;
+    }
+    .ve-metrics {
+      grid-column: 1/-1;
+    }
+    .ve-upload-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 720px) {
+    .ve-page {
+      padding: 8px;
+    }
+    .ve-header {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .ve-metrics {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .ve-toolbar {
+      grid-template-columns: 1fr;
+    }
+    .ve-toolbar-context {
+      justify-content: flex-start;
+      overflow: auto;
+    }
+    .ve-close-bar {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #render-verificacion-entrada * {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+</style>
+<div id="render-verificacion-entrada"></div>
+<script type="text/babel">
+  window.cargar_VerificacionEntrada = () => {
+    const { useState, useEffect, useMemo, useCallback, useRef } = React;
+    const BATCH_SIZE = 4;
+    const notify_ = (m, t = "info", d = 2800, o = {}) => {
+      const f = window.notificar || window.lanzarNotificacion;
+      if (typeof f === "function") f(m, t, d, o);
+    };
+    const str_ = (v) => String(v == null ? "" : v).trim(),
+      upper_ = (v) => str_(v).toUpperCase(),
+      num_ = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0),
+      fmt_ = (v) => num_(v).toLocaleString("es-MX", { maximumFractionDigits: 2 });
+    const perf_ = {
+      items: new Map(),
+      start(name, meta = {}) {
+        const id = `${name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        this.items.set(id, { name, meta, at: performance.now() });
+        return id;
+      },
+      end(id, status = "ok", meta = {}) {
+        const x = this.items.get(id);
+        if (!x) return;
+        this.items.delete(id);
+        console.log(`[VE_CLIENT_PERF][${x.name}]`, {
+          elapsedMs: +(performance.now() - x.at).toFixed(1),
+          status,
+          ...x.meta,
+          ...meta,
+        });
+      },
+    };
+    function Icon({ name, size = 18, className = "" }) {
+      const ref = useRef(null);
+      useEffect(() => {
+        if (!window.lucide || !ref.current) return;
+        ref.current.innerHTML = "";
+        const n = document.createElement("i");
+        n.setAttribute("data-lucide", name || "circle");
+        n.style.width = `${size}px`;
+        n.style.height = `${size}px`;
+        n.className = className;
+        ref.current.appendChild(n);
+        window.lucide.createIcons({ nodes: [n] });
+      }, [name, size, className]);
+      return <span ref={ref} />;
+    }
+    const MemoIcon = React.memo(Icon);
+    function Metric({ label, value, tone = "" }) {
+      return (
+        <div className={`ve-metric ${tone}`}>
+          <div className="ve-metric-value">{fmt_(value)}</div>
+          <div className="ve-metric-label">{label}</div>
+        </div>
+      );
+    }
+    const statusVisual_ = (s) => {
+      const v = upper_(s);
+      if (["COMPLETO", "COMPLETA", "CERRADA_COMPLETA"].includes(v))
+        return { chip: "ve-chip green", text: v };
+      if (["PARCIAL", "PENDIENTE", "EN_CAPTURA", "PAUSADA"].includes(v))
+        return { chip: "ve-chip amber", text: v || "PENDIENTE" };
+      if (["SOBRANTE", "REQUIERE_REVISION", "CON_DIFERENCIAS"].includes(v))
+        return { chip: "ve-chip red", text: v };
+      return { chip: "ve-chip slate", text: v || "SIN ESTADO" };
+    };
+    async function sha256_(text) {
+      const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(b))
+        .map((x) => x.toString(16).padStart(2, "0"))
+        .join("")
+        .toUpperCase();
+    }
+    function attr_(n, k) {
+      if (!n) return "";
+      const d = n.getAttribute(k);
+      if (d != null) return d;
+      const a = Array.from(n.attributes || []).find(
+        (x) => x.localName === k || x.name.split(":").pop() === k,
+      );
+      return a ? a.value : "";
+    }
+    function first_(r, n) {
+      return Array.from(r.getElementsByTagName("*")).find((x) => x.localName === n) || null;
+    }
+    function all_(r, n) {
+      return Array.from(r.getElementsByTagName("*")).filter((x) => x.localName === n);
+    }
+    async function parseCfdiFile_(file) {
+      if (!/\.xml$/i.test(file.name)) throw new Error("Selecciona un archivo XML.");
+      if (file.size > 2097152) throw new Error("El XML excede 2 MB.");
+      const text = await file.text();
+      if (/<!DOCTYPE|<!ENTITY/i.test(text))
+        throw new Error("El XML contiene declaraciones no permitidas.");
+      const doc = new DOMParser().parseFromString(text, "application/xml");
+      if (doc.getElementsByTagName("parsererror").length) throw new Error("XML no válido.");
+      const c = doc.documentElement,
+        e = first_(doc, "Emisor"),
+        t = first_(doc, "TimbreFiscalDigital");
+      return {
+        documento: {
+          versionCfdi: attr_(c, "Version"),
+          tipoComprobante: attr_(c, "TipoDeComprobante"),
+          rfcEmisor: attr_(e, "Rfc"),
+          nombreEmisor: attr_(e, "Nombre"),
+          hashXml: await sha256_(text),
+          uuidCfdi: attr_(t, "UUID"),
+          serie: attr_(c, "Serie"),
+          folio: attr_(c, "Folio"),
+          fechaCfdi: attr_(c, "Fecha"),
+          moneda: attr_(c, "Moneda"),
+          nombreArchivo: file.name,
+        },
+        conceptos: all_(doc, "Concepto").map((n, i) => ({
+          codigoProveedorXml: attr_(n, "NoIdentificacion"),
+          descripcionXml: attr_(n, "Descripcion"),
+          claveProdServ: attr_(n, "ClaveProdServ"),
+          claveUnidadXml: attr_(n, "ClaveUnidad"),
+          unidadXml: attr_(n, "Unidad"),
+          cantidadXml: Number(attr_(n, "Cantidad") || 0),
+          renglonesOriginales: [i + 1],
+        })),
+      };
+    }
+    function serverCall_(m, a) {
+      return new Promise((ok, no) => {
+        const r = google.script.run.withSuccessHandler(ok).withFailureHandler(no);
+        a === undefined ? r[m]() : r[m](a);
+      });
+    }
+    function parsePrimary_(v, c) {
+      const p = c?.primeraLectura || {},
+        raw = str_(v),
+        m = raw.match(new RegExp(str_(p.patron)));
+      if (!m) throw new Error("La primera lectura no cumple el formato configurado.");
+      const q = Number(m[Number(p.cantidadGrupo || 2)]),
+        code = upper_(m[Number(p.codigoGrupo || 1)]);
+      if (!code || !Number.isFinite(q) || q <= 0) throw new Error("Código o cantidad inválidos.");
+      return {
+        lecturaOriginal: raw,
+        codigoEtiqueta: code,
+        cantidadCaja: q,
+        unidadLeida: upper_(p.unidadLectura),
+      };
+    }
+    function parseSecondary_(v, c) {
+      const s = c?.segundaLectura || {},
+        raw = str_(v);
+      if (!raw) throw new Error("La segunda lectura está vacía.");
+      if (s.patron && !new RegExp(s.patron).test(raw))
+        throw new Error("La segunda lectura no cumple el formato configurado.");
+      return raw;
+    }
+    const DetailRow = React.memo(function DetailRow({ item, highlighted }) {
+      const state = statusVisual_(item.estadoSku),
+        progress =
+          item.cantidadEsperada > 0
+            ? Math.min(100, (num_(item.cantidadCapturada) / num_(item.cantidadEsperada)) * 100)
+            : 0;
+      return (
+        <tr className={`ve-row ${highlighted ? "ve-flash" : ""}`}>
+          <td>
+            <div className="ve-code">{item.codigoInterno || item.codigoProveedorXml || "—"}</div>
+            <div className="ve-description">{item.codigoProveedorXml || "SIN CÓDIGO XML"}</div>
+          </td>
+          <td>
+            <div className="ve-description">
+              {item.descripcionInterna || item.descripcionXml || "SIN DESCRIPCIÓN"}
+            </div>
+          </td>
+          <td className="ve-code">{fmt_(item.cantidadEsperada)}</td>
+          <td className="ve-code">{fmt_(item.cantidadCapturada)}</td>
+          <td className="ve-code">{fmt_(item.totalCajas)}</td>
+          <td>
+            <span className={state.chip}>{state.text}</span>
+          </td>
+          <td>
+            <div className="ve-progress">
+              <span
+                style={{
+                  width: `${progress}%`,
+                  background:
+                    item.cantidadSobrante > 0
+                      ? "var(--ve-primary)"
+                      : progress >= 100
+                        ? "var(--ve-success)"
+                        : "var(--ve-warning)",
+                }}
+              />
+            </div>
+            <div className="ve-description mt-2">
+              Faltante {fmt_(item.cantidadFaltante)} · Sobrante {fmt_(item.cantidadSobrante)}
+            </div>
+          </td>
+        </tr>
+      );
+    });
+    function View() {
+      const [loading, setLoading] = useState(true),
+        [busy, setBusy] = useState(false),
+        [dragging, setDragging] = useState(false),
+        [parsed, setParsed] = useState(null),
+        [bootstrap, setBootstrap] = useState(null),
+        [bundle, setBundle] = useState(null),
+        [closePanel, setClosePanel] = useState(false),
+        [closeNote, setCloseNote] = useState(""),
+        [highlightId, setHighlightId] = useState(""),
+        [scanPhase, setScanPhase] = useState("PRIMARY"),
+        [primaryScan, setPrimaryScan] = useState(null),
+        [scanQueue, setScanQueue] = useState([]),
+        [queueBusy, setQueueBusy] = useState(false),
+        [validationState, setValidationState] = useState({
+          status: "READING",
+          title: "Escáner listo",
+          detail: "Esperando lectura de etiqueta.",
+        });
+      const fileRef = useRef(null),
+        scanInputRef = useRef(null),
+        scanTimeoutRef = useRef(null),
+        mountedRef = useRef(true),
+        fingerprintsRef = useRef(new Set());
+      const session = bundle?.sesion || null,
+        detail = Array.isArray(bundle?.detalle) ? bundle.detalle : [],
+        summary = bundle?.resumen || {
+          cantidadEsperada: 0,
+          cantidadCapturada: 0,
+          cantidadFaltante: 0,
+          cantidadSobrante: 0,
+          totalCajas: 0,
+          estadoCalculado: "SIN_SESION",
+        },
+        sessionOpen = Boolean(
+          session && !["CERRADA", "CANCELADA"].includes(upper_(session.estadoSesion)),
+        ),
+        sessionCapturable = Boolean(
+          session &&
+          ["EN_CAPTURA", "CON_DIFERENCIAS", "COMPLETA"].includes(upper_(session.estadoSesion)),
+        ),
+        providerConfig = bootstrap?.proveedor?.configuracionEtiqueta || {};
+      const indexes = useMemo(() => {
+        const byLabel = new Map(),
+          byXml = new Map(),
+          byInternal = new Map(),
+          byId = new Map();
+        (bootstrap?.equivalencias || []).forEach((x) => {
+          const k = upper_(x.codigoEtiqueta);
+          if (k) {
+            if (byLabel.has(k)) byLabel.set(k, null);
+            else byLabel.set(k, x);
+          }
+        });
+        detail.forEach((x) => {
+          if (x.idDetalle) byId.set(str_(x.idDetalle), x);
+          if (x.codigoProveedorXml) byXml.set(upper_(x.codigoProveedorXml), x);
+          if (x.codigoInterno) byInternal.set(upper_(x.codigoInterno), x);
+        });
+        return { byLabel, byXml, byInternal, byId };
+      }, [bootstrap?.equivalencias, detail]);
+      const resolveFast_ = useCallback(
+        (code) => {
+          const key = upper_(code),
+            eq = indexes.byLabel.get(key);
+          if (indexes.byLabel.has(key) && !eq) throw new Error("Equivalencia ambigua.");
+          if (eq)
+            return (
+              indexes.byXml.get(upper_(eq.codigoProveedorXml)) ||
+              indexes.byInternal.get(upper_(eq.codigoInterno)) ||
+              null
+            );
+          return indexes.byXml.get(key) || null;
+        },
+        [indexes],
+      );
+      const validationVisual = useMemo(() => {
+        const s = upper_(validationState.status);
+        if (s === "WAITING_SECONDARY")
+          return { className: "waiting", icon: "key-round", eyebrow: "Validación de etiquetado" };
+        if (s === "VALIDATING")
+          return { className: "validating", icon: "loader-2", eyebrow: "Validación en servidor" };
+        if (s === "ACCEPTED")
+          return { className: "accepted", icon: "circle-check-big", eyebrow: "Etiqueta aceptada" };
+        if (s === "REJECTED")
+          return { className: "rejected", icon: "circle-x", eyebrow: "Etiqueta rechazada" };
+        return { className: "reading", icon: "scan-barcode", eyebrow: "Validación de etiquetado" };
+      }, [validationState]);
+      useEffect(
+        () => () => {
+          mountedRef.current = false;
+          if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+        },
+        [],
+      );
+      useEffect(() => {
+        serverCall_("VerificacionEntradaController_obtenerBootstrap", "")
+          .then((r) => setBootstrap(r?.data || null))
+          .catch((e) => notify_(e?.message || "No se pudo iniciar.", "error", 4800))
+          .finally(() => setLoading(false));
+      }, []);
+      const reset_ = useCallback((message = false, preserve = false) => {
+        if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+        scanTimeoutRef.current = null;
+        setPrimaryScan(null);
+        setScanPhase("PRIMARY");
+        if (scanInputRef.current) scanInputRef.current.value = "";
+        if (!preserve)
+          setValidationState({
+            status: "READING",
+            title: "Escáner listo",
+            detail: "Esperando lectura de etiqueta.",
+          });
+        if (message) notify_("Secuencia reiniciada.", "warning", 1800);
+        setTimeout(() => scanInputRef.current?.focus(), 20);
+      }, []);
+      useEffect(() => {
+        if (!sessionCapturable) return;
+        const f = () => {
+          const a = document.activeElement,
+            o =
+              a &&
+              (a.tagName === "TEXTAREA" || (a.tagName === "INPUT" && a !== scanInputRef.current));
+          if (!o) scanInputRef.current?.focus();
+        };
+        const t = setTimeout(f, 50);
+        document.addEventListener("click", f);
+        return () => {
+          clearTimeout(t);
+          document.removeEventListener("click", f);
+        };
+      }, [sessionCapturable, scanPhase]);
+      const processFile_ = async (file) => {
+        if (!file || busy) return;
+        setBusy(true);
+        try {
+          const v = await parseCfdiFile_(file),
+            r = await serverCall_(
+              "VerificacionEntradaController_obtenerBootstrap",
+              v.documento.rfcEmisor,
+            );
+          setParsed(v);
+          setBootstrap(r?.data || null);
+          notify_("XML analizado.", "success", 2500);
+        } catch (e) {
+          setParsed(null);
+          notify_(e?.message || "No se pudo procesar el XML.", "error", 4800);
+        } finally {
+          setBusy(false);
+        }
+      };
+      const createSession_ = async () => {
+        if (!parsed || busy) return;
+        setBusy(true);
+        try {
+          const r = await serverCall_("VerificacionEntradaController_crearSesion", parsed),
+            d = r?.data;
+          setBundle({
+            sesion: d.sesion,
+            detalle: d.detalle,
+            cajas: [],
+            eventos: [],
+            resumen: d.resumen,
+          });
+          setScanQueue([]);
+          fingerprintsRef.current.clear();
+          reset_();
+          notify_(`Sesión ${d.sesion.idSesion} creada.`, "success", 3000);
+        } catch (e) {
+          notify_(e?.message || "No se pudo crear la sesión.", "error", 4800);
+        } finally {
+          setBusy(false);
+        }
+      };
+      const refresh_ = async () => {
+        if (!session?.idSesion || busy || queueBusy || scanQueue.length) return;
+        setBusy(true);
+        try {
+          const r = await serverCall_(
+            "VerificacionEntradaController_obtenerSesionLigera",
+            session.idSesion,
+          );
+          setBundle(r?.data || null);
+        } catch (e) {
+          notify_(e?.message || "No se pudo actualizar.", "error", 4000);
+        } finally {
+          setBusy(false);
+        }
+      };
+      const enqueue_ = useCallback(
+        async (primary, secondary, row, scanId) => {
+          const fingerprint = await sha256_(
+            [
+              session.idSesion,
+              upper_(session.rfcEmisor),
+              upper_(primary.codigoEtiqueta),
+              String(primary.cantidadCaja),
+              upper_(primary.unidadLeida),
+              str_(secondary),
+            ].join("|"),
+          );
+          if (fingerprintsRef.current.has(fingerprint))
+            throw new Error("La misma caja ya está pendiente o fue procesada.");
+          fingerprintsRef.current.add(fingerprint);
+          const item = {
+            localId: fingerprint + "-" + Math.random().toString(36).slice(2),
+            createdAt: Date.now(),
+            scanId,
+            box: {
+              idDetalle: row.idDetalle,
+              codigoEtiqueta: primary.codigoEtiqueta,
+              cantidadCaja: primary.cantidadCaja,
+              unidadLeida: primary.unidadLeida,
+              consecutivoProveedor: secondary,
+              huellaLectura: fingerprint,
+              longitudLectura: primary.lecturaOriginal.length + str_(secondary).length,
+              advertencias: [],
+              observacion: "",
+            },
+            display: {
+              codigoInterno: row.codigoInterno,
+              cantidad: primary.cantidadCaja,
+              unidad: primary.unidadLeida,
+              consecutivo: secondary,
+            },
+          };
+          setScanQueue((prev) => [...prev, item]);
+        },
+        [session],
+      );
+      const processScan_ = useCallback(
+        async (raw, scanId) => {
+          if (!sessionCapturable) return;
+          try {
+            if (scanPhase === "PRIMARY") {
+              const p = parsePrimary_(raw, providerConfig),
+                row = resolveFast_(p.codigoEtiqueta);
+              if (!row || row.incluirEnConteo !== true)
+                throw new Error("Producto no verificable en esta sesión.");
+              const pending = {
+                ...p,
+                idDetalle: row.idDetalle,
+                codigoInterno: row.codigoInterno,
+                scanId,
+              };
+              if (providerConfig.requiereSegundaLectura === true) {
+                setPrimaryScan(pending);
+                setScanPhase("SECONDARY");
+                setValidationState({
+                  status: "WAITING_SECONDARY",
+                  title: row.codigoInterno || p.codigoEtiqueta,
+                  detail: `${p.cantidadCaja} ${p.unidadLeida} · esperando identificador secundario`,
+                });
+                scanTimeoutRef.current = setTimeout(
+                  () => {
+                    reset_();
+                    setValidationState({
+                      status: "REJECTED",
+                      title: "Segunda lectura no recibida",
+                      detail: "Tiempo agotado.",
+                    });
+                    perf_.end(scanId, "timeout");
+                  },
+                  Number(providerConfig.timeoutEntreLecturasSegundos || 30) * 1000,
+                );
+              } else {
+                await enqueue_(pending, "", row, scanId);
+                reset_(false, true);
+              }
+            } else {
+              const s = parseSecondary_(raw, providerConfig),
+                row = indexes.byId.get(str_(primaryScan?.idDetalle));
+              if (!row) throw new Error("Producto pendiente no disponible.");
+              await enqueue_(primaryScan, s, row, primaryScan.scanId || scanId);
+              setValidationState({
+                status: "VALIDATING",
+                title: row.codigoInterno || primaryScan.codigoEtiqueta,
+                detail: `${primaryScan.cantidadCaja} ${primaryScan.unidadLeida} · en cola`,
+              });
+              reset_(false, true);
+            }
+          } catch (e) {
+            setValidationState({
+              status: "REJECTED",
+              title: "Lectura rechazada",
+              detail: e?.message || String(e),
+            });
+            notify_(e?.message || "Lectura rechazada.", "error", 3200);
+            perf_.end(scanId, "rejected", { error: e?.message });
+          } finally {
+            setTimeout(() => scanInputRef.current?.focus(), 20);
+          }
+        },
+        [
+          sessionCapturable,
+          scanPhase,
+          primaryScan,
+          providerConfig,
+          resolveFast_,
+          indexes,
+          enqueue_,
+          reset_,
+        ],
+      );
+      useEffect(() => {
+        if (queueBusy || !scanQueue.length || !session?.idSesion) return;
+        const batch = scanQueue.slice(0, BATCH_SIZE);
+        setQueueBusy(true);
+        const first = batch[0];
+        setValidationState({
+          status: "VALIDATING",
+          title: first.display.codigoInterno || first.box.codigoEtiqueta,
+          detail: `Validando ${batch.length} caja${batch.length > 1 ? "s" : ""} en servidor`,
+        });
+        serverCall_("VerificacionEntradaController_registrarCajas", {
+          idSesion: session.idSesion,
+          cajas: batch.map((x) => x.box),
+          clientMetadata: {
+            scanId: first.scanId || "",
+            sentAtMs: Date.now(),
+            batchSize: batch.length,
+            queueMs: Math.max(0, Date.now() - Math.min(...batch.map((x) => x.createdAt))),
+          },
+        })
+          .then((r) => {
+            if (!r?.ok || !r?.data) throw new Error("Respuesta inválida del servidor.");
+            const d = r.data;
+            setBundle((prev) => ({
+              ...prev,
+              detalle: d.detalle,
+              resumen: d.resumen,
+              cajas: prev?.cajas || [],
+            }));
+            setScanQueue((prev) => prev.filter((x) => !batch.some((b) => b.localId === x.localId)));
+            setHighlightId(first.box.idDetalle);
+            setTimeout(() => setHighlightId(""), 900);
+            setValidationState({
+              status: "ACCEPTED",
+              title: first.display.codigoInterno || first.box.codigoEtiqueta,
+              detail: `${batch.length} caja${batch.length > 1 ? "s" : ""} aceptada${batch.length > 1 ? "s" : ""}`,
+            });
+            batch.forEach((x) => perf_.end(x.scanId, "accepted", { batchSize: batch.length }));
+          })
+          .catch((e) => {
+            batch.forEach((x) => {
+              fingerprintsRef.current.delete(x.box.huellaLectura);
+              perf_.end(x.scanId, "rejected", { error: e?.message });
+            });
+            setScanQueue((prev) => prev.filter((x) => !batch.some((b) => b.localId === x.localId)));
+            setValidationState({
+              status: "REJECTED",
+              title: first.display.codigoInterno || first.box.codigoEtiqueta,
+              detail: e?.message || String(e),
+            });
+            notify_(e?.message || "No fue posible registrar el lote.", "error", 4000);
+          })
+          .finally(() => mountedRef.current && setQueueBusy(false));
+      }, [scanQueue, queueBusy, session?.idSesion]);
+      const pause_ = async () => {
+        if (!session || busy || queueBusy || scanQueue.length) return;
+        const paused = upper_(session.estadoSesion) === "PAUSADA";
+        setBusy(true);
+        try {
+          const r = await serverCall_(
+            paused
+              ? "VerificacionEntradaController_reanudarSesion"
+              : "VerificacionEntradaController_pausarSesion",
+            session.idSesion,
+          );
+          setBundle((prev) => ({
+            ...prev,
+            sesion: { ...prev.sesion, estadoSesion: r.data.estadoSesion },
+          }));
+          setValidationState(
+            paused
+              ? { status: "READING", title: "Escáner listo", detail: "Sesión reanudada." }
+              : { status: "PAUSED", title: "Sesión pausada", detail: "Captura deshabilitada." },
+          );
+        } catch (e) {
+          notify_(e?.message || "No se pudo cambiar el estado.", "error", 4000);
+        } finally {
+          setBusy(false);
+        }
+      };
+      const close_ = async () => {
+        if (!session || busy || queueBusy || scanQueue.length) return;
+        setBusy(true);
+        try {
+          const r = await serverCall_("VerificacionEntradaController_cerrarSesion", {
+              idSesion: session.idSesion,
+              observacionCierre: closeNote,
+            }),
+            d = r.data;
+          setBundle((prev) => ({
+            ...prev,
+            sesion: {
+              ...prev.sesion,
+              estadoSesion: d.estadoSesion,
+              resultadoFinal: d.resultadoFinal,
+            },
+            detalle: d.detalle,
+            resumen: d.resumen,
+          }));
+          setClosePanel(false);
+        } catch (e) {
+          notify_(e?.message || "No se pudo cerrar.", "error", 4800);
+        } finally {
+          setBusy(false);
+        }
+      };
+      if (loading)
+        return (
+          <div className="ve-empty">
+            <div className="ve-loader" />
+            <div className="ve-empty-title">Inicializando verificación</div>
+          </div>
+        );
+      const visual = statusVisual_(session?.estadoSesion || summary.estadoCalculado);
+      return (
+        <div className="ve-page">
+          <section className="ve-workspace">
+            <header className="ve-header">
+              <div className="ve-identity">
+                <div className="ve-header-icon">
+                  <MemoIcon name="package-check" size={27} />
+                </div>
+                <div>
+                  <p className="ve-eyebrow">Recepción física contra CFDI</p>
+                  <h2 className="ve-title">{session?.idSesion || "VERIFICACIÓN DE ENTRADA"}</h2>
+                  <p className="ve-subtitle">
+                    {session
+                      ? `${session.nombreEmisor || "SIN PROVEEDOR"} · ${session.serie || ""} ${session.folio || ""}`
+                      : "CARGA EL XML PARA COMENZAR"}
+                  </p>
+                  <div className="ve-header-chips">
+                    <span className={visual.chip}>{visual.text}</span>
+                    {bootstrap?.proveedor && (
+                      <span className="ve-chip slate">
+                        {bootstrap.proveedor.estrategiaEtiqueta}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="ve-metrics">
+                <Metric label="Esperado" value={summary.cantidadEsperada} />
+                <Metric label="Capturado" value={summary.cantidadCapturada} tone="green" />
+                <Metric label="Faltante" value={summary.cantidadFaltante} tone="amber" />
+                <Metric label="Sobrante" value={summary.cantidadSobrante} tone="red" />
+              </div>
+              <div className="ve-header-actions">
+                <button
+                  className="ve-button header"
+                  onClick={refresh_}
+                  disabled={!session || busy || queueBusy || scanQueue.length}
+                >
+                  <MemoIcon name="refresh-cw" />
+                  Actualizar
+                </button>
+                <button
+                  className="ve-button header"
+                  onClick={pause_}
+                  disabled={!sessionOpen || busy || queueBusy || scanQueue.length}
+                >
+                  <MemoIcon name={upper_(session?.estadoSesion) === "PAUSADA" ? "play" : "pause"} />
+                  {upper_(session?.estadoSesion) === "PAUSADA" ? "Reanudar" : "Pausar"}
+                </button>
+              </div>
+            </header>
+            <div className="ve-toolbar">
+              <div className="ve-toolbar-main">
+                <div className="ve-toolbar-icon">
+                  <MemoIcon name={session ? "scan-barcode" : "file-up"} />
+                </div>
+                <div>
+                  <div className="ve-toolbar-eyebrow">Flujo operativo</div>
+                  <div className="ve-toolbar-title">
+                    {session
+                      ? "Escaneo continuo y conciliación por SKU"
+                      : parsed
+                        ? "XML analizado · confirma el inicio"
+                        : "Paso 1 · Cargar XML del proveedor"}
+                  </div>
+                </div>
+              </div>
+              <div className="ve-toolbar-context">
+                <span
+                  className={`ve-live ${sessionCapturable ? "ready" : parsed ? "warning" : ""}`}
+                >
+                  <span className="ve-dot" />
+                  {sessionCapturable
+                    ? "Escáner habilitado"
+                    : parsed
+                      ? "Pendiente crear sesión"
+                      : "Sin sesión"}
+                </span>
+                {session && (
+                  <span className="ve-live">
+                    <MemoIcon name="package" size={15} />
+                    {summary.totalCajas || 0} cajas
+                    {scanQueue.length ? ` · ${scanQueue.length} en cola` : ""}
+                  </span>
+                )}
+              </div>
+            </div>
+            {session && (
+              <div className="ve-scanner-capture" aria-hidden="true">
+                <input
+                  ref={scanInputRef}
+                  defaultValue=""
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      e.currentTarget.value = "";
+                      reset_(true);
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      const v = e.currentTarget.value;
+                      e.currentTarget.value = "";
+                      const id = perf_.start("SCAN_TO_RESPONSE", {
+                        phase: scanPhase,
+                        chars: v.length,
+                      });
+                      processScan_(v, id);
+                    }
+                  }}
+                  disabled={!sessionCapturable}
+                  autoComplete="off"
+                  tabIndex={-1}
+                />
+              </div>
+            )}
+            <main className="ve-content">
+              {!session ? (
+                <div className="ve-upload-stage ve-scroll">
+                  <div className="ve-upload-grid">
+                    <div
+                      className={`ve-dropzone ${dragging ? "drag" : ""}`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragging(true);
+                      }}
+                      onDragLeave={() => setDragging(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragging(false);
+                        processFile_(e.dataTransfer.files?.[0]);
+                      }}
+                    >
+                      <div className="ve-upload-icon">
+                        <MemoIcon name="file-code-2" size={38} />
+                      </div>
+                      <h3 className="ve-upload-title">
+                        {parsed ? "XML listo para iniciar" : "Carga el XML antes de comenzar"}
+                      </h3>
+                      <p className="ve-upload-copy">
+                        Selecciona el XML original para identificar proveedor, UUID, conceptos y
+                        cantidades esperadas.
+                      </p>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept=".xml,text/xml,application/xml"
+                        hidden
+                        onChange={(e) => processFile_(e.target.files?.[0])}
+                      />
+                      <button
+                        className="ve-button primary ve-upload-button"
+                        onClick={() => fileRef.current?.click()}
+                        disabled={busy}
+                      >
+                        <MemoIcon name={busy ? "loader-2" : "upload-cloud"} />
+                        {busy
+                          ? "Analizando XML..."
+                          : parsed
+                            ? "Cambiar archivo XML"
+                            : "Seleccionar archivo XML"}
+                      </button>
+                      <div className="ve-file-note">
+                        Solo XML · Máximo 2 MB · CFDI 4.0 de ingreso
+                      </div>
+                    </div>
+                    <aside className="ve-preview">
+                      <h3 className="ve-preview-title">
+                        {parsed ? "Resumen del documento" : "Antes de capturar"}
+                      </h3>
+                      {parsed ? (
+                        <>
+                          <div className="ve-preview-list">
+                            {[
+                              ["Proveedor", parsed.documento.nombreEmisor || "SIN NOMBRE"],
+                              ["RFC emisor", parsed.documento.rfcEmisor],
+                              ["UUID", parsed.documento.uuidCfdi],
+                              ["Conceptos", parsed.conceptos.length],
+                              ["Perfil", bootstrap?.proveedor?.nombre || "NO CONFIGURADO"],
+                              ["Equivalencias", bootstrap?.equivalencias?.length || 0],
+                            ].map(([l, v]) => (
+                              <div className="ve-preview-row" key={l}>
+                                <div className="ve-preview-label">{l}</div>
+                                <div className="ve-preview-value">{v || "—"}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <button
+                            className="ve-button success w-full mt-4"
+                            onClick={createSession_}
+                            disabled={
+                              busy ||
+                              !bootstrap?.proveedor ||
+                              !(bootstrap?.equivalencias?.length > 0)
+                            }
+                          >
+                            <MemoIcon name="play-circle" />
+                            Iniciar verificación
+                          </button>
+                        </>
+                      ) : (
+                        <div className="ve-empty-text">Carga el XML original para comenzar.</div>
+                      )}
+                    </aside>
+                  </div>
+                </div>
+              ) : (
+                <div className="ve-table-wrap ve-scroll">
+                  <table className="ve-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 160 }}>Código</th>
+                        <th style={{ width: 330 }}>Descripción</th>
+                        <th style={{ width: 125 }}>Esperado</th>
+                        <th style={{ width: 125 }}>Capturado</th>
+                        <th style={{ width: 110 }}>Cajas</th>
+                        <th style={{ width: 145 }}>Estado</th>
+                        <th>Avance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.map((item) => (
+                        <DetailRow
+                          key={item.idDetalle}
+                          item={item}
+                          highlighted={highlightId === item.idDetalle}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </main>
+            {sessionOpen && (
+              <div className="ve-close-bar">
+                <div className={`ve-validation-state ${validationVisual.className}`}>
+                  <div className="ve-validation-icon">
+                    <MemoIcon
+                      name={validationVisual.icon}
+                      size={23}
+                      className={validationState.status === "VALIDATING" ? "animate-spin" : ""}
+                    />
+                  </div>
+                  <div>
+                    <div className="ve-validation-eyebrow">{validationVisual.eyebrow}</div>
+                    <div className="ve-validation-title">{validationState.title}</div>
+                    <div className="ve-validation-detail">{validationState.detail}</div>
+                  </div>
+                </div>
+                <button
+                  className="ve-button danger"
+                  onClick={() => setClosePanel(true)}
+                  disabled={busy || queueBusy || scanQueue.length}
+                >
+                  <MemoIcon name="lock-keyhole" />
+                  Cerrar recepción
+                </button>
+              </div>
+            )}
+          </section>
+          {closePanel && (
+            <div className="ve-modal-backdrop">
+              <div className="ve-panel ve-enter">
+                <div className="ve-panel-head">
+                  <h3>Cerrar recepción</h3>
+                  <button className="ve-button soft" onClick={() => setClosePanel(false)}>
+                    Cancelar
+                  </button>
+                </div>
+                <textarea
+                  className="ve-textarea"
+                  value={closeNote}
+                  onChange={(e) => setCloseNote(e.target.value)}
+                  placeholder="Observación obligatoria si existen diferencias..."
+                />
+                <p className="ve-help">
+                  Faltante: {fmt_(summary.cantidadFaltante)} · Sobrante:{" "}
+                  {fmt_(summary.cantidadSobrante)}
+                </p>
+                <button
+                  className="ve-button danger w-full mt-3"
+                  onClick={close_}
+                  disabled={busy || queueBusy || scanQueue.length}
+                >
+                  <MemoIcon name="lock-keyhole" />
+                  {busy ? "Cerrando..." : "Confirmar cierre"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+    const target = document.getElementById("render-verificacion-entrada");
+    if (!target) {
+      notify_("No se encontró el contenedor.", "error");
+      return;
+    }
+    if (window.__VERIFICACION_ENTRADA_ROOT__) {
+      try {
+        window.__VERIFICACION_ENTRADA_ROOT__.unmount();
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    window.__VERIFICACION_ENTRADA_ROOT__ = ReactDOM.createRoot(target);
+    window.__VERIFICACION_ENTRADA_ROOT__.render(<View />);
+  };
+  window.initVista = window.cargar_VerificacionEntrada;
+</script>
+<!-- El servidor valida sesión, equivalencias, cantidad, unidad, duplicados e idempotencia. -->

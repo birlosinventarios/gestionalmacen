@@ -2,7 +2,7 @@
  * AuditoriaExcedentesCapturaController.gs
  */
 
-var CTRL_AECC = "AuditoriaExcedentesCapturaController";
+const CTRL_AECC = "AuditoriaExcedentesCapturaController";
 
 function AuditoriaExcedentesCapturaController_obtenerBootstrapCaptura() {
   return execController_(CTRL_AECC, "obtenerBootstrapCaptura", function () {

@@ -1,0 +1,1140 @@
+<script>
+/**
+ * z0-Utilidades_XLSX_Export.html
+ *
+ * Utilidades globales para exportación XLSX.
+ *
+ * Requiere:
+ * - SheetJS cargado como window.XLSX
+ *
+ * Expone:
+ * - window.XLSXExportUtilidades.exportarGestorExcedentesPorBodega({
+ *     data,
+ *     bodega
+ *   })
+ *
+ * - window.XLSXExportUtilidades.exportarGestorExcedentesPorCodigo({
+ *     data,
+ *     codigo
+ *   })
+ *
+ * - window.XLSXExportUtilidades.exportarNegativosBirlos({
+ *     data,
+ *     modoBalance
+ *   })
+ */
+
+(function() {
+  window.XLSXExportUtilidades =
+    window.XLSXExportUtilidades || {};
+
+  /**
+   * =========================================================
+   * HELPERS GENERALES
+   * =========================================================
+   */
+
+  const normalizarTexto_ = (valor) => {
+    return String(valor == null ? "" : valor)
+      .trim()
+      .toUpperCase();
+  };
+
+  const normalizarNombreArchivo_ = (valor) => {
+    return normalizarTexto_(valor)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\w\s-]/g, "")
+      .replace(/\s+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  };
+
+  const obtenerFechaArchivo_ = () => {
+    const fecha = new Date();
+
+    const yyyy = fecha.getFullYear();
+    const mm = String(fecha.getMonth() + 1).padStart(2, "0");
+    const dd = String(fecha.getDate()).padStart(2, "0");
+
+    return `${yyyy}${mm}${dd}`;
+  };
+
+  const validarXLSX_ = () => {
+    if (!window.XLSX) {
+      throw new Error(
+        "No se encontró SheetJS XLSX. Carga Fito_Library.importTag('sheetjs') o importTags('full')."
+      );
+    }
+  };
+
+  /**
+   * =========================================================
+   * HELPERS GESTOR EXCEDENTES
+   * =========================================================
+   */
+
+  const obtenerNombreArchivoReporteExcedentes_ = (criterio) => {
+    const criterioLimpio = normalizarNombreArchivo_(
+      criterio || "GENERAL"
+    );
+
+    const fecha = obtenerFechaArchivo_();
+
+    return `REPORTE_EXCEDENTES_${criterioLimpio}_${fecha}.xlsx`;
+  };
+
+  const obtenerNombreBodegaGestor_ = (item) => {
+    const serie = normalizarTexto_(
+      item && item.eserie
+    );
+
+    if (serie.startsWith("B1")) {
+      return "BODEGA 1";
+    }
+
+    if (serie.startsWith("B2")) {
+      return "BODEGA 2";
+    }
+
+    if (serie.startsWith("B3")) {
+      return "BODEGA 3";
+    }
+
+    if (serie.startsWith("BM")) {
+      return "BODEGA MOSTRADOR";
+    }
+
+    if (serie.startsWith("CB1")) {
+      return "CASA BLANCA 1";
+    }
+
+    if (serie.startsWith("CB2")) {
+      return "CASA BLANCA 2";
+    }
+
+    return normalizarTexto_(
+      (item && item.ebodegaActual) ||
+      "PENDIENTE DE UBICACION"
+    );
+  };
+
+  const obtenerUbicacionGestor_ = (item) => {
+    return normalizarTexto_(
+      (item && item.eserie) ||
+      (item && item.ubicacionActual) ||
+      "SIN UBICACION"
+    );
+  };
+
+  const mapearFilaGestor_ = (item) => {
+    return {
+      Ubicacion: obtenerUbicacionGestor_(item),
+
+      Codigo: normalizarTexto_(
+        item && item.ecodigo
+      ),
+
+      Descripcion: normalizarTexto_(
+        item && item.edescripcion
+      ),
+
+      Cantidad: String(
+        Number((item && item.esaldo) || 0)
+      ),
+
+      IdUnico: String(
+        (item && item.eidUnico) || ""
+      ).trim()
+    };
+  };
+
+  const obtenerSaldoGestor_ = (item) => {
+    return Number(
+      (item && item.esaldo) || 0
+    );
+  };
+
+  const filtrarRegistrosConSaldoDiferenteDeCero_ = (data) => {
+    const registros = Array.isArray(data)
+      ? data
+      : [];
+
+    return registros.filter((item) => {
+      return obtenerSaldoGestor_(item) !== 0;
+    });
+  };
+
+  const filtrarPorBodega_ = (data, bodega) => {
+    const bodegaNormalizada =
+      normalizarTexto_(bodega);
+
+    const todas =
+      bodegaNormalizada === "TODAS LAS BODEGAS";
+
+    if (todas) {
+      return data;
+    }
+
+    return data.filter((item) => {
+      return (
+        obtenerNombreBodegaGestor_(item) ===
+        bodegaNormalizada
+      );
+    });
+  };
+
+  const filtrarPorCodigo_ = (data, codigo) => {
+    const codigoNormalizado =
+      normalizarTexto_(codigo);
+
+    return data.filter((item) => {
+      return (
+        normalizarTexto_(item && item.ecodigo) ===
+        codigoNormalizado
+      );
+    });
+  };
+
+  const ordenarPorUbicacion_ = (filas) => {
+    return filas.slice().sort((a, b) => {
+      const ordenUbicacion =
+        String(a.Ubicacion || "").localeCompare(
+          String(b.Ubicacion || ""),
+          "es",
+          {
+            numeric: true,
+            sensitivity: "base"
+          }
+        );
+
+      if (ordenUbicacion !== 0) {
+        return ordenUbicacion;
+      }
+
+      const ordenCodigo =
+        String(a.Codigo || "").localeCompare(
+          String(b.Codigo || ""),
+          "es",
+          {
+            numeric: true,
+            sensitivity: "base"
+          }
+        );
+
+      if (ordenCodigo !== 0) {
+        return ordenCodigo;
+      }
+
+      return String(a.IdUnico || "").localeCompare(
+        String(b.IdUnico || ""),
+        "es",
+        {
+          numeric: true,
+          sensitivity: "base"
+        }
+      );
+    });
+  };
+
+  const ordenarPorCodigo_ = (filas) => {
+    return filas.slice().sort((a, b) => {
+      const ordenCodigo =
+        String(a.Codigo || "").localeCompare(
+          String(b.Codigo || ""),
+          "es",
+          {
+            numeric: true,
+            sensitivity: "base"
+          }
+        );
+
+      if (ordenCodigo !== 0) {
+        return ordenCodigo;
+      }
+
+      return String(a.IdUnico || "").localeCompare(
+        String(b.IdUnico || ""),
+        "es",
+        {
+          numeric: true,
+          sensitivity: "base"
+        }
+      );
+    });
+  };
+
+  /**
+   * =========================================================
+   * CONFIGURACIÓN XLSX GESTOR EXCEDENTES
+   * =========================================================
+   */
+
+  const COLUMNAS_REPORTE_EXCEDENTES = [
+    "Ubicacion",
+    "Codigo",
+    "Descripcion",
+    "Cantidad",
+    "IdUnico"
+  ];
+
+  const ANCHOS_REPORTE_EXCEDENTES = [
+    { wch: 22 },
+    { wch: 18 },
+    { wch: 54 },
+    { wch: 12 },
+    { wch: 32 }
+  ];
+
+  const construirAOAExcedentes_ = (filas) => {
+    const encabezados =
+      COLUMNAS_REPORTE_EXCEDENTES;
+
+    const cuerpo = filas.map((fila) => {
+      return encabezados.map((columna) => {
+        return String(
+          fila[columna] == null
+            ? ""
+            : fila[columna]
+        );
+      });
+    });
+
+    return [encabezados].concat(cuerpo);
+  };
+
+  const forzarTextoEnWorksheet_ = (ws) => {
+    if (!ws || !ws["!ref"]) {
+      return;
+    }
+
+    const rango =
+      window.XLSX.utils.decode_range(
+        ws["!ref"]
+      );
+
+    for (
+      let row = rango.s.r;
+      row <= rango.e.r;
+      row++
+    ) {
+      for (
+        let col = rango.s.c;
+        col <= rango.e.c;
+        col++
+      ) {
+        const direccion =
+          window.XLSX.utils.encode_cell({
+            r: row,
+            c: col
+          });
+
+        const celda = ws[direccion];
+
+        if (!celda) {
+          continue;
+        }
+
+        celda.t = "s";
+        celda.v = String(
+          celda.v == null
+            ? ""
+            : celda.v
+        );
+        celda.z = "@";
+      }
+    }
+  };
+
+  const crearWorksheetTexto_ = (filas) => {
+    const aoa =
+      construirAOAExcedentes_(filas);
+
+    const ws =
+      window.XLSX.utils.aoa_to_sheet(aoa);
+
+    forzarTextoEnWorksheet_(ws);
+
+    ws["!cols"] =
+      ANCHOS_REPORTE_EXCEDENTES;
+
+    if (ws["!ref"]) {
+      ws["!autofilter"] = {
+        ref: ws["!ref"]
+      };
+    }
+
+    return ws;
+  };
+
+  const crearLibroReporteExcedentes_ = (
+    filasBase,
+    nombreArchivo
+  ) => {
+    validarXLSX_();
+
+    const wb =
+      window.XLSX.utils.book_new();
+
+    const filasPorUbicacion =
+      ordenarPorUbicacion_(filasBase);
+
+    const filasPorCodigo =
+      ordenarPorCodigo_(filasBase);
+
+    const wsPorUbicacion =
+      crearWorksheetTexto_(
+        filasPorUbicacion
+      );
+
+    const wsPorCodigo =
+      crearWorksheetTexto_(
+        filasPorCodigo
+      );
+
+    window.XLSX.utils.book_append_sheet(
+      wb,
+      wsPorUbicacion,
+      "PORUBICACION"
+    );
+
+    window.XLSX.utils.book_append_sheet(
+      wb,
+      wsPorCodigo,
+      "POR CODIGO"
+    );
+
+    window.XLSX.writeFile(
+      wb,
+      nombreArchivo
+    );
+
+    return {
+      ok: true,
+      archivo: nombreArchivo,
+      registros: filasBase.length
+    };
+  };
+
+  const construirFilasReporteExcedentes_ = (
+    dataFiltrada
+  ) => {
+    return filtrarRegistrosConSaldoDiferenteDeCero_(
+      dataFiltrada
+    ).map(mapearFilaGestor_);
+  };
+
+    /**
+   * =========================================================
+   * HELPERS NEGATIVOS BIRLOS
+   * =========================================================
+   */
+
+  const COLUMNAS_NEGATIVOS_BIRLOS = [
+    "Codigo",
+    "Descripcion",
+    "UbicacionSurtido",
+    "Bodega",
+    "SaldoPisoDeVenta",
+    "ExcedenteBodega",
+    "ExcedenteCasaBlanca",
+    "EstatusTecnico"
+  ];
+
+  const ANCHOS_NEGATIVOS_BIRLOS = [
+    { wch: 22 },
+    { wch: 58 },
+    { wch: 24 },
+    { wch: 24 },
+    { wch: 18 },
+    { wch: 20 },
+    { wch: 24 },
+    { wch: 26 }
+  ];
+
+  const obtenerModoBalanceNegativos_ = (
+    item,
+    modoBalanceGeneral
+  ) => {
+    const modoItem = normalizarTexto_(
+      item && item.modoBalanceActivo
+    );
+
+    const modoGeneral = normalizarTexto_(
+      modoBalanceGeneral
+    );
+
+    const modo =
+      modoItem ||
+      modoGeneral ||
+      "EXISTENCIAS";
+
+    return modo === "IDUNICO"
+      ? "ID UNICO"
+      : "EXISTENCIAS";
+  };
+
+  const obtenerExcedenteBodegaNegativos_ = (
+    item,
+    modoBalanceGeneral
+  ) => {
+    if (
+      item &&
+      item.excedenteBodegaActivo != null
+    ) {
+      return Number(
+        item.excedenteBodegaActivo || 0
+      );
+    }
+
+    const modo =
+      obtenerModoBalanceNegativos_(
+        item,
+        modoBalanceGeneral
+      );
+
+    if (modo === "ID UNICO") {
+      return Number(
+        (item &&
+          item.excedentebodegaIdUnico) ||
+        0
+      );
+    }
+
+    return Number(
+      (item && item.excedentebodega) || 0
+    );
+  };
+
+  const obtenerExcedenteCasaBlancaNegativos_ = (
+    item,
+    modoBalanceGeneral
+  ) => {
+    if (
+      item &&
+      item.excedenteCasaBlancaActivo != null
+    ) {
+      return Number(
+        item.excedenteCasaBlancaActivo || 0
+      );
+    }
+
+    const modo =
+      obtenerModoBalanceNegativos_(
+        item,
+        modoBalanceGeneral
+      );
+
+    if (modo === "ID UNICO") {
+      return Number(
+        (item &&
+          item.excedentecasablancaIdUnico) ||
+        0
+      );
+    }
+
+    return Number(
+      (item &&
+        item.excedentecasablanca) ||
+      0
+    );
+  };
+
+  const obtenerDeficitNegativos_ = (item) => {
+    if (
+      item &&
+      item.deficit != null
+    ) {
+      return Math.abs(
+        Number(item.deficit || 0)
+      );
+    }
+
+    return Math.abs(
+      Number(
+        (item && item.almacenbirlos) ||
+        0
+      )
+    );
+  };
+
+  const obtenerUbicacionNegativos_ = (item) => {
+    return normalizarTexto_(
+      (item && item.ubicacionPiso) ||
+      "SIN ASIGNAR"
+    );
+  };
+
+  const obtenerBodegaNegativos_ = (item) => {
+    const etiqueta = normalizarTexto_(
+      item && item.bodegalabel
+    );
+
+    if (etiqueta) {
+      return etiqueta;
+    }
+
+    const ubicacion =
+      obtenerUbicacionNegativos_(item);
+
+    if (
+      !ubicacion ||
+      ubicacion === "SIN ASIGNAR"
+    ) {
+      return "SIN UBICACION";
+    }
+
+    if (ubicacion.startsWith("B1")) {
+      return "BODEGA 1";
+    }
+
+    if (ubicacion.startsWith("B2")) {
+      return "BODEGA 2";
+    }
+
+    if (ubicacion.startsWith("B3")) {
+      return "BODEGA 3";
+    }
+
+    if (ubicacion.startsWith("CU")) {
+      return "CUARTO ALTO RIESGO";
+    }
+
+    if (
+      ubicacion.startsWith("MO") ||
+      ubicacion.startsWith("BM")
+    ) {
+      return "MOSTRADOR";
+    }
+
+    return "OTRO";
+  };
+
+  const obtenerEstatusNegativos_ = (
+    item,
+    deficit,
+    excedenteTotal
+  ) => {
+    const estatusRecibido =
+      normalizarTexto_(
+        item && item.estatusTecnico
+      );
+
+    if (estatusRecibido) {
+      return estatusRecibido;
+    }
+
+    if (excedenteTotal <= 0) {
+      return "SOLICITAR CONTEO";
+    }
+
+    if (excedenteTotal < deficit) {
+      return "COBERTURA PARCIAL";
+    }
+
+    return "REVISAR EXCEDENTES";
+  };
+
+  const mapearFilaNegativosBirlos_ = (
+    item,
+    modoBalanceGeneral
+  ) => {
+    const deficit =
+      obtenerDeficitNegativos_(item);
+
+    const excedenteBodega =
+      obtenerExcedenteBodegaNegativos_(
+        item,
+        modoBalanceGeneral
+      );
+
+    const excedenteCasaBlanca =
+      obtenerExcedenteCasaBlancaNegativos_(
+        item,
+        modoBalanceGeneral
+      );
+
+    const excedenteTotal =
+      excedenteBodega +
+      excedenteCasaBlanca;
+
+    return {
+      Codigo: normalizarTexto_(
+        item && item.codigo
+      ),
+
+      Descripcion: normalizarTexto_(
+        item && item.descripcion
+      ),
+
+      UbicacionSurtido:
+        obtenerUbicacionNegativos_(item),
+
+      Bodega:
+        obtenerBodegaNegativos_(item),
+
+      SaldoPisoVenta: Number(
+        (item && item.almacenbirlos) || 0
+      ),
+
+      ExcedenteBodega:
+        excedenteBodega,
+
+      ExcedenteCasaBlanca:
+        excedenteCasaBlanca,
+
+      EstatusTecnico:
+        obtenerEstatusNegativos_(
+          item,
+          deficit,
+          excedenteTotal
+        )
+    };
+  };
+
+  const ordenarNegativosPorCodigo_ = (filas) => {
+    return filas.slice().sort((a, b) => {
+      return String(
+        a.Codigo || ""
+      ).localeCompare(
+        String(b.Codigo || ""),
+        "es",
+        {
+          numeric: true,
+          sensitivity: "base"
+        }
+      );
+    });
+  };
+
+  const ordenarNegativosPorUbicacion_ = (
+    filas
+  ) => {
+    return filas.slice().sort((a, b) => {
+      const ordenUbicacion =
+        String(
+          a.UbicacionSurtido || ""
+        ).localeCompare(
+          String(
+            b.UbicacionSurtido || ""
+          ),
+          "es",
+          {
+            numeric: true,
+            sensitivity: "base"
+          }
+        );
+
+      if (ordenUbicacion !== 0) {
+        return ordenUbicacion;
+      }
+
+      return String(
+        a.Codigo || ""
+      ).localeCompare(
+        String(b.Codigo || ""),
+        "es",
+        {
+          numeric: true,
+          sensitivity: "base"
+        }
+      );
+    });
+  };
+
+  const construirAOANegativos_ = (filas) => {
+    const cuerpo = filas.map((fila) => {
+      return COLUMNAS_NEGATIVOS_BIRLOS.map(
+        (columna) => {
+          return fila[columna] == null
+            ? ""
+            : fila[columna];
+        }
+      );
+    });
+
+    return [
+      COLUMNAS_NEGATIVOS_BIRLOS
+    ].concat(cuerpo);
+  };
+
+  const aplicarTiposNegativos_ = (ws) => {
+    if (!ws || !ws["!ref"]) {
+      return;
+    }
+
+    const columnasNumericas = new Set([
+      "SaldoPisoDeVenta",
+      "ExcedenteBodega",
+      "ExcedenteCasaBlanca"
+    ]);
+
+    const rango =
+      window.XLSX.utils.decode_range(
+        ws["!ref"]
+      );
+
+    for (
+      let col = rango.s.c;
+      col <= rango.e.c;
+      col++
+    ) {
+      const direccionEncabezado =
+        window.XLSX.utils.encode_cell({
+          r: 0,
+          c: col
+        });
+
+      const celdaEncabezado =
+        ws[direccionEncabezado];
+
+      const nombreColumna =
+        celdaEncabezado
+          ? String(
+              celdaEncabezado.v || ""
+            )
+          : "";
+
+      if (celdaEncabezado) {
+        celdaEncabezado.t = "s";
+        celdaEncabezado.v =
+          nombreColumna;
+        celdaEncabezado.z = "@";
+      }
+
+      for (
+        let row = 1;
+        row <= rango.e.r;
+        row++
+      ) {
+        const direccion =
+          window.XLSX.utils.encode_cell({
+            r: row,
+            c: col
+          });
+
+        const celda = ws[direccion];
+
+        if (!celda) {
+          continue;
+        }
+
+        if (
+          columnasNumericas.has(
+            nombreColumna
+          )
+        ) {
+          celda.t = "n";
+          celda.v = Number(
+            celda.v || 0
+          );
+          celda.z = "#,##0";
+        } else {
+          celda.t = "s";
+          celda.v = String(
+            celda.v == null
+              ? ""
+              : celda.v
+          );
+          celda.z = "@";
+        }
+      }
+    }
+  };
+
+  const crearWorksheetNegativos_ = (
+    filas
+  ) => {
+    const aoa =
+      construirAOANegativos_(filas);
+
+    const ws =
+      window.XLSX.utils.aoa_to_sheet(
+        aoa
+      );
+
+    aplicarTiposNegativos_(ws);
+
+    ws["!cols"] =
+      ANCHOS_NEGATIVOS_BIRLOS;
+
+    if (ws["!ref"]) {
+      ws["!autofilter"] = {
+        ref: ws["!ref"]
+      };
+    }
+
+    return ws;
+  };
+
+  const obtenerNombreArchivoNegativos_ = (
+    modoBalance,
+    criterio
+  ) => {
+    const modoNormalizado = normalizarTexto_(
+      modoBalance || "EXISTENCIAS"
+    );
+
+    const modoArchivo = normalizarNombreArchivo_(
+      modoNormalizado === "IDUNICO"
+        ? "ID_UNICO"
+        : "EXISTENCIAS"
+    );
+
+    const criterioArchivo = normalizarNombreArchivo_(
+      criterio ||
+      "TODAS LAS UBICACIONES DE SURTIDO"
+    );
+
+    const fecha = obtenerFechaArchivo_();
+
+    return `NEGATIVOS_BIRLOS_${criterioArchivo}_${modoArchivo}_${fecha}.xlsx`;
+  };
+
+  const construirFilasNegativosBirlos_ = (
+    data,
+    modoBalance
+  ) => {
+    const registros =
+      Array.isArray(data)
+        ? data
+        : [];
+
+    return registros
+      .filter((item) => {
+        return Number(
+          (item &&
+            item.almacenbirlos) ||
+          0
+        ) < 0;
+      })
+      .map((item) => {
+        return mapearFilaNegativosBirlos_(
+          item,
+          modoBalance
+        );
+      });
+  };
+
+  const crearLibroNegativosBirlos_ = (
+    filas,
+    modoBalance,
+    criterio
+  ) => {
+    validarXLSX_();
+
+    const wb =
+      window.XLSX.utils.book_new();
+
+    const filasPorCodigo =
+      ordenarNegativosPorCodigo_(
+        filas
+      );
+
+    const filasPorUbicacion =
+      ordenarNegativosPorUbicacion_(
+        filas
+      );
+
+    const wsPorCodigo =
+      crearWorksheetNegativos_(
+        filasPorCodigo
+      );
+
+    const wsPorUbicacion =
+      crearWorksheetNegativos_(
+        filasPorUbicacion
+      );
+
+    window.XLSX.utils.book_append_sheet(
+      wb,
+      wsPorCodigo,
+      "POR CODIGO"
+    );
+
+    window.XLSX.utils.book_append_sheet(
+      wb,
+      wsPorUbicacion,
+      "POR UBICACION"
+    );
+
+    const nombreArchivo =
+    obtenerNombreArchivoNegativos_(
+      modoBalance,
+      criterio
+    );
+
+    window.XLSX.writeFile(
+      wb,
+      nombreArchivo
+    );
+
+    return {
+      ok: true,
+      archivo: nombreArchivo,
+      registros: filas.length,
+      modoBalance:
+        normalizarTexto_(
+          modoBalance ||
+          "EXISTENCIAS"
+        )
+    };
+  };
+
+    /**
+   * =========================================================
+   * EXPORTACIONES PÚBLICAS
+   * =========================================================
+   */
+
+  window.XLSXExportUtilidades.exportarGestorExcedentesPorBodega = function(config) {
+    config = config || {};
+
+    const data = Array.isArray(config.data)
+      ? config.data
+      : [];
+
+    const bodega = String(
+      config.bodega || ""
+    ).trim();
+
+    if (!bodega) {
+      throw new Error(
+        "No se recibió una bodega válida para exportar."
+      );
+    }
+
+    const dataPorBodega = filtrarPorBodega_(
+      data,
+      bodega
+    );
+
+    const filas = construirFilasReporteExcedentes_(
+      dataPorBodega
+    );
+
+    if (filas.length === 0) {
+      throw new Error(
+        "No hay excedentes con cantidad diferente de 0 para exportar en esta bodega."
+      );
+    }
+
+    const criterioArchivo =
+      normalizarTexto_(bodega) === "TODAS LAS BODEGAS"
+        ? "TODAS LAS BODEGAS"
+        : bodega;
+
+    const nombreArchivo =
+      obtenerNombreArchivoReporteExcedentes_(
+        criterioArchivo
+      );
+
+    return crearLibroReporteExcedentes_(
+      filas,
+      nombreArchivo
+    );
+  };
+
+  window.XLSXExportUtilidades.exportarGestorExcedentesPorCodigo = function(config) {
+    config = config || {};
+
+    const data = Array.isArray(config.data)
+      ? config.data
+      : [];
+
+    const codigo = String(
+      config.codigo || ""
+    ).trim();
+
+    if (!codigo) {
+      throw new Error(
+        "No se recibió un código válido para exportar."
+      );
+    }
+
+    const dataPorCodigo = filtrarPorCodigo_(
+      data,
+      codigo
+    );
+
+    const filas = construirFilasReporteExcedentes_(
+      dataPorCodigo
+    );
+
+    if (filas.length === 0) {
+      throw new Error(
+        "No hay excedentes con cantidad diferente de 0 para exportar en este código."
+      );
+    }
+
+    const nombreArchivo =
+      obtenerNombreArchivoReporteExcedentes_(
+        codigo
+      );
+
+    return crearLibroReporteExcedentes_(
+      filas,
+      nombreArchivo
+    );
+  };
+
+  window.XLSXExportUtilidades.exportarNegativosBirlos = function(config) {
+    config = config || {};
+
+    validarXLSX_();
+
+    const data = Array.isArray(config.data)
+      ? config.data
+      : [];
+
+    const modoBalance = normalizarTexto_(
+      config.modoBalance || "EXISTENCIAS"
+    );
+
+    const criterio = String(
+      config.criterio ||
+      "TODAS LAS UBICACIONES DE SURTIDO"
+    ).trim();
+
+    if (data.length === 0) {
+      throw new Error(
+        "No existen registros negativos disponibles para exportar."
+      );
+    }
+
+    const filas = construirFilasNegativosBirlos_(
+      data,
+      modoBalance
+    );
+
+    if (filas.length === 0) {
+      throw new Error(
+        "No existen saldos negativos válidos para generar el reporte."
+      );
+    }
+
+    return crearLibroNegativosBirlos_(
+      filas,
+      modoBalance,
+      criterio
+    );
+  };
+
+  console.log(
+    "✅ [XLSXExportUtilidades] Exportadores registrados:",
+    {
+      gestorPorBodega:
+        typeof window.XLSXExportUtilidades
+          .exportarGestorExcedentesPorBodega,
+
+      gestorPorCodigo:
+        typeof window.XLSXExportUtilidades
+          .exportarGestorExcedentesPorCodigo,
+
+      negativosBirlos:
+        typeof window.XLSXExportUtilidades
+          .exportarNegativosBirlos
+    }
+  );
+})();
+</script>

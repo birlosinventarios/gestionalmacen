@@ -4,22 +4,7 @@
  */
 
 const NegativosBirlosService = (() => {
-
-  // =========================================================
-  // HELPERS SEGUROS
-  // =========================================================
-  function _toSafeStr_(value) {
-    return toStr_(value || "");
-  }
-
-  function _toSafeUpper_(value) {
-    return toStrUpper_(value || "");
-  }
-
-  function _toSafeNum_(value) {
-    return toNum_(value || 0);
-  }
-
+  
   // =========================================================
   // FUENTE ACTUAL: EXISTENCIAS
   // =========================================================
@@ -37,8 +22,8 @@ const NegativosBirlosService = (() => {
     const mapa = {};
 
     UbicacionesSurtidoRepository.getAll().forEach(item => {
-      const codigo = _toSafeUpper_(item.codigo);
-      const ubicacion = _toSafeUpper_(item.ubicacion);
+      const codigo = toStrUpper_(item.codigo);
+      const ubicacion = toStrUpper_(item.ubicacion);
 
       if (!codigo) return;
       if (!ubicacion) return;
@@ -67,7 +52,7 @@ const NegativosBirlosService = (() => {
   // CLASIFICACIÓN DE BODEGAS PARA BALANCE POR ID ÚNICO
   // =========================================================
   function _esCasaBlanca_(bodega) {
-    const b = _toSafeUpper_(bodega);
+    const b = toStrUpper_(bodega);
 
     return (
       b === "CASA BLANCA 1" ||
@@ -78,7 +63,7 @@ const NegativosBirlosService = (() => {
   }
 
   function _esBodegaExcedente_(bodega) {
-    const b = _toSafeUpper_(bodega);
+    const b = toStrUpper_(bodega);
 
     return (
       b === "BODEGA 1" ||
@@ -117,10 +102,10 @@ const NegativosBirlosService = (() => {
     });
 
     (auditables || []).forEach(item => {
-      const codigo = _toSafeUpper_(item.codigo);
-      const idUnico = _toSafeStr_(item.idUnico);
-      const bodegaActual = _toSafeUpper_(item.bodegaActual);
-      const saldoActual = _toSafeNum_(item.saldoActual);
+      const codigo = toStrUpper_(item.codigo);
+      const idUnico = toStr_(item.idUnico);
+      const bodegaActual = toStrUpper_(item.bodegaActual);
+      const saldoActual = toNum_(item.saldoActual);
 
       if (!codigo) return;
       if (!idUnico) return;
@@ -129,7 +114,7 @@ const NegativosBirlosService = (() => {
       const detalleIdUnico = {
         idUnico: idUnico,
         bodega: bodegaActual,
-        ubicacion: _toSafeUpper_(item.ubicacionActual),
+        ubicacion: toStrUpper_(item.ubicacionActual),
         sku: codigo,
         cantidadIdUnico: saldoActual
       };
@@ -182,19 +167,19 @@ const NegativosBirlosService = (() => {
     const balanceIdUnicoPorCodigo = _construirBalanceIdUnicoPorCodigo_();
 
     return (negativos || []).map(item => {
-      const codigo = _toSafeUpper_(item.codigo);
+      const codigo = toStrUpper_(item.codigo);
       const balanceIdUnico = balanceIdUnicoPorCodigo[codigo] || null;
 
-      const excedentebodega = _toSafeNum_(item.excedentebodega);
-      const excedentecasablanca = _toSafeNum_(item.excedentecasablanca);
+      const excedentebodega = toNum_(item.excedentebodega);
+      const excedentecasablanca = toNum_(item.excedentecasablanca);
       const excedenteTotalExistencias = excedentebodega + excedentecasablanca;
 
       const excedentebodegaIdUnico = balanceIdUnico
-        ? _toSafeNum_(balanceIdUnico.excedentebodegaIdUnico)
+        ? toNum_(balanceIdUnico.excedentebodegaIdUnico)
         : 0;
 
       const excedentecasablancaIdUnico = balanceIdUnico
-        ? _toSafeNum_(balanceIdUnico.excedentecasablancaIdUnico)
+        ? toNum_(balanceIdUnico.excedentecasablancaIdUnico)
         : 0;
 
       const excedenteTotalIdUnico =
@@ -206,11 +191,11 @@ const NegativosBirlosService = (() => {
         // Identificación base
         idproducto: item.idproducto,
         codigo: codigo,
-        descripcion: _toSafeUpper_(item.descripcion),
+        descripcion: toStrUpper_(item.descripcion),
 
         // Negativo en piso/Birlos.
         // Este se conserva desde EXISTENCIAS.
-        almacenbirlos: _toSafeNum_(item.almacenbirlos),
+        almacenbirlos: toNum_(item.almacenbirlos),
 
         // =====================================================
         // MODO 1: BALANCE DESDE EXISTENCIAS

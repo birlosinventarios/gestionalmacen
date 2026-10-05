@@ -1,8 +1,16 @@
 {
   "timeZone": "America/Monterrey",
-  "dependencies": {},
   "exceptionLogging": "STACKDRIVER",
   "runtimeVersion": "V8",
+  "dependencies": {
+    "libraries": [
+      {
+        "userSymbol": "Fito_Library",
+        "libraryId": "1s8Ij1KqGsgQBhSqI210jQjAo_RkYp89MxaTiD-1jt1qwgHj2VYQWe5Rr",
+        "version": "32"
+      }
+    ]
+  },
   "webapp": {
     "executeAs": "USER_ACCESSING",
     "access": "ANYONE"

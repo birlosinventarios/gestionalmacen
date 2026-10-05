@@ -9,25 +9,17 @@ const MonitorTraspasosService = (() => {
     ROLES_RESPONSABLES: ["RESPONSABLE", "ADMIN"]
   });
 
-  function _toSafeUpper_(value) {
-    return toStrUpper_(value || "");
-  }
-
-  function _toSafeStr_(value) {
-    return toStr_(value || "");
-  }
-
   function _isPendiente_(item) {
-    const folio = _toSafeStr_(item.folio);
-    const responsable = _toSafeStr_(item.responsable);
+    const folio = toStr_(item.folio);
+    const responsable = toStr_(item.responsable);
 
     return !folio || !responsable;
   }
 
   function _buildResponsables_() {
     const responsables = UsuariosRepository.getAll()
-      .filter(u => DOMAIN.ROLES_RESPONSABLES.includes(_toSafeUpper_(u.rol)))
-      .map(u => _toSafeUpper_(u.nombre))
+      .filter(u => DOMAIN.ROLES_RESPONSABLES.includes(toStrUpper_(u.rol)))
+      .map(u => toStrUpper_(u.nombre))
       .filter(Boolean);
 
     return [...new Set(responsables)].sort();
@@ -38,19 +30,19 @@ const MonitorTraspasosService = (() => {
       fila: item.fila,
       fechatraspaso: item.fechatraspaso ? formatDate_(item.fechatraspaso) : "",
       horatraspaso: item.horatraspaso ? formatTime_(item.horatraspaso) : "",
-      tipomovimiento: _toSafeUpper_(item.tipomovimiento),
-      serie: _toSafeStr_(item.serie),
-      bodegasalida: _toSafeStr_(item.bodegasalida),
-      ubicacionsalida: _toSafeStr_(item.ubicacionsalida),
-      bodegaentrada: _toSafeStr_(item.bodegaentrada),
-      ubicacionentrada: _toSafeStr_(item.ubicacionentrada),
-      solicitante: _toSafeUpper_(item.solicitante),
-      codigo: _toSafeUpper_(item.codigo),
-      descripcion: _toSafeUpper_(item.descripcion),
+      tipomovimiento: toStrUpper_(item.tipomovimiento),
+      serie: toStr_(item.serie),
+      bodegasalida: toStr_(item.bodegasalida),
+      ubicacionsalida: toStr_(item.ubicacionsalida),
+      bodegaentrada: toStr_(item.bodegaentrada),
+      ubicacionentrada: toStr_(item.ubicacionentrada),
+      solicitante: toStrUpper_(item.solicitante),
+      codigo: toStrUpper_(item.codigo),
+      descripcion: toStrUpper_(item.descripcion),
       cantidad: Number(item.cantidad || 0),
-      folio: _toSafeStr_(item.folio),
-      responsable: _toSafeUpper_(item.responsable),
-      idunico: _toSafeStr_(item.idunico)
+      folio: toStr_(item.folio),
+      responsable: toStrUpper_(item.responsable),
+      idunico: toStr_(item.idunico)
     };
   }
 
@@ -63,7 +55,7 @@ const MonitorTraspasosService = (() => {
   }
 
   function _validarFolio_(folio) {
-    const valor = _toSafeStr_(folio);
+    const valor = toStr_(folio);
     if (!valor) {
       throw new Error("El folio es obligatorio.");
     }
@@ -71,7 +63,7 @@ const MonitorTraspasosService = (() => {
   }
 
   function _validarResponsable_(responsable, responsablesSet) {
-    const valor = _toSafeUpper_(responsable);
+    const valor = toStrUpper_(responsable);
 
     if (!valor) {
       throw new Error("El responsable es obligatorio.");
@@ -128,8 +120,8 @@ const MonitorTraspasosService = (() => {
         .getRange(fila, COL.TRASPASOS.FOLIO + 1, 1, 2)
         .getValues()[0];
 
-      const folioActual = _toSafeStr_(valoresActuales[0]);
-      const responsableActual = _toSafeStr_(valoresActuales[1]);
+      const folioActual = toStr_(valoresActuales[0]);
+      const responsableActual = toStr_(valoresActuales[1]);
 
       if (folioActual || responsableActual) {
         throw new Error("Este movimiento ya fue procesado o ya no está pendiente.");

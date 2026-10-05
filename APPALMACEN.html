@@ -1,1267 +1,1884 @@
-<script>/** APPALMACEN.HTML */</script>
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistema de Gestión - Birlos y Tornillos</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+  >
+  <title> <?!= DOCUMENT_TITLE ?> </title>
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <?!= IMPORT_RESOURCE_TAGS ?>
+  <?!= Fito_Library.importTag("sheetjs") ?>
+  <?!= SIDEBAR_BUNDLE ?>
+  <?!= Fito_Library.uiAnalyticsBundle() ?>
+  <?!= incluir('z0-Utilidades_XLSX') ?>
+  <?!= incluir('z0-Utilidades_XLSX_Export') ?>
+  <?!= incluir('z0-ImpresionModoUtilidades') ?>
 
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-
-  <?!= incluir('z0-Utilidades_XLSX'); ?>
-  <?!= incluir('z0-ImpresionModoUtilidades'); ?>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    /**
+     * Configuración visual y funcional proporcionada por el servidor.
+     * Estas propiedades deben existir antes de montar la aplicación React.
+     */
+    window.APPALMACEN_THEME = <?!= APPALMACEN_THEME_JSON ?>;
+    window.APPALMACEN_THEMES = <?!= APPALMACEN_THEMES_JSON ?>;
+    window.APPALMACEN_SIDEBAR_THEMES = <?!= APPALMACEN_SIDEBAR_THEMES_JSON ?>;
+    window.APPALMACEN_BRAND = <?!= APPALMACEN_BRAND_JSON ?>;
+    window.APPALMACEN_COMPONENTS = <?!= APPALMACEN_COMPONENTS_JSON ?>;
+    window.APPALMACEN_TESTING = <?!= APPALMACEN_TESTING_JSON ?>;
+    
+  </script>
 
   <style>
-    <?!= incluir('Estilos_Globales'); ?>
+    <?!= incluir('Estilos_Globales') ?>
 
+    :root {
+      --primary: #d93025;
+      --primary-dark: #a50e0e;
+      --bg-color: #f8f9fa;
+      --text-main: #1c1d1f;
+      --text-secondary: #5f6368;
+      --border-color: #dadce0;
+    }
 
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
+    html,
+    body,
+    #root {
+      width: 100%;
+      height: 100%;
+      min-height: 100dvh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: var(--bg-color);
+    }
 
-  :root {
-    --primary: #d93025;
-    --bg-color: #f8f9fa;
-    --text-main: #1c1d1f;
-  }
+    body {
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
+    }
 
-  body {
-    margin: 0;
-    padding: 0;
-    height: 100vh;
-    width: 100vw;
-    background-color: var(--bg-color);
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    overflow: hidden;
-    -webkit-font-smoothing: antialiased;
-  }
+    #root > div {
+      width: 100%;
+      height: 100dvh;
+      min-height: 100dvh;
+      overflow: hidden;
+    }
 
-  .main-wrapper {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    background-color: var(--bg-color);
-  }
+    /* ======================================================
+       Estructura general de la aplicación
+       ====================================================== */
+    .app-main {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100dvh;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      background: var(--bg-color);
+      transition:
+        margin-left 260ms ease,
+        width 260ms ease,
+        border-radius 260ms ease;
+    }
 
-  .scrollable-content {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 20px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--secondary) transparent;
-  }
+    .app-main.sidebar1 {
+      width: calc(100vw - var(--fito-sidebar-mini-width, 80px));
+      margin-left: var(--fito-sidebar-mini-width, 80px);
+      border-radius: 0 1rem 1rem 0;
+    }
 
-  .sidebar-transition {
-    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  }
+    .app-main.sidebar2 {
+      width: calc(
+        100vw
+        - var(--fito-sidebar2-gap, 16px)
+        - var(--fito-sidebar2-mini-width, 80px)
+        - var(--fito-sidebar2-gap, 16px)
+      );
+      margin-left: calc(
+        var(--fito-sidebar2-gap, 16px)
+        + var(--fito-sidebar2-mini-width, 80px)
+        + var(--fito-sidebar2-gap, 16px)
+      );
+      border-radius: 1rem;
+    }
 
-  .sidebar-mini {
-    width: 80px;
-  }
+    .app-main > header {
+      flex: 0 0 auto;
+    }
 
-  .sidebar-visible {
-    width: 280px;
-  }
+    .app-main.sidebar1 > header {
+      border-radius: 0;
+    }
 
-  .sidebar-trigger {
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 22px;
-    height: 100vh;
-    z-index: 70;
-  }
+    .app-main.sidebar2 > header {
+      border-bottom-left-radius: 1rem;
+    }
 
-  .app-sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    height: 100vh;
-    z-index: 60;
-  }
+    /* ======================================================
+       Encabezado del shell
+       ====================================================== */
+    .app-shell-header {
+      position: relative;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 88px;
+      padding: 12px 24px;
+      overflow: visible;
+      background: #fff;
+      border-bottom: 1px solid var(--border-color);
+      box-shadow: 0 1px 2px rgba(60, 64, 67, 0.05);
+    }
 
-  .app-main {
-    margin-left: 80px;
-    width: calc(100vw - 80px);
-    height: 100vh;
-    min-width: 0;
-    overflow: hidden;
-  }
+    .app-shell-header-identity {
+      display: flex;
+      flex: 1 1 auto;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
 
-  .app-view-card {
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-    background: #ffffff;
-    margin: 1rem;
-    border-radius: 1rem;
-    box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
-    border: 1px solid #dadce0;
-  }
+    .app-shell-header-icon {
+      display: inline-flex;
+      flex: 0 0 44px;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      color: #fff;
+      background: #1c1d1f;
+      border: 1px solid #1c1d1f;
+      border-radius: 14px;
+      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14);
+    }
 
-  .app-view-container {
-    width: 100%;
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
-  }
+    .app-shell-header-copy {
+      min-width: 0;
+    }
 
-  .overlay-fade {
-    position: fixed;
-    left: 80px;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.22);
-    backdrop-filter: blur(2px);
-    z-index: 35;
-    animation: fadeIn 0.2s ease;
-  }
+    .app-shell-header-title {
+      margin: 0;
+      overflow: hidden;
+      color: var(--text-main);
+      font-size: 20px;
+      font-weight: 900;
+      line-height: 1.15;
+      letter-spacing: -0.025em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
+    .app-shell-header-description {
+      margin: 4px 0 0;
+      overflow: hidden;
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.3;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
-  .logo-container {
-    background: white;
-    padding: 4px;
-    border-radius: 7.5px;
-    width: 50px;
-    height: 50px;
-  }
+    /* ======================================================
+       Controles de impresión
+       ====================================================== */
+    .app-shell-print-group {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      background: #f8f9fa;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+    }
 
-  .custom-scroll::-webkit-scrollbar { width: 4px; }
-  .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
-  .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
+    .app-shell-print-caption {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 84px;
+      padding: 0 8px 0 4px;
+      border-right: 1px solid var(--border-color);
+    }
 
-  /* =========================================================
-     ANIMACIONES IGUALES A PROTOTIPOTRASPASOS
-  ========================================================= */
-  @keyframes toastInProto {
-    from {
-      transform: translateX(100%);
+    .app-shell-print-caption-title {
+      color: var(--text-main);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .app-shell-print-caption-subtitle {
+      margin-top: 3px;
+      color: #9ca3af;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .app-shell-print-mode,
+    .app-shell-print-test {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      cursor: pointer;
+      transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        color 0.2s ease,
+        background-color 0.2s ease;
+    }
+
+    .app-shell-print-mode {
+      min-width: 108px;
+      padding: 0 14px;
+      color: var(--text-main);
+      background: #fff;
+    }
+
+    .app-shell-print-mode.online {
+      color: #fff;
+      background: var(--primary);
+      border-color: var(--primary);
+      box-shadow: 0 5px 12px rgba(217, 48, 37, 0.2);
+    }
+
+    .app-shell-print-test {
+      min-width: 44px;
+      padding: 0 11px;
+      color: var(--text-secondary);
+      background: #fff;
+    }
+
+    .app-shell-print-test.online {
+      color: var(--primary);
+      background: rgba(217, 48, 37, 0.06);
+      border-color: rgba(217, 48, 37, 0.2);
+    }
+
+    .app-shell-print-test:hover,
+    .app-shell-print-mode:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 5px 13px rgba(15, 23, 42, 0.08);
+    }
+
+    .app-shell-print-mode:disabled,
+    .app-shell-print-test:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      pointer-events: none;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* ======================================================
+       Contenedor de vistas dinámicas
+       ====================================================== */
+    .app-view-card {
+      display: flex;
+      flex: 1 1 auto;
+      height: 0;
+      min-height: 0;
+      margin: 1rem 1rem 1rem 0;
+      overflow: hidden;
+      background: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 1rem;
+      box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
+    }
+
+    .app-main.without-shell-header .app-view-card {
+      margin-top: 0;
+    }
+
+    .app-view-container {
+      flex: 1 1 auto;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* ======================================================
+       Notificaciones y transición de arranque
+       ====================================================== */
+    @keyframes toastInProto {
+      from { opacity: 0; transform: translateX(100%); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes toastOutProto {
+      from { opacity: 1; transform: translateX(0); }
+      to { opacity: 0; transform: translateX(100%); }
+    }
+
+    .animate-toast-in {
+      animation: toastInProto 0.35s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    }
+
+    .animate-toast-out {
+      animation: toastOutProto 0.25s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+    }
+
+    .swal2-popup.swal2-toast {
+      color: #fff !important;
+      background: #1c1d1f !important;
+      border-left: 4px solid #d93025 !important;
+      border-radius: 14px !important;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22) !important;
+      backdrop-filter: blur(8px);
+    }
+
+    .swal2-timer-progress-bar {
+      background: #d93025 !important;
+    }
+
+    body.app-booting #root {
       opacity: 0;
+      filter: blur(18px) saturate(0.85);
+      transform: scale(0.985) translateY(8px);
+      transition:
+        opacity 520ms cubic-bezier(0.22, 1, 0.36, 1),
+        filter 720ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 720ms cubic-bezier(0.22, 1, 0.36, 1);
     }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
 
-  @keyframes toastOutProto {
-    from {
-      transform: translateX(0);
+    body.app-handoff #root,
+    body.app-ready #root {
       opacity: 1;
+      filter: blur(0) saturate(1);
+      transform: scale(1) translateY(0);
     }
-    to {
-      transform: translateX(100%);
+
+    body.app-handoff #fito-preloader {
       opacity: 0;
+      pointer-events: none;
+      transition: opacity 760ms ease;
     }
-  }
 
-  .animate-toast-in {
-    animation: toastInProto 0.35s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-  }
+    @media (max-width: 1100px) {
+      .app-shell-header { min-height: 82px; padding: 10px 12px; }
+      .app-shell-print-caption,
+      .app-shell-print-test-label { display: none; }
+      .app-shell-print-test { width: 42px; min-width: 42px; padding: 0; }
+      .app-shell-print-mode { min-width: 94px; padding: 0 11px; }
+    }
 
-  .animate-toast-out {
-    animation: toastOutProto 0.25s cubic-bezier(0.23, 1, 0.32, 1) forwards;
-  }
+    @media (max-width: 900px) {
+      .app-main.sidebar1 {
+        width: calc(100vw - var(--fito-sidebar-mini-width, 64px));
+        margin-left: var(--fito-sidebar-mini-width, 64px);
+        border-radius: 0 0.75rem 0.75rem 0;
+      }
 
-  /* =========================================================
-     TOASTS GLOBALES HOMOLOGADOS CON PROTOTIPOTRASPASOS
-  ========================================================= */
-  .swal2-popup.swal2-toast {
-    backdrop-filter: blur(8px);
-    background: #1c1d1f !important;
-    color: #ffffff !important;
-    border-left: 4px solid #d93025 !important;
-    border-radius: 14px !important;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22) !important;
-  }
+      .app-main.sidebar2 {
+        width: calc(
+          100vw
+          - var(--fito-sidebar2-gap, 10px)
+          - var(--fito-sidebar2-mini-width, 64px)
+          - var(--fito-sidebar2-gap, 10px)
+        );
+        margin-left: calc(
+          var(--fito-sidebar2-gap, 10px)
+          + var(--fito-sidebar2-mini-width, 64px)
+          + var(--fito-sidebar2-gap, 10px)
+        );
+        border-radius: 0.75rem;
+      }
 
-  .swal2-popup.swal2-toast .swal2-title {
-    font-size: 14px !important;
-    font-weight: 800 !important;
-    color: #ffffff !important;
-    letter-spacing: 0.02em;
-  }
+      .app-shell-header { min-height: 76px; gap: 10px; }
+      .app-shell-header-title { font-size: 17px; }
+      .app-shell-header-description { max-width: 42vw; font-size: 9px; }
+      .app-shell-print-mode { width: 44px; min-width: 44px; padding: 0; }
+      .app-shell-print-mode-text { display: none; }
+      .app-view-card { margin: 0.5rem 0.5rem 0.5rem 0; border-radius: 0.75rem; }
+    }
 
-  .swal2-popup.swal2-toast .swal2-html-container,
-  .swal2-popup.swal2-toast .swal2-text {
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    color: #ffffff !important;
-  }
-
-  .swal2-timer-progress-bar {
-    background: #d93025 !important;
-  }
-</style>
-
+    @media (max-width: 640px) {
+      .app-shell-header-description { display: none; }
+      .app-shell-header-title { max-width: 34vw; font-size: 15px; }
+    }
+  </style>
 </head>
 <body>
-
-  <div id="boot-splash" style="
-    height:100vh;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-family:Arial,sans-serif;
-    color:#5f6368;
-    background:#f8f9fa;
-  ">
-    Cargando sistema...
-  </div>
-
+  <?!= LOADER_HTML ?>
   <div id="root"></div>
 
   <script>
+    "use strict";
+
+    const APPALMACEN_SCRIPT_STARTED_AT = performance.now();
     const { useState, useEffect, useRef } = React;
     const e = React.createElement;
 
-    // =========================================================
-    // CACHE GLOBAL
-    // =========================================================
+    document.body.classList.add("app-booting");
+
+    /* ======================================================
+       Estado global compatible con las vistas existentes
+       ====================================================== */
     window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || null;
     window.usuariosGlobal = window.usuariosGlobal || [];
     window.bodegasGlobal = window.bodegasGlobal || [];
     window.mapaUbicacionesGlobal = window.mapaUbicacionesGlobal || [];
     window.catalogoGlobal = window.catalogoGlobal || [];
 
-    // =========================================================
-    // HELPERS GENERALES
-    // =========================================================
+    const APPALMACEN_DEBUG = Object.freeze({
+      enabled: window.APPALMACEN_TESTING?.DEBUG === true,
+      warnings: window.APPALMACEN_TESTING?.DEBUG_WARNINGS === true
+    });
+
+    /** Normaliza errores para logs y respuestas visuales. */
+    function normalizarError_(error) {
+      if (!error) return { name: "", message: "", stack: "" };
+      if (typeof error === "string") {
+        return { name: "Error", message: error, stack: "" };
+      }
+
+      return {
+        name: String(error.name || "Error"),
+        message: String(error.message || error.details || error),
+        stack: String(error.stack || "")
+      };
+    }
+
+    function registrarError_(layer, event, error, metadata) {
+      console.error(`[APPALMACEN][${layer}][${event}]`, {
+        error: normalizarError_(error),
+        metadata: metadata || null
+      });
+    }
+
+    function registrarAdvertencia_(layer, event, error, metadata) {
+      if (!APPALMACEN_DEBUG.warnings) return;
+      console.warn(`[APPALMACEN][${layer}][${event}]`, {
+        error: normalizarError_(error),
+        metadata: metadata || null
+      });
+    }
+
+    function registrarDebug_(layer, event, metadata) {
+      if (!APPALMACEN_DEBUG.enabled) return;
+      console.debug(`[APPALMACEN][${layer}][${event}]`, metadata || null);
+    }
+
+    /* ======================================================
+       Trackers de rendimiento del cliente
+       ====================================================== */
+    const APPALMACEN_PERF_CONFIG = Object.freeze({
+      enabled: window.APPALMACEN_TESTING?.PERFORMANCE_TRACKING !== false,
+      keepLast: Number(
+        window.APPALMACEN_TESTING?.PERFORMANCE_HISTORY_SIZE || 100
+      )
+    });
+
+    window.__APPALMACEN_PERF_STATE__ = window.__APPALMACEN_PERF_STATE__ || {
+      sequence: 0,
+      active: new Map(),
+      history: []
+    };
+
+    function perfNow_() {
+      return performance.now();
+    }
+
+    function perfRound_(value) {
+      return Math.round(Number(value || 0) * 100) / 100;
+    }
+
+    function perfSafeSize_(value) {
+      try {
+        const text = typeof value === "string" ? value : JSON.stringify(value);
+        return new Blob([text]).size;
+      } catch (_) {
+        return 0;
+      }
+    }
+
+    function perfStart_(operation, metadata = {}, startedAt = null) {
+      if (!APPALMACEN_PERF_CONFIG.enabled) return null;
+
+      const state = window.__APPALMACEN_PERF_STATE__;
+      state.sequence += 1;
+
+      const id = [String(operation || "OP"), Date.now(), state.sequence].join("-");
+      const explicitStart = Number(startedAt);
+      const start = startedAt !== null && Number.isFinite(explicitStart)
+        ? explicitStart
+        : perfNow_();
+
+      state.active.set(id, {
+        id,
+        operation: String(operation || "OP"),
+        startedAt: start,
+        lastAt: start,
+        metadata: metadata && typeof metadata === "object" ? metadata : {},
+        marks: []
+      });
+
+      return id;
+    }
+
+    function perfMark_(id, stage, metadata = {}) {
+      if (!id || !APPALMACEN_PERF_CONFIG.enabled) return;
+
+      const trace = window.__APPALMACEN_PERF_STATE__.active.get(id);
+      if (!trace) return;
+
+      const now = perfNow_();
+      trace.marks.push({
+        stage: String(stage || "MARK"),
+        segmentMs: perfRound_(now - trace.lastAt),
+        totalMs: perfRound_(now - trace.startedAt),
+        metadata: metadata || {}
+      });
+      trace.lastAt = now;
+    }
+
+    function perfEnd_(id, status = "ok", metadata = {}) {
+      if (!id || !APPALMACEN_PERF_CONFIG.enabled) return null;
+
+      const state = window.__APPALMACEN_PERF_STATE__;
+      const trace = state.active.get(id);
+      if (!trace) return null;
+
+      const result = {
+        id: trace.id,
+        operation: trace.operation,
+        status: String(status || "ok"),
+        totalMs: perfRound_(perfNow_() - trace.startedAt),
+        metadata: { ...trace.metadata, ...(metadata || {}) },
+        marks: trace.marks.slice()
+      };
+
+      state.active.delete(id);
+      state.history.push(result);
+
+      const keepLast = Math.max(10, APPALMACEN_PERF_CONFIG.keepLast || 100);
+      if (state.history.length > keepLast) {
+        state.history.splice(0, state.history.length - keepLast);
+      }
+
+      console.groupCollapsed(
+        `%c[APPALMACEN][PERF][${result.operation}] ${result.totalMs} ms | ${result.status}`,
+        result.status === "ok"
+          ? "color:#188038;font-weight:800"
+          : "color:#d93025;font-weight:800"
+      );
+      console.table(
+        result.marks.map(mark => ({
+          etapa: mark.stage,
+          segmento_ms: mark.segmentMs,
+          acumulado_ms: mark.totalMs
+        }))
+      );
+      console.info("Metadatos:", result.metadata);
+      console.groupEnd();
+
+      return result;
+    }
+
+    function perfCancel_(id, metadata = {}) {
+      return perfEnd_(id, "cancelled", metadata);
+    }
+
+    window.APPALMACEN_PERF = Object.freeze({
+      start: perfStart_,
+      mark: perfMark_,
+      end: perfEnd_,
+      cancel: perfCancel_,
+      history: () => window.__APPALMACEN_PERF_STATE__.history.slice(),
+      active: () => Array.from(window.__APPALMACEN_PERF_STATE__.active.values()),
+      clear: () => {
+        window.__APPALMACEN_PERF_STATE__.active.clear();
+        window.__APPALMACEN_PERF_STATE__.history.length = 0;
+      },
+      summary: () => console.table(
+        window.__APPALMACEN_PERF_STATE__.history.map(item => ({
+          operacion: item.operation,
+          estado: item.status,
+          total_ms: item.totalMs,
+          vista: item.metadata?.viewId || "",
+          origen: item.metadata?.source || ""
+        }))
+      )
+    });
+
+    /* ======================================================
+       Envoltorio común para operaciones google.script.run
+       ====================================================== */
+    window.APPALMACEN_ACTIONS = window.APPALMACEN_ACTIONS || Object.freeze({
+      run(config = {}) {
+        const operation = String(config.operation || "UNNAMED_ACTION").trim();
+        const viewId = String(config.viewId || "UNKNOWN_VIEW").trim();
+        const controller = String(config.controller || "UNKNOWN_CONTROLLER").trim();
+        const invoke = config.invoke;
+        const onSuccess = typeof config.onSuccess === "function" ? config.onSuccess : null;
+        const onFailure = typeof config.onFailure === "function" ? config.onFailure : null;
+        const getResultMetadata = typeof config.getResultMetadata === "function"
+          ? config.getResultMetadata
+          : null;
+        const waitForPaint = config.waitForPaint !== false;
+        const rethrowHandlerErrors = config.rethrowHandlerErrors !== false;
+        const timeoutValue = Number(config.timeoutMs || 120000);
+        const timeoutMs = Number.isFinite(timeoutValue)
+          ? Math.min(Math.max(timeoutValue, 1000), 360000)
+          : 120000;
+        const extraMetadata = config.metadata && typeof config.metadata === "object"
+          ? config.metadata
+          : {};
+
+        if (!operation) {
+          return Promise.reject(new Error("APPALMACEN_ACTIONS.run requiere operation."));
+        }
+        if (typeof invoke !== "function") {
+          return Promise.reject(
+            new Error(`La operación ${operation} requiere una función invoke.`)
+          );
+        }
+
+        const traceId = window.APPALMACEN_PERF?.start(operation, {
+          viewId,
+          controller,
+          source: "view_action",
+          payloadBytes: perfSafeSize_(config.payload),
+          timeoutMs,
+          ...extraMetadata
+        }) || null;
+        const operationStartedAt = perfNow_();
+
+        perfMark_(traceId, "ACTION_ACCEPTED", { viewId, controller });
+
+        const waitForTwoPaints = () => new Promise(resolve => {
+          if (!waitForPaint || typeof requestAnimationFrame !== "function") {
+            resolve();
+            return;
+          }
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        });
+
+        return new Promise((resolve, reject) => {
+          let settled = false;
+          let timeoutHandle = null;
+
+          const clearTimeout_ = () => {
+            if (timeoutHandle !== null) {
+              clearTimeout(timeoutHandle);
+              timeoutHandle = null;
+            }
+          };
+
+          const finishOnce = (status, metadata = {}) => {
+            if (settled) return false;
+            settled = true;
+            clearTimeout_();
+            perfEnd_(traceId, status, {
+              clientTotalMs: perfRound_(perfNow_() - operationStartedAt),
+              ...metadata
+            });
+            return true;
+          };
+
+          const rejectNormalized = error => {
+            reject(
+              error instanceof Error
+                ? error
+                : new Error(
+                    normalizarError_(error).message || `Fallo ${operation}.`
+                  )
+            );
+          };
+
+          const success = async response => {
+            if (settled) {
+              registrarAdvertencia_("ACTION", "DUPLICATE_SUCCESS", null, {
+                operation,
+                viewId,
+                controller
+              });
+              return;
+            }
+
+            perfMark_(traceId, "SERVER_RESPONSE_RECEIVED", {
+              responseBytes: perfSafeSize_(response),
+              responseOk: response?.ok === true
+            });
+
+            try {
+              const handlerStartedAt = perfNow_();
+              const processedResult = onSuccess
+                ? await Promise.resolve(onSuccess(response, {
+                    traceId,
+                    operation,
+                    viewId,
+                    controller
+                  }))
+                : response;
+
+              perfMark_(traceId, "SUCCESS_HANDLER_COMPLETED", {
+                handlerMs: perfRound_(perfNow_() - handlerStartedAt)
+              });
+
+              let resultMetadata = {};
+              if (getResultMetadata) {
+                try {
+                  resultMetadata = getResultMetadata(response, processedResult) || {};
+                } catch (metadataError) {
+                  registrarAdvertencia_(
+                    "ACTION",
+                    "RESULT_METADATA_FAILED",
+                    metadataError,
+                    { operation, viewId, controller }
+                  );
+                }
+              }
+
+              await waitForTwoPaints();
+              if (settled) return;
+
+              perfMark_(
+                traceId,
+                waitForPaint ? "UI_PAINT_COMPLETED" : "UI_PAINT_SKIPPED"
+              );
+
+              if (finishOnce("ok", {
+                responseBytes: perfSafeSize_(response),
+                ...resultMetadata
+              })) {
+                resolve(processedResult);
+              }
+            } catch (handlerError) {
+              if (settled) return;
+
+              perfMark_(traceId, "SUCCESS_HANDLER_FAILED", {
+                message: normalizarError_(handlerError).message
+              });
+              finishOnce("error", { stage: "success_handler" });
+              registrarError_(
+                "ACTION",
+                "SUCCESS_HANDLER_FAILED",
+                handlerError,
+                { operation, viewId, controller }
+              );
+
+              if (rethrowHandlerErrors) rejectNormalized(handlerError);
+              else resolve(response);
+            }
+          };
+
+          const failure = async error => {
+            if (settled) {
+              registrarAdvertencia_("ACTION", "DUPLICATE_FAILURE", error, {
+                operation,
+                viewId,
+                controller
+              });
+              return;
+            }
+
+            perfMark_(traceId, "SERVER_REQUEST_FAILED", {
+              message: normalizarError_(error).message
+            });
+
+            let finalError = error;
+            try {
+              if (onFailure) {
+                await Promise.resolve(onFailure(error, {
+                  traceId,
+                  operation,
+                  viewId,
+                  controller
+                }));
+              }
+              perfMark_(traceId, "FAILURE_HANDLER_COMPLETED");
+            } catch (handlerError) {
+              finalError = handlerError;
+              perfMark_(traceId, "FAILURE_HANDLER_FAILED", {
+                message: normalizarError_(handlerError).message
+              });
+              registrarError_(
+                "ACTION",
+                "FAILURE_HANDLER_FAILED",
+                handlerError,
+                {
+                  operation,
+                  viewId,
+                  controller,
+                  originalError: normalizarError_(error)
+                }
+              );
+            }
+
+            finishOnce("error", {
+              stage: "server_request",
+              error: normalizarError_(finalError)
+            });
+            rejectNormalized(finalError);
+          };
+
+          timeoutHandle = setTimeout(() => {
+            if (settled) return;
+
+            const timeoutError = new Error(
+              `La operación ${operation} excedió ${timeoutMs} ms.`
+            );
+            perfMark_(traceId, "ACTION_TIMEOUT", { timeoutMs });
+            finishOnce("timeout", { stage: "timeout", timeoutMs });
+            registrarError_("ACTION", "TIMEOUT", timeoutError, {
+              operation,
+              viewId,
+              controller,
+              timeoutMs
+            });
+            reject(timeoutError);
+          }, timeoutMs);
+
+          try {
+            perfMark_(traceId, "SERVER_REQUEST_STARTING");
+            invoke({ success, failure, traceId });
+            perfMark_(traceId, "SERVER_REQUEST_SENT");
+          } catch (invocationError) {
+            perfMark_(traceId, "INVOCATION_FAILED", {
+              message: normalizarError_(invocationError).message
+            });
+            finishOnce("error", { stage: "invocation" });
+            registrarError_(
+              "ACTION",
+              "INVOCATION_FAILED",
+              invocationError,
+              { operation, viewId, controller }
+            );
+            rejectNormalized(invocationError);
+          }
+        });
+      }
+    });
+
+    const APPALMACEN_APP_START_TRACE = perfStart_(
+      "APP_START_TO_READY",
+      { source: "shell" },
+      APPALMACEN_SCRIPT_STARTED_AT
+    );
+
+    /* ======================================================
+       Errores globales
+       ====================================================== */
+    if (!window.__APPALMACEN_ERROR_HANDLERS_BOUND__) {
+      window.__APPALMACEN_ERROR_HANDLERS_BOUND__ = true;
+
+      window.addEventListener("error", event => {
+        registrarError_("GLOBAL", "UNCAUGHT_ERROR", event.error || event.message, {
+          source: event.filename || "",
+          line: Number(event.lineno || 0),
+          column: Number(event.colno || 0)
+        });
+      });
+
+      window.addEventListener("unhandledrejection", event => {
+        registrarError_("GLOBAL", "UNHANDLED_REJECTION", event.reason, null);
+      });
+    }
+
     function escapeHtml_(value) {
-      return String(value ?? "")
+      return String(value == null ? "" : value)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+        .replace(/'/g, "&#39;");
     }
 
-    // =========================================================
-    // ICONO LUCIDE
-    // =========================================================
-    const Icon = ({ name, size = 20, className = "" }) => {
+    /** Componente de icono Lucide con degradación segura. */
+    const Icon = ({ name, size = 20, className = "", fallback = "circle" }) => {
       const iconRef = useRef(null);
 
       useEffect(() => {
-        if (window.lucide && iconRef.current) {
-          iconRef.current.innerHTML = '';
-          const i = document.createElement('i');
-          i.setAttribute('data-lucide', name);
-          i.style.width = `${size}px`;
-          i.style.height = `${size}px`;
-          if (className) i.className = className;
-          iconRef.current.appendChild(i);
+        if (!window.lucide || !iconRef.current) return;
+
+        const renderIcon = iconName => {
+          iconRef.current.innerHTML = "";
+          const node = document.createElement("i");
+          node.setAttribute("data-lucide", iconName);
+          node.style.width = `${size}px`;
+          node.style.height = `${size}px`;
+          if (className) node.className = className;
+          iconRef.current.appendChild(node);
           window.lucide.createIcons();
-        }
-      }, [name, size, className]);
-
-      return e("span", { ref: iconRef, className: "inline-flex items-center" });
-    };
-
-    // =========================================================
-    // MENÚ DE HERRAMIENTAS
-    // =========================================================
-    const TOOLS = [
-      { id: 'PrototipoTraspasos', name: 'Registrar Traspasos', icon: 'arrow-right-left', category: 'Procesos' },
-
-      { id: 'FormularioEtiquetasIdentificadoras', name: 'Etiquetas Identificadoras', icon: 'tag', category: 'Etiquetado' },
-      { id: 'FormularioEtiquetasExcedentes', name: 'Etiquetas Excedentes', icon: 'tag', category: 'Etiquetado' },
-      { id: 'FormularioEtiquetasExcedentesReimpresion', name: 'Reimpresión Excedentes', icon: 'printer', category: 'Etiquetado' },
-
-      { id: 'GestorExcedentes', name: 'Control de excedentes', icon: 'settings', category: 'Consultas' },
-      { id: 'NegativosBirlos', name: 'Negativos en Almacén', icon: 'alert-triangle', category: 'Consultas' },
-      { id: 'MonitorReabastecimiento', name: 'Monitor de Reabastecimiento', icon: 'package-plus', category: 'Consultas' },
-
-      { id: 'AuditoriaExcedentes', name: 'Auditoria de excedentes', icon: 'package-plus', category: 'Auditorias' },
-
-      { id: 'FormularioDetallesProducto', name: 'Detalles de Productos', icon: 'ruler', category: 'Catalogo' }
-    ];
-
-
-    // =========================================================
-    // SISTEMA GLOBAL DE NOTIFICACIONES + SONIDO
-    // =========================================================
-    const NOTIFY_META = {
-      success: {
-        accent: '#d93025',
-        title: 'Operación exitosa',
-        icon: 'success'
-      },
-      warning: {
-        accent: '#696160',
-        title: 'Revisión necesaria',
-        icon: 'warning'
-      },
-      error: {
-        accent: '#a50e0e',
-        title: 'Error del sistema',
-        icon: 'error'
-      },
-      info: {
-        accent: '#454040',
-        title: 'Notificación',
-        icon: 'info'
-      }
-    };
-
-    window.NOTIFY_STATE = window.NOTIFY_STATE || {
-      soundEnabled: true,
-      audioUnlocked: false,
-      audioContext: null,
-      audioUnlockBound: false
-    };
-
-    function inicializarAudioNotificaciones_() {
-      if (window.NOTIFY_STATE.audioUnlockBound) return;
-      window.NOTIFY_STATE.audioUnlockBound = true;
-
-      const unlock = async () => {
-        try {
-          const AC = window.AudioContext || window.webkitAudioContext;
-          if (!AC) return;
-
-          if (!window.NOTIFY_STATE.audioContext) {
-            window.NOTIFY_STATE.audioContext = new AC();
-          }
-
-          if (window.NOTIFY_STATE.audioContext.state === 'suspended') {
-            await window.NOTIFY_STATE.audioContext.resume();
-          }
-
-          window.NOTIFY_STATE.audioUnlocked = true;
-        } catch (err) {
-          console.warn("⚠️ [Notify] No se pudo desbloquear el audio:", err);
-        } finally {
-          document.removeEventListener('pointerdown', unlock, true);
-          document.removeEventListener('keydown', unlock, true);
-          document.removeEventListener('touchstart', unlock, true);
-        }
-      };
-
-      document.addEventListener('pointerdown', unlock, true);
-      document.addEventListener('keydown', unlock, true);
-      document.addEventListener('touchstart', unlock, true);
-    }
-
-    function tocarSonidoNotificacion_(tipo = 'info') {
-      try {
-        const state = window.NOTIFY_STATE;
-        if (!state.soundEnabled || !state.audioUnlocked) return;
-        const ctx = state.audioContext;
-        if (!ctx) return;
-
-        if (ctx.state === 'suspended') {
-          ctx.resume().catch(() => {});
-        }
-
-        const now = ctx.currentTime;
-        const master = ctx.createGain();
-        master.gain.setValueAtTime(0.0001, now);
-        master.connect(ctx.destination);
-
-        const configs = {
-          success: {
-            notes: [880, 1174],
-            durations: [0.08, 0.12],
-            spacing: 0.09,
-            type: 'sine',
-            volume: 0.05
-          },
-          warning: {
-            notes: [622, 740],
-            durations: [0.10, 0.10],
-            spacing: 0.10,
-            type: 'triangle',
-            volume: 0.045
-          },
-          error: {
-            notes: [392, 311],
-            durations: [0.11, 0.14],
-            spacing: 0.10,
-            type: 'sawtooth',
-            volume: 0.04
-          },
-          info: {
-            notes: [784],
-            durations: [0.08],
-            spacing: 0,
-            type: 'sine',
-            volume: 0.035
-          }
         };
 
-        const cfg = configs[tipo] || configs.info;
+        try {
+          renderIcon(String(name || fallback));
+          if (!iconRef.current.querySelector("svg") && name !== fallback) {
+            renderIcon(fallback);
+          }
+        } catch (error) {
+          registrarAdvertencia_("UI", "ICON_RENDER_FAILED", error, {
+            iconName: String(name || ""),
+            fallback
+          });
+        }
+      }, [name, size, className, fallback]);
 
-        cfg.notes.forEach((freq, index) => {
-          const start = now + (index * cfg.spacing);
-          const end = start + cfg.durations[index];
-
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-
-          osc.type = cfg.type;
-          osc.frequency.setValueAtTime(freq, start);
-
-          gain.gain.setValueAtTime(0.0001, start);
-          gain.gain.exponentialRampToValueAtTime(cfg.volume, start + 0.01);
-          gain.gain.exponentialRampToValueAtTime(0.0001, end);
-
-          osc.connect(gain);
-          gain.connect(master);
-
-          osc.start(start);
-          osc.stop(end + 0.02);
-        });
-      } catch (err) {
-        console.warn("⚠️ [Notify] No se pudo reproducir el sonido:", err);
-      }
-    }
-
-    window.configurarSonidoNotificaciones = (enabled = true) => {
-      window.NOTIFY_STATE.soundEnabled = !!enabled;
+      return e("span", {
+        ref: iconRef,
+        className: "inline-flex items-center justify-center shrink-0"
+      });
     };
 
-    // =========================================================
-    // TOAST GLOBAL HOMOLOGADO CON PROTOTIPOTRASPASOS
-    // =========================================================
-    const Toast = Swal.mixin({
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 3000,
-      timerProgressBar: true,
-      background: '#1c1d1f',
-      color: '#ffffff',
-      iconColor: '#d93025',
-      showClass: {
-        popup: 'animate-toast-in'
+    /* ======================================================
+       Catálogo de herramientas y metadatos de vistas
+       ====================================================== */
+    const TOOLS = [
+      {
+        id: "PrototipoTraspasos",
+        name: "Registrar traspasos",
+        description: "Registra movimientos de acomodo, surtido y cambio de bodega",
+        icon: "route",
+        category: "Procesos",
+        header: { showIdentity: true },
+        printing: {
+          showControls: true,
+          allowModeChange: true,
+          allowLocalTest: true,
+          allowOnlineTest: true
+        }
       },
-      hideClass: {
-        popup: 'animate-toast-out'
+      {
+        id: "ConciliacionSaldo",
+        name: "Conciliación de saldo",
+        description: "Registra folio, responsable y respuesta de movimientos pendientes",
+        icon: "scale",
+        category: "Procesos",
+        header: { showIdentity: false },
+        printing: { showControls: false }
       },
-      didOpen: (toast) => {
-        toast.addEventListener('mouseenter', Swal.stopTimer);
-        toast.addEventListener('mouseleave', Swal.resumeTimer);
-        const progress = toast.querySelector('.swal2-timer-progress-bar');
-        if (progress) progress.style.backgroundColor = '#d93025';
+      {
+        id: "VerificacionEntrada",
+        name: "Verificación de entrada",
+        description: "Carga el CFDI, registra cajas y concilia cantidades recibidas por SKU",
+        icon: "package-check",
+        category: "Procesos",
+        header: { showIdentity: false },
+        printing: { showControls: false }
+      },
+      {
+        id: "FormularioEtiquetasIdentificadoras",
+        name: "Etiquetas identificadoras",
+        description: "Genera etiquetas para la identificación operativa de productos",
+        icon: "barcode",
+        category: "Etiquetado",
+        header: { showIdentity: true },
+        printing: {
+          showControls: true,
+          allowModeChange: true,
+          allowLocalTest: true,
+          allowOnlineTest: true
+        }
+      },
+      {
+        id: "FormularioEtiquetasExcedentes",
+        name: "Etiquetas de excedentes",
+        description: "Genera etiquetas para el control y ubicación de excedentes",
+        icon: "package",
+        category: "Etiquetado",
+        header: { showIdentity: true },
+        printing: {
+          showControls: true,
+          allowModeChange: true,
+          allowLocalTest: true,
+          allowOnlineTest: true
+        }
+      },
+      {
+        id: "FormularioEtiquetasExcedentesReimpresion",
+        name: "Reimpresión de excedentes",
+        description: "Consulta y vuelve a imprimir etiquetas de excedentes",
+        icon: "printer",
+        category: "Etiquetado",
+        header: { showIdentity: true },
+        printing: {
+          showControls: true,
+          allowModeChange: true,
+          allowLocalTest: true,
+          allowOnlineTest: true
+        }
+      },
+      {
+        id: "GestorExcedentes",
+        name: "Control de excedentes",
+        description: "Consulta existencias, ubicaciones y disponibilidad operativa",
+        icon: "boxes",
+        category: "Consultas",
+        header: { showIdentity: true },
+        printing: { showControls: false }
+      },
+      {
+        id: "NegativosBirlos",
+        name: "Negativos en almacén",
+        description: "Consulta productos con existencia negativa para su seguimiento",
+        icon: "package-x",
+        category: "Consultas",
+        header: { showIdentity: true },
+        printing: { showControls: false }
+      },
+      {
+        id: "MonitorReabastecimiento",
+        name: "Monitor de reabastecimiento",
+        description: "Consulta necesidades de reposición y disponibilidad de producto",
+        icon: "refresh-cw",
+        category: "Consultas",
+        header: { showIdentity: true },
+        printing: { showControls: false }
+      },
+      {
+        id: "AuditoriaExcedentes",
+        name: "Auditoría de excedentes",
+        description: "Consulta y administra eventos operativos sobre excedentes",
+        icon: "clipboard-check",
+        category: "Auditorías",
+        header: { showIdentity: true },
+        printing: { showControls: false }
+      },
+      {
+        id: "FormularioDetallesProducto",
+        name: "Detalles de productos",
+        description: "Consulta y registra características físicas de los productos",
+        icon: "ruler",
+        category: "Catálogo",
+        header: { showIdentity: true },
+        printing: { showControls: false }
       }
+    ];
+
+    const DEFAULT_HEADER_CONFIG = Object.freeze({ showIdentity: true });
+    const DEFAULT_PRINTING_CONFIG = Object.freeze({
+      showControls: false,
+      allowModeChange: false,
+      allowLocalTest: false,
+      allowOnlineTest: false
     });
 
-    window.notificar = (mensaje, tipo = 'info', customTimer = 3000, options = {}) => {
-      const meta = NOTIFY_META[tipo] || NOTIFY_META.info;
+    const normalizeHeader = header => ({
+      ...DEFAULT_HEADER_CONFIG,
+      ...(header || {})
+    });
 
-      const title = options.title || mensaje;
-      const text = options.title ? mensaje : (options.text || '');
+    const normalizePrinting = printing => ({
+      ...DEFAULT_PRINTING_CONFIG,
+      ...(printing || {})
+    });
 
-      Toast.fire({
-        icon: tipo,
-        title,
-        text,
-        timer: customTimer,
-        background: options.background || '#1c1d1f',
-        color: options.color || '#ffffff',
-        iconColor: options.iconColor || '#d93025'
-      });
+    const VIEW_META = Object.freeze({
+      ...Object.fromEntries(
+        TOOLS.map(tool => [
+          tool.id,
+          Object.freeze({
+            ...tool,
+            header: Object.freeze(normalizeHeader(tool.header)),
+            printing: Object.freeze(normalizePrinting(tool.printing)),
+            parentId: null,
+            visibleInSidebar: true
+          })
+        ])
+      ),
+      AuditoriaExcedentesDetalle: Object.freeze({
+        id: "AuditoriaExcedentesDetalle",
+        name: "Detalle de auditoría",
+        description: "Supervisa resultados, diferencias y avance por ubicación auditada",
+        icon: "clipboard-list",
+        category: "Auditorías",
+        parentId: "AuditoriaExcedentes",
+        visibleInSidebar: false,
+        header: DEFAULT_HEADER_CONFIG,
+        printing: DEFAULT_PRINTING_CONFIG
+      }),
+      AuditoriaExcedentesCaptura: Object.freeze({
+        id: "AuditoriaExcedentesCaptura",
+        name: "Captura de auditoría",
+        description: "Escanea y valida etiquetas durante la revisión física de excedentes",
+        icon: "scan-line",
+        category: "Auditorías",
+        parentId: "AuditoriaExcedentes",
+        visibleInSidebar: false,
+        header: DEFAULT_HEADER_CONFIG,
+        printing: DEFAULT_PRINTING_CONFIG
+      })
+    });
 
-      const shouldSound = options.sound !== false && (options.sound === true || tipo !== 'info');
-      if (shouldSound) {
-        tocarSonidoNotificacion_(tipo);
-      }
-    };
+    function obtenerMetaVista_(viewId) {
+      const id = String(viewId || "").trim();
+      if (id && VIEW_META[id]) return VIEW_META[id];
+
+      const name = id
+        ? id
+            .replace(/([a-záéíóúñ])([A-ZÁÉÍÓÚÑ])/g, "$1 $2")
+            .replace(/[_-]+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+        : "Vista operativa";
+
+      return {
+        id: id || "VistaOperativa",
+        name,
+        description: "Consulta y administra información operativa del almacén",
+        icon: "layout-dashboard",
+        category: "Herramienta",
+        parentId: null,
+        visibleInSidebar: false,
+        header: DEFAULT_HEADER_CONFIG,
+        printing: DEFAULT_PRINTING_CONFIG
+      };
+    }
+
+    /* ======================================================
+       Notificaciones y modales
+       ====================================================== */
+    const Toast = window.Swal
+      ? Swal.mixin({
+          toast: true,
+          position: "top-end",
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true,
+          background: "#1c1d1f",
+          color: "#fff",
+          iconColor: "#d93025",
+          showClass: { popup: "animate-toast-in" },
+          hideClass: { popup: "animate-toast-out" }
+        })
+      : null;
+
+    window.notificar = (mensaje, tipo = "info", timer = 3000, options = {}) => (
+      Toast
+        ? Toast.fire({
+            icon: tipo,
+            title: options.title || mensaje,
+            text: options.title ? mensaje : (options.text || ""),
+            timer
+          })
+        : Promise.resolve()
+    );
 
     window.lanzarNotificacion = window.notificar;
 
-    // =========================================================
-    // MODAL DEL SISTEMA
-    // =========================================================
     window.modalSistema = ({
-      tipo = 'info',
-      title = null,
-      text = '',
-      confirmText = 'Aceptar',
-      cancelText = 'Cancelar',
+      tipo = "info",
+      title = "Mensaje del sistema",
+      text = "",
+      confirmText = "Aceptar",
+      cancelText = "Cancelar",
       showCancelButton = false,
       reverseButtons = true
-    } = {}) => {
-      return Swal.fire({
-        icon: tipo,
-        title: title || 'Mensaje del sistema',
-        html: escapeHtml_(text),
-        showCancelButton,
-        reverseButtons,
-        confirmButtonText: confirmText,
-        cancelButtonText: cancelText,
-        background: '#1c1d1f',
-        color: '#ffffff',
-        confirmButtonColor: '#d93025',
-        cancelButtonColor: '#454040',
-        didOpen: () => {
-          tocarSonidoNotificacion_(tipo === 'info' ? 'warning' : tipo);
-        }
-      });
-    };
+    } = {}) => (
+      window.Swal
+        ? Swal.fire({
+            icon: tipo,
+            title,
+            html: escapeHtml_(text),
+            showCancelButton,
+            reverseButtons,
+            confirmButtonText: confirmText,
+            cancelButtonText: cancelText,
+            background: "#1c1d1f",
+            color: "#fff",
+            confirmButtonColor: "#d93025",
+            cancelButtonColor: "#454040"
+          })
+        : Promise.resolve({ isConfirmed: true })
+    );
 
-    window.confirmarSistema = (config = {}) => {
-      return window.modalSistema({
-        tipo: config.tipo || 'warning',
-        title: config.title || 'Confirmar acción',
-        text: config.text || '¿Deseas continuar?',
-        confirmText: config.confirmText || 'Continuar',
-        cancelText: config.cancelText || 'Cancelar',
-        showCancelButton: true,
-        reverseButtons: true
-      });
-    };
+    window.confirmarSistema = config => window.modalSistema({
+      ...(config || {}),
+      tipo: config?.tipo || "warning",
+      showCancelButton: true
+    });
 
-    inicializarAudioNotificaciones_();
-
-
-    // =========================================================
-    // HELPERS DE SHELL
-    // =========================================================
-
-    function getSwalPopup_() {
-      try {
-        return typeof Swal !== 'undefined' && typeof Swal.getPopup === 'function'
-          ? Swal.getPopup()
-          : document.querySelector('.swal2-popup');
-      } catch (e) {
-        return document.querySelector('.swal2-popup');
-      }
-    }
-
-    function esToastVisible_() {
-      const popup = getSwalPopup_();
-      return !!(popup && popup.classList.contains('swal2-toast'));
-    }
+    /* ======================================================
+       Ciclo de vida de vistas dinámicas
+       ====================================================== */
+    const VIEW_ROOT_KEYS = Object.freeze([
+      "__AUDITORIA_EXCEDENTES_ROOT__",
+      "__AUDITORIA_EXCEDENTES_DETALLE_ROOT__",
+      "__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__",
+      "__NEGATIVOS_BIRLOS_ROOT__",
+      "__GESTOR_EXCEDENTES_ROOT__",
+      "__MONITOR_REABASTECIMIENTO_ROOT__",
+      "__PROTOTIPO_TRASPASOS_ROOT__",
+      "__CONCILIACION_SALDO_ROOT__",
+      "__VERIFICACION_ENTRADA_ROOT__",
+      "__FORMULARIO_DETALLES_PRODUCTO_ROOT__",
+      "__FORMULARIO_ETIQUETAS_EXCEDENTES_ROOT__",
+      "__FORMULARIO_ETIQUETAS_EXCEDENTES_REIMPRESION_ROOT__",
+      "__FORMULARIO_ETIQUETAS_IDENTIFICADORAS_ROOT__"
+    ]);
 
     function limpiarReactRootsVistas_() {
-      const roots = [
-        "__AUDITORIA_EXCEDENTES_ROOT__",
-        "__AUDITORIA_EXCEDENTES_DETALLE_ROOT__",
-        "__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__",
-
-        "__NEGATIVOS_BIRLOS_ROOT__",
-        "__GESTOR_EXCEDENTES_ROOT__",
-        "__MONITOR_REABASTECIMIENTO_ROOT__",
-        "__PROTOTIPO_TRASPASOS_ROOT__",
-        "__FORMULARIO_DETALLES_PRODUCTO_ROOT__",
-        "__FORMULARIO_ETIQUETAS_EXCEDENTES_ROOT__",
-        "__FORMULARIO_ETIQUETAS_EXCEDENTES_REIMPRESION_ROOT__",
-        "__FORMULARIO_ETIQUETAS_IDENTIFICADORAS_ROOT__"
-      ];
-
-      roots.forEach((key) => {
-        const root = window[key];
-
-        if (root && typeof root.unmount === "function") {
-          try {
-            root.unmount();
-            console.log("🧹 [Shell] Root desmontado:", key);
-          } catch (e) {
-            console.warn("⚠️ [Shell] No se pudo desmontar root:", key, e);
+      VIEW_ROOT_KEYS.forEach(rootKey => {
+        try {
+          if (window[rootKey] && typeof window[rootKey].unmount === "function") {
+            window[rootKey].unmount();
           }
+        } catch (error) {
+          registrarAdvertencia_("VIEW", "ROOT_UNMOUNT_FAILED", error, {
+            rootKey
+          });
         }
 
-        window[key] = null;
+        window[rootKey] = null;
       });
     }
 
-    function limpiarRecursosDeVistaAnterior({ cerrarToast = false } = {}) {
-      // Importante: desmontar roots React anteriores para liberar useEffect, timers y polling
+    function limpiarRecursosDeVistaAnterior() {
       limpiarReactRootsVistas_();
-
       window.initVista = null;
 
-      if (window.temporizadorActualizacion) {
-        clearInterval(window.temporizadorActualizacion);
-        window.temporizadorActualizacion = null;
-      }
-
-      if (window.intervaloReimpresion) {
-        clearInterval(window.intervaloReimpresion);
-        window.intervaloReimpresion = null;
-      }
-
-      if (typeof Swal !== 'undefined' && Swal.isVisible()) {
-        const popup = getSwalPopup_();
-        const esToast = !!(popup && popup.classList.contains('swal2-toast'));
-
-        // Solo cerramos si NO es toast o si explícitamente queremos cerrarlo
-        if (!esToast || cerrarToast) {
-          Swal.close();
-        }
-      }
+      ["temporizadorActualizacion", "intervaloReimpresion"].forEach(key => {
+        if (window[key]) clearInterval(window[key]);
+        window[key] = null;
+      });
 
       window.escribiendo = false;
       window.lanzarNotificacion = window.notificar;
     }
 
-    async function cargarScriptExternoSeguro(oldScript) {
-      const src = oldScript.getAttribute("src");
-      if (!src) return;
-
-      const yaExiste = document.querySelector(`script[data-shell-src="${src}"]`);
-      if (yaExiste) {
-        console.log("♻️ [Shell] Script externo ya cargado, se reutiliza:", src);
-        return;
-      }
-
-      await new Promise((resolve, reject) => {
-        const externalScript = document.createElement("script");
-        externalScript.src = src;
-        externalScript.async = false;
-        externalScript.dataset.shellSrc = src;
-
-        Array.from(oldScript.attributes).forEach(attr => {
-          if (attr.name !== "src" && attr.name !== "type") {
-            externalScript.setAttribute(attr.name, attr.value);
-          }
-        });
-
-        externalScript.onload = () => {
-          console.log("✅ [Shell] Script externo cargado:", src);
-          resolve();
-        };
-
-        externalScript.onerror = (err) => {
-          console.error("❌ [Shell] Error cargando script externo:", src, err);
-          reject(new Error(`No se pudo cargar el script externo: ${src}`));
-        };
-
-        document.body.appendChild(externalScript);
-      });
-    }
-
-    function ejecutarScriptInline(scriptContent, scriptType = "text/javascript") {
-      const runtimeScript = document.createElement("script");
-      runtimeScript.type = scriptType;
-      runtimeScript.text = scriptContent;
-      document.body.appendChild(runtimeScript);
-      document.body.removeChild(runtimeScript);
-    }
-
-    async function ejecutarScriptsDeVista(container) {
+    async function ejecutarScriptsDeVista(container, traceId) {
       const scripts = Array.from(container.querySelectorAll("script"));
+      const stats = {
+        totalScripts: scripts.length,
+        executedScripts: 0,
+        babelScripts: 0,
+        skippedScripts: 0,
+        externalScripts: 0,
+        babelMs: 0,
+        executionMs: 0
+      };
+
+      perfMark_(traceId, "SCRIPTS_DISCOVERED", {
+        totalScripts: scripts.length
+      });
 
       for (const oldScript of scripts) {
-        const originalType = (oldScript.getAttribute("type") || "").toLowerCase().trim();
-        const scriptContent = oldScript.textContent || "";
+        const type = (oldScript.getAttribute("type") || "").toLowerCase().trim();
+        const code = oldScript.textContent || "";
 
-        console.log("🔍 [Shell] Analizando script:", {
-          type: originalType || "(vacío)",
-          src: oldScript.src || "(inline)",
-          preview: (scriptContent || "").substring(0, 120)
-        });
-
-        if (originalType === "text/template" || originalType === "text/x-template" || originalType === "application/json" || originalType === "application/ld+json") {
-          console.log("⏭️ [Shell] Script omitido por ser plantilla/datos:", originalType);
-          continue;
-        }
-
-        if (originalType === "module") {
-          console.warn("⚠️ [Shell] Script type='module' omitido por incompatibilidad con HtmlService.");
+        if ([
+          "text/template",
+          "text/x-template",
+          "application/json",
+          "application/ld+json"
+        ].includes(type)) {
+          stats.skippedScripts += 1;
           continue;
         }
 
         if (oldScript.src) {
-          await cargarScriptExternoSeguro(oldScript);
+          stats.externalScripts += 1;
+          stats.skippedScripts += 1;
           continue;
         }
 
-        if (originalType === "text/babel" || originalType === "text/jsx") {
-          try {
-            const transpiled = Babel.transform(scriptContent, {
-              presets: [["react", { runtime: "classic" }]],
-              sourceType: "script"
-            }).code;
+        if (type === "module") {
+          stats.skippedScripts += 1;
+          continue;
+        }
 
-            ejecutarScriptInline(transpiled, "text/javascript");
-            console.log("✅ [Shell] Script Babel transpildado y ejecutado");
-          } catch (err) {
-            console.error("❌ [Shell] Error transpiling Babel script:", err);
-            throw err;
+        let finalCode = code;
+
+        if (type === "text/babel" || type === "text/jsx") {
+          if (!window.Babel) {
+            throw new Error("Babel no está disponible para transpilar la vista.");
           }
+
+          const babelStartedAt = perfNow_();
+          finalCode = Babel.transform(code, {
+            presets: [["react", { runtime: "classic" }]],
+            sourceType: "script"
+          }).code;
+          stats.babelMs += perfNow_() - babelStartedAt;
+          stats.babelScripts += 1;
+        } else if (
+          type &&
+          type !== "text/javascript" &&
+          type !== "application/javascript"
+        ) {
+          stats.skippedScripts += 1;
           continue;
         }
 
-        if (originalType === "" || originalType === "text/javascript" || originalType === "application/javascript") {
-          try {
-            ejecutarScriptInline(scriptContent, "text/javascript");
-            console.log("✅ [Shell] Script JS ejecutado");
-          } catch (err) {
-            console.error("❌ [Shell] Error ejecutando script JS:", err);
-            throw err;
-          }
-          continue;
-        }
-
-        console.warn("⚠️ [Shell] Tipo de script no manejado, se omite:", originalType);
+        const executionStartedAt = perfNow_();
+        const script = document.createElement("script");
+        script.type = "text/javascript";
+        script.text = finalCode;
+        document.body.appendChild(script);
+        script.remove();
+        stats.executionMs += perfNow_() - executionStartedAt;
+        stats.executedScripts += 1;
       }
+
+      stats.babelMs = perfRound_(stats.babelMs);
+      stats.executionMs = perfRound_(stats.executionMs);
+      perfMark_(traceId, "SCRIPTS_EXECUTED", stats);
+
+      return stats;
     }
 
-    // =========================================================
-    // APP PRINCIPAL
-    // =========================================================
-    const App = () => {
+    function construirHtmlPruebaImpresion_(mode) {
+      const finalMode = mode === "ONLINE" ? "ONLINE" : "LOCAL";
+      return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Prueba ${finalMode}</title><style>@page{size:100mm 150mm;margin:0}body{font-family:Arial;margin:0}.etiqueta{width:100mm;height:150mm;padding:8mm;box-sizing:border-box}.titulo{text-align:center;font-size:18px;font-weight:900}.modo{text-align:center;border:2px solid #000;padding:8px;margin-top:12px}</style></head><body><div class="etiqueta"><div class="titulo">BIRLOS Y TORNILLOS</div><div class="modo">PRUEBA DE IMPRESIÓN ${finalMode}</div><p>${escapeHtml_(new Date().toLocaleString("es-MX"))}</p></div></body></html>`;
+    }
 
-      const [activeTool, setActiveTool] = useState('PrototipoTraspasos');
+    /* ======================================================
+       Aplicación principal
+       ====================================================== */
+    const App = () => {
+      const [activeTool, setActiveTool] = useState("PrototipoTraspasos");
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
       const [viewContent, setViewContent] = useState("");
       const [loading, setLoading] = useState(false);
-
+      const [bootstrapReady, setBootstrapReady] = useState(false);
+      const [appVisualReady, setAppVisualReady] = useState(false);
       const [printMode, setPrintMode] = useState(
-        window.ImpresionModoUtilidades ? window.ImpresionModoUtilidades.getMode() : "LOCAL"
+        window.ImpresionModoUtilidades?.getMode?.() || "LOCAL"
       );
-
-      const containerRef = useRef(null);
-
-
-    window.inicializarMegaData = () => {
-      if (window.DATA_ALMACEN_CACHE) {
-        console.log("⚡ [MegaData] Datos leídos desde memoria local. No se consulta al servidor.");
-        return Promise.resolve(window.DATA_ALMACEN_CACHE);
-      }
-
-      return new Promise((resolve, reject) => {
-        const t0 = performance.now();
-        console.log(`[BOOT][CLIENTE] Inicio inicializarMegaData: ${t0.toFixed(2)} ms`);
-
-        // Paso A: avisar al usuario
-        window.notificar("Sincronizando base de datos...", "info", 4200, {
-          title: "Sincronización",
-          sound: false
-        });
-
-        console.log(
-          `[BOOT][CLIENTE] Toast solicitado en: ${(performance.now() - t0).toFixed(2)} ms`
-        );
-
-        // Paso B: darle tiempo al navegador para pintar el toast
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const tDispatch = performance.now();
-
-            console.log(
-              `[BOOT][CLIENTE] Despachando APPALMACENController_getBootstrap en: ${(tDispatch - t0).toFixed(2)} ms`
-            );
-
-            google.script.run
-              .withSuccessHandler((megaData) => {
-                const tSuccess = performance.now();
-
-                console.log(
-                  `[BOOT][CLIENTE] Respuesta bootstrap recibida en: ${(tSuccess - t0).toFixed(2)} ms`
-                );
-
-                window.DATA_ALMACEN_CACHE = megaData;
-                window.usuariosGlobal = megaData.usuarios || [];
-                window.bodegasGlobal = megaData.bodegas || [];
-                window.codigosGlobal = megaData.codigos || [];
-                window.mapaCatalogoGlobal = megaData.mapaCatalogo || megaData.mapaProductos || {};
-                window.mapaUbicacionesExcedentesGlobal =
-                  megaData.mapaUbicacionesExcedentes || megaData.mapaUbicaciones || [];
-
-                console.log("[BOOT][CLIENTE] Resumen bootstrap:", {
-                  usuarios: window.usuariosGlobal.length,
-                  bodegas: window.bodegasGlobal.length,
-                  codigos: window.codigosGlobal.length,
-                  ubicaciones: window.mapaUbicacionesExcedentesGlobal.length
-                });
-
-                window.notificar("Base de datos sincronizada exitosamente", "success", 3200, {
-                  title: "Sistema listo",
-                  sound: true
-                });
-
-                console.log("📦 [MegaData Cache] Datos sincronizados por primera vez:", megaData);
-                console.log(
-                  `[BOOT][CLIENTE] Finalizó inicializarMegaData en: ${(performance.now() - t0).toFixed(2)} ms`
-                );
-
-                resolve(megaData);
-              })
-              .withFailureHandler((error) => {
-                const tFail = performance.now();
-
-                console.error(
-                  `[BOOT][CLIENTE] Error bootstrap recibido en: ${(tFail - t0).toFixed(2)} ms`,
-                  error
-                );
-
-                window.notificar("Error al descargar el catálogo", "error", 4200, {
-                  title: "Sincronización fallida",
-                  sound: true
-                });
-
-                reject(error);
-              })
-              .APPALMACENController_getBootstrap();
-          });
-        });
+      const [printTestState, setPrintTestState] = useState({
+        local: false,
+        online: false
       });
-    };
 
-      const seleccionarVista = (id, fileName) => {
-        limpiarRecursosDeVistaAnterior({ cerrarToast: false });
-        console.log("🧹 [Shell] Preparando carga de vista:", fileName);
+      const bootstrapStartedRef = useRef(false);
+      const initialViewLoadedRef = useRef(false);
+      const containerRef = useRef(null);
+      const bootstrapTraceRef = useRef(null);
+      const viewTraceRef = useRef(null);
+      const viewRequestSequenceRef = useRef(0);
+
+      const meta = obtenerMetaVista_(activeTool);
+      const headerConfig = normalizeHeader(meta.header);
+      const printConfig = normalizePrinting(meta.printing);
+      const showIdentity = headerConfig.showIdentity === true;
+      const hasPrintActions = Boolean(
+        printConfig.allowModeChange ||
+        printConfig.allowLocalTest ||
+        printConfig.allowOnlineTest
+      );
+      const showPrint = printConfig.showControls === true && hasPrintActions;
+      const showShellHeader = showIdentity || showPrint;
+      const sidebarActiveToolId = meta.parentId || meta.id;
+
+      /** Carga una vista HTML e invalida respuestas de navegaciones anteriores. */
+      const seleccionarVista = (id, fileName, options = {}) => {
+        const finalId = String(id || "").trim();
+        const finalFile = String(fileName || id || "").trim();
+        const source = String(options.source || "unknown");
+
+        if (!finalId || !finalFile) {
+          window.notificar("La vista solicitada no es válida.", "error");
+          return;
+        }
+
+        viewRequestSequenceRef.current += 1;
+        const requestSequence = viewRequestSequenceRef.current;
+
+        if (viewTraceRef.current) {
+          perfCancel_(viewTraceRef.current, { reason: "new_navigation" });
+        }
+
+        const traceId = perfStart_("VIEW_READY", {
+          viewId: finalId,
+          fileName: finalFile,
+          source,
+          requestSequence
+        });
+        viewTraceRef.current = traceId;
+
+        perfMark_(traceId, "NAVIGATION_ACCEPTED");
+        limpiarRecursosDeVistaAnterior();
+        perfMark_(traceId, "PREVIOUS_VIEW_CLEANED");
+
         setViewContent("");
-        setActiveTool(id);
+        setActiveTool(finalId);
         setLoading(true);
+        perfMark_(traceId, "SERVER_REQUEST_SENT", {
+          controller: "APPALMACENController_obtenerContenidoVista"
+        });
 
         google.script.run
-          .withSuccessHandler((html) => {
-            setViewContent(html);
-            setLoading(false);
-          })
-          .withFailureHandler((err) => {
-            console.error("❌ [Shell] Error al cargar la vista:", err);
-            setLoading(false);
-            window.notificar("Error al cargar la vista", "error", 4200, {
-              title: "Carga fallida"
-            });
-          })
-          .APPALMACENController_obtenerContenidoVista(fileName);
-      };
-
-      window.irAVistaShell = (idVista, nombreArchivo, globals = {}) => {
-        try {
-          Object.keys(globals || {}).forEach((key) => {
-            window[key] = globals[key];
-          });
-
-          const id = String(idVista || "").trim();
-          const file = String(nombreArchivo || idVista || "").trim();
-
-          if (!id || !file) {
-            throw new Error("irAVistaShell requiere idVista y nombreArchivo.");
-          }
-
-          console.log("🧭 [Shell] Navegación interna:", {
-            idVista: id,
-            nombreArchivo: file,
-            globals
-          });
-
-          seleccionarVista(id, file);
-
-        } catch (error) {
-          console.error("❌ [Shell] Error en irAVistaShell:", error);
-
-          window.notificar(
-            error && error.message ? error.message : "No se pudo navegar a la vista solicitada.",
-            "error",
-            4200,
-            {
-              title: "Navegación no disponible",
-              sound: true
+          .withSuccessHandler(html => {
+            if (requestSequence !== viewRequestSequenceRef.current) {
+              registrarDebug_("VIEW", "STALE_RESPONSE_IGNORED", {
+                viewId: finalId,
+                fileName: finalFile,
+                requestSequence,
+                currentSequence: viewRequestSequenceRef.current
+              });
+              return;
             }
-          );
-        }
+
+            const finalHtml = html || "";
+            perfMark_(traceId, "SERVER_RESPONSE_RECEIVED", {
+              htmlBytes: perfSafeSize_(finalHtml),
+              htmlChars: finalHtml.length
+            });
+
+            setViewContent(finalHtml);
+            setLoading(false);
+            initialViewLoadedRef.current = true;
+          })
+          .withFailureHandler(error => {
+            if (requestSequence !== viewRequestSequenceRef.current) {
+              registrarDebug_("VIEW", "STALE_FAILURE_IGNORED", {
+                viewId: finalId,
+                fileName: finalFile,
+                requestSequence,
+                currentSequence: viewRequestSequenceRef.current
+              });
+              return;
+            }
+
+            perfMark_(traceId, "SERVER_RESPONSE_FAILED", {
+              message: normalizarError_(error).message
+            });
+            perfEnd_(traceId, "error", { stage: "view_load" });
+            if (viewTraceRef.current === traceId) viewTraceRef.current = null;
+
+            registrarError_("VIEW", "LOAD_FAILED", error, {
+              viewId: finalId,
+              fileName: finalFile,
+              controller: "APPALMACENController_obtenerContenidoVista"
+            });
+
+            setLoading(false);
+            initialViewLoadedRef.current = true;
+            window.notificar(
+              error?.message || "Error al cargar la vista",
+              "error",
+              4200,
+              { title: "Carga fallida" }
+            );
+          })
+          .APPALMACENController_obtenerContenidoVista(finalFile);
       };
 
+      window.irAVistaShell = (id, file, globals = {}) => {
+        Object.assign(window, globals || {});
+        seleccionarVista(id, file || id, { source: "internal_navigation" });
+      };
+
+      /* Carga inicial de catálogos globales y vista predeterminada. */
       useEffect(() => {
-        window.inicializarMegaData()
-          .then(() => {
-            console.log("✅ [Shell] MegaData lista. Cargando vista inicial...");
-            seleccionarVista('PrototipoTraspasos', 'PrototipoTraspasos');
-          })
-          .catch((error) => {
-            console.error("🚨 [Shell] No se pudo inicializar MegaData:", error);
-            window.notificar("Error al sincronizar base de datos. Reintenta.", "error", 4500, {
-              title: "Inicialización incompleta",
-              badge: "Error"
+        if (bootstrapStartedRef.current) return;
+        bootstrapStartedRef.current = true;
+
+        const cacheHit = Boolean(window.DATA_ALMACEN_CACHE);
+        const traceId = perfStart_("BOOTSTRAP", {
+          controller: "APPALMACENController_getBootstrap",
+          cacheHit
+        });
+        bootstrapTraceRef.current = traceId;
+        perfMark_(traceId, cacheHit ? "CACHE_HIT" : "SERVER_REQUEST_SENT");
+
+        const run = cacheHit
+          ? Promise.resolve(window.DATA_ALMACEN_CACHE)
+          : new Promise((resolve, reject) => {
+              google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(reject)
+                .APPALMACENController_getBootstrap();
             });
-            setLoading(false);
+
+        run
+          .then(data => {
+            const finalData = data || {};
+            perfMark_(traceId, "BOOTSTRAP_DATA_RECEIVED", {
+              payloadBytes: perfSafeSize_(finalData),
+              usuarios: Array.isArray(finalData.usuarios) ? finalData.usuarios.length : 0,
+              bodegas: Array.isArray(finalData.bodegas) ? finalData.bodegas.length : 0,
+              codigos: Array.isArray(finalData.codigos) ? finalData.codigos.length : 0
+            });
+
+            window.DATA_ALMACEN_CACHE = finalData;
+            window.usuariosGlobal = finalData.usuarios || [];
+            window.bodegasGlobal = finalData.bodegas || [];
+            perfMark_(traceId, "CLIENT_GLOBALS_ASSIGNED");
+            perfEnd_(traceId, "ok");
+            bootstrapTraceRef.current = null;
+
+            setBootstrapReady(true);
+            seleccionarVista(
+              "PrototipoTraspasos",
+              "PrototipoTraspasos",
+              { source: "initial_boot" }
+            );
+          })
+          .catch(error => {
+            perfMark_(traceId, "BOOTSTRAP_FAILED", {
+              message: normalizarError_(error).message
+            });
+            perfEnd_(traceId, "error");
+            bootstrapTraceRef.current = null;
+
+            registrarError_("BOOT", "BOOTSTRAP_FAILED", error, {
+              controller: "APPALMACENController_getBootstrap"
+            });
+            setBootstrapReady(true);
+            seleccionarVista(
+              "PrototipoTraspasos",
+              "PrototipoTraspasos",
+              { source: "bootstrap_fallback" }
+            );
           });
       }, []);
 
       useEffect(() => {
-        if (!containerRef.current || !viewContent) return;
+        if (!bootstrapReady || !initialViewLoadedRef.current) return;
+        setAppVisualReady(true);
+        ocultarLoaderAppalmacen_();
+      }, [bootstrapReady, viewContent]);
 
-        let cancelado = false;
+      /* Ejecuta los scripts embebidos de la vista ya insertada en el DOM. */
+      useEffect(() => {
+        if (!appVisualReady || !containerRef.current || !viewContent) return;
+
+        let cancelled = false;
+        const traceId = viewTraceRef.current;
+        const initializedViewId = activeTool;
+
+        perfMark_(traceId, "REACT_DOM_COMMITTED", {
+          viewId: activeTool,
+          containerChildren: containerRef.current.childElementCount
+        });
 
         (async () => {
           try {
-            console.log("📄 [Shell] viewContent cargado para:", activeTool);
-            console.log("🧪 [Shell] typeof window.initVista ANTES:", typeof window.initVista);
+            const scriptStats = await ejecutarScriptsDeVista(
+              containerRef.current,
+              traceId
+            );
+            if (cancelled) return;
 
-            await ejecutarScriptsDeVista(containerRef.current);
-
-            if (cancelado) return;
-
-            console.log("🧪 [Shell] typeof window.initVista DESPUÉS:", typeof window.initVista);
+            const initStartedAt = perfNow_();
+            let initReturnedCleanup = false;
 
             if (typeof window.initVista === "function") {
-              console.log("🚀 [Shell] Ejecutando initVista:", window.initVista.name || "(anónima)");
-              window.initVista();
-            } else {
-              console.warn("⚠️ [Shell] No existe window.initVista para la vista actual");
+              const initResult = await Promise.resolve(window.initVista());
+              initReturnedCleanup = typeof initResult === "function";
             }
-          } catch (err) {
-            console.error("❌ [Shell] Error inicializando vista:", err);
-            window.notificar("Error al inicializar la vista", "error", 4500, {
-              title: "Inicialización fallida",
-              badge: "Crítico"
+
+            perfMark_(traceId, "INIT_VISTA_COMPLETED", {
+              initVistaMs: perfRound_(perfNow_() - initStartedAt),
+              initVistaExists: typeof window.initVista === "function",
+              initReturnedCleanup,
+              scriptStats
             });
+
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                if (cancelled) return;
+                perfMark_(traceId, "TWO_PAINTS_COMPLETED");
+                perfEnd_(traceId, "ok", { viewId: initializedViewId });
+                if (viewTraceRef.current === traceId) {
+                  viewTraceRef.current = null;
+                }
+              });
+            });
+          } catch (error) {
+            perfMark_(traceId, "INITIALIZATION_FAILED", {
+              message: normalizarError_(error).message
+            });
+            perfEnd_(traceId, "error", {
+              viewId: initializedViewId,
+              stage: "initialization"
+            });
+            if (viewTraceRef.current === traceId) viewTraceRef.current = null;
+
+            registrarError_("VIEW", "INITIALIZATION_FAILED", error, {
+              viewId: initializedViewId
+            });
+            window.notificar("Error al inicializar la vista", "error");
           }
         })();
 
-        return () => { cancelado = true; };
-      }, [viewContent, activeTool]);
+        return () => {
+          cancelled = true;
+        };
+      }, [appVisualReady, viewContent, activeTool]);
 
+      useEffect(() => {
+        const handler = event => setPrintMode(event?.detail?.mode || "LOCAL");
+        window.addEventListener("app-print-mode-change", handler);
+        return () => window.removeEventListener("app-print-mode-change", handler);
+      }, []);
 
-        useEffect(() => {
-          const handler = (event) => {
-            setPrintMode(event?.detail?.mode || "LOCAL");
-          };
+      const cambiarModo = () => {
+        if (!window.ImpresionModoUtilidades?.toggleMode) {
+          window.notificar("Modo de impresión no disponible", "error");
+          return;
+        }
+        setPrintMode(window.ImpresionModoUtilidades.toggleMode());
+      };
 
-          window.addEventListener("app-print-mode-change", handler);
+      const probarLocal = () => {
+        if (printTestState.local) return;
+        setPrintTestState(state => ({ ...state, local: true }));
 
-          return () => {
-            window.removeEventListener("app-print-mode-change", handler);
-          };
-        }, []);
+        try {
+          const opened = window.ImpresionModoUtilidades?.abrirHtmlLocal?.(
+            construirHtmlPruebaImpresion_("LOCAL"),
+            "Prueba LOCAL"
+          );
+          if (opened === false) {
+            throw new Error("No se pudo abrir la prueba LOCAL.");
+          }
+        } catch (error) {
+          registrarError_("PRINT", "LOCAL_TEST_FAILED", error, null);
+          window.notificar(error?.message || "Error LOCAL", "error");
+        } finally {
+          setPrintTestState(state => ({ ...state, local: false }));
+        }
+      };
 
+      const probarOnline = () => {
+        if (printTestState.online) return;
+        setPrintTestState(state => ({ ...state, online: true }));
 
+        const html = construirHtmlPruebaImpresion_("ONLINE");
+        google.script.run
+          .withSuccessHandler(() => {
+            setPrintTestState(state => ({ ...state, online: false }));
+          })
+          .withFailureHandler(error => {
+            registrarError_("PRINT", "ONLINE_TEST_FAILED", error, null);
+            setPrintTestState(state => ({ ...state, online: false }));
+            window.notificar(error?.message || "Error ONLINE", "error");
+          })
+          .ImpresionPuenteController_imprimir({
+            tipo: "HTML_TEST",
+            origen: "APPALMACEN_HEADER",
+            formato: "HTML",
+            html,
+            content: html
+          });
+      };
 
-      const toolsByCategory = TOOLS.reduce((acc, tool) => {
-        if (!acc[tool.category]) acc[tool.category] = [];
-        acc[tool.category].push(tool);
-        return acc;
-      }, {});
-
-      return e("div", { className: "h-screen w-full overflow-hidden bg-[#f8f9fa]" },
-        e("div", { className: "sidebar-trigger", onMouseEnter: () => setIsSidebarOpen(true) }),
-        e("aside", {
-          onMouseEnter: () => setIsSidebarOpen(true),
-          onMouseLeave: () => setIsSidebarOpen(false),
-          className: `app-sidebar bg-[#1c1d1f] flex flex-col sidebar-transition shadow-xl ${isSidebarOpen ? 'sidebar-visible' : 'sidebar-mini'}`
-        },
-
-          e("div", { className: "p-4 flex flex-col items-center" },
-            e("div", { className: "logo-container flex items-center justify-center shadow-md" },
-              e("img", { src: "https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png", alt: "Logo", className: "w-full h-full object-contain" })
-            ),
-            e("div", { className: `mt-4 text-center transition-all duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}` },
-              e("span", { className: "block text-white font-black uppercase text-[15px] tracking-[0.05em]" }, "Gestión de Almacén"),
-              e("span", { className: "text-[#d93025] font-bold text-[12px] uppercase tracking-[0.20em]" }, "Birlos y Tornillos")
-            )
-          ),
-          e("div", { className: "flex justify-center my-2" },
-            e("div", { className: `h-[3px] bg-gray-700/50 transition-all duration-500 ${isSidebarOpen ? 'w-4/5' : 'w-1/2'}` })
-          ),
-          e("nav", { className: "flex-1 px-3 space-y-6 mt-4 custom-scroll overflow-y-auto" },
-            Object.keys(toolsByCategory).map(category =>
-              e("div", { key: category, className: "space-y-2" },
-                e("div", { className: `px-4 transition-all duration-300 ${isSidebarOpen ? 'opacity-100 h-auto mb-2' : 'opacity-0 h-0 overflow-hidden'}` },
-                  e("p", { className: "text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]" }, category)
-                ),
-                e("div", { className: "space-y-1" },
-                  toolsByCategory[category].map(tool =>
-                    e("button", {
-                      key: tool.id,
-                      onClick: () => {
-                        setIsSidebarOpen(false);
-                        seleccionarVista(tool.id, tool.id);
-                      },
-                      className: `w-full h-11 flex items-center rounded-xl transition-all group relative ${activeTool === tool.id ? 'bg-[#d93025] text-white shadow-lg shadow-red-900/20' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`
-                    },
-                      e("div", { className: "min-w-[50px] flex items-center justify-center" },
-                        e(Icon, { name: tool.icon, size: 18 })
-                      ),
-                      e("span", {
-                        className: `font-bold uppercase text-[11px] tracking-tight transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'}`
-                      }, tool.name),
-                      activeTool === tool.id && isSidebarOpen ? e("div", { className: "absolute right-4 w-1.5 h-1.5 bg-white rounded-full" }) : null
-                    )
-                  )
-                ),
-                e("div", { className: "flex justify-center pb-2" },
-                  e("div", { className: `h-[3px] bg-gray-700/50 rounded-full transition-all duration-500 ${isSidebarOpen ? 'w-4/5 opacity-100' : 'w-0 opacity-0 overflow-hidden'}` })
+      const renderIdentity = () => (
+        showIdentity
+          ? e(
+              "div",
+              { className: "app-shell-header-identity" },
+              e(
+                "div",
+                {
+                  className: "app-shell-header-icon",
+                  "aria-hidden": "true"
+                },
+                e(Icon, { name: meta.icon, size: 21 })
+              ),
+              e(
+                "div",
+                { className: "app-shell-header-copy" },
+                e("h1", { className: "app-shell-header-title" }, meta.name),
+                e(
+                  "p",
+                  { className: "app-shell-header-description" },
+                  meta.description
                 )
               )
+            )
+          : null
+      );
+
+      const renderPrint = () => {
+        if (!showPrint) return null;
+
+        const items = [
+          e(
+            "div",
+            {
+              key: "caption",
+              className: "app-shell-print-caption",
+              "aria-hidden": "true"
+            },
+            e("span", { className: "app-shell-print-caption-title" }, "Impresión"),
+            e(
+              "span",
+              { className: "app-shell-print-caption-subtitle" },
+              "Pruebas y modo"
             )
           )
-        ),
-        e("main", { className: "app-main flex flex-col relative bg-[#f8f9fa]" },
-          isSidebarOpen ? e("div", { className: "overlay-fade", onClick: () => setIsSidebarOpen(false) }) : null,
-            e("header", { className: "h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-10 shrink-0 z-10" },
+        ];
 
-              e("div", null,
-                e("h1", { className: "text-xl font-black uppercase tracking-tighter" },
-                  TOOLS.find(t => t.id === activeTool)?.name || activeTool
-                )
-              ),
+        if (printConfig.allowModeChange) {
+          items.push(
+            e(
+              "button",
+              {
+                key: "mode",
+                type: "button",
+                onClick: cambiarModo,
+                className: `app-shell-print-mode ${printMode === "ONLINE" ? "online" : ""}`
+              },
+              e(Icon, {
+                name: printMode === "ONLINE" ? "cloud" : "monitor",
+                size: 16
+              }),
+              e("span", { className: "app-shell-print-mode-text" }, printMode)
+            )
+          );
+        }
 
-              e("div", { className: "flex items-center gap-3" },
-
-                e("button", {
-                  type: "button",
-                  onClick: () => {
-                    if (!window.ImpresionModoUtilidades) {
-                      window.notificar("No se encontró PrintModeUtils.", "error", 3500, {
-                        title: "Modo impresión no disponible",
-                        sound: true
-                      });
-                      return;
-                    }
-
-                    const nuevoModo = window.ImpresionModoUtilidades.toggleMode();
-                    setPrintMode(nuevoModo);
-
-                    window.notificar(
-                      nuevoModo === "ONLINE"
-                        ? "Modo de impresión ONLINE activado."
-                        : "Modo de impresión LOCAL activado.",
-                      "info",
-                      2200,
-                      {
-                        title: "Modo de impresión",
-                        sound: false
-                      }
-                    );
-                  },
-                  className:
-                    "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-[0.12em] border transition-all active:scale-95 " +
-                    (
-                      printMode === "ONLINE"
-                        ? "bg-[#d93025] text-white border-[#d93025] shadow-sm"
-                        : "bg-white text-[#1c1d1f] border-[#dadce0] hover:bg-slate-50"
-                    ),
-                  title: printMode === "ONLINE"
-                    ? "Modo ONLINE: la impresión se envía por web al puente"
-                    : "Modo LOCAL: la impresión se abre en este navegador"
-                },
-                  e(Icon, { name: printMode === "ONLINE" ? "cloud" : "monitor", size: 16 }),
-                  e("span", null, printMode)
-                ),
-
-
-                  e("button", {
-                    type: "button",
-                    onClick: () => {
-                      const fechaHoraPrueba = new Date().toLocaleString();
-
-                      const htmlLocal =
-                        "<!DOCTYPE html>" +
-                        "<html>" +
-                        "<head>" +
-                        "<meta charset='UTF-8'>" +
-                        "<title>Prueba impresión LOCAL</title>" +
-                        "<style>" +
-                        "@page{size:100mm 150mm;margin:0;}" +
-                        "html,body{width:100mm;height:150mm;margin:0;padding:0;background:#fff;font-family:Arial,sans-serif;}" +
-                        ".etiqueta{width:100mm;height:150mm;padding:8mm;box-sizing:border-box;display:flex;flex-direction:column;}" +
-                        ".titulo{text-align:center;font-size:18px;font-weight:900;margin-bottom:8px;}" +
-                        ".subtitulo{text-align:center;font-size:14px;font-weight:900;margin-bottom:12px;}" +
-                        ".modo{text-align:center;font-size:13px;font-weight:900;border:2px solid #000;padding:5px;margin-bottom:10px;}" +
-                        ".linea{border-top:2px solid #000;margin:10px 0;}" +
-                        ".campo{font-size:13px;font-weight:700;margin:6px 0;line-height:1.25;}" +
-                        ".label{font-weight:900;}" +
-                        ".mensaje{font-size:12px;font-weight:700;line-height:1.35;margin-top:8px;text-align:center;}" +
-                        ".mono{font-family:monospace;font-size:12px;font-weight:700;}" +
-                        ".footer{margin-top:auto;text-align:center;font-size:12px;font-weight:900;border-top:2px solid #000;padding-top:6px;}" +
-                        "@media print{html,body{width:100mm;height:150mm;margin:0;padding:0}.etiqueta{page-break-after:always;}}" +
-                        "</style>" +
-                        "</head>" +
-                        "<body>" +
-                        "<div class='etiqueta'>" +
-                        "<div class='titulo'>BIRLOS Y TORNILLOS</div>" +
-                        "<div class='subtitulo'>PRUEBA IMPRESIÓN LOCAL</div>" +
-                        "<div class='modo'>MODO LOCAL</div>" +
-
-                        "<div class='linea'></div>" +
-
-                        "<div class='campo'><span class='label'>FECHA/HORA:</span><br>" + fechaHoraPrueba + "</div>" +
-                        "<div class='campo'><span class='label'>ORIGEN:</span><br>HEADER APPALMACEN</div>" +
-                        "<div class='campo'><span class='label'>CANAL:</span><br>NAVEGADOR LOCAL → VISTA PREVIA → CTRL + P</div>" +
-                        "<div class='campo'><span class='label'>ESTADO:</span><br>IMPRESIÓN DESDE ESTE DISPOSITIVO</div>" +
-
-                        "<div class='linea'></div>" +
-
-                        "<div class='mensaje'>" +
-                        "Esta etiqueta confirma que el modo LOCAL renderiza la etiqueta en el navegador y usa el cuadro de impresión del dispositivo actual." +
-                        "</div>" +
-
-                        "<div class='linea'></div>" +
-
-                        "<div class='campo mono'>RESULTADO ESPERADO:<br>VISTA PREVIA / CTRL + P</div>" +
-
-                        "<div class='footer'>PRUEBA LOCAL FINALIZADA</div>" +
-                        "</div>" +
-                        "</body>" +
-                        "</html>";
-
-                      if (
-                        window.ImpresionModoUtilidades &&
-                        typeof window.ImpresionModoUtilidades.abrirHtmlLocal === "function"
-                      ) {
-                        window.ImpresionModoUtilidades.abrirHtmlLocal(htmlLocal, "Prueba impresión LOCAL");
-                        return;
-                      }
-
-                      const win = window.open("", "_blank", "width=900,height=700");
-
-                      if (win) {
-                        win.document.open();
-                        win.document.write(htmlLocal);
-                        win.document.close();
-
-                        win.onload = function () {
-                          win.focus();
-                          setTimeout(function () {
-                            win.print();
-                          }, 350);
-                        };
-                      } else {
-                        window.notificar("El navegador bloqueó la ventana de impresión LOCAL.", "warning", 3500, {
-                          title: "Impresión LOCAL",
-                          sound: true
-                        });
-                      }
-                    },
-                    className: "inline-flex items-center justify-center w-10 h-10 rounded-xl border border-[#dadce0] bg-white text-slate-600 hover:bg-slate-50 transition-all active:scale-95",
-                    title: "Probar impresión LOCAL"
-                  },
-                    e(Icon, { name: "monitor", size: 17 })
-                  ),
-
-                  e("button", {
-                    type: "button",
-                    onClick: () => {
-                      const fechaHoraPrueba = new Date().toLocaleString();
-
-                      const htmlOnline =
-                        "<!DOCTYPE html>" +
-                        "<html>" +
-                        "<head>" +
-                        "<meta charset='UTF-8'>" +
-                        "<title>Prueba impresión ONLINE</title>" +
-                        "<style>" +
-                        "@page{size:100mm 150mm;margin:0;}" +
-                        "html,body{width:100mm;height:150mm;margin:0;padding:0;background:#fff;font-family:Arial,sans-serif;}" +
-                        ".etiqueta{width:100mm;height:150mm;padding:8mm;box-sizing:border-box;display:flex;flex-direction:column;}" +
-                        ".titulo{text-align:center;font-size:18px;font-weight:900;margin-bottom:8px;}" +
-                        ".subtitulo{text-align:center;font-size:14px;font-weight:900;margin-bottom:12px;}" +
-                        ".modo{text-align:center;font-size:13px;font-weight:900;border:2px solid #000;padding:5px;margin-bottom:10px;}" +
-                        ".linea{border-top:2px solid #000;margin:10px 0;}" +
-                        ".campo{font-size:13px;font-weight:700;margin:6px 0;line-height:1.25;}" +
-                        ".label{font-weight:900;}" +
-                        ".mensaje{font-size:12px;font-weight:700;line-height:1.35;margin-top:8px;text-align:center;}" +
-                        ".mono{font-family:monospace;font-size:12px;font-weight:700;}" +
-                        ".footer{margin-top:auto;text-align:center;font-size:12px;font-weight:900;border-top:2px solid #000;padding-top:6px;}" +
-                        "@media print{html,body{width:100mm;height:150mm;margin:0;padding:0}.etiqueta{page-break-after:always;}}" +
-                        "</style>" +
-                        "</head>" +
-                        "<body>" +
-                        "<div class='etiqueta'>" +
-                        "<div class='titulo'>BIRLOS Y TORNILLOS</div>" +
-                        "<div class='subtitulo'>PRUEBA IMPRESIÓN ONLINE</div>" +
-                        "<div class='modo'>MODO ONLINE</div>" +
-
-                        "<div class='linea'></div>" +
-
-                        "<div class='campo'><span class='label'>FECHA/HORA:</span><br>" + fechaHoraPrueba + "</div>" +
-                        "<div class='campo'><span class='label'>ORIGEN:</span><br>HEADER APPALMACEN</div>" +
-                        "<div class='campo'><span class='label'>CANAL:</span><br>APP WEB → APPS SCRIPT → PRINTSERVER → GD-41</div>" +
-                        "<div class='campo'><span class='label'>ESTADO:</span><br>ENVÍO DIRECTO POR PUENTE ONLINE</div>" +
-
-                        "<div class='linea'></div>" +
-
-                        "<div class='mensaje'>" +
-                        "Esta etiqueta confirma que el modo ONLINE envía HTML por web al PrintServer, genera PDF con Chrome en segundo plano y manda la impresión a la GD-41." +
-                        "</div>" +
-
-                        "<div class='linea'></div>" +
-
-                        "<div class='campo mono'>RESULTADO ESPERADO:<br>IMPRESIÓN SIN USAR CTRL + P</div>" +
-
-                        "<div class='footer'>PRUEBA ONLINE FINALIZADA</div>" +
-                        "</div>" +
-                        "</body>" +
-                        "</html>";
-
-                      const printJob = {
-                        tipo: "HTML_TEST",
-                        origen: "APPALMACEN_HEADER",
-                        formato: "HTML",
-                        html: htmlOnline,
-                        content: htmlOnline,
-                        meta: {
-                          modulo: "APPALMACEN",
-                          accion: "BOTON_TEST_ONLINE",
-                          modo: "ONLINE",
-                          fechaHora: fechaHoraPrueba,
-                          etiqueta: "100x150mm"
-                        }
-                      };
-
-                      window.notificar("Enviando prueba ONLINE al PrintServer...", "info", 2200, {
-                        title: "Impresión ONLINE",
-                        sound: false
-                      });
-
-                      google.script.run
-                        .withSuccessHandler((res) => {
-                          console.log("✅ Prueba ONLINE:", res);
-
-                          if (res && res.ok) {
-                            window.notificar("Prueba ONLINE enviada correctamente.", "success", 3200, {
-                              title: "Impresión ONLINE",
-                              sound: true
-                            });
-                            return;
-                          }
-
-                          window.notificar("El PrintServer respondió, pero no confirmó impresión.", "warning", 4200, {
-                            title: "Impresión no confirmada",
-                            sound: true
-                          });
-                        })
-                        .withFailureHandler((err) => {
-                          console.error("❌ Error prueba ONLINE:", err);
-
-                          window.notificar(
-                            err && err.message ? err.message : "No se pudo enviar la prueba ONLINE.",
-                            "error",
-                            5000,
-                            {
-                              title: "Error ONLINE",
-                              sound: true
-                            }
-                          );
-                        })
-                        .ImpresionPuenteController_imprimir(printJob);
-                    },
-                    className: "inline-flex items-center justify-center w-10 h-10 rounded-xl border border-[#d93025] bg-[#d93025] text-white hover:bg-[#b3261e] transition-all active:scale-95",
-                    title: "Probar impresión ONLINE"
-                  },
-                    e(Icon, { name: "cloud", size: 17 })
-                  )
+        if (printConfig.allowLocalTest) {
+          items.push(
+            e(
+              "button",
+              {
+                key: "local",
+                type: "button",
+                onClick: probarLocal,
+                disabled: printTestState.local,
+                className: "app-shell-print-test local"
+              },
+              e(Icon, {
+                name: printTestState.local ? "loader-2" : "monitor",
+                size: 16,
+                className: printTestState.local ? "animate-spin" : ""
+              }),
+              e(
+                "span",
+                { className: "app-shell-print-test-label" },
+                "Probar local"
               )
-            ),
-          e("div", { className: "app-view-card" },
+            )
+          );
+        }
+
+        if (printConfig.allowOnlineTest) {
+          items.push(
+            e(
+              "button",
+              {
+                key: "online",
+                type: "button",
+                onClick: probarOnline,
+                disabled: printTestState.online,
+                className: "app-shell-print-test online"
+              },
+              e(Icon, {
+                name: printTestState.online ? "loader-2" : "cloud",
+                size: 16,
+                className: printTestState.online ? "animate-spin" : ""
+              }),
+              e(
+                "span",
+                { className: "app-shell-print-test-label" },
+                "Probar online"
+              )
+            )
+          );
+        }
+
+        return e(
+          "div",
+          {
+            className: "app-shell-print-group",
+            role: "group",
+            "aria-label": "Controles de impresión"
+          },
+          ...items
+        );
+      };
+
+      const sidebarActive = window.APPALMACEN_COMPONENTS?.SIDEBAR?.ACTIVE || "sidebar1";
+      const componentName =
+        window.APPALMACEN_COMPONENTS?.SIDEBAR?.CLIENT_COMPONENTS?.[sidebarActive] ||
+        "Sidebar1";
+      const Sidebar =
+        window.FitoComponents?.[componentName] ||
+        window.FitoComponents?.Sidebar1;
+
+      if (!Sidebar) {
+        return e(
+          "div",
+          { className: "p-6 text-red-700 font-bold" },
+          "No se encontró el componente de sidebar."
+        );
+      }
+
+      const brand = window.APPALMACEN_BRAND || {};
+      const theme = window.APPALMACEN_THEME || {};
+
+      return e(
+        "div",
+        { className: "h-screen w-full overflow-hidden bg-[#f8f9fa]" },
+        e(Sidebar, {
+          tools: TOOLS,
+          activeTool: sidebarActiveToolId,
+          isOpen: isSidebarOpen,
+          onOpen: () => setIsSidebarOpen(true),
+          onClose: () => setIsSidebarOpen(false),
+          onSelect: tool => {
+            setIsSidebarOpen(false);
+            seleccionarVista(tool.id, tool.fileName || tool.id, {
+              source: "sidebar"
+            });
+          },
+          logoUrl: brand.LOGO_URL,
+          logoFallback: brand.LOGO_FALLBACK,
+          appName: brand.APP_NAME || "APPALMACEN",
+          appSubtitle: brand.APP_SUBTITLE || "Control operativo",
+          title: brand.APP_NAME || "APPALMACEN",
+          subtitle: brand.APP_SUBTITLE || "Control operativo",
+          theme,
+          themeKey: theme.key || "white"
+        }),
+        e(
+          "main",
+          {
+            className: [
+              "app-main",
+              sidebarActive,
+              showShellHeader ? "has-shell-header" : "without-shell-header",
+              "flex flex-col relative bg-[#f8f9fa]"
+            ].join(" ")
+          },
+          showShellHeader
+            ? e(
+                "header",
+                { className: "app-shell-header" },
+                renderIdentity(),
+                renderPrint()
+              )
+            : null,
+          e(
+            "div",
+            { className: "app-view-card" },
             loading
-              ? e("div", { className: "flex items-center justify-center h-full" },
-                  e(Icon, { name: "loader-2", className: "animate-spin text-[#d93025]", size: 40 })
+              ? e(
+                  "div",
+                  { className: "flex items-center justify-center h-full w-full" },
+                  e(Icon, {
+                    name: "loader-2",
+                    className: "animate-spin text-[#d93025]",
+                    size: 40
+                  })
                 )
               : e("div", {
                   ref: containerRef,
@@ -1273,10 +1890,52 @@
       );
     };
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(e(App));
+    /* ======================================================
+       Montaje y transición final del shell
+       ====================================================== */
+    let APPALMACEN_ROOT_INSTANCE = null;
+    let APPALMACEN_STARTED = false;
+    let APPALMACEN_LOADER_HIDDEN = false;
 
-    document.getElementById('boot-splash').style.display = 'none';
+    function ocultarLoaderAppalmacen_() {
+      if (APPALMACEN_LOADER_HIDDEN) return;
+      APPALMACEN_LOADER_HIDDEN = true;
+
+      const preloader = document.getElementById("fito-preloader");
+      document.body.classList.remove("app-booting");
+      document.body.classList.add("app-handoff");
+
+      setTimeout(() => {
+        if (preloader) preloader.style.display = "none";
+        document.body.classList.remove("app-handoff");
+        document.body.classList.add("app-ready");
+        perfMark_(APPALMACEN_APP_START_TRACE, "LOADER_HIDDEN");
+        perfEnd_(APPALMACEN_APP_START_TRACE, "ok");
+      }, 820);
+    }
+
+    function iniciarAPPALMACEN() {
+      if (APPALMACEN_STARTED) return;
+      APPALMACEN_STARTED = true;
+
+      const rootElement = document.getElementById("root");
+      if (!rootElement) {
+        registrarError_(
+          "BOOT",
+          "ROOT_NOT_FOUND",
+          new Error("No existe el contenedor root."),
+          { rootId: "root" }
+        );
+        return;
+      }
+
+      perfMark_(APPALMACEN_APP_START_TRACE, "REACT_ROOT_CREATE");
+      APPALMACEN_ROOT_INSTANCE = ReactDOM.createRoot(rootElement);
+      APPALMACEN_ROOT_INSTANCE.render(e(App));
+      perfMark_(APPALMACEN_APP_START_TRACE, "REACT_RENDER_REQUESTED");
+    }
+
+    iniciarAPPALMACEN();
   </script>
 </body>
 </html>

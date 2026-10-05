@@ -1,1967 +1,2196 @@
-<script>/** AuditoriaExcedentesDetalle.html */</script>
+<script>
+  /** AuditoriaExcedentesDetalle.html */
+</script>
 
 <style>
   #render-auditoria-excedentes-detalle {
-    --aed-critical: var(--primary);
-    --aed-critical-dark: var(--primary-dark, #a50e0e);
-    --aed-critical-light: var(--primary-light, rgba(217, 48, 37, 0.18));
-
-    --aed-warning: #d97706;
-    --aed-warning-dark: #b45309;
-    --aed-warning-light: rgba(217, 119, 6, 0.14);
-
-    --aed-success: #1e8e3e;
-    --aed-success-dark: #157337;
-    --aed-success-light: rgba(30, 142, 62, 0.14);
-
-    --aed-slate: #1c1d1f;
-    --aed-slate-light: rgba(28, 29, 31, 0.08);
-
-    --aed-bg: var(--bg-color, #f8f9fa);
-    --aed-white: #ffffff;
-    --aed-text-main: var(--text-main, #1c1d1f);
-    --aed-text-secondary: var(--text-secondary, #5f6368);
-    --aed-border: var(--border-color, #dadce0);
-    --aed-shadow-soft: var(--shadow-soft, 0 10px 25px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04));
-    --aed-shadow-red: var(--shadow-red, 0 4px 10px rgba(217, 48, 37, 0.12));
-  }
-
-  #render-auditoria-excedentes-detalle {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  #render-auditoria-excedentes-detalle::-webkit-scrollbar {
-    display: none;
-  }
-
-  #render-auditoria-excedentes-detalle .custom-scroll::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  #render-auditoria-excedentes-detalle .custom-scroll::-webkit-scrollbar-track {
-    background: rgba(0,0,0,0.03);
-  }
-
-  #render-auditoria-excedentes-detalle .custom-scroll::-webkit-scrollbar-thumb {
-    background: rgba(0,0,0,0.16);
-    border-radius: 999px;
-  }
-
-  #render-auditoria-excedentes-detalle .custom-scroll::-webkit-scrollbar-thumb:hover {
-    background: var(--primary);
-  }
-
-  @keyframes aedFadeInUp {
-    from {
-      opacity: 0;
-      transform: translateY(12px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  #render-auditoria-excedentes-detalle .fade-in-up {
-    animation: aedFadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-card {
-    background: var(--aed-white);
-    border: 1px solid var(--aed-border);
-    border-radius: 1.5rem;
-    box-shadow: var(--aed-shadow-soft);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-panel {
-    background: var(--aed-white);
-    border: 1px solid var(--aed-border);
-    border-radius: 1.5rem;
-    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-kpi {
-    background: var(--aed-white);
-    border: 1px solid var(--aed-border);
-    border-radius: 1.15rem;
-    padding: 1rem 1.1rem;
-    position: relative;
+    --c: var(--primary, #d93025);
+    --cd: var(--primary-dark, #a50e0e);
+    --ok: #1e8e3e;
+    --warn: #d97706;
+    --ink: var(--text-main, #1c1d1f);
+    --muted: var(--text-secondary, #5f6368);
+    --border: var(--border-color, #dadce0);
+    height: 100%;
     overflow: hidden;
-    min-height: 118px;
+    color: var(--ink);
   }
 
-  #render-auditoria-excedentes-detalle .aed-kpi-topbar {
+  #render-auditoria-excedentes-detalle * {
+    box-sizing: border-box;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-page {
+    height: 100%;
+    padding: 16px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background:
+      radial-gradient(
+        circle at top right,
+        rgba(217, 48, 37, 0.055),
+        transparent 34%
+      ),
+      var(--bg-color, #f8f9fa);
+  }
+
+  /* La vista principal NO tiene animacion de entrada. */
+  #render-auditoria-excedentes-detalle .aed-workspace {
+    height: 100%;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    box-shadow:
+      0 24px 60px rgba(15, 23, 42, 0.11),
+      0 6px 18px rgba(15, 23, 42, 0.05);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-header {
+    flex: 0 0 auto;
+    position: relative;
+    padding: 18px 18px 18px 22px;
+    display: grid;
+    grid-template-columns: minmax(310px, 1.2fr) minmax(500px, 1.7fr) auto;
+    align-items: center;
+    gap: 16px;
+    overflow: hidden;
+    color: #fff;
+    background:
+      radial-gradient(
+        circle at top right,
+        rgba(217, 48, 37, 0.35),
+        transparent 38%
+      ),
+      linear-gradient(135deg, #1c1d1f 0%, #25272b 55%, #17181a 100%);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-header::before {
+    content: "";
     position: absolute;
-    inset: 0 auto auto 0;
-    height: 5px;
-    width: 100%;
+    inset: 0 auto 0 0;
+    width: 7px;
+    background: var(--c);
   }
 
-  #render-auditoria-excedentes-detalle .aed-kpi-topbar.red { background: var(--aed-critical); }
-  #render-auditoria-excedentes-detalle .aed-kpi-topbar.amber { background: var(--aed-warning); }
-  #render-auditoria-excedentes-detalle .aed-kpi-topbar.emerald { background: var(--aed-success); }
-  #render-auditoria-excedentes-detalle .aed-kpi-topbar.slate { background: var(--aed-slate); }
+  #render-auditoria-excedentes-detalle .aed-header::after {
+    content: "";
+    position: absolute;
+    right: -90px;
+    bottom: -130px;
+    width: 290px;
+    height: 290px;
+    border: 1px solid rgba(255, 255, 255, 0.045);
+    border-radius: 50%;
+    pointer-events: none;
+  }
 
-  #render-auditoria-excedentes-detalle .aed-chip {
+  #render-auditoria-excedentes-detalle .aed-header .aed-id,
+  #render-auditoria-excedentes-detalle .aed-header .metrics,
+  #render-auditoria-excedentes-detalle .aed-header .actions {
+    position: relative;
+    z-index: 2;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-id {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-back {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.09);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: 0.2s;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-back:hover {
+    background: var(--c);
+    border-color: var(--c);
+    transform: translateX(-2px);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-copy {
+    min-width: 0;
+  }
+  #render-auditoria-excedentes-detalle .aed-eyebrow {
+    margin: 0 0 4px;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-title {
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #fff;
+    font:
+      950 22px/1.15 "JetBrains Mono",
+      monospace;
+  }
+
+  #render-auditoria-excedentes-detalle .aed-description {
+    margin: 7px 0 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  #render-auditoria-excedentes-detalle .chip {
+    min-height: 25px;
+    padding: 0 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  #render-auditoria-excedentes-detalle .slate {
+    background: rgba(28, 29, 31, 0.07);
+    border-color: rgba(28, 29, 31, 0.12);
+  }
+  #render-auditoria-excedentes-detalle .green {
+    background: rgba(30, 142, 62, 0.13);
+    color: #157337;
+    border-color: rgba(30, 142, 62, 0.22);
+  }
+  #render-auditoria-excedentes-detalle .amber {
+    background: rgba(217, 119, 6, 0.13);
+    color: #b45309;
+    border-color: rgba(217, 119, 6, 0.22);
+  }
+  #render-auditoria-excedentes-detalle .red {
+    background: rgba(217, 48, 37, 0.12);
+    color: #a50e0e;
+    border-color: rgba(217, 48, 37, 0.22);
+  }
+
+  #render-auditoria-excedentes-detalle .metrics {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(100px, 1.25fr) repeat(5, minmax(72px, 1fr));
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.21);
+    border-radius: 15px;
+    box-shadow:
+      0 12px 30px rgba(0, 0, 0, 0.13),
+      inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  }
+
+  #render-auditoria-excedentes-detalle .metric {
+    min-width: 0;
+    min-height: 67px;
+    padding: 12px 11px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    position: relative;
+    color: var(--ink);
+    border-right: 1px solid var(--border);
+  }
+
+  #render-auditoria-excedentes-detalle .metric:last-child {
+    border-right: 0;
+  }
+  #render-auditoria-excedentes-detalle .metric::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 10px;
+    right: 10px;
+    height: 4px;
+    border-radius: 0 0 999px 999px;
+    background: #1c1d1f;
+  }
+  #render-auditoria-excedentes-detalle .metric.ok::before {
+    background: var(--ok);
+  }
+  #render-auditoria-excedentes-detalle .metric.bad::before {
+    background: var(--c);
+  }
+  #render-auditoria-excedentes-detalle .metric-value {
+    color: var(--ink);
+    font-size: 20px;
+    font-weight: 950;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  #render-auditoria-excedentes-detalle .metric-value small {
+    font-size: 9px;
+    color: var(--muted);
+  }
+  #render-auditoria-excedentes-detalle .metric-label {
+    color: var(--muted);
+    font-size: 8px;
+    font-weight: 950;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  #render-auditoria-excedentes-detalle .track {
+    height: 4px;
+    background: #e2e5e9;
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  #render-auditoria-excedentes-detalle .bar {
+    height: 100%;
+    border-radius: 99px;
+    transition: 0.3s;
+  }
+
+  #render-auditoria-excedentes-detalle .actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  #render-auditoria-excedentes-detalle .action {
+    min-height: 44px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.09);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition:
+      transform 0.16s ease,
+      background-color 0.16s ease;
+  }
+  #render-auditoria-excedentes-detalle .action:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.15);
+  }
+  #render-auditoria-excedentes-detalle .action.primary {
+    border-color: var(--c);
+    background: var(--c);
+    box-shadow: 0 8px 20px rgba(217, 48, 37, 0.25);
+  }
+  #render-auditoria-excedentes-detalle .action.primary:hover {
+    background: var(--cd);
+  }
+  #render-auditoria-excedentes-detalle .action:disabled {
+    opacity: 0.48;
+    pointer-events: none;
+  }
+
+  /* =========================================================
+   ENCABEZADO OPERATIVO DE LA TABLA
+   ========================================================= */
+
+#render-auditoria-excedentes-detalle .toolbar {
+  flex: 0 0 auto;
+  min-height: 78px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #f8f9fa 100%
+    );
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+#render-auditoria-excedentes-detalle .toolbar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 6px;
+  background: var(--c);
+}
+
+#render-auditoria-excedentes-detalle .toolbar::after {
+  content: "";
+  position: absolute;
+  top: -60px;
+  right: -30px;
+  width: 180px;
+  height: 180px;
+  border: 1px solid rgba(217, 48, 37, 0.07);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+#render-auditoria-excedentes-detalle .aed-toolbar-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  position: relative;
+  z-index: 2;
+}
+
+#render-auditoria-excedentes-detalle .aed-toolbar-icon {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: #1c1d1f;
+  color: #ffffff;
+  box-shadow:
+    0 8px 18px rgba(28, 29, 31, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+#render-auditoria-excedentes-detalle .aed-toolbar-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#render-auditoria-excedentes-detalle .aed-toolbar-eyebrow {
+  color: var(--c);
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+#render-auditoria-excedentes-detalle .toolbar h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+#render-auditoria-excedentes-detalle .aed-toolbar-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+#render-auditoria-excedentes-detalle .aed-toolbar-context {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#render-auditoria-excedentes-detalle .aed-toolbar-context-item {
+  min-height: 34px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#render-auditoria-excedentes-detalle .aed-toolbar-context-item.live {
+  color: #157337;
+  border-color: rgba(30, 142, 62, 0.22);
+  background: rgba(30, 142, 62, 0.08);
+}
+
+#render-auditoria-excedentes-detalle .aed-live-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 4px rgba(30, 142, 62, 0.12);
+  animation: aedLivePulse 1.8s ease-in-out infinite;
+}
+
+@keyframes aedLivePulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.55;
+    transform: scale(0.82);
+  }
+}
+
+  #render-auditoria-excedentes-detalle .table-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    position: relative;
+    overflow: auto;
+    background: linear-gradient(180deg, #fff 0%, #fcfcfd 100%);
+  }
+  #render-auditoria-excedentes-detalle .table-wrap::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+  }
+  #render-auditoria-excedentes-detalle .table-wrap::-webkit-scrollbar-thumb {
+    background: #c4c7cc;
+    border-radius: 99px;
+  }
+
+  #render-auditoria-excedentes-detalle table {
+    width: 100%;
+    min-width: 1450px;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  #render-auditoria-excedentes-detalle th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  height: 48px;
+  padding: 0 14px;
+  background:
+    linear-gradient(
+      180deg,
+      #25272b 0%,
+      #1c1d1f 100%
+    );
+  color: rgba(255, 255, 255, 0.78);
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 3px solid var(--c);
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: 0.13em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+#render-auditoria-excedentes-detalle th:last-child {
+  border-right: 0;
+}
+
+#render-auditoria-excedentes-detalle th:first-child {
+  padding-left: 20px;
+}
+
+#render-auditoria-excedentes-detalle td:first-child {
+  padding-left: 20px;
+}
+#render-auditoria-excedentes-detalle td {
+  padding: 13px 14px;
+  border-right: 1px solid #f3f4f6;
+  border-bottom: 1px solid #eef1f4;
+  background: #ffffff;
+  color: var(--ink);
+  vertical-align: middle;
+  font-size: 11px;
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+#render-auditoria-excedentes-detalle td:last-child {
+  border-right: 0;
+}
+
+#render-auditoria-excedentes-detalle tbody tr:nth-child(even) td {
+  background: #fcfcfd;
+}
+
+#render-auditoria-excedentes-detalle tbody tr:hover td {
+  background: #fff8f7;
+}
+
+#render-auditoria-excedentes-detalle tbody tr:hover td:first-child {
+  box-shadow: inset 5px 0 0 var(--c);
+}
+  #render-auditoria-excedentes-detalle .location {
+    font:
+      950 14px "JetBrains Mono",
+      monospace;
+  }
+  #render-auditoria-excedentes-detalle .sub {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+  #render-auditoria-excedentes-detalle .progress {
+    width: 135px;
+    height: 7px;
+    border-radius: 99px;
+    background: #eef1f4;
+    overflow: hidden;
+  }
+  #render-auditoria-excedentes-detalle .progress span {
+    display: block;
+    height: 100%;
+  }
+
+  #render-auditoria-excedentes-detalle .detail-btn {
+    min-height: 38px;
+    padding: 0 13px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    min-height: 32px;
-    padding: 0 12px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 900;
-    letter-spacing: 0.12em;
+    border: 1px solid #1c1d1f;
+    border-radius: 11px;
+    background: #1c1d1f;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    border: 1px solid transparent;
-    white-space: nowrap;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-chip-red {
-    background: var(--aed-critical-light);
-    color: var(--aed-critical-dark);
-    border-color: rgba(217, 48, 37, 0.25);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-chip-amber {
-    background: var(--aed-warning-light);
-    color: var(--aed-warning-dark);
-    border-color: rgba(217, 119, 6, 0.22);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-chip-emerald {
-    background: var(--aed-success-light);
-    color: var(--aed-success-dark);
-    border-color: rgba(30, 142, 62, 0.24);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-chip-slate {
-    background: var(--aed-slate-light);
-    color: var(--aed-text-main);
-    border-color: rgba(28, 29, 31, 0.12);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-chip-open {
-    background: var(--aed-critical-light);
-    color: var(--aed-critical-dark);
-    border-color: rgba(217, 48, 37, 0.20);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-chip-closed {
-    background: var(--aed-success-light);
-    color: var(--aed-success-dark);
-    border-color: rgba(30, 142, 62, 0.24);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-input,
-  #render-auditoria-excedentes-detalle .aed-select,
-  #render-auditoria-excedentes-detalle .aed-textarea {
-    width: 100%;
-    border: 1px solid var(--aed-border);
-    background: #f8f9fa;
-    border-radius: 14px;
-    outline: none;
-    transition: all 0.22s ease;
-    color: var(--aed-text-main);
-    font-weight: 700;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-input,
-  #render-auditoria-excedentes-detalle .aed-select {
-    min-height: 52px;
-    padding: 0 16px;
-    font-size: 14px;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-textarea {
-    min-height: 96px;
-    padding: 14px 16px;
-    font-size: 14px;
-    resize: vertical;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-input:focus,
-  #render-auditoria-excedentes-detalle .aed-select:focus,
-  #render-auditoria-excedentes-detalle .aed-textarea:focus {
-    border-color: var(--primary);
-    background: white;
-    box-shadow: var(--aed-shadow-red);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-label {
-    display: block;
-    margin-bottom: 8px;
-    font-size: 11px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--aed-text-secondary);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-btn-primary,
-  #render-auditoria-excedentes-detalle .aed-btn-dark,
-  #render-auditoria-excedentes-detalle .aed-btn-soft {
-    min-height: 50px;
-    border-radius: 14px;
-    padding: 0 18px;
-    font-size: 12px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    transition: all 0.2s ease;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-btn-primary {
-    border: none;
-    background: var(--primary);
-    color: white;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-btn-primary:hover {
-    background: var(--primary-dark, #a50e0e);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-btn-dark {
-    border: none;
-    background: var(--aed-slate);
-    color: white;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-btn-dark:hover {
-    filter: brightness(0.92);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-btn-soft {
-    background: #fff;
-    color: var(--aed-text-secondary);
-    border: 1px solid var(--aed-border);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-btn-soft:hover {
-    color: var(--primary);
-    border-color: rgba(217, 48, 37, 0.35);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-btn-primary:disabled,
-  #render-auditoria-excedentes-detalle .aed-btn-dark:disabled,
-  #render-auditoria-excedentes-detalle .aed-btn-soft:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-table-wrap {
-    max-height: 68vh;
-    overflow: auto;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: rgba(248, 249, 250, 0.96);
-    backdrop-filter: blur(8px);
-    padding: 14px 16px;
-    font-size: 11px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    color: var(--aed-text-secondary);
-    border-bottom: 1px solid var(--aed-border);
-    white-space: nowrap;
-    text-align: left;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-table tbody td {
-    padding: 14px 16px;
-    border-bottom: 1px solid #eef1f4;
-    background: var(--aed-white);
-    vertical-align: middle;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-row:hover td {
-    background: #fcfcfd;
-  }
-
-  #render-auditoria-excedentes-detalle .aed-list-item {
-    border: 1px solid var(--aed-border);
-    background: white;
-    border-radius: 1rem;
-    padding: 12px 14px;
     cursor: pointer;
-    transition: all 0.18s ease;
+    transition:
+      transform 0.16s ease,
+      background-color 0.16s ease,
+      box-shadow 0.16s ease;
+  }
+  #render-auditoria-excedentes-detalle .detail-btn:hover {
+    transform: translateY(-1px);
+    background: var(--c);
+    border-color: var(--c);
+    box-shadow: 0 8px 18px rgba(217, 48, 37, 0.18);
   }
 
-  #render-auditoria-excedentes-detalle .aed-list-item:hover {
-    border-color: rgba(217, 48, 37, 0.25);
-    box-shadow: var(--aed-shadow-red);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-list-item.active {
-    border-color: var(--primary);
-    background: rgba(217, 48, 37, 0.04);
-  }
-
-  #render-auditoria-excedentes-detalle .aed-empty-state {
-    min-height: 220px;
+  #render-auditoria-excedentes-detalle .empty,
+  #render-auditoria-excedentes-detalle .loading {
+    min-height: 230px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 12px;
-    text-align: center;
     color: #9ca3af;
+    text-align: center;
+  }
+  #render-auditoria-excedentes-detalle .spinner {
+    width: 38px;
+    height: 38px;
+    border: 4px solid #eef1f4;
+    border-top-color: var(--c);
+    border-radius: 50%;
+    animation: aedSpin 0.8s linear infinite;
+  }
+  @keyframes aedSpin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
-  #render-auditoria-excedentes-detalle .aed-meta-main {
-    font-size: 16px;
-    font-weight: 900;
-    color: var(--aed-text-main);
-    letter-spacing: 0.04em;
-    font-family: 'JetBrains Mono', monospace;
+  /* Solo este resumen operativo entra desde la derecha. */
+  #render-auditoria-excedentes-detalle .aed-drawer-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    display: flex;
+    justify-content: flex-end;
+    overflow: hidden;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgba(15, 23, 42, 0.52);
+    backdrop-filter: blur(5px);
+    animation: aedBackdropIn 0.18s ease-out both;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer {
+    position: relative;
+    z-index: 2;
+    width: min(1020px, 96vw);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #fff;
+    border-left: 1px solid var(--border);
+    box-shadow: -24px 0 70px rgba(15, 23, 42, 0.2);
+    animation: aedDrawerIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes aedBackdropIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes aedDrawerIn {
+    from {
+      opacity: 0;
+      transform: translateX(42px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 
-  #render-auditoria-excedentes-detalle .aed-meta-sub {
-    font-size: 11px;
-    font-weight: 800;
-    color: var(--aed-text-secondary);
-    letter-spacing: 0.12em;
+  #render-auditoria-excedentes-detalle .aed-drawer-header {
+    flex: 0 0 auto;
+    position: relative;
+    padding: 20px;
+    overflow: hidden;
+    color: #fff;
+    background:
+      radial-gradient(
+        circle at top right,
+        rgba(217, 48, 37, 0.35),
+        transparent 42%
+      ),
+      linear-gradient(135deg, #1c1d1f 0%, #25272b 55%, #17181a 100%);
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-header::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 7px;
+    background: var(--c);
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-header-main {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-location-wrap {
+    min-width: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-location-icon {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-heading {
+    min-width: 0;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-eyebrow {
+    margin: 0 0 5px;
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 9px;
+    font-weight: 950;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-title {
+    margin: 0;
+    max-width: 440px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #fff;
+    font:
+      950 25px/1.1 "JetBrains Mono",
+      monospace;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-subtitle {
+    margin: 7px 0 0;
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-close {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    cursor: pointer;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-close:hover {
+    background: var(--c);
+  }
+
+  #render-auditoria-excedentes-detalle .aed-drawer-metrics {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(82px, 1fr));
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-metric {
+    min-width: 0;
+    min-height: 88px;
+    padding: 14px 12px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 7px;
+    border-right: 1px solid var(--border);
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-metric:last-child {
+    border-right: 0;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-metric::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 12px;
+    right: 12px;
+    height: 4px;
+    border-radius: 0 0 999px 999px;
+    background: #1c1d1f;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-metric.tone-green::before {
+    background: var(--ok);
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-metric.tone-amber::before {
+    background: var(--warn);
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-metric.tone-red::before {
+    background: var(--c);
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-metric-value {
+    font-size: 21px;
+    font-weight: 950;
+    line-height: 1;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-metric-label {
+    color: var(--muted);
+    font-size: 8px;
+    font-weight: 950;
+    letter-spacing: 0.11em;
     text-transform: uppercase;
   }
 
-  #render-auditoria-excedentes-detalle .aed-state-correcto {
-    background: var(--aed-success-light);
-    color: var(--aed-success-dark);
-    border-color: rgba(30, 142, 62, 0.24);
+  #render-auditoria-excedentes-detalle .aed-drawer-control {
+    flex: 0 0 auto;
+    padding: 13px 16px;
+    display: grid;
+    grid-template-columns: minmax(210px, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    background: #f8f9fa;
+    border-bottom: 1px solid var(--border);
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-search {
+    min-width: 0;
+    position: relative;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-search-icon {
+    position: absolute;
+    top: 50%;
+    left: 13px;
+    z-index: 2;
+    color: #9aa0a6;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-search-input {
+    width: 100%;
+    min-height: 43px;
+    padding: 0 14px 0 41px;
+    outline: none;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 750;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-search-input:focus {
+    border-color: var(--c);
+    box-shadow: 0 0 0 4px rgba(217, 48, 37, 0.1);
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-filters {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+  }
+  #render-auditoria-excedentes-detalle .aed-filter-button {
+    min-height: 38px;
+    padding: 0 11px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: #fff;
+    color: var(--muted);
+    font-size: 8px;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  #render-auditoria-excedentes-detalle .aed-filter-button.active {
+    color: #fff;
+    border-color: #1c1d1f;
+    background: #1c1d1f;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    background: #fff;
+  }
+  #render-auditoria-excedentes-detalle .aed-detail-table {
+    width: 100%;
+    min-width: 720px;
+  }
+  #render-auditoria-excedentes-detalle .aed-detail-id {
+    font:
+      900 12px/1.2 "JetBrains Mono",
+      monospace;
+  }
+  #render-auditoria-excedentes-detalle .aed-detail-description {
+    display: block;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  #render-auditoria-excedentes-detalle .aed-detail-observation {
+    display: block;
+    max-width: 260px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.45;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-footer {
+    flex: 0 0 auto;
+    min-height: 58px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    background: #fff;
+    border-top: 1px solid var(--border);
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-result-count {
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-state {
+    min-height: 280px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 13px;
+    color: #9aa0a6;
+    text-align: center;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-state-title {
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 950;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  #render-auditoria-excedentes-detalle .aed-drawer-state-description {
+    max-width: 360px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.55;
   }
 
-  #render-auditoria-excedentes-detalle .aed-state-faltante {
-    background: var(--aed-warning-light);
-    color: var(--aed-warning-dark);
-    border-color: rgba(217, 119, 6, 0.22);
+  @media (max-width: 1180px) {
+    #render-auditoria-excedentes-detalle .aed-header {
+      grid-template-columns: minmax(270px, 1fr) auto;
+    }
+    #render-auditoria-excedentes-detalle .metrics {
+      grid-column: 1/-1;
+      grid-row: 2;
+    }
+    #render-auditoria-excedentes-detalle .actions {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    #render-auditoria-excedentes-detalle .action-label {
+      display: none;
+    }
+    #render-auditoria-excedentes-detalle .action {
+      width: 44px;
+      padding: 0;
+      justify-content: center;
+    }
   }
-
-  #render-auditoria-excedentes-detalle .aed-state-sobrante {
-    background: var(--aed-critical-light);
-    color: var(--aed-critical-dark);
-    border-color: rgba(217, 48, 37, 0.22);
+  @media (max-width: 820px) {
+    #render-auditoria-excedentes-detalle .aed-drawer {
+      width: 100%;
+    }
+    #render-auditoria-excedentes-detalle .aed-drawer-control {
+      grid-template-columns: 1fr;
+    }
   }
+  @media (max-width: 720px) {
+    #render-auditoria-excedentes-detalle .aed-page {
+      padding: 8px;
+    }
+    #render-auditoria-excedentes-detalle .aed-header {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 16px;
+    }
+    #render-auditoria-excedentes-detalle .aed-id {
+      padding-right: 94px;
+    }
+    #render-auditoria-excedentes-detalle .metrics {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    #render-auditoria-excedentes-detalle .actions {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+    }
+    #render-auditoria-excedentes-detalle .toolbar {
+      align-items: flex-start;
+    }
+    #render-auditoria-excedentes-detalle .toolbar-meta {
+      width: 100%;
+      justify-content: flex-start;
+    }
 
-  #render-auditoria-excedentes-detalle .aed-state-pendiente {
-    background: rgba(28, 29, 31, 0.06);
-    color: var(--aed-text-main);
-    border-color: rgba(28, 29, 31, 0.12);
+    #render-auditoria-excedentes-detalle .toolbar {
+      min-height: auto;
+      padding: 13px 14px 13px 18px;
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    #render-auditoria-excedentes-detalle .aed-toolbar-context {
+      width: 100%;
+      justify-content: flex-start;
+      padding-left: 59px;
+    }
   }
+  @media (max-width: 620px) {
+    #render-auditoria-excedentes-detalle .aed-drawer-header {
+      padding: 16px;
+    }
+    #render-auditoria-excedentes-detalle .aed-drawer-title {
+      font-size: 20px;
+    }
+    #render-auditoria-excedentes-detalle .aed-drawer-metrics {
+      grid-template-columns: repeat(3, 1fr);
+    }
 
-#render-auditoria-excedentes-detalle .aed-kpi {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
+    #render-auditoria-excedentes-detalle .aed-toolbar-context {
+      padding-left: 0;
+    }
 
-#render-auditoria-excedentes-detalle .aed-kpi-label {
-  min-height: 28px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  text-align: left;
-  line-height: 1.15;
-  margin: 0;
-}
-
-#render-auditoria-excedentes-detalle .aed-kpi-value {
-  margin-top: auto;
-  align-self: flex-start;
-  text-align: left;
-  line-height: 1;
-}
-
-#render-auditoria-excedentes-detalle .aed-page {
-  min-height: calc(100dvh - 64px);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-#render-auditoria-excedentes-detalle .aed-locations-panel {
-  flex: 1 1 auto;
-  min-height: 360px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-#render-auditoria-excedentes-detalle .aed-locations-table-wrap {
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: none;
-  overflow: auto;
-}
-
-/* Tabla pro de ubicaciones */
-#render-auditoria-excedentes-detalle .aed-location-row td {
-  padding-top: 18px;
-  padding-bottom: 18px;
-}
-
-#render-auditoria-excedentes-detalle .aed-location-title {
-  font-size: 15px;
-  font-weight: 950;
-  color: var(--aed-text-main);
-  letter-spacing: 0.04em;
-  font-family: 'JetBrains Mono', monospace;
-}
-
-#render-auditoria-excedentes-detalle .aed-location-sub {
-  margin-top: 4px;
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--aed-text-secondary);
-}
-
-#render-auditoria-excedentes-detalle .aed-progress-track {
-  width: 150px;
-  height: 8px;
-  border-radius: 999px;
-  background: #eef1f4;
-  overflow: hidden;
-}
-
-#render-auditoria-excedentes-detalle .aed-progress-bar {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--aed-success);
-}
-
-#render-auditoria-excedentes-detalle .aed-progress-bar.warning {
-  background: var(--aed-warning);
-}
-
-#render-auditoria-excedentes-detalle .aed-progress-bar.danger {
-  background: var(--aed-critical);
-}
-
-/* Popup seguro */
-#render-auditoria-excedentes-detalle .aed-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 99999;
-  background: rgba(0, 0, 0, 0.48);
-  backdrop-filter: blur(5px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-}
-
-#render-auditoria-excedentes-detalle .aed-modal {
-  width: min(1280px, 96vw);
-  height: min(860px, 92dvh);
-  background: white;
-  border: 1px solid var(--aed-border);
-  border-radius: 1.5rem;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-#render-auditoria-excedentes-detalle .aed-modal-header {
-  flex: 0 0 auto;
-  padding: 18px 20px;
-  border-bottom: 1px solid var(--aed-border);
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-#render-auditoria-excedentes-detalle .aed-modal-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
-
-#render-auditoria-excedentes-detalle .aed-modal-close {
-  min-width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  border: 1px solid var(--aed-border);
-  background: #fff;
-  color: var(--aed-text-main);
-  font-weight: 950;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.18s ease;
-}
-
-#render-auditoria-excedentes-detalle .aed-modal-close:hover {
-  background: var(--primary);
-  color: white;
-  border-color: var(--primary);
-}
-
+    #render-auditoria-excedentes-detalle .aed-toolbar-description {
+      white-space: normal;
+    }
+  }
 </style>
 
-<div
-  id="render-auditoria-excedentes-detalle"
-  class="h-full w-full flex flex-col bg-[var(--bg-color)] overflow-y-auto p-4 md:p-8"
-></div>
+<div id="render-auditoria-excedentes-detalle"></div>
 
 <script type="text/babel">
   window.cargar_AuditoriaExcedentesDetalle = () => {
     const { useState, useEffect, useMemo, useCallback, useRef } = React;
-
-    // =========================================================
-    // HELPERS DE NOTIFICACIÓN
-    // =========================================================
-    const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
-      const fn = window.notificar || window.lanzarNotificacion;
-      if (typeof fn === "function") {
-        fn(mensaje, tipo, timer, options);
-      }
+    const notify = (m, t = "info", timer = 2500, o = {}) => {
+      const f = window.notificar || window.lanzarNotificacion;
+      if (typeof f === "function") f(m, t, timer, o);
     };
-
-    const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
-      const now = Date.now();
-      const last = ref.current[key] || 0;
-      if (now - last < cooldown) return;
-      ref.current[key] = now;
-      notify_(mensaje, tipo, timer, options);
+    const str = (v) => String(v == null ? "" : v).trim();
+    const up = (v) => str(v).toUpperCase();
+    const num = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
     };
-
-    const shellNotifyStateRef = { current: {} };
-    const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
-
-    // =========================================================
-    // UTILIDADES DE FECHA / HORA
-    // =========================================================
-    function _esDateValida_(d) {
-      return d instanceof Date && !isNaN(d.getTime());
-    }
-
-    function _parseFechaFlexible_(value) {
-      if (!value) return null;
-
-      if (value instanceof Date) {
-        return _esDateValida_(value) ? value : null;
-      }
-
-      const str = String(value).trim();
-      if (!str) return null;
-
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
-        const parts = str.split("/");
-        const day = Number(parts[0]);
-        const month = Number(parts[1]);
-        const year = Number(parts[2]);
-        const d = new Date(year, month - 1, day, 0, 0, 0, 0);
-        return _esDateValida_(d) ? d : null;
-      }
-
-      const parsed = new Date(str);
-      return _esDateValida_(parsed) ? parsed : null;
-    }
-
-    function _parseHoraFlexible_(value) {
-      if (!value) return null;
-
-      if (value instanceof Date) {
-        return _esDateValida_(value) ? value : null;
-      }
-
-      const str = String(value).trim();
-      if (!str) return null;
-
-      if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
-        const parts = str.split(":");
-        const hh = Number(parts[0] || 0);
-        const mm = Number(parts[1] || 0);
-        const ss = Number(parts[2] || 0);
-        const d = new Date(2000, 0, 1, hh, mm, ss, 0);
-        return _esDateValida_(d) ? d : null;
-      }
-
-      const parsed = new Date(str);
-      return _esDateValida_(parsed) ? parsed : null;
-    }
-
-    function formatearFecha_(value) {
-      const d = _parseFechaFlexible_(value);
-      if (!d) return "Sin fecha";
-
-      return d.toLocaleDateString("es-MX", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric"
-      });
-    }
-
-    function formatearHora_(value) {
-      const d = _parseHoraFlexible_(value);
-      if (!d) return "--";
-
-      return d.toLocaleTimeString("es-MX", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false
-      });
-    }
-
-    function construirResumenFechaHora_(item) {
-      return `${formatearFecha_(item.fecha)} • ${formatearHora_(item.horainicio)} - ${formatearHora_(item.horafin)}`;
-    }
-
-    // =========================================================
-    // HELPERS GENERALES
-    // =========================================================
-    function toStr_(value) {
-      return String(value == null ? "" : value).trim();
-    }
-
-    function toUpper_(value) {
-      return toStr_(value).toUpperCase();
-    }
-
-    function toNum_(value) {
-      if (value === "" || value == null) return 0;
-      const n = Number(value);
-      return isNaN(n) ? 0 : n;
-    }
-
-    function getConfiabilidadVisual_(valor) {
-      const n = Number(valor || 0);
-
-      if (n < 90) {
-        return {
-          label: "Crítica",
-          className: "aed-chip aed-chip-red",
-          tone: "red"
-        };
-      }
-
-      if (n >= 97) {
-        return {
-          label: "Controlada",
-          className: "aed-chip aed-chip-emerald",
-          tone: "emerald"
-        };
-      }
-
-      return {
-        label: "Atención",
-        className: "aed-chip aed-chip-amber",
-        tone: "amber"
-      };
-    }
-
-    function getEstadoFilaVisual_(row) {
-      const estado = toUpper_(row.estado || "");
-
-      if (estado === "CORRECTO" || row.escorrecto === true) {
-        return {
-          className: "aed-chip aed-state-correcto",
-          text: "Correcto"
-        };
-      }
-
-      if (estado === "FALTANTE" || row.esfaltante === true) {
-        return {
-          className: "aed-chip aed-state-faltante",
-          text: "Faltante"
-        };
-      }
-
-      if (estado === "SOBRANTE" || row.essobrante === true) {
-        return {
-          className: "aed-chip aed-state-sobrante",
-          text: "Sobrante"
-        };
-      }
-
-      return {
-        className: "aed-chip aed-state-pendiente",
-        text: "Pendiente"
-      };
-    }
-
-    function normalizarDetalleUbicacionResponse_(resp, fallbackUbicacion = "") {
-      if (!resp) {
-        return {
-          ubicacion: fallbackUbicacion,
-          detalle: [],
-          resumen: {
-            esperados: 0,
-            escaneados: 0,
-            correctos: 0,
-            faltantes: 0,
-            sobrantes: 0
-          }
-        };
-      }
-
-      const rawDetalle = Array.isArray(resp)
-        ? resp
-        : Array.isArray(resp.detalle)
-        ? resp.detalle
-        : Array.isArray(resp.data)
-        ? resp.data
-        : Array.isArray(resp.rows)
-        ? resp.rows
-        : [];
-
-      // Para el popup no mostramos marcadores de ubicación.
-      const detalle = rawDetalle.filter((x) => x && x.idunico);
-
-      const resumenBackend = resp.resumen || {};
-
-      const correctos = resumenBackend.correctos != null
-        ? toNum_(resumenBackend.correctos)
-        : detalle.filter(x => toUpper_(x.estado) === "CORRECTO" || x.escorrecto === true).length;
-
-      const faltantes = resumenBackend.faltantes != null
-        ? toNum_(resumenBackend.faltantes)
-        : detalle.filter(x => toUpper_(x.estado) === "FALTANTE" || x.esfaltante === true).length;
-
-      const sobrantes = resumenBackend.sobrantes != null
-        ? toNum_(resumenBackend.sobrantes)
-        : detalle.filter(x => toUpper_(x.estado) === "SOBRANTE" || x.essobrante === true).length;
-
-      const escaneados = resumenBackend.escaneados != null
-        ? toNum_(resumenBackend.escaneados)
-        : detalle.filter(x =>
-            (x.idunico && x.esfaltante !== true) ||
-            toUpper_(x.estado) === "CORRECTO" ||
-            toUpper_(x.estado) === "SOBRANTE"
-          ).length;
-
-      const esperados = resumenBackend.esperados != null
-        ? toNum_(resumenBackend.esperados)
-        : correctos + faltantes;
-
-      return {
-        ubicacion: toUpper_(resp.ubicacion || fallbackUbicacion || (detalle[0] && detalle[0].ubicacion) || ""),
-        detalle,
-        resumen: {
-          esperados,
-          escaneados,
-          correctos,
-          faltantes,
-          sobrantes
-        }
-      };
-    }
-
-    // =========================================================
-    // ICONO LOCAL
-    // =========================================================
-    const LocalIcon = ({ name, size = 18, className = "" }) => {
-      const iconRef = useRef(null);
-
-      useEffect(() => {
-        if (window.lucide && iconRef.current) {
-          iconRef.current.innerHTML = "";
-          const i = document.createElement("i");
-          i.setAttribute("data-lucide", name.toLowerCase());
-          i.style.width = `${size}px`;
-          i.style.height = `${size}px`;
-          if (className) i.className = className;
-          iconRef.current.appendChild(i);
-          window.lucide.createIcons();
-        }
-      }, [name, size, className]);
-
-      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
-    };
-
-    // =========================================================
-    // COMPONENTE PRINCIPAL
-    // =========================================================
-    const AuditoriaExcedentesDetalleView = () => {
-      const [loading, setLoading] = useState(true);
-      const [auditId, setAuditId] = useState(window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ || "");
-      const [auditData, setAuditData] = useState(null);
-
-      const [modalDetalleOpen, setModalDetalleOpen] = useState(false);
-      const [modalLoading, setModalLoading] = useState(false);
-      const [modalUbicacion, setModalUbicacion] = useState("");
-      const [modalDetalleUbicacion, setModalDetalleUbicacion] = useState({
-        ubicacion: "",
-        detalle: [],
-        resumen: {
-          esperados: 0,
-          escaneados: 0,
-          correctos: 0,
-          faltantes: 0,
-          sobrantes: 0
-        }
-      });
-
-      
-      const firstLoadDoneRef = useRef(false);
-      const refreshInFlightRef = useRef(false);
-      const pulseInFlightRef = useRef(false);
-      const mountedRef = useRef(true);
-
-      const mergeFullRefreshConEstadoVivo_ = useCallback((base, fresh) => {
-        const prev = base || {};
-        const next = fresh || {};
-
-        const prevUbicaciones = Array.isArray(prev.ubicacionesEnVivo)
-          ? prev.ubicacionesEnVivo
-          : [];
-
-        const freshUbicaciones = Array.isArray(next.ubicacionesEnVivo)
-          ? next.ubicacionesEnVivo
-          : [];
-
-        const map = {};
-
-        freshUbicaciones.forEach((u) => {
-          const key = toUpper_(u.key || u.ubicacion || "");
-          if (!key) return;
-
-          map[key] = {
-            ...u,
-            key,
-            ubicacion: toUpper_(u.ubicacion || key),
-            __fuenteMerge: "SHEETS"
-          };
+    const fmtDate = (v) =>
+      !v
+        ? "Sin fecha"
+        : v instanceof Date
+          ? v.toLocaleDateString("es-MX")
+          : str(v);
+    const fmtTime = (v) => {
+      if (!v) return "--";
+      if (v instanceof Date)
+        return v.toLocaleTimeString("es-MX", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
         });
+      const s = str(v);
+      return /^\d{1,2}:\d{2}/.test(s) ? s.slice(0, 5) : "--";
+    };
 
-        prevUbicaciones.forEach((u) => {
-          const key = toUpper_(u.key || u.ubicacion || "");
-          if (!key) return;
+    function Icon({ name, size = 17, className = "" }) {
+      const r = useRef(null);
+      useEffect(() => {
+        if (!window.lucide || !r.current) return;
+        r.current.innerHTML = "";
+        const i = document.createElement("i");
+        i.setAttribute("data-lucide", name || "circle");
+        i.style.width = `${size}px`;
+        i.style.height = `${size}px`;
+        i.className = className;
+        r.current.appendChild(i);
+        window.lucide.createIcons();
+      }, [name, size, className]);
+      return (
+        <span ref={r} className="inline-flex items-center justify-center" />
+      );
+    }
 
-          const freshItem = map[key] || null;
+    const normalizeLocation = (response, fallback, auditId) => {
+      const safe = response || {};
+      const rows = Array.isArray(safe)
+        ? safe
+        : Array.isArray(safe.detalle)
+          ? safe.detalle
+          : Array.isArray(safe.data)
+            ? safe.data
+            : [];
+      const detail = rows.filter((r) => r && r.idunico);
+      const s = safe.resumen || {};
+      const first = detail[0] || null;
+      const unique = (list) => {
+        const map = {};
+        list.forEach((r) => {
+          const k = up(r.idunico);
+          if (k && !map[k]) map[k] = r;
+        });
+        return Object.values(map);
+      };
+      const c = unique(detail.filter((r) => r.escorrecto === true)).length;
+      const f = unique(detail.filter((r) => r.esfaltante === true)).length;
+      const so = unique(detail.filter((r) => r.essobrante === true)).length;
+      const e = unique(detail.filter((r) => r.esfaltante !== true)).length;
+      return {
+        idauditoria: safe.idauditoria || auditId || "",
+        ubicacion: up(safe.ubicacion || fallback),
+        bodega: up(safe.bodega || first?.bodega || ""),
+        detalle: detail,
+        resumen: {
+          esperados: num(s.esperados) || c + f,
+          escaneados: num(s.escaneados) || e,
+          correctos: num(s.correctos) || c,
+          faltantes: num(s.faltantes) || f,
+          sobrantes: num(s.sobrantes) || so,
+        },
+      };
+    };
 
-          const prevCorrectos = Number(u.correctos || 0);
-          const prevEscaneados = Number(u.escaneados || 0);
-          const prevFaltantes = Number(u.faltantes || 0);
-          const prevSobrantes = Number(u.sobrantes || 0);
+    function Metric({ label, value, ok, bad }) {
+      return (
+        <div className={`metric ${ok ? "ok" : ""} ${bad ? "bad" : ""}`}>
+          <div className="metric-value">{num(value)}</div>
+          <div className="metric-label">{label}</div>
+        </div>
+      );
+    }
+    function DrawerMetric({ label, value, tone }) {
+      return (
+        <div className={`aed-drawer-metric tone-${tone}`}>
+          <div className="aed-drawer-metric-value">{num(value)}</div>
+          <div className="aed-drawer-metric-label">{label}</div>
+        </div>
+      );
+    }
 
-          const freshCorrectos = Number(freshItem?.correctos || 0);
-          const freshEscaneados = Number(freshItem?.escaneados || 0);
-          const freshFaltantes = Number(freshItem?.faltantes || 0);
-          const freshSobrantes = Number(freshItem?.sobrantes || 0);
+    function LocationRow({ item, onOpen }) {
+      const progress = Math.max(0, Math.min(100, num(item.avancePct)));
+      const status = item.cerrada
+        ? item.tieneDiferencia
+          ? "Cerrada con diferencia"
+          : "Cerrada correcta"
+        : item.estadoRitmo === "DETENIDO"
+          ? "Detenido"
+          : item.estadoRitmo === "CRITICO"
+            ? "Crítico"
+            : item.estadoRitmo === "LENTO"
+              ? "Lento"
+              : "A tiempo";
+      const tone =
+        item.tieneDiferencia ||
+        ["DETENIDO", "CRITICO"].includes(item.estadoRitmo)
+          ? "red"
+          : item.estadoRitmo === "LENTO"
+            ? "amber"
+            : "green";
+      return (
+        <tr>
+          <td>
+            <div className="location">{item.ubicacion || "SIN UBICACIÓN"}</div>
+            <div className="sub">
+              {item.bodega || "SIN BODEGA"} · Secuencia{" "}
+              {num(item.secuenciaubicacion)}
+            </div>
+          </td>
+          <td>
+            <div className="flex items-center gap-2">
+              <div className="progress">
+                <span
+                  style={{
+                    width: `${progress}%`,
+                    background:
+                      tone === "red"
+                        ? "var(--c)"
+                        : tone === "amber"
+                          ? "var(--warn)"
+                          : "var(--ok)",
+                  }}
+                />
+              </div>
+              <b>{progress}%</b>
+            </div>
+          </td>
+          <td>{num(item.esperados)}</td>
+          <td>{num(item.escaneados)}</td>
+          <td>
+            <b style={{ color: "var(--ok)" }}>{num(item.correctos)}</b>
+          </td>
+          <td>
+            <b style={{ color: "var(--warn)" }}>{num(item.faltantes)}</b>
+          </td>
+          <td>
+            <b style={{ color: "var(--c)" }}>{num(item.sobrantes)}</b>
+          </td>
+          <td>{num(item.pendientes)}</td>
+          <td>{num(item.minutosTranscurridos).toFixed(1)} min</td>
+          <td>{num(item.escaneosPorMinuto).toFixed(2)} ids/min</td>
+          <td>
+            {item.cerrada
+              ? "—"
+              : `${num(item.minutosEstimadosRestantes).toFixed(1)} min`}
+          </td>
+          <td>
+            {fmtTime(item.horainicioubicacion)} /{" "}
+            {fmtTime(item.horafinubicacion)}
+          </td>
+          <td>
+            <span className={`chip ${tone}`}>{status}</span>
+          </td>
+          <td>
+            <button type="button" className="detail-btn" onClick={onOpen}>
+              <Icon name="panel-right-open" size={14} />
+              Ver detalle
+            </button>
+          </td>
+        </tr>
+      );
+    }
 
-          const prevTieneMasMovimiento =
-            prevCorrectos > freshCorrectos ||
-            prevEscaneados > freshEscaneados ||
-            prevFaltantes > freshFaltantes ||
-            prevSobrantes > freshSobrantes;
+    function LocationDetailDrawer({ data, loading, close, audit, auditId }) {
+      const [query, setQuery] = useState("");
+      const [filter, setFilter] = useState("TODOS");
+      useEffect(() => {
+        const p = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        const k = (e) => e.key === "Escape" && close();
+        window.addEventListener("keydown", k);
+        return () => {
+          document.body.style.overflow = p;
+          window.removeEventListener("keydown", k);
+        };
+      }, [close]);
+      const rows = Array.isArray(data?.detalle) ? data.detalle : [];
+      const state = (row) =>
+        row?.escorrecto === true
+          ? {
+              key: "CORRECTO",
+              label: "Correcto",
+              className: "green",
+              icon: "circle-check",
+            }
+          : row?.esfaltante === true
+            ? {
+                key: "FALTANTE",
+                label: "Faltante",
+                className: "amber",
+                icon: "triangle-alert",
+              }
+            : row?.essobrante === true
+              ? {
+                  key: "SOBRANTE",
+                  label: "Sobrante",
+                  className: "red",
+                  icon: "circle-x",
+                }
+              : {
+                  key: "PENDIENTE",
+                  label: "Pendiente",
+                  className: "slate",
+                  icon: "clock-3",
+                };
+      const filtered = useMemo(() => {
+        const q = up(query);
+        return rows.filter((row) => {
+          const s = state(row);
+          if (filter !== "TODOS" && s.key !== filter) return false;
+          if (!q) return true;
+          return up(
+            [
+              row?.idunico,
+              row?.codigo,
+              row?.descripcion,
+              row?.observaciones,
+              row?.bodega,
+              row?.ubicacion,
+            ].join(" "),
+          ).includes(q);
+        });
+      }, [rows, query, filter]);
+      const r = data?.resumen || {},
+        esperados = num(r.esperados),
+        escaneados = num(r.escaneados),
+        correctos = num(r.correctos),
+        faltantes = num(r.faltantes),
+        sobrantes = num(r.sobrantes),
+        confiabilidad =
+          esperados > 0 ? Math.min(100, (correctos / esperados) * 100) : 0;
+      const ds =
+        faltantes > 0 || sobrantes > 0
+          ? { label: "Con diferencias", className: "red" }
+          : correctos > 0
+            ? { label: "Conciliada", className: "green" }
+            : { label: "Sin actividad", className: "slate" };
+      const filters = [
+        { key: "TODOS", label: "Todos" },
+        { key: "CORRECTO", label: "Correctos" },
+        { key: "FALTANTE", label: "Faltantes" },
+        { key: "SOBRANTE", label: "Sobrantes" },
+      ];
+      const folio =
+          audit?.idauditoria || data?.idauditoria || auditId || "SIN AUDITORÍA",
+        bodega = data?.bodega || audit?.bodegaobjetivo || "TODAS LAS BODEGAS";
+      return (
+        <div className="aed-drawer-layer" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            className="aed-drawer-backdrop"
+            onClick={close}
+          />
+          <aside className="aed-drawer">
+            <header className="aed-drawer-header">
+              <div className="aed-drawer-header-main">
+                <div className="aed-drawer-location-wrap">
+                  <div className="aed-drawer-location-icon">
+                    <Icon name="warehouse" size={23} />
+                  </div>
+                  <div className="aed-drawer-heading">
+                    <p className="aed-drawer-eyebrow">
+                      Detalle operativo de ubicación
+                    </p>
+                    <h2 className="aed-drawer-title">
+                      {data?.ubicacion || "SIN UBICACIÓN"}
+                    </h2>
+                    <p className="aed-drawer-subtitle">
+                      {folio} · {bodega}
+                    </p>
+                    <div className="toolbar-meta" style={{ marginTop: 11 }}>
+                      <span className={`chip ${ds.className}`}>{ds.label}</span>
+                      <span className="chip slate">
+                        {filtered.length} registros visibles
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="aed-drawer-close"
+                  onClick={close}
+                >
+                  <Icon name="x" size={19} />
+                </button>
+              </div>
+            </header>
+            <section className="aed-drawer-metrics">
+              <DrawerMetric label="Esperados" value={esperados} tone="slate" />
+              <DrawerMetric
+                label="Escaneados"
+                value={escaneados}
+                tone="slate"
+              />
+              <DrawerMetric label="Correctos" value={correctos} tone="green" />
+              <DrawerMetric label="Faltantes" value={faltantes} tone="amber" />
+              <DrawerMetric label="Sobrantes" value={sobrantes} tone="red" />
+            </section>
+            <section className="aed-drawer-control">
+              <label className="aed-drawer-search">
+                <span className="aed-drawer-search-icon">
+                  <Icon name="search" size={16} />
+                </span>
+                <input
+                  type="search"
+                  className="aed-drawer-search-input"
+                  placeholder="Buscar IdUnico, código, descripción..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </label>
+              <div className="aed-drawer-filters">
+                {filters.map((x) => (
+                  <button
+                    key={x.key}
+                    type="button"
+                    className={`aed-filter-button ${filter === x.key ? "active" : ""}`}
+                    onClick={() => setFilter(x.key)}
+                  >
+                    {x.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+            <section className="aed-drawer-content">
+              {loading ? (
+                <div className="aed-drawer-state">
+                  <div className="spinner" />
+                  <div className="aed-drawer-state-title">
+                    Consultando ubicación
+                  </div>
+                  <div className="aed-drawer-state-description">
+                    Cargando los resultados de auditoría
+                  </div>
+                </div>
+              ) : filtered.length ? (
+                <table className="aed-detail-table">
+                  <thead>
+                    <tr>
+                      <th>IdUnico</th>
+                      <th>Producto</th>
+                      <th>Estado</th>
+                      <th>Hora</th>
+                      <th>Observaciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((row, i) => {
+                      const s = state(row);
+                      return (
+                        <tr key={`${row?.idunico || "SIN-ID"}-${i}`}>
+                          <td>
+                            <span className="aed-detail-id">
+                              {row?.idunico || "SIN ID"}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="aed-detail-id">
+                              {row?.codigo || "—"}
+                            </div>
+                            <span className="aed-detail-description">
+                              {row?.descripcion || "Sin descripción"}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`chip ${s.className}`}>
+                              <Icon name={s.icon} size={13} />
+                              {s.label}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="aed-detail-id">
+                              {fmtTime(row?.horaescaneoidunico)}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="aed-detail-observation">
+                              {row?.observaciones || "Sin observaciones"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="aed-drawer-state">
+                  <Icon
+                    name={
+                      query || filter !== "TODOS" ? "search-x" : "package-open"
+                    }
+                    size={32}
+                  />
+                  <div className="aed-drawer-state-title">
+                    {query || filter !== "TODOS"
+                      ? "Sin coincidencias"
+                      : "Sin registros"}
+                  </div>
+                </div>
+              )}
+            </section>
+            <footer className="aed-drawer-footer">
+              <div>
+                <div className="aed-drawer-result-count">
+                  {filtered.length} de {rows.length} registros
+                </div>
+                <div className="track" style={{ width: 180, marginTop: 7 }}>
+                  <div
+                    className="bar"
+                    style={{
+                      width: `${confiabilidad}%`,
+                      background:
+                        confiabilidad >= 97
+                          ? "var(--ok)"
+                          : confiabilidad >= 90
+                            ? "var(--warn)"
+                            : "var(--c)",
+                    }}
+                  />
+                </div>
+              </div>
+            </footer>
+          </aside>
+        </div>
+      );
+    }
 
-          const prevEsUbicacionViva =
-            u.abierta === true || u.cerrada === true;
+    function App() {
+      const [id, setId] = useState(
+        window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ || "",
+      );
+      const [data, setData] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [modal, setModal] = useState(null);
+      const [modalLoading, setModalLoading] = useState(false);
+      const lastFullLoadRef = useRef(0);
+      const mounted = useRef(true),
+        fullBusy = useRef(false),
+        pulseBusy = useRef(false);
+      useEffect(
+        () => () => {
+          mounted.current = false;
+        },
+        [],
+      );
 
-          const freshYaCerro =
-            freshItem && freshItem.cerrada === true;
+      const merge = useCallback(
+        (previous, incoming, options = {}) => {
+          const prior = previous || {};
+          const next = incoming || {};
 
-          const prevYaCerro =
-            u.cerrada === true;
+          const replaceLocations =
+            options.replaceLocations === true;
+
+          const map = {};
 
           /*
-            Regla anti-parpadeo:
-            1. Si Sheets ya trae la ubicación cerrada, Sheets manda.
-            2. Si LiveCache tiene más movimiento que Sheets, conservamos Live.
-            3. Si LiveCache trae una ubicación que Sheets todavía no trae, la conservamos.
-            4. Si LiveCache ya la cerró pero Sheets todavía no la refleja, la conservamos.
+          * El pulso es incremental y conserva ubicaciones previas.
+          * La carga completa es autoritativa y reemplaza ubicaciones.
           */
-          if (!freshYaCerro && prevEsUbicacionViva && (!freshItem || prevTieneMasMovimiento || prevYaCerro)) {
-            map[key] = {
-              ...(freshItem || {}),
-              ...u,
-              key,
-              ubicacion: toUpper_(u.ubicacion || key),
-              __fuenteMerge: "LIVE_PRESERVADO"
-            };
-          }
-        });
-
-        const ubicacionesEnVivo = Object.values(map).sort((a, b) => {
-          const seq = Number(a.secuenciaubicacion || 0) - Number(b.secuenciaubicacion || 0);
-          if (seq !== 0) return seq;
-
-          return String(a.ubicacion || "").localeCompare(String(b.ubicacion || ""), "es", {
-            numeric: true,
-            sensitivity: "base"
-          });
-        });
-
-        return {
-          ...prev,
-          ...next,
-
-          auditoria: {
-            ...(prev.auditoria || {}),
-            ...(next.auditoria || {})
-          },
-
-          resumen: {
-            ...(prev.resumen || {}),
-            ...(next.resumen || {})
-          },
-
-          resumenOperativo: next.resumenOperativo || prev.resumenOperativo || {},
-
-          ubicacionesEnVivo,
-
-          generadoEn: next.generadoEn || prev.generadoEn || {},
-
-          source: next.source || prev.source || ""
-        };
-      }, []);
-
-    
-useEffect(() => {
-  window.AEC_DEBUG_DETALLE = (folioManual) => {
-    const folio =
-      folioManual ||
-      auditId ||
-      window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ ||
-      "";
-
-    console.log("🧪 [AEC DEBUG] Folio usado:", folio);
-
-    if (!folio) {
-      console.warn("⚠️ [AEC DEBUG] No hay folio de auditoría disponible.");
-      return;
-    }
-
-    if (typeof google === "undefined" || !google.script || !google.script.run) {
-      console.error("❌ [AEC DEBUG] google.script.run no está disponible en este contexto.");
-      return;
-    }
-
-    google.script.run
-      .withSuccessHandler((r) => {
-        console.log("🧪 AEC DEBUG FUENTES", r);
-      })
-      .withFailureHandler((e) => {
-        console.error("❌ AEC DEBUG ERROR", e);
-      })
-      .AEC_DEBUG_detalleFuentes(folio);
-  };
-
-  window.AEC_CLEAR_LIVE_CACHE = (folioManual) => {
-    const folio =
-      folioManual ||
-      auditId ||
-      window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ ||
-      "";
-
-    console.log("🧹 [AEC CLEAR] Folio usado:", folio);
-
-    if (!folio) {
-      console.warn("⚠️ [AEC CLEAR] No hay folio de auditoría disponible.");
-      return;
-    }
-
-    if (typeof google === "undefined" || !google.script || !google.script.run) {
-      console.error("❌ [AEC CLEAR] google.script.run no está disponible en este contexto.");
-      return;
-    }
-
-    google.script.run
-      .withSuccessHandler((r) => {
-        console.log("🧹 AEC CLEAR LIVE CACHE", r);
-      })
-      .withFailureHandler((e) => {
-        console.error("❌ AEC CLEAR ERROR", e);
-      })
-      .AEC_DEBUG_clearLiveCache(folio);
-  };
-
-  return () => {
-    delete window.AEC_DEBUG_DETALLE;
-    delete window.AEC_CLEAR_LIVE_CACHE;
-  };
-}, [auditId]);
-
-
-
-
-      useEffect(() => {
-        mountedRef.current = true;
-
-        return () => {
-          mountedRef.current = false;
-        };
-      }, []);
-
-      // -------------------------------------------------------
-      // CARGAR AUDITORÍA
-      // -------------------------------------------------------
-      const cargarDetalleAuditoria_ = useCallback((idauditoria, silent = false) => {
-        const id = toStr_(idauditoria);
-
-        if (!id) {
-          setAuditData(null);
-          setLoading(false);
-          return;
-        }
-
-        if (refreshInFlightRef.current) {
-          return;
-        }
-
-        refreshInFlightRef.current = true;
-
-        if (!silent) {
-          setLoading(true);
-        }
-
-        google.script.run
-
-
-          .withSuccessHandler((resp) => {
-            refreshInFlightRef.current = false;
-
-            if (!mountedRef.current) return;
-
-            const safe = resp || {};
-
-            setAuditData((prev) => {
-              return mergeFullRefreshConEstadoVivo_(prev, safe);
-            });
-
-            if (!silent) {
-              setLoading(false);
-            }
-
-            if (!firstLoadDoneRef.current) {
-              firstLoadDoneRef.current = true;
-              notify_("Detalle de auditoría cargado.", "success", 1500, {
-                title: "Vista lista",
-                sound: false
-              });
-            }
-          })
-
-    
-          .withFailureHandler((err) => {
-            refreshInFlightRef.current = false;
-
-            console.error("❌ [AuditoriaExcedentesDetalle] Error obteniendo detalle de auditoría:", err);
-
-            if (!silent) {
-              setLoading(false);
-
-              notify_(
-                err && err.message ? err.message : "No se pudo cargar la auditoría seleccionada.",
-                "error",
-                4200,
-                {
-                  title: "Error de auditoría",
-                  sound: true
-                }
+          if (!replaceLocations) {
+            (prior.ubicacionesEnVivo || []).forEach((item) => {
+              const key = up(
+                item?.key ||
+                item?.ubicacion
               );
-            }
-          })
 
-          .AuditoriaExcedentesController_obtenerDetalleAuditoriaEnVivo(id);
-      }, [mergeFullRefreshConEstadoVivo_]);
-
-      const cargarPulsoAuditoria_ = useCallback((idauditoria) => {
-        const id = toStr_(idauditoria);
-
-        if (!id) return;
-        if (pulseInFlightRef.current) return;
-
-        pulseInFlightRef.current = true;
-
-        google.script.run
-
-          .withSuccessHandler((resp) => {
-            pulseInFlightRef.current = false;
-
-            if (!mountedRef.current) return;
-
-            const safe = resp || {};
-
-            setAuditData((prev) => {
-              const base = prev || {};
-
-              const baseUbicaciones = Array.isArray(base.ubicacionesEnVivo)
-                ? base.ubicacionesEnVivo
-                : [];
-
-              const liveUbicaciones = Array.isArray(safe.ubicacionesEnVivo)
-                ? safe.ubicacionesEnVivo
-                : null;
-
-              let nextUbicaciones = baseUbicaciones;
-
-              /**
-              * El pulso vivo NO debe borrar ubicaciones cerradas.
-              * Solo sobreescribe/actualiza ubicaciones que vienen en LiveCache.
-              */
-              if (liveUbicaciones && liveUbicaciones.length > 0) {
-                const map = {};
-
-                baseUbicaciones.forEach((u) => {
-                  const key = toUpper_(u.key || u.ubicacion || "");
-                  if (!key) return;
-                  map[key] = u;
-                });
-
-                liveUbicaciones.forEach((u) => {
-                  const key = toUpper_(u.key || u.ubicacion || "");
-                  if (!key) return;
-
-                  map[key] = {
-                    ...(map[key] || {}),
-                    ...u,
-                    key,
-                    ubicacion: toUpper_(u.ubicacion || key)
-                  };
-                });
-
-                nextUbicaciones = Object.values(map).sort((a, b) => {
-                  const seq = Number(a.secuenciaubicacion || 0) - Number(b.secuenciaubicacion || 0);
-                  if (seq !== 0) return seq;
-
-                  return String(a.ubicacion || "").localeCompare(String(b.ubicacion || ""), "es", {
-                    numeric: true,
-                    sensitivity: "base"
-                  });
-                });
+              if (key) {
+                map[key] = item;
               }
-
-              return {
-                ...base,
-
-                /**
-                * Solo actualizamos auditoría/resumen si el backend los manda.
-                * El pulso ligero normalmente NO los manda.
-                */
-                auditoria: safe.auditoria
-                  ? {
-                      ...(base.auditoria || {}),
-                      ...safe.auditoria
-                    }
-                  : base.auditoria || {},
-
-                resumen: safe.resumen
-                  ? {
-                      ...(base.resumen || {}),
-                      ...safe.resumen
-                    }
-                  : base.resumen || {},
-
-                resumenOperativo: safe.resumenOperativo || base.resumenOperativo || {},
-
-                ubicacionesEnVivo: nextUbicaciones,
-
-                generadoEn: safe.generadoEn || base.generadoEn || {},
-
-                source: safe.source || base.source || ""
-              };
             });
-          })
+          }
 
-          .withFailureHandler((err) => {
-            pulseInFlightRef.current = false;
+          (next.ubicacionesEnVivo || []).forEach((item) => {
+            const key = up(
+              item?.key ||
+              item?.ubicacion
+            );
 
-            if (!mountedRef.current) return;
-
-            console.warn("⚠️ [AuditoriaExcedentesDetalle] Pulso en vivo falló:", err);
-          })
-
-          .AuditoriaExcedentesController_obtenerPulsoAuditoriaEnVivo(id);
-      }, []);
-
-      const cargarPrimeraAuditoriaSiNoHayId_ = useCallback(() => {
-        google.script.run
-          .withSuccessHandler((resp) => {
-            const lista = Array.isArray(resp) ? resp : [];
-
-            let selected = auditId || window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ || "";
-
-            if (!selected && lista.length > 0) {
-              selected = lista[0].idauditoria;
-            }
-
-            if (!selected) {
-              setLoading(false);
-              notify_("No hay auditorías disponibles para detalle.", "warning", 2600, {
-                title: "Sin auditorías",
-                sound: true
-              });
+            if (!key) {
               return;
             }
 
-            setAuditId(selected);
-            window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = selected;
-            cargarDetalleAuditoria_(selected);
-          })
-          .withFailureHandler((err) => {
-            console.error("❌ [AuditoriaExcedentesDetalle] Error listando auditorías:", err);
-            setLoading(false);
-            notify_(
-              err && err.message ? err.message : "No se pudieron cargar las auditorías.",
-              "error",
-              4200,
-              {
-                title: "Error de auditorías",
-                sound: true
+            if (replaceLocations) {
+              map[key] = {
+                ...item,
+                key: key,
+                ubicacion: up(
+                  item.ubicacion || key
+                )
+              };
+              return;
+            }
+
+            map[key] = {
+              ...(map[key] || {}),
+              ...item,
+              key: key,
+              ubicacion: up(
+                item.ubicacion || key
+              )
+            };
+          });
+
+          return {
+            ...prior,
+            ...next,
+
+            auditoria: {
+              ...(prior.auditoria || {}),
+              ...(next.auditoria || {})
+            },
+
+            resumen: {
+              ...(prior.resumen || {}),
+              ...(next.resumen || {})
+            },
+
+            ubicacionesEnVivo: Object.values(map)
+              .sort((a, b) => {
+                const sequence =
+                  num(a.secuenciaubicacion) -
+                  num(b.secuenciaubicacion);
+
+                if (sequence !== 0) {
+                  return sequence;
+                }
+
+                return String(
+                  a.ubicacion || ""
+                ).localeCompare(
+                  String(b.ubicacion || ""),
+                  "es",
+                  {
+                    numeric: true,
+                    sensitivity: "base"
+                  }
+                );
+              })
+          };
+        },
+        []
+      );
+
+      const load = useCallback(
+        (auditId, silent = false) => {
+          const currentId = str(auditId);
+
+          if (!currentId) {
+            return;
+          }
+
+          if (fullBusy.current) {
+            if (!silent) {
+              notify(
+                "Ya existe una actualización en proceso.",
+                "info",
+                1800,
+                {
+                  title: "Actualizando auditoría",
+                  sound: false
+                }
+              );
+            }
+
+            return;
+          }
+
+          console.log(
+            "[AED DETALLE] Carga completa solicitada",
+            {
+              idauditoria: currentId,
+              silent: silent,
+              timestamp: Date.now()
+            }
+          );
+
+          fullBusy.current = true;
+
+          if (!silent) {
+            setLoading(true);
+            setModal(null);
+            setModalLoading(false);
+          }
+
+          google.script.run
+            .withSuccessHandler((response) => {
+              fullBusy.current = false;
+
+              if (!mounted.current) {
+                return;
               }
+
+              const safe = response || {};
+
+              console.log(
+                "[AED DETALLE] Carga completa recibida",
+                {
+                  idauditoria: currentId,
+                  source: safe.source,
+                  ubicaciones:
+                    Array.isArray(safe.ubicacionesEnVivo)
+                      ? safe.ubicacionesEnVivo.length
+                      : 0,
+                  detalle:
+                    Array.isArray(safe.detalle)
+                      ? safe.detalle.length
+                      : 0,
+                  diagnostico: safe.diagnostico || null
+                }
+              );
+
+              if (safe.ok === false) {
+                setLoading(false);
+                notify(
+                  safe.mensaje ||
+                    "El backend no pudo cargar la auditoría.",
+                  "error",
+                  4200,
+                  {
+                    title: "Error de auditoría"
+                  }
+                );
+                return;
+              }
+
+              /*
+              * La carga completa reemplaza ubicaciones.
+              * Si el backend devuelve cero ubicaciones,
+              * la tabla debe quedar vacía.
+              */
+              setData((previous) =>
+                merge(
+                  previous,
+                  safe,
+                  {
+                    replaceLocations: true
+                  }
+                )
+              );
+
+              setLoading(false);
+            })
+            .withFailureHandler((error) => {
+              fullBusy.current = false;
+
+              console.error(
+                "[AED DETALLE] Error en carga completa",
+                {
+                  idauditoria: currentId,
+                  error: error
+                }
+              );
+
+              if (!mounted.current) {
+                return;
+              }
+
+              setLoading(false);
+
+              if (!silent) {
+                notify(
+                  error?.message ||
+                    "No se pudo cargar la auditoría.",
+                  "error",
+                  4200,
+                  {
+                    title: "Error de auditoría"
+                  }
+                );
+              }
+            })
+            .AuditoriaExcedentesController_obtenerDetalleAuditoriaEnVivo(
+              currentId
             );
-          })
-          .AuditoriaExcedentesController_listarAuditorias({});
-      }, [auditId, cargarDetalleAuditoria_]);
+        },
+        [merge]
+      );
+
+      const pulse = useCallback(
+        (auditId) => {
+          if (!auditId || pulseBusy.current) return;
+          pulseBusy.current = true;
+          google.script.run
+            .withSuccessHandler((res) => {
+              pulseBusy.current = false;
+              if (mounted.current && res?.ubicacionesEnVivo) {
+                setData((previous) =>
+                  merge(
+                    previous,
+                    res,
+                    {
+                      replaceLocations: false
+                    }
+                  )
+                );
+              }
+            })
+            .withFailureHandler(() => (pulseBusy.current = false))
+            .AuditoriaExcedentesController_obtenerPulsoAuditoriaEnVivo(auditId);
+        },
+        [merge],
+      );
 
       useEffect(() => {
-        if (!auditId) return;
-        if (modalDetalleOpen) return;
+        if (id) {
+          load(id);
+          return;
+        }
+        google.script.run
+          .withSuccessHandler((list) => {
+            const first =
+              (Array.isArray(list) ? list : [])[0]?.idauditoria || "";
+            if (!first) {
+              setLoading(false);
+              notify("No hay auditorías disponibles.", "warning");
+              return;
+            }
+            window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = first;
+            setId(first);
+          })
+          .withFailureHandler((e) => {
+            setLoading(false);
+            notify(e?.message || "No se pudieron listar auditorías.", "error");
+          })
+          .AuditoriaExcedentesController_listarAuditorias({});
+      }, [id, load]);
 
-        const pulseTimer = setInterval(() => {
-          cargarPulsoAuditoria_(auditId);
-        }, 1000);
+      useEffect(() => {
+        if (!id || modal) return;
 
-        const fullTimer = setInterval(() => {
-          cargarDetalleAuditoria_(auditId, true);
-        }, 2500);
+        /*
+        * El pulso consulta CacheService y puede ser frecuente.
+        * La carga completa consulta Sheets y se reduce a una vez por minuto.
+        */
+        const pulseTimer = setInterval(() => pulse(id), 2000);
+        const fullTimer = setInterval(() => load(id, true), 60000);
 
         return () => {
           clearInterval(pulseTimer);
           clearInterval(fullTimer);
         };
-      }, [
-        auditId,
-        modalDetalleOpen,
-        cargarPulsoAuditoria_,
-        cargarDetalleAuditoria_
-      ]);
+      }, [id, modal, pulse, load]);
 
       useEffect(() => {
-        if (typeof google === "undefined" || !google.script || !google.script.run) {
-          notify_("google.script.run no está disponible en este contexto.", "error", 4200, {
-            title: "Entorno inválido",
-            sound: true
-          });
-          setLoading(false);
-          return;
-        }
+        if (!id) return;
 
-        notify_("Cargando detalle de auditoría...", "info", 1200, {
-          title: "Inicializando detalle",
-          sound: false
-        });
+        const handleVisibility = () => {
+          if (document.visibilityState === "visible" && !modal) {
+            load(id, true);
+          }
+        };
 
-        if (auditId) {
-          cargarDetalleAuditoria_(auditId);
-        } else {
-          cargarPrimeraAuditoriaSiNoHayId_();
-        }
-      }, []);
+        document.addEventListener("visibilitychange", handleVisibility);
+        window.addEventListener("focus", handleVisibility);
 
-      // -------------------------------------------------------
-      // NAVEGACIÓN
-      // -------------------------------------------------------
-      const continuarCaptura_ = () => {
-        const folio = toStr_(auditId);
-        const audit = auditData?.auditoria || auditData || {};
+        return () => {
+          document.removeEventListener("visibilitychange", handleVisibility);
+          window.removeEventListener("focus", handleVisibility);
+        };
+      }, [id, modal, load]);
 
-        if (!folio) {
-          notify_("No hay auditoría seleccionada.", "warning", 2600, {
-            title: "Auditoría requerida",
-            sound: true
-          });
-          return;
-        }
 
-        if (toUpper_(audit.estatus) !== "ABIERTA") {
-          notify_(`La auditoría ${folio} ya está cerrada.`, "warning", 2600, {
-            title: "Captura no disponible",
-            sound: true
-          });
-          return;
-        }
+      const audit = data?.auditoria || {},
+        r = data?.resumen || {},
+        locations = Array.isArray(data?.ubicacionesEnVivo)
+          ? data.ubicacionesEnVivo
+          : [];
 
-        window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ = folio;
-        window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = folio;
+      const summary = useMemo(() => {
+        const sum = (k) => locations.reduce((a, x) => a + num(x[k]), 0),
+          esperados = num(r.idunicosesperadostotales) || sum("esperados"),
+          correctos = num(r.idunicoscorrectostotales) || sum("correctos"),
+          faltantes = num(r.idunicosfaltantestotales) || sum("faltantes"),
+          sobrantes = num(r.idunicossobrantestotales) || sum("sobrantes");
+        return {
+          ubicaciones:
+            num(r.ubicacionestocadas) ||
+            num(r.ubicacionesauditadas) ||
+            locations.length,
+          diferencias:
+            num(r.ubicacionescondiferencia) ||
+            locations.filter((x) => x.tieneDiferencia).length,
+          esperados,
+          correctos,
+          incidencias: faltantes + sobrantes,
+          confiabilidad:
+            num(r.confiabilidadtotal) ||
+            (esperados ? (correctos / esperados) * 100 : 0),
+        };
+      }, [r, locations]);
 
-        if (typeof window.irAVistaShell === "function") {
+      const back = () =>
+        window.irAVistaShell
+          ? window.irAVistaShell("AuditoriaExcedentes", "AuditoriaExcedentes")
+          : notify("Navegación no disponible", "error");
+
+      const capture = () => {
+        window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ = id;
+        if (window.irAVistaShell)
           window.irAVistaShell(
             "AuditoriaExcedentesCaptura",
             "AuditoriaExcedentesCaptura",
             {
-              __AUDITORIA_EXCEDENTES_CAPTURA_ID__: folio,
-              __AUDITORIA_EXCEDENTES_DETALLE_ID__: folio
-            }
+              __AUDITORIA_EXCEDENTES_CAPTURA_ID__: id,
+              __AUDITORIA_EXCEDENTES_DETALLE_ID__: id,
+            },
           );
-          return;
-        }
-
-        notify_(`No se pudo abrir la captura para la auditoría ${folio}.`, "error", 3200, {
-          title: "Navegación no disponible",
-          sound: true
-        });
       };
 
-      // -------------------------------------------------------
-      // POPUP DETALLE UBICACIÓN
-      // -------------------------------------------------------
-      const abrirPopupDetalleUbicacion_ = (ubicacion) => {
-        const folio = toStr_(auditId);
-        const ubi = toUpper_(ubicacion);
+      const closeDrawer = useCallback(() => {
+        setModal(null);
+        setModalLoading(false);
+      }, []);
 
-        if (!folio || !ubi) {
-          notify_("No se pudo identificar la ubicación.", "warning", 2600, {
-            title: "Ubicación inválida",
-            sound: true
-          });
-          return;
-        }
-
-        setModalDetalleOpen(true);
-        setModalLoading(true);
-        setModalUbicacion(ubi);
-        setModalDetalleUbicacion({
-          ubicacion: ubi,
+      const openDetail = (ubicacion) => {
+        const location = up(ubicacion);
+        if (!id || !location) return;
+        setModal({
+          idauditoria: id,
+          ubicacion: location,
+          bodega: "",
           detalle: [],
           resumen: {
             esperados: 0,
             escaneados: 0,
             correctos: 0,
             faltantes: 0,
-            sobrantes: 0
-          }
+            sobrantes: 0,
+          },
         });
-
+        setModalLoading(true);
         google.script.run
-          
-          .withSuccessHandler((resp) => {
-            if (!mountedRef.current) return;
-
-            const normalizado = normalizarDetalleUbicacionResponse_(resp, ubi);
-            setModalDetalleUbicacion(normalizado);
-            setModalLoading(false);
+          .withSuccessHandler((res) => {
+            try {
+              setModal(normalizeLocation(res, location, id));
+              setModalLoading(false);
+            } catch (e) {
+              closeDrawer();
+              notify(e?.message || "La respuesta no pudo procesarse.", "error");
+            }
           })
-          .withFailureHandler((err) => {
-            if (!mountedRef.current) return;
-
-            console.error("❌ [AuditoriaExcedentesDetalle] Error popup ubicación:", err);
-            setModalLoading(false);
-
-            notify_(
-              err && err.message ? err.message : "No se pudo cargar el detalle de ubicación.",
-              "error",
-              4200,
-              {
-                title: "Error de ubicación",
-                sound: true
-              }
-            );
+          .withFailureHandler((e) => {
+            closeDrawer();
+            notify(e?.message || "No se pudo cargar la ubicación.", "error");
           })
-
-          .AuditoriaExcedentesController_obtenerDetalleUbicacion(folio, ubi);
+          .AuditoriaExcedentesController_obtenerDetalleUbicacion(id, location);
       };
 
-      const cerrarPopupDetalleUbicacion_ = () => {
-        setModalDetalleOpen(false);
-        setModalLoading(false);
-        setModalUbicacion("");
-      };
-
-      useEffect(() => {
-        if (!modalDetalleOpen) return;
-
-        const onKeyDown = (e) => {
-          if (e.key === "Escape") {
-            setModalDetalleOpen(false);
-            setModalLoading(false);
-            setModalUbicacion("");
-          }
-        };
-
-        const previousOverflow = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
-
-        window.addEventListener("keydown", onKeyDown);
-
-        return () => {
-          document.body.style.overflow = previousOverflow;
-          window.removeEventListener("keydown", onKeyDown);
-        };
-      }, [modalDetalleOpen]);
-
-      // -------------------------------------------------------
-      // DERIVADOS
-      // -------------------------------------------------------
-      const auditHeader = auditData?.auditoria || auditData || {};
-      const auditResumen = auditData?.resumen || {};
-      const conf = getConfiabilidadVisual_(auditResumen.confiabilidadtotal || auditHeader.confiabilidadtotal);
-
-      const ubicacionesAuditadasResumen = useMemo(() => {
-        return Array.isArray(auditData?.ubicacionesEnVivo)
-          ? auditData.ubicacionesEnVivo
-          : [];
-      }, [auditData]);
-
+      const confColor =
+        summary.confiabilidad >= 97
+          ? "var(--ok)"
+          : summary.confiabilidad >= 90
+            ? "var(--warn)"
+            : "var(--c)";
 
       return (
-        <div className="aed-page fade-in-up">
-          {/* HEADER REDISEÑADO */}
-          <div className="aed-panel p-4">
-            <div className="grid grid-cols-1 2xl:grid-cols-[minmax(280px,0.85fr)_minmax(620px,1.55fr)_minmax(220px,auto)] gap-4 items-stretch">
-              
-              {/* DETALLES DE AUDITORÍA */}
-              <div className="aed-card p-4 flex flex-col justify-center">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
-                  Detalles de auditoría
-                </p>
-
-                <h2 className="m-0 p-0 bg-transparent border-none text-[24px] font-black text-[var(--text-main)] leading-tight">
-                  {auditHeader?.idauditoria || auditId || "SIN AUDITORÍA"}
-                </h2>
-
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {auditHeader?.estatus && (
-                    <span className={`aed-chip ${toUpper_(auditHeader.estatus) === "ABIERTA" ? "aed-chip-open" : "aed-chip-closed"}`}>
-                      {auditHeader.estatus}
-                    </span>
-                  )}
-
-                  {auditHeader?.auditor && (
-                    <span className="aed-chip aed-chip-slate">
-                      {auditHeader.auditor}
-                    </span>
-                  )}
-
-                  {auditHeader?.tipoauditoria && (
-                    <span className="aed-chip aed-chip-amber">
-                      {toUpper_(auditHeader.tipoauditoria) === "POR_BODEGA" ? "POR BODEGA" : "GLOBAL"}
-                    </span>
-                  )}
-
-                  {auditHeader?.bodegaobjetivo && (
-                    <span className="aed-chip aed-chip-slate">
-                      {auditHeader.bodegaobjetivo}
-                    </span>
-                  )}
-                </div>
-
-                <div className="aed-meta-sub mt-3">
-                  {auditHeader?.idauditoria
-                    ? construirResumenFechaHora_(auditHeader)
-                    : "Cargando información de auditoría"}
+        <div className="aed-page">
+          <section className="aed-workspace">
+            <header className="aed-header">
+              <div className="aed-id">
+                <button className="aed-back" onClick={back}>
+                  <Icon name="arrow-left" />
+                </button>
+                <div className="aed-copy">
+                  <p className="aed-eyebrow">Detalle operativo de auditoría</p>
+                  <div className="aed-title-row">
+                    <h2 className="aed-title">
+                      {audit.idauditoria || id || "SIN AUDITORÍA"}
+                    </h2>
+                    {audit.estatus && (
+                      <span
+                        className={`chip ${up(audit.estatus) === "ABIERTA" ? "red" : "green"}`}
+                      >
+                        {audit.estatus}
+                      </span>
+                    )}
+                    {audit.tipoauditoria && (
+                      <span className="chip amber">
+                        {up(audit.tipoauditoria) === "POR_BODEGA"
+                          ? "Por bodega"
+                          : "Global"}
+                      </span>
+                    )}
+                  </div>
+                  <p className="aed-description">
+                    {audit.auditor || "Sin auditor"} ·{" "}
+                    {audit.bodegaobjetivo || "Todas las bodegas"} ·{" "}
+                    {fmtDate(audit.fecha)} · {fmtTime(audit.horainicio)} -{" "}
+                    {fmtTime(audit.horafin)}
+                  </p>
                 </div>
               </div>
-
-              {/* MÉTRICOS GLOBALES */}
-              <div className="aed-card p-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-2">
-                  Métricos de auditoría
+              <div className="metrics">
+                <div className="metric">
+                  <div className="metric-value">
+                    {summary.confiabilidad.toFixed(2)}
+                    <small>%</small>
+                  </div>
+                  <div className="metric-label">Confiabilidad</div>
+                  <div className="track">
+                    <div
+                      className="bar"
+                      style={{
+                        width: `${Math.min(100, summary.confiabilidad)}%`,
+                        background: confColor,
+                      }}
+                    />
+                  </div>
                 </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
-                  {[
-                    ["Ubicaciones auditadas", auditResumen.ubicacionesauditadas, "slate"],
-                    ["Ubicaciones Con diferencia", auditResumen.ubicacionescondiferencia, "red"],
-                    ["Etiquetas Esperadas", auditResumen.idunicosesperadostotales, "slate"],
-                    ["Correctos", auditResumen.idunicoscorrectostotales, "emerald"],
-                    ["Faltantes", auditResumen.idunicosfaltantestotales, "amber"],
-                    ["Sobrantes", auditResumen.idunicossobrantestotales, "red"]
-                  ].map(([label, value, tone]) => (
-                    <div className="aed-kpi !min-h-[92px] !p-3" key={label}>
-                      <div className={`aed-kpi-topbar ${tone}`}></div>
-
-                      <div className="aed-kpi-label text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                        {label}
-                      </div>
-
-                      <div className="aed-kpi-value text-[22px] font-black text-[var(--text-main)]">
-                        {Number(value || 0)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-3 flex items-center gap-2 flex-wrap">
-                  <span className={conf.className}>
-                    {Number(auditResumen.confiabilidadtotal || auditHeader.confiabilidadtotal || 0).toFixed(2)}% • {conf.label}
-                  </span>
-
-                  <span className="aed-chip aed-chip-slate">
-                    {ubicacionesAuditadasResumen.length} ubicaciones monitoreadas
-                  </span>
-                </div>
+                <Metric label="Ubicaciones" value={summary.ubicaciones} />
+                <Metric
+                  label="Diferencias"
+                  value={summary.diferencias}
+                  bad={summary.diferencias > 0}
+                />
+                <Metric label="Esperadas" value={summary.esperados} />
+                <Metric label="Correctas" value={summary.correctos} ok />
+                <Metric
+                  label="Incidencias"
+                  value={summary.incidencias}
+                  bad={summary.incidencias > 0}
+                />
               </div>
-
-              {/* ACCIONES */}
-              <div className="aed-card p-4 flex flex-col justify-center gap-3">
-                {toUpper_(auditHeader.estatus) === "ABIERTA" && (
-                  <button
-                    type="button"
-                    className="aed-btn-primary w-full"
-                    onClick={continuarCaptura_}
-                  >
-                    Continuar captura
-                  </button>
-                )}
-
+              <div className="actions">
                 <button
                   type="button"
-                  className="aed-btn-soft w-full"
-                  onClick={() => cargarDetalleAuditoria_(auditId)}
-                  disabled={!auditId || loading}
+                  className="action"
+                  onClick={() => {
+                    if (!id || loading) {
+                      return;
+                    }
+
+                    console.log(
+                      "[AED DETALLE] Actualización manual solicitada",
+                      {
+                        idauditoria: id,
+                        timestamp: Date.now()
+                      }
+                    );
+
+                    load(id, false);
+                  }}
+                  disabled={!id || loading}
                 >
-                  Actualizar
+                  <Icon
+                    name="refresh-cw"
+                    className={loading ? "animate-spin" : ""}
+                  />
+
+                  <span className="action-label">
+                    {loading
+                      ? "Actualizando"
+                      : "Actualizar"}
+                  </span>
                 </button>
+
+                {up(audit.estatus) === "ABIERTA" && (
+                  <button
+                    type="button"
+                    className="action primary"
+                    onClick={capture}
+                    disabled={!id || loading}
+                  >
+                    <Icon
+                      name="play"
+                      size={17}
+                    />
+
+                    <span className="action-label">
+                      Continuar
+                    </span>
+                  </button>
+                )}
+              </div>
+            </header>
+            <div className="toolbar">
+              <div className="aed-toolbar-main">
+                <div className="aed-toolbar-icon">
+                  <Icon
+                    name="map-pinned"
+                    size={21}
+                  />
+                </div>
+
+                <div className="aed-toolbar-copy">
+                  <span className="aed-toolbar-eyebrow">
+                    Control operativo
+                  </span>
+
+                  <h3>
+                    Ubicaciones auditadas
+                  </h3>
+
+                  <p className="aed-toolbar-description">
+                    Seguimiento de avance, ritmo e incidencias por ubicación
+                  </p>
+                </div>
+              </div>
+
+              <div className="aed-toolbar-context">
+                <span className="aed-toolbar-context-item live">
+                  <span className="aed-live-dot" />
+                  Auditoría en vivo
+                </span>
+
+                <span className="aed-toolbar-context-item">
+                  <Icon
+                    name="rows-3"
+                    size={14}
+                  />
+
+                  {locations.length} registros
+                </span>
               </div>
             </div>
-          </div>
-
-          {/* RESUMEN POR UBICACIÓN AUDITADA */}
-          <div className="aed-panel aed-locations-panel">
-            <div className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap border-b border-[var(--border-color)]">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
-                  Resumen
-                </p>
-
-                <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[22px] font-black tracking-tight">
-                  Ubicaciones en proceso y cerradas
-                </h3>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="aed-chip aed-chip-slate">
-                  {ubicacionesAuditadasResumen.length} ubicaciones
-                </span>
-
-                <span className="aed-chip aed-chip-emerald">
-                {ubicacionesAuditadasResumen.filter(x => x.cerrada && !x.tieneDiferencia).length} cerradas correctas
-                </span>
-
-                <span className="aed-chip aed-chip-red">
-                  {ubicacionesAuditadasResumen.filter(x => x.tieneDiferencia).length} con diferencia
-                </span>
-              </div>
-            </div>
-
-            <div className="aed-locations-table-wrap custom-scroll">
-              <table className="aed-table">
+            <div className="table-wrap">
+              <table>
                 <thead>
                   <tr>
-                    <th>Ubicación</th>
-                    <th>Avance</th>
-                    <th>Esperados</th>
-                    <th>Escaneados</th>
-                    <th>Correctos</th>
-                    <th>Faltantes</th>
-                    <th>Sobrantes</th>
-                    <th>Pendientes</th>
-                    <th>Tiempo</th>
-                    <th>Ritmo</th>
-                    <th>Restante</th>
-                    <th>Inicio / Fin</th>
-                    <th>Estado</th>
-                    <th>Detalle</th>
+                    {[
+                      "Ubicación",
+                      "Avance",
+                      "Esperados",
+                      "Escaneados",
+                      "Correctos",
+                      "Faltantes",
+                      "Sobrantes",
+                      "Pendientes",
+                      "Tiempo",
+                      "Ritmo",
+                      "Restante",
+                      "Inicio / Fin",
+                      "Estado",
+                      "Detalle",
+                    ].map((x) => (
+                      <th key={x}>{x}</th>
+                    ))}
                   </tr>
                 </thead>
-
                 <tbody>
-                  
-                {ubicacionesAuditadasResumen.map((u) => {
-                  const avance = Math.min(100, Number(u.avancePct || 0));
-
-                  const progressClass = u.estadoRitmo === "DETENIDO" || u.estadoRitmo === "CRITICO"
-                    ? "danger"
-                    : u.estadoRitmo === "LENTO"
-                    ? "warning"
-                    : u.tieneDiferencia
-                    ? "danger"
-                    : avance < 100
-                    ? "warning"
-                    : "";
-
-                  return (
-
-                      <tr key={u.key} className="aed-row aed-location-row">
-                        <td>
-                          <div className="aed-location-title">
-                            {u.ubicacion}
-                          </div>
-
-                          <div className="aed-location-sub">
-                            {u.bodega || "SIN BODEGA"} · Secuencia {Number(u.secuenciaubicacion || 0)}
-                          </div>
-                        </td>
-
-                        <td>
-                          <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-2">
-                              <div className="aed-progress-track">
-                                <div
-                                  className={`aed-progress-bar ${progressClass}`}
-                                  style={{ width: `${avance}%` }}
-                                ></div>
-                              </div>
-
-                              <span className="text-[12px] font-black text-[var(--text-main)]">
-                                {avance}%
-                              </span>
-                            </div>
-
-                            <span className="text-[10px] font-bold uppercase tracking-[0.10em] text-[var(--text-secondary)]">
-                              {Number(u.escaneados || 0)} de {Number(u.esperados || 0)}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td>
-                          <span className="text-[17px] font-black text-[var(--text-main)]">
-                            {Number(u.esperados || 0)}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[17px] font-black text-[var(--text-main)]">
-                            {Number(u.escaneados || 0)}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[17px] font-black text-emerald-700">
-                            {Number(u.correctos || 0)}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[17px] font-black text-amber-700">
-                            {Number(u.faltantes || 0)}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[17px] font-black text-[var(--primary)]">
-                            {Number(u.sobrantes || 0)}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[17px] font-black text-[var(--primary)]">
-                            {Number(u.pendientes || 0)}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[12px] font-black text-[var(--text-main)]">
-                            {Number(u.minutosTranscurridos || 0).toFixed(1)} min
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[12px] font-black text-[var(--text-main)]">
-                            {Number(u.escaneosPorMinuto || 0).toFixed(2)} ids/min
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[12px] font-black text-[var(--text-main)]">
-                            {u.cerrada ? "—" : `${Number(u.minutosEstimadosRestantes || 0).toFixed(1)} min`}
-                          </span>
-                        </td>
-
-                        <td>
-                          <div className="flex flex-col gap-1">
-                            <span className="text-[12px] font-black text-[var(--text-main)]">
-                              Inicio: {formatearHora_(u.horainicioubicacion)}
-                            </span>
-                            <span className="text-[12px] font-black text-[var(--text-main)]">
-                              Fin: {formatearHora_(u.horafinubicacion)}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td>
-                          <span
-                            className={
-                              u.estadoRitmo === "DETENIDO"
-                                ? "aed-chip aed-chip-red"
-                                : u.estadoRitmo === "CRITICO"
-                                ? "aed-chip aed-chip-red"
-                                : u.estadoRitmo === "LENTO"
-                                ? "aed-chip aed-chip-amber"
-                                : u.cerrada && u.tieneDiferencia
-                                ? "aed-chip aed-chip-red"
-                                : "aed-chip aed-chip-emerald"
-                            }
-                          >
-                            {u.estadoRitmo === "DETENIDO"
-                              ? "Detenido"
-                              : u.estadoRitmo === "CRITICO"
-                              ? "Crítico"
-                              : u.estadoRitmo === "LENTO"
-                              ? "Lento"
-                              : u.cerrada
-                              ? u.tieneDiferencia ? "Cerrada con diferencia" : "Cerrada correcta"
-                              : "A tiempo"}
-                          </span>
-                        </td>
-
-                        <td>
-                          <button
-                            type="button"
-                            className="aed-btn-dark !min-h-[40px] !px-4"
-                            onClick={() => abrirPopupDetalleUbicacion_(u.ubicacion)}
-                          >
-                            Ver detalles
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {locations.map((item, i) => (
+                    <LocationRow
+                      key={item.key || `${item.ubicacion}-${i}`}
+                      item={item}
+                      onOpen={() => openDetail(item.ubicacion)}
+                    />
+                  ))}
                 </tbody>
               </table>
-
-              {!loading && ubicacionesAuditadasResumen.length === 0 && (
-                <div className="aed-empty-state">
-                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                    <LocalIcon name="map-pin-off" size={28} />
-                  </div>
-
-                  <span className="text-[13px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
-                    Sin ubicaciones iniciadas
-                  </span>
-
-                  <span className="text-[11px] text-slate-400 font-semibold">
-                    Cuando abras una ubicación en captura, aparecerá aquí.
-                  </span>
+              {loading && (
+                <div className="loading">
+                  <div className="spinner" />
+                  <b>Cargando detalle de auditoría...</b>
                 </div>
               )}
-
-              {loading && (
-                <div className="p-24 flex flex-col items-center justify-center gap-4">
-                  <div className="w-10 h-10 border-4 border-slate-100 border-t-[var(--primary)] rounded-full animate-spin"></div>
-                  <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                    Cargando detalle de auditoría...
-                  </span>
+              {!loading && !locations.length && (
+                <div className="empty">
+                  <Icon name="map-pin-off" size={30} />
+                  <b>SIN UBICACIONES REGISTRADAS</b>
                 </div>
               )}
             </div>
-          </div>
-
-          {/* POPUP DETALLE UBICACIÓN */}
-            {modalDetalleOpen && (
-              <div
-                className="aed-modal-backdrop"
-                onMouseDown={cerrarPopupDetalleUbicacion_}
-              >
-                <div
-                  className="aed-modal"
-                  onMouseDown={(e) => e.stopPropagation()}
-                >
-                  <div className="aed-modal-header">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
-                        Detalle de ubicación
-                      </p>
-
-                      <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[24px] font-black tracking-tight font-mono-premium">
-                        {modalDetalleUbicacion.ubicacion || modalUbicacion || "SIN UBICACIÓN"}
-                      </h3>
-
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="aed-chip aed-chip-slate">
-                          {Number(modalDetalleUbicacion.resumen?.esperados || 0)} esperados
-                        </span>
-
-                        <span className="aed-chip aed-chip-slate">
-                          {Number(modalDetalleUbicacion.resumen?.escaneados || 0)} escaneados
-                        </span>
-
-                        <span className="aed-chip aed-chip-emerald">
-                          {Number(modalDetalleUbicacion.resumen?.correctos || 0)} correctos
-                        </span>
-
-                        <span className="aed-chip aed-chip-amber">
-                          {Number(modalDetalleUbicacion.resumen?.faltantes || 0)} faltantes
-                        </span>
-
-                        <span className="aed-chip aed-chip-red">
-                          {Number(modalDetalleUbicacion.resumen?.sobrantes || 0)} sobrantes
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="aed-modal-close"
-                      onClick={cerrarPopupDetalleUbicacion_}
-                      title="Cerrar"
-                    >
-                      ×
-                    </button>
-                  </div>
-
-                  <div className="aed-modal-body custom-scroll">
-                    <table className="aed-table">
-                      <thead>
-                        <tr>
-                          <th>IdUnico</th>
-                          <th>Código</th>
-                          <th>Descripción</th>
-                          <th>Estado</th>
-                          <th>Hora</th>
-                          <th>Observaciones</th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {(modalDetalleUbicacion.detalle || []).map((row, idx) => {
-                          const estado = getEstadoFilaVisual_(row);
-
-                          return (
-                            <tr key={`${row.idunico || "SIN-ID"}-${idx}`} className="aed-row">
-                              <td>
-                                <span className="aed-meta-main text-[14px]">
-                                  {row.idunico || "—"}
-                                </span>
-                              </td>
-
-                              <td>
-                                <span className="text-[13px] font-black uppercase tracking-[0.08em] text-[var(--text-main)]">
-                                  {row.codigo || row.sku || "—"}
-                                </span>
-                              </td>
-
-                              <td>
-                                <span className="text-[12px] font-semibold uppercase text-[var(--text-secondary)] leading-snug">
-                                  {row.descripcion || "Sin descripción"}
-                                </span>
-                              </td>
-
-                              <td>
-                                <span className={estado.className}>
-                                  {estado.text}
-                                </span>
-                              </td>
-
-                              <td>
-                                <span className="text-[12px] font-black text-[var(--text-main)]">
-                                  {formatearHora_(row.horaescaneoidunico || row.hora || row.horaregistro || row.horaescaneo)}
-                                </span>
-                              </td>
-
-                              <td>
-                                <span className="text-[12px] font-semibold text-[var(--text-secondary)]">
-                                  {row.observaciones || row.nota || row.mensaje || "—"}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-
-                    {!modalLoading && (!modalDetalleUbicacion.detalle || modalDetalleUbicacion.detalle.length === 0) && (
-                      <div className="aed-empty-state">
-                        <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                          <LocalIcon name="scan-search" size={28} />
-                        </div>
-
-                        <span className="text-[13px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
-                          Sin registros para esta ubicación
-                        </span>
-                      </div>
-                    )}
-
-                    {modalLoading && (
-                      <div className="p-24 flex flex-col items-center justify-center gap-4">
-                        <div className="w-10 h-10 border-4 border-slate-100 border-t-[var(--primary)] rounded-full animate-spin"></div>
-                        <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                          Cargando detalle...
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
+          </section>
+          {modal && (
+            <LocationDetailDrawer
+              data={modal}
+              loading={modalLoading}
+              audit={audit}
+              auditId={id}
+              close={closeDrawer}
+            />
+          )}
         </div>
       );
-    };
-
-    // =========================================================
-    // MONTAJE
-    // =========================================================
-    const targetElement = document.getElementById("render-auditoria-excedentes-detalle");
-
-    if (!targetElement) {
-      notify_("No se encontró el contenedor principal del detalle de auditoría.", "error", 4200, {
-        title: "Error de interfaz",
-        sound: true
-      });
-      console.warn("⚠️ [AuditoriaExcedentesDetalle] No se encontró #render-auditoria-excedentes-detalle");
-      return;
     }
 
-    const yaInicializado = targetElement.dataset.aedMounted === "1";
-
+    const target = document.getElementById(
+      "render-auditoria-excedentes-detalle",
+    );
+    if (!target) {
+      notify("No se encontró el contenedor de detalle.", "error");
+      return;
+    }
     if (window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__) {
       try {
         window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__.unmount();
       } catch (e) {
-        console.warn("⚠️ [AuditoriaExcedentesDetalle] No se pudo desmontar root previo:", e);
-        notifyOnceShell_(
-          "auditoria-detalle-root-previo",
-          "Se liberó una instancia previa del detalle de auditoría.",
-          "warning",
-          1600,
-          {
-            title: "Reinicialización",
-            sound: false
-          },
-          10000
-        );
+        console.warn(e);
       }
-      window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__ = null;
     }
-
-    try {
-      targetElement.dataset.aedMounted = "1";
-      window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__ = ReactDOM.createRoot(targetElement);
-      window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__.render(<AuditoriaExcedentesDetalleView />);
-
-      if (!yaInicializado) {
-        notifyOnceShell_(
-          "auditoria-detalle-vista-montada",
-          "Detalle de auditoría listo para operar.",
-          "success",
-          1500,
-          {
-            title: "Vista cargada",
-            sound: false
-          },
-          12000
-        );
-      }
-    } catch (e) {
-      console.error("❌ [AuditoriaExcedentesDetalle] Error montando root React:", e);
-      notify_("Ocurrió un error al montar el detalle de auditoría.", "error", 4200, {
-        title: "Error de montaje",
-        sound: true
-      });
-    }
+    window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__ = ReactDOM.createRoot(target);
+    window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__.render(<App />);
   };
-
   window.initVista = window.cargar_AuditoriaExcedentesDetalle;
-  console.log("🧩 [AuditoriaExcedentesDetalle] Vista inyectable inicializada y registrada.");
 </script>

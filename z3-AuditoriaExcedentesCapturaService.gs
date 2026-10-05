@@ -79,6 +79,176 @@ const AuditoriaExcedentesCapturaService = (() => {
     ) || [];
   }
 
+  function _buildEstadoActualIndexFresh_() {
+    if (
+      typeof EstadoActualExcedentesService === "undefined" ||
+      !EstadoActualExcedentesService ||
+      typeof EstadoActualExcedentesService.getAll !== "function"
+    ) {
+      throw new Error(
+        "EstadoActualExcedentesService no está disponible para validar escaneos."
+      );
+    }
+
+    /*
+    * Limpia únicamente la caché consolidada de estado actual.
+    * No usa ScriptLock y se ejecuta una vez por lote.
+    */
+    if (typeof EstadoActualExcedentesService.clearCache === "function") {
+      EstadoActualExcedentesService.clearCache();
+    }
+
+    const estadoActual = EstadoActualExcedentesService.getAll() || [];
+
+    return estadoActual.reduce(function (index, item) {
+      const idunico = toStrUpper_(
+        item && (item.idUnico || item.idunico || "")
+      );
+
+      if (!idunico) return index;
+
+      index[idunico] = {
+        idunico: idunico,
+        codigo: toStrUpper_(item.codigo || item.sku || ""),
+        descripcion: toStrUpper_(item.descripcion || ""),
+        ubicacionActual: toStrUpper_(
+          item.ubicacionActual || item.ubicacion || ""
+        ),
+        bodegaActual: toStrUpper_(
+          item.bodegaActual ||
+          item.bodega ||
+          inferWarehouseByLocation_(
+            item.ubicacionActual || item.ubicacion || "",
+            ""
+          )
+        ),
+        saldoActual: toNum_(
+          item.saldoActual != null
+            ? item.saldoActual
+            : item.saldoBase
+        ),
+        existeBD: item.existeBD === true,
+        validoBD: item.validoBD === true,
+        vigente: item.vigente === true,
+        conUbicacion: item.conUbicacion === true,
+        auditable: item.auditable === true,
+        estatusRegistro: toStrUpper_(item.estatusRegistro || ""),
+        estatusLogico: toStrUpper_(item.estatusLogico || "")
+      };
+
+      return index;
+    }, {});
+  }
+
+  function _clasificarEscaneoServidor_(
+    auditoria,
+    ubicacionAuditada,
+    idunico,
+    estadoActualIndex
+  ) {
+    const id = toStrUpper_(idunico);
+    const ubicacion = toStrUpper_(ubicacionAuditada);
+    const actual = estadoActualIndex[id] || null;
+
+    if (!actual) {
+      return {
+        tipoResultado: TIPO_RESULTADO.SOBRANTE,
+        escorrecto: false,
+        essobrante: true,
+        actual: null,
+        motivo: "IDUNICO_NO_ENCONTRADO",
+        observaciones: "IDUNICO NO ENCONTRADO EN ESTADO ACTUAL"
+      };
+    }
+
+    if (actual.existeBD !== true) {
+      return {
+        tipoResultado: TIPO_RESULTADO.SOBRANTE,
+        escorrecto: false,
+        essobrante: true,
+        actual: actual,
+        motivo: "SIN_REGISTRO_BD",
+        observaciones: "IDUNICO SIN REGISTRO VÁLIDO EN BD-EXCEDENTES"
+      };
+    }
+
+    if (actual.validoBD !== true) {
+      return {
+        tipoResultado: TIPO_RESULTADO.SOBRANTE,
+        escorrecto: false,
+        essobrante: true,
+        actual: actual,
+        motivo: "REGISTRO_BD_NO_VALIDO",
+        observaciones:
+          "IDUNICO CON ESTATUS NO AUDITABLE: " +
+          (actual.estatusRegistro || actual.estatusLogico || "SIN ESTATUS")
+      };
+    }
+
+    if (actual.vigente !== true || Number(actual.saldoActual || 0) <= 0) {
+      return {
+        tipoResultado: TIPO_RESULTADO.SOBRANTE,
+        escorrecto: false,
+        essobrante: true,
+        actual: actual,
+        motivo: "SIN_SALDO_VIGENTE",
+        observaciones: "IDUNICO SIN SALDO VIGENTE PARA AUDITORÍA"
+      };
+    }
+
+    if (!actual.ubicacionActual || actual.conUbicacion !== true) {
+      return {
+        tipoResultado: TIPO_RESULTADO.SOBRANTE,
+        escorrecto: false,
+        essobrante: true,
+        actual: actual,
+        motivo: "SIN_UBICACION_ACTUAL",
+        observaciones: "IDUNICO SIN UBICACIÓN FÍSICA VÁLIDA"
+      };
+    }
+
+    try {
+      _assertUbicacionEnAlcance_(
+        auditoria,
+        actual.ubicacionActual,
+        actual.bodegaActual
+      );
+    } catch (errorAlcance) {
+      return {
+        tipoResultado: TIPO_RESULTADO.SOBRANTE,
+        escorrecto: false,
+        essobrante: true,
+        actual: actual,
+        motivo: "FUERA_DEL_ALCANCE",
+        observaciones:
+          "IDUNICO FUERA DEL ALCANCE DE ESTA AUDITORÍA. " +
+          (errorAlcance && errorAlcance.message
+            ? errorAlcance.message
+            : "")
+      };
+    }
+
+    if (actual.ubicacionActual !== ubicacion) {
+      return {
+        tipoResultado: TIPO_RESULTADO.SOBRANTE,
+        escorrecto: false,
+        essobrante: true,
+        actual: actual,
+        motivo: "UBICACION_DIFERENTE",
+        observaciones: "ESPERADO EN " + actual.ubicacionActual
+      };
+    }
+
+    return {
+      tipoResultado: TIPO_RESULTADO.CORRECTO,
+      escorrecto: true,
+      essobrante: false,
+      actual: actual,
+      motivo: "COINCIDENCIA_CONFIRMADA",
+      observaciones: ""
+    };
+  }
+
   function _assertUbicacionEnAlcance_(auditoria, ubicacion, bodega) {
     const tipo = toStrUpper_(auditoria.tipoauditoria);
 
@@ -641,7 +811,7 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
   // REGISTRO POR LOTE
   // =========================================================
 
-  function registrarEscaneosLote(payload) {
+function registrarEscaneosLote(payload) {
     const idauditoria = toStr_(payload && payload.idauditoria);
     const ubicacion = toStrUpper_(payload && payload.ubicacion);
     const escaneos = Array.isArray(payload && payload.escaneos)
@@ -662,8 +832,14 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
         insertados: 0,
         omitidos: 0,
         detalleOmitidos: [],
+        clasificaciones: [],
+        correccionesClasificacion: 0,
         mensaje: "No había escaneos pendientes para sincronizar."
       };
+    }
+
+    if (escaneos.length > 100) {
+      throw new Error("El lote excede el máximo permitido de 100 escaneos.");
     }
 
     const audit = _getAuditoriaOrThrow_(idauditoria);
@@ -675,40 +851,55 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
       throw new Error("La ubicación " + ubicacion + " no está abierta.");
     }
 
+    _assertUbicacionEnAlcance_(
+      audit,
+      ubicacion,
+      marker.bodega || inferWarehouseByLocation_(ubicacion, "")
+    );
+
     const detalleActual = _getDetallesAuditoria_(idauditoria);
     const yaRegistrados = {};
 
     detalleActual.forEach(function (row) {
       const idu = toStrUpper_(row.idunico || "");
-      if (!idu) return;
-      if (row.esfaltante === true) return;
+      if (!idu || row.esfaltante === true) return;
 
-      yaRegistrados[idu] = true;
+      yaRegistrados[idu] = {
+        ubicacion: toStrUpper_(row.ubicacion || ""),
+        escorrecto: row.escorrecto === true,
+        essobrante: row.essobrante === true,
+        fila: row._rowNumber || null
+      };
     });
 
+    const estadoActualIndex = _buildEstadoActualIndexFresh_();
     const rowsInsertar = [];
     const omitidos = [];
+    const clasificaciones = [];
+    let correccionesClasificacion = 0;
 
-    escaneos.forEach(function (item) {
-      const idunico = toStrUpper_(item.idunico || item.idUnico || "");
-      const tipo = toStrUpper_(item.tipoResultado || item.estado || "");
-      const codigo = toStrUpper_(item.codigo || "");
-      const descripcion = toStrUpper_(item.descripcion || "");
-      const observaciones = toStr_(item.observaciones || item.mensaje || "");
+    escaneos.forEach(function (item, index) {
+      const idunico = toStrUpper_(
+        item && (item.idunico || item.idUnico || "")
+      );
+
+      const tipoPreliminar = toStrUpper_(
+        item && (
+          item.tipoResultadoPreliminar ||
+          item.tipoResultado ||
+          item.estado ||
+          ""
+        )
+      );
 
       if (!idunico) {
-        omitidos.push({
-          motivo: "SIN_IDUNICO",
-          item: item
-        });
+        omitidos.push({ indice: index, motivo: "SIN_IDUNICO" });
         return;
       }
 
-      // =========================================================
-      // BLOQUEO SERVIDOR: NO GUARDAR UBICACIONES COMO IDUNICO
-      // =========================================================
       if (_esIdentificadorUbicacionExcedente_(idunico)) {
         omitidos.push({
+          indice: index,
           idunico: idunico,
           motivo: "QR_UBICACION_NO_ES_IDUNICO"
         });
@@ -717,80 +908,141 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
 
       if (yaRegistrados[idunico]) {
         omitidos.push({
+          indice: index,
           idunico: idunico,
-          motivo: "DUPLICADO_SERVIDOR"
+          motivo: "DUPLICADO_SERVIDOR",
+          ubicacionExistente: yaRegistrados[idunico].ubicacion
+        });
+
+        clasificaciones.push({
+          indice: index,
+          idunico: idunico,
+          persistido: false,
+          duplicado: true,
+          tipoPreliminar: tipoPreliminar,
+          tipoResultado: "DUPLICADO",
+          motivo: "DUPLICADO_SERVIDOR",
+          ubicacionAuditada: ubicacion,
+          ubicacionEsperada: yaRegistrados[idunico].ubicacion,
+          codigo: "",
+          descripcion: "",
+          observaciones: "IDUNICO YA REGISTRADO EN ESTA AUDITORÍA"
         });
         return;
       }
 
-      const esCorrecto = tipo === TIPO_RESULTADO.CORRECTO;
-      const esSobrante = tipo === TIPO_RESULTADO.SOBRANTE;
+      const clasificacion = _clasificarEscaneoServidor_(
+        audit,
+        ubicacion,
+        idunico,
+        estadoActualIndex
+      );
 
-      if (!esCorrecto && !esSobrante) {
-        omitidos.push({
-          idunico: idunico,
-          motivo: "TIPO_NO_PERSISTIBLE",
-          tipo: tipo
-        });
-        return;
+      const actual = clasificacion.actual || {};
+      const codigo = toStrUpper_(actual.codigo || (item && item.codigo) || "");
+      const descripcion = toStrUpper_(
+        actual.descripcion || (item && item.descripcion) || ""
+      );
+      const bodegaRegistro = toStrUpper_(
+        marker.bodega || inferWarehouseByLocation_(ubicacion, "")
+      );
+      const horaEscaneo = toStr_(
+        item && (item.hora || item.horaLocal)
+      ) || fmtTimeNow_();
+      const tipoDefinitivo = clasificacion.tipoResultado;
+
+      if (tipoPreliminar && tipoPreliminar !== tipoDefinitivo) {
+        correccionesClasificacion++;
       }
+
+      const observacionesCliente = toStr_(
+        item && (item.observaciones || item.mensaje || "")
+      );
+      const observacionesServidor = toStr_(clasificacion.observaciones || "");
+      const observacionesFinales =
+        tipoDefinitivo === TIPO_RESULTADO.CORRECTO
+          ? ""
+          : (observacionesServidor || observacionesCliente);
 
       rowsInsertar.push({
         idauditoria: idauditoria,
         secuenciaubicacion: marker.secuenciaubicacion,
-        bodega: toStrUpper_(
-          item.bodega ||
-          marker.bodega ||
-          inferWarehouseByLocation_(ubicacion, "")
-        ),
+        bodega: bodegaRegistro,
         ubicacion: ubicacion,
         horainicioubicacion: "",
         horafinubicacion: "",
         idunico: idunico,
         codigo: codigo,
         descripcion: descripcion,
-        horaescaneoidunico: toStr_(item.hora || item.horaLocal || fmtTimeNow_()),
-        escorrecto: esCorrecto,
+        horaescaneoidunico: horaEscaneo,
+        escorrecto: clasificacion.escorrecto === true,
         esfaltante: false,
-        essobrante: esSobrante,
-        observaciones: observaciones
+        essobrante: clasificacion.essobrante === true,
+        observaciones: observacionesFinales
       });
 
-      yaRegistrados[idunico] = true;
+      yaRegistrados[idunico] = {
+        ubicacion: ubicacion,
+        escorrecto: clasificacion.escorrecto === true,
+        essobrante: clasificacion.essobrante === true,
+        fila: null
+      };
+
+      clasificaciones.push({
+        indice: index,
+        idunico: idunico,
+        persistido: true,
+        duplicado: false,
+        tipoPreliminar: tipoPreliminar,
+        tipoResultado: tipoDefinitivo,
+        corregido: !!tipoPreliminar && tipoPreliminar !== tipoDefinitivo,
+        motivo: clasificacion.motivo,
+        ubicacionAuditada: ubicacion,
+        ubicacionEsperada: toStrUpper_(actual.ubicacionActual || ""),
+        bodegaEsperada: toStrUpper_(actual.bodegaActual || ""),
+        codigo: codigo,
+        descripcion: descripcion,
+        observaciones: observacionesFinales
+      });
     });
 
     let auditSnapshot = null;
 
-      if (rowsInsertar.length > 0) {
-        AuditoriaExcedentesDetalleRepository.insertMany(rowsInsertar);
+    if (rowsInsertar.length > 0) {
+      AuditoriaExcedentesDetalleRepository.insertMany(rowsInsertar);
 
-        try {
-          if (typeof AuditoriaExcedentesLiveCache !== "undefined") {
-            AuditoriaExcedentesLiveCache.registrarEscaneos({
-              idauditoria: idauditoria,
-              ubicacion: ubicacion,
-              bodega: marker.bodega,
-              secuenciaubicacion: marker.secuenciaubicacion,
-              esperados: toNum_(payload && payload.esperadosUbicacion),
-              rows: rowsInsertar
-            });
-          }
-        } catch (e) {
-          console.warn("[LIVE] No se pudo emitir lote de escaneos:", e);
+      try {
+        if (typeof AuditoriaExcedentesLiveCache !== "undefined") {
+          AuditoriaExcedentesLiveCache.registrarEscaneos({
+            idauditoria: idauditoria,
+            ubicacion: ubicacion,
+            bodega: marker.bodega,
+            secuenciaubicacion: marker.secuenciaubicacion,
+            esperados: toNum_(payload && payload.esperadosUbicacion),
+            rows: rowsInsertar
+          });
         }
-
-        auditSnapshot = _recalcularCabeceraDesdeDetalle_(idauditoria);
+      } catch (errorLive) {
+        console.warn("[LIVE] No se pudo emitir lote de escaneos:", errorLive);
       }
-    
+
+      auditSnapshot = _recalcularCabeceraDesdeDetalle_(idauditoria);
+    }
+
     return {
       ok: true,
       insertados: rowsInsertar.length,
       omitidos: omitidos.length,
       detalleOmitidos: omitidos,
+      clasificaciones: clasificaciones,
+      correccionesClasificacion: correccionesClasificacion,
       auditSnapshot: auditSnapshot,
-      mensaje: "Escaneos sincronizados correctamente."
+      mensaje: correccionesClasificacion > 0
+        ? "Escaneos sincronizados. " +
+          correccionesClasificacion +
+          " clasificación(es) preliminar(es) fueron corregidas por el servidor."
+        : "Escaneos sincronizados correctamente."
     };
-
   }
 
   /**
@@ -829,21 +1081,9 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
   // =========================================================
   // CIERRE DE UBICACIÓN
   // =========================================================
-
   function cerrarUbicacion(payload) {
     const idauditoria = toStr_(payload && payload.idauditoria);
     const ubicacion = toStrUpper_(payload && payload.ubicacion);
-    const faltantes = Array.isArray(payload && payload.faltantes)
-      ? payload.faltantes
-      : [];
-/**
- * TODO:
- * Validar los faltantes recibidos desde frontend contra el universo esperado
- * calculado en servidor para esta ubicación.
- *
- * Esto evitará diferencias si el frontend trae un paquete viejo.
- */
-
     const observaciones = toStr_(payload && payload.observaciones);
 
     if (!idauditoria) {
@@ -860,51 +1100,77 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
     const marker = _getMarcadorAbiertoUbicacion_(idauditoria, ubicacion);
 
     if (!marker) {
-      throw new Error("La ubicación " + ubicacion + " no está abierta o ya fue cerrada.");
+      throw new Error(
+        "La ubicación " + ubicacion + " no está abierta o ya fue cerrada."
+      );
     }
 
+    _assertUbicacionEnAlcance_(
+      audit,
+      ubicacion,
+      marker.bodega || inferWarehouseByLocation_(ubicacion, "")
+    );
+
+    /*
+    * El servidor obtiene nuevamente el universo autoritativo.
+    * payload.faltantes se ignora intencionalmente.
+    */
+    const universo = _getUniversoEsperadoAuditoria_(audit) || [];
+    const esperadosUbicacion = universo.filter(function (item) {
+      return toStrUpper_(item.ubicacionActual || item.ubicacion || "") === ubicacion;
+    });
+
     const detalleActual = _getDetallesUbicacion_(idauditoria, ubicacion);
-    const yaRegistrados = {};
+    const idsEscaneadosCorrectos = new Set(
+      detalleActual
+        .filter(function (row) {
+          return row.idunico && row.escorrecto === true;
+        })
+        .map(function (row) {
+          return toStrUpper_(row.idunico);
+        })
+        .filter(Boolean)
+    );
 
-    detalleActual.forEach(function (row) {
-      const idu = toStrUpper_(row.idunico || "");
-      if (!idu) return;
+    const idsYaPersistidos = new Set(
+      detalleActual
+        .filter(function (row) {
+          return !!row.idunico;
+        })
+        .map(function (row) {
+          return toStrUpper_(row.idunico);
+        })
+        .filter(Boolean)
+    );
 
-      yaRegistrados[idu] = true;
-    });
-
-    const faltantesInsertar = [];
-
-    faltantes.forEach(function (item) {
-      const idunico = toStrUpper_(item.idunico || item.idUnico || "");
-
-      if (!idunico) return;
-      if (yaRegistrados[idunico]) return;
-
-      faltantesInsertar.push({
-        idauditoria: idauditoria,
-        secuenciaubicacion: marker.secuenciaubicacion,
-        bodega: toStrUpper_(
-          item.bodegaActual ||
-          item.bodega ||
-          marker.bodega ||
-          inferWarehouseByLocation_(ubicacion, "")
-        ),
-        ubicacion: ubicacion,
-        horainicioubicacion: "",
-        horafinubicacion: "",
-        idunico: idunico,
-        codigo: toStrUpper_(item.codigo || ""),
-        descripcion: toStrUpper_(item.descripcion || ""),
-        horaescaneoidunico: "",
-        escorrecto: false,
-        esfaltante: true,
-        essobrante: false,
-        observaciones: "NO ESCANEADO AL CERRAR UBICACIÓN"
+    const faltantesInsertar = esperadosUbicacion
+      .filter(function (item) {
+        const id = toStrUpper_(item.idUnico || item.idunico || "");
+        return id && !idsEscaneadosCorrectos.has(id) && !idsYaPersistidos.has(id);
+      })
+      .map(function (item) {
+        return {
+          idauditoria: idauditoria,
+          secuenciaubicacion: marker.secuenciaubicacion,
+          bodega: toStrUpper_(
+            item.bodegaActual ||
+            item.bodega ||
+            marker.bodega ||
+            inferWarehouseByLocation_(ubicacion, "")
+          ),
+          ubicacion: ubicacion,
+          horainicioubicacion: "",
+          horafinubicacion: "",
+          idunico: toStrUpper_(item.idUnico || item.idunico || ""),
+          codigo: toStrUpper_(item.codigo || ""),
+          descripcion: toStrUpper_(item.descripcion || ""),
+          horaescaneoidunico: "",
+          escorrecto: false,
+          esfaltante: true,
+          essobrante: false,
+          observaciones: "NO ESCANEADO AL CERRAR UBICACIÓN"
+        };
       });
-
-      yaRegistrados[idunico] = true;
-    });
 
     if (faltantesInsertar.length > 0) {
       AuditoriaExcedentesDetalleRepository.insertMany(faltantesInsertar);
@@ -912,10 +1178,13 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
 
     const horaFinLive = fmtTimeNow_();
 
-    AuditoriaExcedentesDetalleRepository.updateByRowNumber(marker._rowNumber, {
-      horafinubicacion: horaFinLive,
-      observaciones: observaciones || marker.observaciones || ""
-    });
+    AuditoriaExcedentesDetalleRepository.updateByRowNumber(
+      marker._rowNumber,
+      {
+        horafinubicacion: horaFinLive,
+        observaciones: observaciones || marker.observaciones || ""
+      }
+    );
 
     try {
       if (typeof AuditoriaExcedentesLiveCache !== "undefined") {
@@ -928,13 +1197,11 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
           faltantesInsertados: faltantesInsertar.length
         });
       }
-    } catch (e) {
-      console.warn("[LIVE] No se pudo emitir cierre de ubicación:", e);
+    } catch (errorLive) {
+      console.warn("[LIVE] No se pudo emitir cierre de ubicación:", errorLive);
     }
 
     const auditSnapshot = _recalcularCabeceraDesdeDetalle_(idauditoria);
-
-
     const estado = obtenerEstadoUbicacion({
       idauditoria: idauditoria,
       ubicacion: ubicacion
@@ -945,6 +1212,7 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
       mensaje: "Ubicación cerrada correctamente.",
       idauditoria: idauditoria,
       ubicacion: ubicacion,
+      esperadosServidor: esperadosUbicacion.length,
       faltantesInsertados: faltantesInsertar.length,
       auditSnapshot: auditSnapshot,
       detalle: estado.detalle,
@@ -1167,3 +1435,4 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
 
 
 })();
+

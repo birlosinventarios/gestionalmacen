@@ -520,6 +520,46 @@
     const shellNotifyStateRef = { current: {} };
     const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
 
+    const actionRun_ = (config) => {
+      if (!window.APPALMACEN_ACTIONS || typeof window.APPALMACEN_ACTIONS.run !== "function") {
+        return Promise.reject(
+          new Error("APPALMACEN_ACTIONS.run no esta disponible en el Shell.")
+        );
+      }
+
+      return window.APPALMACEN_ACTIONS.run(config);
+    };
+
+    const reportViewError_ = (event, error, metadata = {}) => {
+      const normalizedError = error instanceof Error
+        ? error
+        : new Error(
+            error?.message ||
+            error?.details ||
+            String(error || "Error desconocido")
+          );
+
+      if (typeof window.registrarError_ === "function") {
+        window.registrarError_("VIEW", event, normalizedError, {
+          viewId: "PrototipoTraspasos",
+          ...metadata
+        });
+        return;
+      }
+
+      console.error(`[APPALMACEN][VIEW][${event}]`, {
+        error: {
+          name: normalizedError.name || "Error",
+          message: normalizedError.message || "",
+          stack: normalizedError.stack || ""
+        },
+        metadata: {
+          viewId: "PrototipoTraspasos",
+          ...metadata
+        }
+      });
+    };
+
     // =============================
     // ICONO LOCAL
     // =============================
@@ -555,6 +595,9 @@
       const [mapaUbicacionesExcedentes, setMapaUbicacionesExcedentes] = useState([]);
       const [foliosAcomodo, setFoliosAcomodo] = useState([]);
       const [foliosSurtido, setFoliosSurtido] = useState([]);
+      const [foliosListos, setFoliosListos] = useState(false);
+      const [sincronizandoFolios, setSincronizandoFolios] = useState(false);
+      const foliosListosRef = useRef(false);
 
       const [form, setForm] = useState({
         tipo: 'Acomodo',
@@ -574,7 +617,7 @@
       const syncFoliosInFlightRef = useRef(false);
       const syncFoliosHashRef = useRef("");
       const syncFoliosTimerRef = useRef(null);
-
+      const envioEnCursoRef = useRef(false);
 
       // =============================
       // REFS PARA ESCANEO CONTINUO
@@ -602,6 +645,22 @@
       // HELPERS
       // ---------------------------------------------------------
       const normalizarTexto = (valor) => String(valor || "").trim().toUpperCase();
+
+      const generarIdOperacion_ = () => {
+        if (
+          window.crypto &&
+          typeof window.crypto.randomUUID === "function"
+        ) {
+          return window.crypto.randomUUID();
+        }
+
+        return [
+          Date.now(),
+          Math.random().toString(36).slice(2),
+          normalizarTexto(form.codigo),
+          form.caja
+        ].join("-");
+      };
 
       const normalizarFolios = (lista = []) => {
         return lista.map(item => ({
@@ -639,18 +698,84 @@
 
       const leerBootstrapDesdeCache = () => {
         const cache = window.DATA_ALMACEN_CACHE || {};
-        return cache.prototipoTraspasosBootstrap || null;
+
+        if (cache.prototipoTraspasosBootstrap) {
+          return cache.prototipoTraspasosBootstrap;
+        }
+
+        if (
+          Array.isArray(cache.usuarios) &&
+          Array.isArray(cache.bodegas) &&
+          Array.isArray(cache.mapaUbicacionesExcedentes)
+        ) {
+          return {
+            usuarios: cache.usuarios || [],
+            bodegas: cache.bodegas || [],
+            mapaUbicacionesExcedentes: cache.mapaUbicacionesExcedentes || [],
+
+            estadoFoliosAcomodo: cache.estadoFoliosAcomodo || [],
+            estadoFoliosSurtido: cache.estadoFoliosSurtido || [],
+            estadoFolios: cache.estadoFoliosAcomodo || [],
+
+            parcial: true,
+            origen: "APPALMACEN_BOOTSTRAP"
+          };
+        }
+
+        return null;
       };
 
-      const refrescarEstadoFolios = (onDone, contexto = "refresh", forceRefresh = true) => {
+      const aplicarFoliosDesdeCacheLocal_ = () => {
+        const cache = leerBootstrapDesdeCache();
+
+        const acomodo = normalizarFolios(
+          cache && Array.isArray(cache.estadoFoliosAcomodo)
+            ? cache.estadoFoliosAcomodo
+            : []
+        );
+
+        const surtido = normalizarFolios(
+          cache && Array.isArray(cache.estadoFoliosSurtido)
+            ? cache.estadoFoliosSurtido
+            : []
+        );
+
+        if (acomodo.length > 0 || surtido.length > 0) {
+          setFoliosAcomodo(acomodo);
+          setFoliosSurtido(surtido);
+          setFoliosListos(true);
+          setSincronizandoFolios(false);
+
+          return true;
+        }
+
+        return false;
+      };
+
+      const refrescarEstadoFolios = (
+        onDone,
+        contexto = "refresh",
+        forceRefresh = false,
+        options = {}
+      ) => {
         if (syncFoliosInFlightRef.current) {
           if (typeof onDone === "function") {
-            onDone(null, new Error("Sincronización en curso."));
+            onDone(null, new Error("Sincronizacion en curso."));
           }
-          return;
+          return Promise.resolve(null);
         }
 
         syncFoliosInFlightRef.current = true;
+
+        const bloquearUI =
+          options.bloquearUI === true &&
+          !foliosListosRef.current;
+
+        let failureHandlerExecuted = false;
+
+        if (bloquearUI) {
+          setSincronizandoFolios(true);
+        }
 
         if (contexto !== "silent" && contexto !== "auto") {
           notify_("Actualizando estado de folios...", "info", 1400, {
@@ -659,16 +784,55 @@
           });
         }
 
-        google.script.run
-          .withSuccessHandler((data) => {
+        return actionRun_({
+          operation: "TRASPASOS_REFRESCAR_FOLIOS",
+          viewId: "PrototipoTraspasos",
+          controller: "PrototipoTraspasosController_obtenerEstadoFolios",
+          payload: {
+            forceRefresh: forceRefresh === true
+          },
+          timeoutMs: 120000,
+          waitForPaint: true,
+          metadata: {
+            contexto,
+            bloquearUI,
+            forceRefresh: forceRefresh === true
+          },
+
+          invoke({ success, failure }) {
+            google.script.run
+              .withSuccessHandler(success)
+              .withFailureHandler(failure)
+              .PrototipoTraspasosController_obtenerEstadoFolios(
+                forceRefresh === true
+              );
+          },
+
+          onSuccess(data) {
             syncFoliosInFlightRef.current = false;
+
+            if (bloquearUI) {
+              setSincronizandoFolios(false);
+            }
 
             const acomodo = normalizarFolios(data?.acomodo || []);
             const surtido = normalizarFolios(data?.surtido || []);
 
             const nuevoHash = JSON.stringify({
-              acomodo: acomodo.map(x => [x.idUnico, x.sku, x.balance, x.ubicacionActual, x.bodegaActual]),
-              surtido: surtido.map(x => [x.idUnico, x.sku, x.balance, x.ubicacionActual, x.bodegaActual])
+              acomodo: acomodo.map(x => [
+                x.idUnico,
+                x.sku,
+                x.balance,
+                x.ubicacionActual,
+                x.bodegaActual
+              ]),
+              surtido: surtido.map(x => [
+                x.idUnico,
+                x.sku,
+                x.balance,
+                x.ubicacionActual,
+                x.bodegaActual
+              ])
             });
 
             const huboCambios = nuevoHash !== syncFoliosHashRef.current;
@@ -676,21 +840,30 @@
 
             setFoliosAcomodo(acomodo);
             setFoliosSurtido(surtido);
+            setFoliosListos(true);
 
-            const cache = leerBootstrapDesdeCache();
+            const syncTime = Date.now();
+            window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+            window.DATA_ALMACEN_CACHE.estadoFoliosAcomodo = acomodo;
+            window.DATA_ALMACEN_CACHE.estadoFoliosSurtido = surtido;
+            window.DATA_ALMACEN_CACHE.estadoFolios = acomodo;
+            window.DATA_ALMACEN_CACHE.ultimaSyncFolios = syncTime;
 
-            if (cache) {
-              cache.estadoFoliosAcomodo = acomodo;
-              cache.estadoFoliosSurtido = surtido;
-              cache.estadoFolios = acomodo;
-              cache.ultimaSyncFolios = Date.now();
+            const bootstrapCache =
+              window.DATA_ALMACEN_CACHE.prototipoTraspasosBootstrap;
+
+            if (bootstrapCache) {
+              bootstrapCache.estadoFoliosAcomodo = acomodo;
+              bootstrapCache.estadoFoliosSurtido = surtido;
+              bootstrapCache.estadoFolios = acomodo;
+              bootstrapCache.ultimaSyncFolios = syncTime;
             }
 
             if (contexto === "auto") {
               if (huboCambios) {
                 notifyOnce_(
                   "folios-auto-actualizados",
-                  "Base de excedentes actualizada automáticamente.",
+                  "Base de excedentes actualizada automaticamente.",
                   "info",
                   1500,
                   {
@@ -701,29 +874,46 @@
                 );
               }
             } else if (contexto !== "silent") {
-              notify_("Estado de folios actualizado correctamente.", "success", 1600, {
-                title: "Folios sincronizados",
-                sound: false
-              });
+              notify_(
+                "Estado de folios actualizado correctamente.",
+                "success",
+                1600,
+                {
+                  title: "Folios sincronizados",
+                  sound: false
+                }
+              );
             }
+
+            const result = {
+              acomodo,
+              surtido,
+              huboCambios
+            };
 
             if (typeof onDone === "function") {
-              onDone({ acomodo, surtido, huboCambios });
+              onDone(result);
             }
-          })
-          .withFailureHandler((err) => {
+
+            return result;
+          },
+
+          onFailure(error) {
+            failureHandlerExecuted = true;
             syncFoliosInFlightRef.current = false;
 
-            console.error("❌ [Prototipo] Error refrescando estado de folios:", err);
+            if (bloquearUI) {
+              setSincronizandoFolios(false);
+            }
 
             if (contexto === "auto") {
               notifyOnce_(
                 "error-auto-sync-folios",
-                "No se pudo sincronizar automáticamente la base de folios.",
+                "No se pudo sincronizar automaticamente la base de folios.",
                 "warning",
                 2600,
                 {
-                  title: "Sincronización pendiente",
+                  title: "Sincronizacion pendiente",
                   sound: false
                 },
                 15000
@@ -734,18 +924,75 @@
                 "error",
                 4200,
                 {
-                  title: "Error de sincronización",
+                  title: "Error de sincronizacion",
                   sound: true
                 }
               );
             }
 
             if (typeof onDone === "function") {
-              onDone(null, err);
+              onDone(null, error);
             }
-          })
-          .PrototipoTraspasosController_obtenerEstadoFolios(forceRefresh === true);
+          },
+
+          getResultMetadata(data, result) {
+            return {
+              acomodo: result?.acomodo?.length || 0,
+              surtido: result?.surtido?.length || 0,
+              huboCambios: result?.huboCambios === true
+            };
+          }
+        }).catch(error => {
+          syncFoliosInFlightRef.current = false;
+
+          if (bloquearUI) {
+            setSincronizandoFolios(false);
+          }
+
+          reportViewError_(
+            "TRASPASOS_REFRESCAR_FOLIOS_FAILED",
+            error,
+            {
+              contexto,
+              forceRefresh: forceRefresh === true,
+              failureHandlerExecuted
+            }
+          );
+
+          if (!failureHandlerExecuted) {
+            if (contexto === "auto") {
+              notifyOnce_(
+                "timeout-auto-sync-folios",
+                "La sincronizacion automatica de folios excedio el tiempo permitido.",
+                "warning",
+                2600,
+                {
+                  title: "Sincronizacion pendiente",
+                  sound: false
+                },
+                15000
+              );
+            } else {
+              notify_(
+                error?.message || "No se pudo completar la sincronizacion de folios.",
+                "error",
+                4200,
+                {
+                  title: "Sincronizacion incompleta",
+                  sound: true
+                }
+              );
+            }
+
+            if (typeof onDone === "function") {
+              onDone(null, error);
+            }
+          }
+
+          return null;
+        });
       };
+
 
       const baseActiva = useMemo(() => {
         return form.tipo === 'Acomodo' ? foliosAcomodo : foliosSurtido;
@@ -809,8 +1056,8 @@
       useEffect(() => {
         const cargarBootstrap = () => {
           try {
-            notify_("Sincronizando catálogo del prototipo...", "info", 1800, {
-              title: "Inicializando prototipo",
+            notify_("Preparando vista de traspasos...", "info", 1400, {
+              title: "Inicializando",
               sound: false
             });
 
@@ -820,41 +1067,164 @@
               cacheBootstrap &&
               Array.isArray(cacheBootstrap.usuarios) &&
               Array.isArray(cacheBootstrap.bodegas) &&
-              Array.isArray(cacheBootstrap.mapaUbicacionesExcedentes) &&
-              Array.isArray(cacheBootstrap.estadoFoliosAcomodo) &&
-              Array.isArray(cacheBootstrap.estadoFoliosSurtido)
+              Array.isArray(cacheBootstrap.mapaUbicacionesExcedentes)
             ) {
-              console.log("⚡ [Prototipo] Bootstrap reutilizado desde cache.");
-              setUsuarios(cacheBootstrap.usuarios);
-              setBodegas((cacheBootstrap.bodegas || []).map(x => String(x || "").trim().toUpperCase()));
-              setMapaUbicacionesExcedentes(normalizarMapaUbicaciones(cacheBootstrap.mapaUbicacionesExcedentes || []));
-              setFoliosAcomodo(normalizarFolios(cacheBootstrap.estadoFoliosAcomodo));
-              setFoliosSurtido(normalizarFolios(cacheBootstrap.estadoFoliosSurtido));
-              setCargando(false);
 
+              setUsuarios(cacheBootstrap.usuarios || []);
+
+              setBodegas(
+                (cacheBootstrap.bodegas || []).map(x =>
+                  String(x || "").trim().toUpperCase()
+                )
+              );
+
+              setMapaUbicacionesExcedentes(
+                normalizarMapaUbicaciones(cacheBootstrap.mapaUbicacionesExcedentes || [])
+              );
+
+              const acomodoCache = normalizarFolios(cacheBootstrap.estadoFoliosAcomodo || []);
+              const surtidoCache = normalizarFolios(cacheBootstrap.estadoFoliosSurtido || []);
+
+              setFoliosAcomodo(acomodoCache);
+              setFoliosSurtido(surtidoCache);
+
+              setFoliosListos(acomodoCache.length > 0 || surtidoCache.length > 0);
+
+              setCargando(false);
               firstLoadDoneRef.current = true;
-              notify_("Conexión establecida correctamente desde memoria local.", "success", 2000, {
-                title: "Sistema listo",
+
+              notify_("Vista lista. Sincronizando folios en segundo plano...", "info", 1600, {
+                title: "Prototipo listo",
                 sound: false
               });
+
+              setTimeout(() => {
+                if (aplicarFoliosDesdeCacheLocal_()) {
+                  return;
+                }
+
+                const prefetch =
+                  window.APPALMACEN_PREFETCHES &&
+                  window.APPALMACEN_PREFETCHES.prototipoFolios
+                    ? window.APPALMACEN_PREFETCHES.prototipoFolios
+                    : null;
+
+                if (prefetch && prefetch.inFlight) {
+
+                  setSincronizandoFolios(true);
+
+                  let intentos = 0;
+                  const maxIntentos = 80;
+
+                  const timerPrefetch = setInterval(() => {
+                    intentos++;
+
+                    if (aplicarFoliosDesdeCacheLocal_()) {
+                      clearInterval(timerPrefetch);
+                      return;
+                    }
+
+                    const prefetchActual =
+                      window.APPALMACEN_PREFETCHES &&
+                      window.APPALMACEN_PREFETCHES.prototipoFolios
+                        ? window.APPALMACEN_PREFETCHES.prototipoFolios
+                        : null;
+
+                    if (prefetchActual && prefetchActual.ready === true) {
+                      clearInterval(timerPrefetch);
+
+                      if (!aplicarFoliosDesdeCacheLocal_()) {
+                        refrescarEstadoFolios(null, "silent", false, {
+                          bloquearUI: true
+                        });
+                      }
+
+                      return;
+                    }
+
+                    if (prefetchActual && prefetchActual.inFlight === false && prefetchActual.ready !== true) {
+                      clearInterval(timerPrefetch);
+
+
+
+                      refrescarEstadoFolios(null, "silent", false, {
+                        bloquearUI: true
+                      });
+
+                      return;
+                    }
+
+                    if (intentos >= maxIntentos) {
+                      clearInterval(timerPrefetch);
+
+          
+
+                      refrescarEstadoFolios(null, "silent", false, {
+                        bloquearUI: true
+                      });
+                    }
+                  }, 300);
+
+                  return;
+                }
+
+                refrescarEstadoFolios(null, "silent", false, {
+                  bloquearUI: true
+                });
+              }, 250);
+
               return;
             }
 
-            google.script.run
-              .withSuccessHandler((bootstrap) => {
-                console.log("✅ [Prototipo] Bootstrap recibido:", bootstrap);
+            /**
+            * Fallback:
+            * Solo si APPALMACEN Bootstrap no tiene datos base.
+            * Este escenario debería ser raro.
+            */
 
+            let bootstrapFailureHandlerExecuted = false;
+
+            return actionRun_({
+              operation: "TRASPASOS_BOOTSTRAP_FALLBACK",
+              viewId: "PrototipoTraspasos",
+              controller: "PrototipoTraspasosController_getBootstrap",
+              payload: null,
+              timeoutMs: 120000,
+              waitForPaint: true,
+              metadata: {
+                reason: "global_bootstrap_missing"
+              },
+
+              invoke({ success, failure }) {
+                google.script.run
+                  .withSuccessHandler(success)
+                  .withFailureHandler(failure)
+                  .PrototipoTraspasosController_getBootstrap();
+              },
+
+              onSuccess(bootstrap) {
                 const usuariosRecibidos = bootstrap?.usuarios || [];
-                const bodegasRecibidas = (bootstrap?.bodegas || []).map(x => String(x || "").trim().toUpperCase());
-                const mapaUbicacionesRecibido = normalizarMapaUbicaciones(bootstrap?.mapaUbicacionesExcedentes || []);
-                const acomodoRecibidos = normalizarFolios(bootstrap?.estadoFoliosAcomodo || []);
-                const surtidoRecibidos = normalizarFolios(bootstrap?.estadoFoliosSurtido || []);
+                const bodegasRecibidas = (bootstrap?.bodegas || []).map(x =>
+                  String(x || "").trim().toUpperCase()
+                );
+                const mapaUbicacionesRecibido = normalizarMapaUbicaciones(
+                  bootstrap?.mapaUbicacionesExcedentes || []
+                );
+                const acomodoRecibidos = normalizarFolios(
+                  bootstrap?.estadoFoliosAcomodo || []
+                );
+                const surtidoRecibidos = normalizarFolios(
+                  bootstrap?.estadoFoliosSurtido || []
+                );
 
                 setUsuarios(usuariosRecibidos);
                 setBodegas(bodegasRecibidas);
                 setMapaUbicacionesExcedentes(mapaUbicacionesRecibido);
                 setFoliosAcomodo(acomodoRecibidos);
                 setFoliosSurtido(surtidoRecibidos);
+                setFoliosListos(
+                  acomodoRecibidos.length > 0 || surtidoRecibidos.length > 0
+                );
 
                 guardarBootstrapEnCache({
                   usuarios: usuariosRecibidos,
@@ -862,19 +1232,30 @@
                   mapaUbicacionesExcedentes: mapaUbicacionesRecibido,
                   estadoFoliosAcomodo: acomodoRecibidos,
                   estadoFoliosSurtido: surtidoRecibidos,
-                  estadoFolios: acomodoRecibidos
+                  estadoFolios: acomodoRecibidos,
+                  ultimaSyncFolios: Date.now()
                 });
 
                 setCargando(false);
                 firstLoadDoneRef.current = true;
 
-                notify_("Conexión establecida correctamente con el prototipo.", "success", 2200, {
+                notify_("Vista sincronizada correctamente.", "success", 1800, {
                   title: "Sistema listo",
                   sound: false
                 });
-              })
-              .withFailureHandler((err) => {
-                console.error("❌ [Prototipo] Error cargando bootstrap:", err);
+
+                return {
+                  usuarios: usuariosRecibidos.length,
+                  bodegas: bodegasRecibidas.length,
+                  ubicaciones: mapaUbicacionesRecibido.length,
+                  acomodo: acomodoRecibidos.length,
+                  surtido: surtidoRecibidos.length
+                };
+              },
+
+              onFailure(error) {
+                bootstrapFailureHandlerExecuted = true;
+                setCargando(false);
 
                 notify_(
                   "No se pudieron recuperar los datos del prototipo.",
@@ -885,12 +1266,39 @@
                     sound: true
                   }
                 );
-                setCargando(false);
-              })
-              .PrototipoTraspasosController_getBootstrap();
+              },
+
+              getResultMetadata(bootstrap, counts) {
+                return counts || {};
+              }
+            }).catch(error => {
+              setCargando(false);
+
+              reportViewError_(
+                "TRASPASOS_BOOTSTRAP_FALLBACK_FAILED",
+                error,
+                {
+                  failureHandlerExecuted: bootstrapFailureHandlerExecuted
+                }
+              );
+
+              if (!bootstrapFailureHandlerExecuted) {
+                notify_(
+                  error?.message || "No se pudo completar la carga inicial del prototipo.",
+                  "error",
+                  4200,
+                  {
+                    title: "Carga inicial incompleta",
+                    sound: true
+                  }
+                );
+              }
+
+              return null;
+            });
 
           } catch (err) {
-            console.error("❌ [Prototipo] Error inesperado:", err);
+            reportViewError_("TRASPASOS_INITIALIZATION_FAILED", err);
 
             notify_(
               "No se pudo inicializar la vista del prototipo.",
@@ -901,12 +1309,17 @@
                 sound: true
               }
             );
+
             setCargando(false);
           }
         };
 
         cargarBootstrap();
       }, []);
+
+      useEffect(() => {
+        foliosListosRef.current = foliosListos === true;
+      }, [foliosListos]);
 
       // Autoenfoque al QR cuando esté lista la vista
       useEffect(() => {
@@ -918,8 +1331,23 @@
       useEffect(() => {
         if (cargando) return;
 
-        // Primera sincronización inmediata al entrar a la vista.
-        refrescarEstadoFolios(null, "auto", true);
+        const cache = leerBootstrapDesdeCache();
+        const ultimaSync = Number(cache?.ultimaSyncFolios || 0);
+        const edadMs = Date.now() - ultimaSync;
+
+        const prefetch =
+          window.APPALMACEN_PREFETCHES &&
+          window.APPALMACEN_PREFETCHES.prototipoFolios
+            ? window.APPALMACEN_PREFETCHES.prototipoFolios
+            : null;
+
+        if (!(prefetch && prefetch.inFlight)) {
+          if (!ultimaSync || edadMs > 30000) {
+            refrescarEstadoFolios(null, "auto", false, {
+              bloquearUI: false
+            });
+          }
+        }
 
         if (syncFoliosTimerRef.current) {
           clearInterval(syncFoliosTimerRef.current);
@@ -928,8 +1356,10 @@
         syncFoliosTimerRef.current = setInterval(() => {
           if (procesando) return;
 
-          refrescarEstadoFolios(null, "auto", true);
-        }, 4000);
+          refrescarEstadoFolios(null, "auto", false, {
+            bloquearUI: false
+          });
+        }, 30000);
 
         return () => {
           if (syncFoliosTimerRef.current) {
@@ -942,7 +1372,9 @@
       useEffect(() => {
         const handleVisibilityChange = () => {
           if (document.visibilityState === "visible" && !cargando && !procesando) {
-            refrescarEstadoFolios(null, "auto", true);
+            refrescarEstadoFolios(null, "auto", false, {
+              bloquearUI: false
+            });
           }
         };
 
@@ -1266,7 +1698,7 @@
           bodega: bodegaLimpia,
           cantidad: cant,
           ubicacion: ubicacionLimpia,
-          id: `${Date.now()}&${codigoLimpio}&#${form.caja}`,
+          id: generarIdOperacion_(),
           timestamp: new Date().toLocaleTimeString(),
           sku: form.idSeleccionado.sku,
           descripcion: form.idSeleccionado.descripcion,
@@ -1274,16 +1706,27 @@
         };
 
         if (
-          form.tipo === 'Surtido' &&
+          form.tipo === "Surtido" &&
           form.idSeleccionado &&
-          parseFloat(form.cantidad) < form.idSeleccionado.balance
+          Number(form.cantidad || 0) <
+            Number(form.idSeleccionado.balance || 0)
         ) {
+          const saldoPosterior =
+            Math.round(
+              (
+                Number(form.idSeleccionado.balance || 0) -
+                Number(form.cantidad || 0) +
+                Number.EPSILON
+              ) * 100
+            ) / 100;
+
           notify_(
-            `Se generará un nuevo remanente de ${form.idSeleccionado.balance - parseFloat(form.cantidad)} pzas.`,
+            `El folio conservara el mismo IdUnico ` +
+            `con un saldo actualizado de ${saldoPosterior} pzas.`,
             "info",
             3500,
             {
-              title: "Remanente detectado",
+              title: "Surtido parcial detectado",
               sound: false
             }
           );
@@ -1316,30 +1759,32 @@
       // ---------------------------------------------------------
       
       const enviarASheets = () => {
-        if (cola.length === 0) return;
+        if (envioEnCursoRef.current || cola.length === 0) return;
+
+        envioEnCursoRef.current = true;
+
+        const colaEnviada = cola.map(item => ({
+          ...item,
+          idSeleccionado: item.idSeleccionado ? { ...item.idSeleccionado } : null
+        }));
 
         if (
           !window.ImpresionModoUtilidades ||
           typeof window.ImpresionModoUtilidades.getMode !== "function" ||
           typeof window.ImpresionModoUtilidades.imprimirResultado !== "function"
         ) {
-          notify_(
-            "No se encontró el módulo global de impresión.",
-            "error",
-            4200,
-            {
-              title: "Impresión no disponible",
-              sound: true
-            }
-          );
+          notify_("No se encontro el modulo global de impresion.", "error", 4200, {
+            title: "Impresion no disponible",
+            sound: true
+          });
+          envioEnCursoRef.current = false;
           return;
         }
 
         setProcesando(true);
 
         const modoImpresion = window.ImpresionModoUtilidades.getMode();
-
-        const hayImpresionEsperada = cola.some(item =>
+        const hayImpresionEsperada = colaEnviada.some(item =>
           item.tipo === "Surtido" &&
           item.idSeleccionado &&
           Number(item.cantidad || 0) > 0 &&
@@ -1347,23 +1792,20 @@
         );
 
         let ventanaLocal = null;
+        let processFailureHandlerExecuted = false;
 
         if (modoImpresion === "LOCAL" && hayImpresionEsperada) {
           ventanaLocal = window.open("", "_blank", "width=900,height=700");
 
           if (!ventanaLocal) {
+            envioEnCursoRef.current = false;
             setProcesando(false);
-
             notify_(
-              "La ventana fue bloqueada. Permite los pop-ups para imprimir el remanente.",
+              "La ventana fue bloqueada. Permite los pop-ups para imprimir la etiqueta de saldo.",
               "warning",
               4200,
-              {
-                title: "Pop-up bloqueado",
-                sound: true
-              }
+              { title: "Pop-up bloqueado", sound: true }
             );
-
             return;
           }
 
@@ -1371,62 +1813,21 @@
           ventanaLocal.document.write(`
             <html>
               <head>
-                <title>Generando remanente...</title>
+                <title>Generando etiqueta de remanente...</title>
                 <style>
-                  body {
-                    font-family: Arial, sans-serif;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    height: 100vh;
-                    margin: 0;
-                    color: #5f6368;
-                    background-color: #f8f9fa;
-                  }
-
-                  .spinner {
-                    width: 50px;
-                    height: 50px;
-                    border: 5px solid #f3f3f3;
-                    border-top: 5px solid #d93025;
-                    border-radius: 50%;
-                    animation: spin 1s linear infinite;
-                    margin-bottom: 20px;
-                  }
-
-                  @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                  }
-
-                  .loader {
-                    text-align: center;
-                    max-width: 440px;
-                    padding: 0 24px;
-                  }
-
-                  .loader h3 {
-                    margin: 0 0 8px 0;
-                    font-size: 22px;
-                    font-weight: 700;
-                    color: #1c1d1f;
-                    letter-spacing: 0.04em;
-                  }
-
-                  .loader p {
-                    margin: 0;
-                    font-size: 14px;
-                    color: #5f6368;
-                    line-height: 1.5;
-                  }
+                  body { font-family: Arial,sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; margin:0; color:#5f6368; background:#f8f9fa; }
+                  .spinner { width:50px; height:50px; border:5px solid #f3f3f3; border-top:5px solid #d93025; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:20px; }
+                  @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+                  .loader { text-align:center; max-width:440px; padding:0 24px; }
+                  .loader h3 { margin:0 0 8px; font-size:22px; font-weight:700; color:#1c1d1f; }
+                  .loader p { margin:0; font-size:14px; line-height:1.5; }
                 </style>
               </head>
               <body>
                 <div class="spinner"></div>
                 <div class="loader">
-                  <h3>Preparando remanente...</h3>
-                  <p>Espera un momento mientras se aplica el movimiento y se genera la etiqueta del remanente.</p>
+                  <h3>Preparando etiqueta actualizada...</h3>
+                  <p>Espera un momento mientras se aplica el movimiento y se genera la etiqueta con el saldo actual.</p>
                 </div>
               </body>
             </html>
@@ -1436,35 +1837,46 @@
 
         notify_(
           hayImpresionEsperada
-            ? (
-                modoImpresion === "ONLINE"
-                  ? "Aplicando movimientos y preparando remanentes para impresión ONLINE..."
-                  : "Aplicando movimientos y preparando remanentes para impresión LOCAL..."
-              )
+            ? (modoImpresion === "ONLINE"
+                ? "Aplicando movimientos y preparando etiquetas de saldo para impresion ONLINE..."
+                : "Aplicando movimientos y preparando etiquetas de saldo para impresion LOCAL...")
             : "Aplicando movimientos del prototipo...",
           "info",
           1800,
-          {
-            title: "Aplicando movimientos",
-            sound: false
-          }
+          { title: "Aplicando movimientos", sound: false }
         );
 
-        google.script.run
-          .withSuccessHandler((resultado) => {
-            const res = typeof resultado === "string"
-              ? {
-                  ok: true,
-                  htmlImpresion: resultado,
-                  printJob: null,
-                  legacy: true
-                }
-              : resultado;
+        actionRun_({
+          operation: "TRASPASOS_PROCESAR_MOVIMIENTOS",
+          viewId: "PrototipoTraspasos",
+          controller: "PrototipoTraspasosController_procesarMovimientosFinal",
+          payload: colaEnviada,
+          timeoutMs: 180000,
+          waitForPaint: true,
+          metadata: {
+            movimientos: colaEnviada.length,
+            acomodos: colaEnviada.filter(item => item.tipo === "Acomodo").length,
+            surtidos: colaEnviada.filter(item => item.tipo === "Surtido").length,
+            modoImpresion,
+            hayImpresionEsperada
+          },
 
-            const hayRemanentes =
-              res &&
-              Number(res.remanentesGenerados || 0) > 0 &&
-              !!res.htmlImpresion;
+          invoke({ success, failure }) {
+            google.script.run
+              .withSuccessHandler(success)
+              .withFailureHandler(failure)
+              .PrototipoTraspasosController_procesarMovimientosFinal(colaEnviada);
+          },
+
+          onSuccess(resultado) {
+            const res = typeof resultado === "string"
+              ? { ok: true, htmlImpresion: resultado, printJob: null, legacy: true }
+              : (resultado || {});
+
+            const totalYaAplicados = Number(res.totalYaAplicados || 0);
+            const totalNuevos = Number(res.totalNuevos || 0);
+            const remanentesGenerados = Number(res.remanentesGenerados || 0);
+            const hayRemanentes = remanentesGenerados > 0 && Boolean(res.htmlImpresion);
 
             if (!hayRemanentes && ventanaLocal && !ventanaLocal.closed) {
               ventanaLocal.close();
@@ -1474,74 +1886,34 @@
               const modoActual = window.ImpresionModoUtilidades.getMode();
 
               if (modoActual === "ONLINE" && !res.printJob) {
-                if (ventanaLocal && !ventanaLocal.closed) {
-                  ventanaLocal.close();
-                }
-
-                setProcesando(false);
-
-                notify_(
-                  "Se generó remanente, pero no se recibió paquete ONLINE.",
-                  "error",
-                  5200,
-                  {
-                    title: "Impresión ONLINE no disponible",
-                    sound: true
-                  }
+                if (ventanaLocal && !ventanaLocal.closed) ventanaLocal.close();
+                throw new Error(
+                  "Se genero una etiqueta de saldo, pero no se recibio el paquete ONLINE."
                 );
-
-                return;
               }
 
-              try {
-                window.ImpresionModoUtilidades.imprimirResultado(res, {
-                  titulo: "Etiqueta de remanente",
-                  fallbackLocal: false,
-                  ventanaLocal: ventanaLocal
-                });
+              window.ImpresionModoUtilidades.imprimirResultado(res, {
+                titulo: "Etiqueta de saldo parcial",
+                fallbackLocal: false,
+                ventanaLocal
+              });
 
-                notify_(
-                  modoActual === "ONLINE"
-                    ? "Etiqueta de remanente enviada por ONLINE."
-                    : "Etiqueta de remanente lista para impresión LOCAL.",
-                  "success",
-                  2800,
-                  {
-                    title: modoActual === "ONLINE"
-                      ? "Impresión ONLINE"
-                      : "Impresión LOCAL",
-                    sound: true
-                  }
-                );
-
-              } catch (errorImpresion) {
-                console.error("❌ [Prototipo] Error ejecutando impresión:", errorImpresion);
-
-                if (ventanaLocal && !ventanaLocal.closed) {
-                  ventanaLocal.close();
+              notify_(
+                modoActual === "ONLINE"
+                  ? "Etiqueta de saldo enviada por ONLINE."
+                  : "Etiqueta de saldo lista para impresion LOCAL.",
+                "success",
+                2800,
+                {
+                  title: modoActual === "ONLINE" ? "Impresion ONLINE" : "Impresion LOCAL",
+                  sound: true
                 }
-
-                setProcesando(false);
-
-                notify_(
-                  errorImpresion && errorImpresion.message
-                    ? errorImpresion.message
-                    : "No se pudo ejecutar la impresión del remanente.",
-                  "error",
-                  5200,
-                  {
-                    title: "Error de impresión",
-                    sound: true
-                  }
-                );
-
-                return;
-              }
+              );
             }
 
+            envioEnCursoRef.current = false;
             setProcesando(false);
             setCola([]);
-
             setForm(prev => ({
               ...prev,
               codigo: "",
@@ -1555,13 +1927,17 @@
             enfocarQR();
 
             notify_(
-              hayRemanentes
-                ? "Inventario actualizado correctamente. Se generó etiqueta de remanente."
-                : "Inventario actualizado correctamente.",
+              totalYaAplicados > 0 && totalNuevos === 0
+                ? "La operacion ya habia sido aplicada. No se duplicaron movimientos."
+                : hayRemanentes
+                  ? "Inventario actualizado. Se genero la etiqueta con el saldo actual."
+                  : "Inventario actualizado correctamente.",
               "success",
-              2400,
+              2800,
               {
-                title: "Operación exitosa",
+                title: totalYaAplicados > 0 && totalNuevos === 0
+                  ? "Operacion ya aplicada"
+                  : "Operacion exitosa",
                 sound: true
               }
             );
@@ -1569,53 +1945,82 @@
             refrescarEstadoFolios((data, err) => {
               if (err) {
                 notify_(
-                  "La operación se guardó, pero no se pudo refrescar el estado de folios.",
+                  "La operacion se guardo, pero no se pudo refrescar el estado de folios.",
                   "warning",
                   3200,
-                  {
-                    title: "Actualización parcial",
-                    sound: false
-                  }
+                  { title: "Actualizacion parcial", sound: false }
                 );
                 return;
               }
 
-              notify_(
-                "Estado de folios actualizado correctamente.",
-                "info",
-                1400,
-                {
-                  title: "Folios sincronizados",
-                  sound: false
-                }
-              );
-            }, "silent", true);
-          })
-          .withFailureHandler((err) => {
-            if (ventanaLocal && !ventanaLocal.closed) {
-              ventanaLocal.close();
-            }
+              notify_("Estado de folios actualizado correctamente.", "info", 1400, {
+                title: "Folios sincronizados",
+                sound: false
+              });
+            }, "silent", true, { bloquearUI: false });
 
-            console.error("❌ [Prototipo] Error procesando movimientos:", err);
+            return res;
+          },
 
+          onFailure(err) {
+            processFailureHandlerExecuted = true;
+
+
+            if (ventanaLocal && !ventanaLocal.closed) ventanaLocal.close();
+            envioEnCursoRef.current = false;
             setProcesando(false);
+            siguientePasoPostScanRef.current = null;
+            enfocarQR();
 
             notify_(
-              err && err.message
-                ? err.message
-                : "No se pudo procesar la operación.",
+              err?.message || "No se pudo procesar la operacion.",
+              "error",
+              4200,
+              { title: "Error", sound: true }
+            );
+          },
+
+          getResultMetadata(resultado, res) {
+            return {
+              responseOk: res?.ok === true,
+              totalNuevos: Number(res?.totalNuevos || 0),
+              totalYaAplicados: Number(res?.totalYaAplicados || 0),
+              remanentesGenerados: Number(res?.remanentesGenerados || 0),
+              legacyResponse: res?.legacy === true
+            };
+          }
+        }).catch(error => {
+          if (ventanaLocal && !ventanaLocal.closed) {
+            ventanaLocal.close();
+          }
+
+          envioEnCursoRef.current = false;
+          setProcesando(false);
+          siguientePasoPostScanRef.current = null;
+          enfocarQR();
+
+          reportViewError_(
+            "TRASPASOS_PROCESAR_MOVIMIENTOS_FAILED",
+            error,
+            {
+              movimientos: colaEnviada.length,
+              modoImpresion,
+              failureHandlerExecuted: processFailureHandlerExecuted
+            }
+          );
+
+          if (!processFailureHandlerExecuted) {
+            notify_(
+              error?.message || "No se pudo completar la operacion.",
               "error",
               4200,
               {
-                title: "Error",
+                title: "Operacion incompleta",
                 sound: true
               }
             );
-
-            siguientePasoPostScanRef.current = null;
-            enfocarQR();
-          })
-          .PrototipoTraspasosController_procesarMovimientosFinal(cola);
+          }
+        });
       };
 
       
@@ -1694,32 +2099,41 @@
                     <div className="space-y-4">
 
                       {/* Solicitante */}
-                      <div className="space-y-2">
-                        <label className="proto-label ml-1">
-                          Solicitante
-                        </label>
+                        <div className="space-y-2">
+                          <label className="proto-label ml-1">
+                            Solicitante
+                          </label>
 
-                        <div className="relative">
-                          <input
-                            list="lista-usuarios-prototipo"
-                            disabled={cargando}
-                            className={`w-full border rounded-xl px-4 proto-input proto-form-input-unificado uppercase outline-none transition-all ${
-                              cargando
-                                ? 'bg-gray-200 cursor-not-allowed'
-                                : 'bg-gray-50 focus:bg-white focus:border-[#d93025]'
-                            }`}
-                            placeholder={cargando ? "Cargando catálogo..." : "Escribe o selecciona un solicitante"}
-                            value={form.solicitante}
-                            onChange={e => setForm({ ...form, solicitante: e.target.value.toUpperCase() })}
-                          />
+                          <div className="relative">
+                            <input
+                              list="lista-usuarios-prototipo"
+                              disabled={cargando}
+                              className={`w-full border rounded-xl px-4 proto-input proto-form-input-unificado uppercase outline-none transition-all ${
+                                cargando
+                                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed border-gray-300'
+                                  : 'bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white'
+                              }`}
+                              placeholder={
+                                cargando
+                                  ? "Cargando solicitantes..."
+                                  : "Escribe o selecciona un solicitante"
+                              }
+                              value={form.solicitante}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  solicitante: e.target.value.toUpperCase()
+                                })
+                              }
+                            />
 
-                          <datalist id="lista-usuarios-prototipo">
-                            {usuarios.map((u, index) => (
-                              <option key={index} value={u.nombre} />
-                            ))}
-                          </datalist>
+                            <datalist id="lista-usuarios-prototipo">
+                              {usuarios.map((u, index) => (
+                                <option key={index} value={u.nombre} />
+                              ))}
+                            </datalist>
+                          </div>
                         </div>
-                      </div>
 
                       {/* QR / FOLIO */}
                       <div className="space-y-2">
@@ -1729,89 +2143,110 @@
 
                         <div className="relative group">
                           <input
-                            ref={qrInputRef}
-                            list="lista-ids-excedentes"
-                            className="w-full bg-gray-50 border border-[#dadce0] focus:border-[#d93025] focus:bg-white rounded-xl px-4 proto-input proto-form-input-unificado uppercase outline-none transition-all"
-                            placeholder={
-                              form.tipo === 'Acomodo'
+                          ref={qrInputRef}
+                          list="lista-ids-excedentes"
+                          disabled={!foliosListos}
+                          className={`w-full border rounded-xl px-4 proto-input proto-form-input-unificado uppercase outline-none transition-all ${
+                            !foliosListos
+                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed border-gray-300'
+                              : 'bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white'
+                          }`}
+                          placeholder={
+                            !foliosListos
+                              ? "Esperando folios disponibles..."
+                              : form.tipo === 'Acomodo'
                                 ? 'Escanea un excedente con status DISPONIBLE'
                                 : 'Escanea un excedente con saldo disponible para surtido'
-                            }
-                            value={form.codigo}
-                            onChange={handleInputChange}
-                            onKeyDown={(e) => {
-                              if (e.key !== 'Enter') return;
-
+                          }
+                          value={form.codigo}
+                          onChange={handleInputChange}
+                          onKeyDown={(e) => {
+                            if (!foliosListos) {
                               e.preventDefault();
+                              notify_(
+                                "Los folios todavía se están sincronizando. Espera un momento.",
+                                "info",
+                                1800,
+                                {
+                                  title: "Sincronización en curso",
+                                  sound: false
+                                }
+                              );
+                              return;
+                            }
 
-                              const valorEscaneado = normalizarTexto(e.currentTarget.value);
-                              const match = baseActiva.find(f => normalizarTexto(f.idUnico) === valorEscaneado);
+                            if (e.key !== 'Enter') return;
 
-                              if (!valorEscaneado) {
-                                notify_(
-                                  "Escanea o captura un excedente válido antes de continuar.",
-                                  "warning",
-                                  2200,
-                                  {
-                                    title: "ID vacío",
-                                    sound: true
-                                  }
-                                );
-                                return;
-                              }
+                            e.preventDefault();
 
-                              if (!match) {
-                                notify_(
-                                  "El excedente escaneado no existe en la fuente activa.",
-                                  "error",
-                                  2600,
-                                  {
-                                    title: "ID no reconocido",
-                                    sound: true
-                                  }
-                                );
-                                return;
-                              }
+                            const valorEscaneado = normalizarTexto(e.currentTarget.value);
+                            const match = baseActiva.find(f => normalizarTexto(f.idUnico) === valorEscaneado);
 
-                              if (existeIdUnicoEnCola(match.idUnico || valorEscaneado)) {
-                                notify_(
-                                  `El excedente ${match.idUnico || valorEscaneado} ya está agregado en la fila.`,
-                                  "warning",
-                                  2600,
-                                  {
-                                    title: "ID duplicado",
-                                    sound: true
-                                  }
-                                );
-                                return;
-                              }
+                            if (!valorEscaneado) {
+                              notify_(
+                                "Escanea o captura un excedente válido antes de continuar.",
+                                "warning",
+                                2200,
+                                {
+                                  title: "ID vacío",
+                                  sound: true
+                                }
+                              );
+                              return;
+                            }
 
-                              if (form.tipo === "Surtido") {
-                                siguientePasoPostScanRef.current = "CANTIDAD";
-                              } else {
-                                const hayBodega = normalizarTexto(form.bodega);
-                                const hayUbicacion = normalizarTexto(form.ubicacion);
+                            if (!match) {
+                              notify_(
+                                "El excedente escaneado no existe en la fuente activa.",
+                                "error",
+                                2600,
+                                {
+                                  title: "ID no reconocido",
+                                  sound: true
+                                }
+                              );
+                              return;
+                            }
 
-                                siguientePasoPostScanRef.current =
-                                  hayBodega && hayUbicacion
-                                    ? "AUTO_ADD_ACOMODO"
-                                    : "BODEGA";
-                              }
+                            if (existeIdUnicoEnCola(match.idUnico || valorEscaneado)) {
+                              notify_(
+                                `El excedente ${match.idUnico || valorEscaneado} ya está agregado en la fila.`,
+                                "warning",
+                                2600,
+                                {
+                                  title: "ID duplicado",
+                                  sound: true
+                                }
+                              );
+                              return;
+                            }
 
-                              setForm(prev => ({
-                                ...prev,
-                                codigo: valorEscaneado,
-                                bodega: prev.tipo === 'Surtido'
-                                  ? (match.bodegaActual || prev.bodega)
-                                  : prev.bodega,
-                                ubicacion: prev.tipo === 'Surtido'
-                                  ? (match.ubicacionActual || prev.ubicacion)
-                                  : prev.ubicacion,
-                                cantidad: match.balance || prev.cantidad,
-                                idSeleccionado: match
-                              }));
-                            }}
-                          />
+                            if (form.tipo === "Surtido") {
+                              siguientePasoPostScanRef.current = "CANTIDAD";
+                            } else {
+                              const hayBodega = normalizarTexto(form.bodega);
+                              const hayUbicacion = normalizarTexto(form.ubicacion);
+
+                              siguientePasoPostScanRef.current =
+                                hayBodega && hayUbicacion
+                                  ? "AUTO_ADD_ACOMODO"
+                                  : "BODEGA";
+                            }
+
+                            setForm(prev => ({
+                              ...prev,
+                              codigo: valorEscaneado,
+                              bodega: prev.tipo === 'Surtido'
+                                ? (match.bodegaActual || prev.bodega)
+                                : prev.bodega,
+                              ubicacion: prev.tipo === 'Surtido'
+                                ? (match.ubicacionActual || prev.ubicacion)
+                                : prev.ubicacion,
+                              cantidad: match.balance || prev.cantidad,
+                              idSeleccionado: match
+                            }));
+                          }}
+                        />
 
                           <datalist id="lista-ids-excedentes">
                             {baseActivaDisponible.map((item, index) => (
@@ -2085,7 +2520,7 @@
                           <div className="fade-in proto-remanente-card p-3.5">
                             <div className="flex items-center justify-between mb-2">
                               <span className="proto-remanente-badge">
-                                Remanente detectado
+                                Surtido parcial
                               </span>
                               <div className="text-amber-900">
                                 <LocalIcon name="scissors" size={16} />
@@ -2099,26 +2534,26 @@
 
                               <div className="flex flex-col flex-1 min-w-0">
                                 <span className="text-[12px] font-black text-amber-950 uppercase tracking-[0.16em] leading-tight">
-                                  Se generará una nueva etiqueta
+                                  Se actualizará la etiqueta vigente
                                 </span>
 
                                 <span className="text-[13px] font-semibold text-amber-900 mt-1 leading-snug tracking-[0.02em]">
-                                  Este surtido no consume el total del excedente original.
+                                  El excedente conservará el mismo Identificador con un saldo menor.
                                 </span>
 
                                 <div className="mt-2 flex items-end justify-between gap-3">
                                   <div className="flex flex-col min-w-0">
                                     <span className="text-[11px] font-black text-amber-800 uppercase tracking-[0.12em] whitespace-nowrap">
-                                      Cantidad remanente
+                                      Saldo posterior
                                     </span>
                                     <span className="text-[10px] text-amber-700 font-semibold uppercase tracking-[0.08em] mt-0.5 leading-tight">
-                                      Se registrará como nuevo excedente disponible
+                                      Se conservará el mismo identificador
                                     </span>
                                   </div>
 
                                   <div className="text-right shrink-0">
                                     <span className="text-[22px] font-black text-amber-950 font-mono tracking-[0.04em] leading-none">
-                                      {form.idSeleccionado.balance - parseFloat(form.cantidad)}
+                                      {Math.round( ( Number(form.idSeleccionado.balance || 0) - Number(form.cantidad || 0) + Number.EPSILON ) * 100 ) / 100}
                                     </span>
                                     <div className="text-[11px] text-amber-900 font-black uppercase tracking-[0.14em] mt-0.5">
                                       Pzas
@@ -2133,11 +2568,14 @@
                       {/* Botón añadir */}
                       <button
                         type="submit"
-                        disabled={cargando || procesando}
+                        disabled={cargando || procesando || !foliosListos}
                         className="w-full bg-[#d93025] hover:bg-[#a50e0e] text-white py-4 rounded-xl font-black uppercase text-[16px] tracking-[0.18em] shadow-lg shadow-red-100 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:pointer-events-none"
                       >
                         <LocalIcon name="plus" size={25} />
-                        Añadir a fila
+
+                        {!foliosListos
+                          ? "Esperando folios..."
+                          : "Añadir a fila"}
                       </button>
                     </div>
                   </div>
@@ -2320,7 +2758,10 @@
           sound: true
         }
       );
-      console.warn("⚠️ [Prototipo] No se encontró #render-prototipo-traspasos");
+      reportViewError_(
+        "TRASPASOS_ROOT_CONTAINER_NOT_FOUND",
+        new Error("No se encontro #render-prototipo-traspasos")
+      );
       return;
     }
 
@@ -2329,19 +2770,8 @@
     if (window.__PROTOTIPO_TRASPASOS_ROOT__) {
       try {
         window.__PROTOTIPO_TRASPASOS_ROOT__.unmount();
-      } catch (e) {
-        console.warn("⚠️ [Prototipo] No se pudo desmontar root previo:", e);
-        notifyOnceShell_(
-          "prototipo-root-previo",
-          "Se liberó una instancia previa del prototipo de traspasos.",
-          "warning",
-          1600,
-          {
-            title: "Reinicialización",
-            sound: false
-          },
-          10000
-        );
+      } catch (error) {
+        reportViewError_("TRASPASOS_PREVIOUS_ROOT_UNMOUNT_FAILED", error);
       }
       window.__PROTOTIPO_TRASPASOS_ROOT__ = null;
     }
@@ -2365,7 +2795,7 @@
         );
       }
     } catch (e) {
-      console.error("❌ [Prototipo] Error montando root React:", e);
+      reportViewError_("TRASPASOS_REACT_ROOT_FAILED", e);
       notify_(
         "Ocurrió un error al montar la vista del prototipo.",
         "error",
@@ -2379,5 +2809,5 @@
   };
 
   window.initVista = window.cargar_PrototipoTraspasos;
-  console.log("🧩 [PrototipoTraspasos] initVista definida:", typeof window.initVista);
+
 </script>

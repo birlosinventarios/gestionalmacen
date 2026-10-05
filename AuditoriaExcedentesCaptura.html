@@ -1,1494 +1,688 @@
-<script>/** AuditoriaExcedentesCaptura.html */</script>
+<script>
+  /** AuditoriaExcedentesCaptura.html */
+</script>
 
 <style>
   #render-auditoria-excedentes-captura {
-    --aec-critical: var(--primary);
+    --aec-critical: var(--primary, #d93025);
     --aec-critical-dark: var(--primary-dark, #a50e0e);
-    --aec-critical-light: var(--primary-light, rgba(217, 48, 37, 0.18));
-
+    --aec-critical-light: rgba(217, 48, 37, 0.14);
     --aec-warning: #d97706;
     --aec-warning-dark: #b45309;
     --aec-warning-light: rgba(217, 119, 6, 0.14);
-
     --aec-success: #1e8e3e;
     --aec-success-dark: #157337;
     --aec-success-light: rgba(30, 142, 62, 0.14);
-
     --aec-slate: #1c1d1f;
-    --aec-slate-light: rgba(28, 29, 31, 0.08);
-
     --aec-bg: var(--bg-color, #f8f9fa);
-    --aec-white: #ffffff;
+    --aec-white: #fff;
     --aec-text-main: var(--text-main, #1c1d1f);
     --aec-text-secondary: var(--text-secondary, #5f6368);
     --aec-border: var(--border-color, #dadce0);
-    --aec-shadow-soft: var(--shadow-soft, 0 10px 25px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04));
-    --aec-shadow-red: var(--shadow-red, 0 6px 16px rgba(217, 48, 37, 0.15));
-  }
-
-  #render-auditoria-excedentes-captura {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  #render-auditoria-excedentes-captura::-webkit-scrollbar {
-    display: none;
-  }
-
-  #render-auditoria-excedentes-captura .custom-scroll::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  #render-auditoria-excedentes-captura .custom-scroll::-webkit-scrollbar-track {
-    background: rgba(0,0,0,0.03);
-  }
-
-  #render-auditoria-excedentes-captura .custom-scroll::-webkit-scrollbar-thumb {
-    background: rgba(0,0,0,0.18);
-    border-radius: 999px;
-  }
-
-  #render-auditoria-excedentes-captura .custom-scroll::-webkit-scrollbar-thumb:hover {
-    background: var(--primary);
-  }
-
-  @keyframes aecFadeInUp {
-    from {
-      opacity: 0;
-      transform: translateY(12px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  #render-auditoria-excedentes-captura .fade-in-up {
-    animation: aecFadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  @keyframes aecFlashRow {
-    0%   { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.28); }
-    70%  { box-shadow: 0 0 0 8px rgba(217, 48, 37, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(217, 48, 37, 0); }
-  }
-
-  #render-auditoria-excedentes-captura .flash-row {
-    animation: aecFlashRow 1s ease-in-out 2;
-  }
-
-  #render-auditoria-excedentes-captura .aec-card {
-    background: var(--aec-white);
-    border: 1px solid var(--aec-border);
-    border-radius: 1.5rem;
-    box-shadow: var(--aec-shadow-soft);
-  }
-
-  #render-auditoria-excedentes-captura .aec-panel {
-    background: var(--aec-white);
-    border: 1px solid var(--aec-border);
-    border-radius: 1.5rem;
-    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
-  }
-
-  #render-auditoria-excedentes-captura .aec-kpi {
-    background: var(--aec-white);
-    border: 1px solid var(--aec-border);
-    border-radius: 1.15rem;
-    padding: 1rem 1.1rem;
-    position: relative;
+    height: 100%;
     overflow: hidden;
-    min-height: 118px;
+    color: var(--aec-text-main);
   }
+  #render-auditoria-excedentes-captura * { box-sizing: border-box; }
+  #render-auditoria-excedentes-captura .custom-scroll::-webkit-scrollbar { width: 7px; height: 7px; }
+  #render-auditoria-excedentes-captura .custom-scroll::-webkit-scrollbar-thumb { background: #c4c7cc; border-radius: 99px; }
+  @keyframes aecSpin { to { transform: rotate(360deg); } }
+  @keyframes aecFlash { 0% { box-shadow: 0 0 0 0 rgba(217,48,37,.28); } 70% { box-shadow: 0 0 0 8px rgba(217,48,37,0); } }
+  @keyframes aecFabIn { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
+  @keyframes aecPulse { 50% { opacity: .5; transform: scale(.82); } }
+  #render-auditoria-excedentes-captura .flash-row { animation: aecFlash 1s ease-in-out 2; }
+  #render-auditoria-excedentes-captura .animate-fab-in { animation: aecFabIn .22s ease-out both; }
 
-  #render-auditoria-excedentes-captura .aec-kpi-topbar {
-    position: absolute;
-    inset: 0 auto auto 0;
-    height: 5px;
+  #render-auditoria-excedentes-captura .aec-page {
+    height: 100%; min-height: 0; padding: 16px 24px 24px; overflow: hidden;
+    background: radial-gradient(circle at top right, rgba(217,48,37,.055), transparent 34%), var(--aec-bg);
+  }
+  #render-auditoria-excedentes-captura .aec-workspace {
+    height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+    background: #fff; border: 1px solid var(--aec-border); border-radius: 22px;
+    box-shadow: 0 24px 60px rgba(15,23,42,.11), 0 6px 18px rgba(15,23,42,.05);
+  }
+  #render-auditoria-excedentes-captura .aec-header {
+    flex: 0 0 auto; position: relative; padding: 18px 18px 18px 22px;
+    display: grid; grid-template-columns: minmax(310px,1.15fr) minmax(520px,1.85fr) auto;
+    align-items: center; gap: 16px; overflow: hidden; color: #fff;
+    background: radial-gradient(circle at top right, rgba(217,48,37,.35), transparent 38%),
+      linear-gradient(135deg,#1c1d1f 0%,#25272b 55%,#17181a 100%);
+  }
+  #render-auditoria-excedentes-captura .aec-header::before { content:""; position:absolute; inset:0 auto 0 0; width:7px; background:var(--aec-critical); }
+  #render-auditoria-excedentes-captura .aec-header > * { position: relative; z-index: 2; }
+  #render-auditoria-excedentes-captura .aec-id-block { min-width:0; display:flex; align-items:center; gap:13px; }
+  #render-auditoria-excedentes-captura .aec-icon-box { width:48px; height:48px; flex:0 0 48px; display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,.16); border-radius:15px; background:rgba(255,255,255,.1); }
+  #render-auditoria-excedentes-captura .aec-eyebrow { margin:0 0 4px; color:rgba(255,255,255,.55); font-size:9px; font-weight:950; letter-spacing:.17em; text-transform:uppercase; }
+  #render-auditoria-excedentes-captura .aec-title { margin:0; color:#fff; font:950 22px/1.15 "JetBrains Mono",monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #render-auditoria-excedentes-captura .aec-subtitle { margin:7px 0 0; color:rgba(255,255,255,.65); font-size:9px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #render-auditoria-excedentes-captura .aec-chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:9px; }
+  #render-auditoria-excedentes-captura .aec-chip { min-height:25px; padding:0 9px; display:inline-flex; align-items:center; justify-content:center; gap:5px; border:1px solid transparent; border-radius:999px; font-size:9px; font-weight:900; letter-spacing:.07em; text-transform:uppercase; white-space:nowrap; }
+  #render-auditoria-excedentes-captura .aec-chip-red { background:var(--aec-critical-light); color:var(--aec-critical-dark); border-color:rgba(217,48,37,.25); }
+  #render-auditoria-excedentes-captura .aec-chip-amber { background:var(--aec-warning-light); color:var(--aec-warning-dark); border-color:rgba(217,119,6,.25); }
+  #render-auditoria-excedentes-captura .aec-chip-green { background:var(--aec-success-light); color:var(--aec-success-dark); border-color:rgba(30,142,62,.24); }
+  #render-auditoria-excedentes-captura .aec-chip-slate { background:rgba(28,29,31,.08); color:var(--aec-text-main); border-color:rgba(28,29,31,.12); }
+  #render-auditoria-excedentes-captura .aec-metrics { min-width:0; display:grid; grid-template-columns:repeat(5,minmax(78px,1fr)); overflow:hidden; background:rgba(255,255,255,.96); border:1px solid rgba(255,255,255,.21); border-radius:15px; box-shadow:0 12px 30px rgba(0,0,0,.13); }
+  #render-auditoria-excedentes-captura .aec-metric { min-height:67px; padding:12px 11px 10px; position:relative; display:flex; flex-direction:column; justify-content:center; gap:6px; color:var(--aec-text-main); border-right:1px solid var(--aec-border); }
+  #render-auditoria-excedentes-captura .aec-metric:last-child { border-right:0; }
+  #render-auditoria-excedentes-captura .aec-metric::before { content:""; position:absolute; top:0; left:10px; right:10px; height:4px; border-radius:0 0 999px 999px; background:var(--aec-slate); }
+  #render-auditoria-excedentes-captura .aec-metric.green::before { background:var(--aec-success); }
+  #render-auditoria-excedentes-captura .aec-metric.amber::before { background:var(--aec-warning); }
+  #render-auditoria-excedentes-captura .aec-metric.red::before { background:var(--aec-critical); }
+  #render-auditoria-excedentes-captura .aec-metric-value { font-size:20px; font-weight:950; line-height:1; }
+  #render-auditoria-excedentes-captura .aec-metric-label { color:var(--aec-text-secondary); font-size:8px; font-weight:950; letter-spacing:.1em; text-transform:uppercase; }
+  #render-auditoria-excedentes-captura .aec-actions { display:flex; gap:8px; justify-content:flex-end; }
+  #render-auditoria-excedentes-captura .aec-action { min-height:44px; padding:0 14px; display:flex; align-items:center; gap:7px; border:1px solid rgba(255,255,255,.16); border-radius:13px; background:rgba(255,255,255,.09); color:#fff; font-size:9px; font-weight:950; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; }
+  #render-auditoria-excedentes-captura .aec-action.danger { background:var(--aec-critical); border-color:var(--aec-critical); }
+  #render-auditoria-excedentes-captura .aec-action:disabled { opacity:.48; pointer-events:none; }
+
+  /* =========================================================
+   BARRA COMPACTA DE CONCILIACIÓN OPERATIVA
+   ========================================================= */
+
+#render-auditoria-excedentes-captura .aec-toolbar {
+  flex: 0 0 auto;
+  min-height: 54px;
+  padding: 8px 14px 8px 18px;
+  position: relative;
+  display: grid;
+  grid-template-columns:
+    minmax(260px, 1fr)
+    auto;
+  align-items: center;
+  gap: 14px;
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #f8f9fa 100%
+    );
+  border-bottom: 1px solid var(--aec-border);
+  overflow: hidden;
+}
+
+#render-auditoria-excedentes-captura .aec-toolbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--aec-critical);
+}
+
+#render-auditoria-excedentes-captura .aec-toolbar-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 2;
+}
+
+#render-auditoria-excedentes-captura .aec-toolbar-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--aec-slate);
+  color: #ffffff;
+  box-shadow:
+    0 4px 10px rgba(28, 29, 31, 0.14);
+}
+
+#render-auditoria-excedentes-captura .aec-toolbar-copy {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  overflow: hidden;
+}
+
+#render-auditoria-excedentes-captura .aec-toolbar-eyebrow {
+  flex: 0 0 auto;
+  color: var(--aec-critical);
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#render-auditoria-excedentes-captura
+.aec-toolbar-separator {
+  width: 1px;
+  height: 22px;
+  flex: 0 0 1px;
+  background: var(--aec-border);
+}
+
+#render-auditoria-excedentes-captura
+.aec-toolbar-location {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+}
+
+#render-auditoria-excedentes-captura .aec-toolbar-title {
+  margin: 0;
+  min-width: 0;
+  max-width: 280px;
+  color: var(--aec-text-main);
+  font:
+    950 14px/1 "JetBrains Mono",
+    monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#render-auditoria-excedentes-captura
+.aec-toolbar-bodega {
+  min-width: 0;
+  max-width: 220px;
+  padding-left: 7px;
+  border-left: 1px solid var(--aec-border);
+  color: var(--aec-text-secondary);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#render-auditoria-excedentes-captura
+.aec-toolbar-context {
+  min-width: 0;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+#render-auditoria-excedentes-captura .aec-live {
+  min-height: 28px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--aec-border);
+  border-radius: 9px;
+  background: #ffffff;
+  color: var(--aec-text-secondary);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#render-auditoria-excedentes-captura .aec-live.ready {
+  color: var(--aec-success-dark);
+  background: rgba(30, 142, 62, 0.08);
+  border-color: rgba(30, 142, 62, 0.22);
+}
+
+#render-auditoria-excedentes-captura .aec-live.warning {
+  color: var(--aec-warning-dark);
+  background: rgba(217, 119, 6, 0.08);
+  border-color: rgba(217, 119, 6, 0.22);
+}
+
+#render-auditoria-excedentes-captura .aec-live.danger {
+  color: var(--aec-critical-dark);
+  background: rgba(217, 48, 37, 0.08);
+  border-color: rgba(217, 48, 37, 0.22);
+}
+
+#render-auditoria-excedentes-captura .aec-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation:
+    aecPulse 1.8s ease-in-out infinite;
+}
+
+#render-auditoria-excedentes-captura
+.aec-toolbar .aec-chip {
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 9px;
+  font-size: 8px;
+  letter-spacing: 0.07em;
+}
+
+  #render-auditoria-excedentes-captura .aec-content { flex:1 1 auto; min-height:0; overflow:hidden; background:#fff; }
+  #render-auditoria-excedentes-captura .aec-table-wrap { height:100%; overflow:auto; }
+  #render-auditoria-excedentes-captura .aec-table { width:100%; min-width:1060px; border-collapse:separate; border-spacing:0; }
+  #render-auditoria-excedentes-captura .aec-table th { position:sticky; top:0; z-index:10; height:48px; padding:0 14px; background:linear-gradient(180deg,#25272b,#1c1d1f); color:rgba(255,255,255,.78); border-right:1px solid rgba(255,255,255,.07); border-bottom:3px solid var(--aec-critical); font-size:9px; font-weight:950; letter-spacing:.13em; text-align:left; text-transform:uppercase; white-space:nowrap; }
+  #render-auditoria-excedentes-captura .aec-table td { padding:13px 14px; border-right:1px solid #f3f4f6; border-bottom:1px solid #eef1f4; background:#fff; vertical-align:middle; }
+  #render-auditoria-excedentes-captura .aec-row:nth-child(even) td { background:#fcfcfd; }
+  #render-auditoria-excedentes-captura .aec-row:hover td { background:#fff8f7; }
+  #render-auditoria-excedentes-captura .aec-row:hover td:first-child { box-shadow:inset 5px 0 0 var(--aec-critical); }
+  #render-auditoria-excedentes-captura .row-correcto td { background:rgba(30,142,62,.035); }
+  #render-auditoria-excedentes-captura .row-faltante td { background:rgba(217,119,6,.045); }
+  #render-auditoria-excedentes-captura .row-sobrante td { background:rgba(217,48,37,.05); }
+  #render-auditoria-excedentes-captura .row-highlight td { background:rgba(217,48,37,.10); }
+  #render-auditoria-excedentes-captura .aec-code, #render-auditoria-excedentes-captura .aec-id { font-family:"JetBrains Mono",monospace; font-weight:900; }
+  #render-auditoria-excedentes-captura .aec-empty { min-height:260px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:#9ca3af; text-align:center; }
+
+  #render-auditoria-excedentes-captura .fab-captura-contextual {
+    position: fixed !important;
+    right: 32px !important;
+    bottom: 32px !important;
+    /*
+    * Debe quedar por encima del contenido normal,
+    * pero debajo del overlay de la sidebar.
+    */
+    z-index: 40 !important;
+
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+    pointer-events: none;
+  }
+  #render-auditoria-excedentes-captura .fab-captura-contextual > * { pointer-events:auto; }
+  #render-auditoria-excedentes-captura .aec-floating-panel { position:absolute; right:0; bottom:76px; width:430px; max-width:calc(100vw - 32px); padding:20px; background:#fff; border:1px solid var(--aec-border); border-radius:20px; box-shadow:0 24px 60px rgba(15,23,42,.18); }
+  #render-auditoria-excedentes-captura .aec-input, #render-auditoria-excedentes-captura .aec-textarea { width:100%; border:1px solid var(--aec-border); background:#f8f9fa; border-radius:14px; outline:none; color:var(--aec-text-main); font-weight:800; }
+  #render-auditoria-excedentes-captura .aec-input { min-height:54px; padding:0 16px; }
+  #render-auditoria-excedentes-captura .aec-textarea { min-height:96px; padding:14px 16px; resize:vertical; }
+  #render-auditoria-excedentes-captura .aec-input:focus, #render-auditoria-excedentes-captura .aec-textarea:focus { border-color:var(--aec-critical); box-shadow:0 0 0 4px rgba(217,48,37,.1); background:#fff; }
+  #render-auditoria-excedentes-captura .aec-btn { min-height:48px; padding:0 16px; border-radius:14px; border:0; font-size:11px; font-weight:950; letter-spacing:.1em; text-transform:uppercase; cursor:pointer; }
+  #render-auditoria-excedentes-captura .aec-btn.primary { background:var(--aec-critical); color:#fff; }
+  #render-auditoria-excedentes-captura .aec-btn.soft { background:#fff; color:var(--aec-text-secondary); border:1px solid var(--aec-border); }
+  #render-auditoria-excedentes-captura .aec-btn.danger { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+  #render-auditoria-excedentes-captura .aec-btn:disabled { opacity:.5; cursor:not-allowed; }
+  @media(max-width:1180px){ #render-auditoria-excedentes-captura .aec-header{grid-template-columns:minmax(270px,1fr) auto;} #render-auditoria-excedentes-captura .aec-metrics{grid-column:1/-1;grid-row:2;} }
+  @media(max-width:720px){ #render-auditoria-excedentes-captura .aec-page{padding:8px;} #render-auditoria-excedentes-captura .aec-header{display:flex;flex-direction:column;align-items:stretch;} #render-auditoria-excedentes-captura .aec-metrics{grid-template-columns:repeat(3,1fr);} #render-auditoria-excedentes-captura .aec-toolbar{flex-direction:column;align-items:flex-start;} }
+
+
+  /* AJUSTES FINALES DE PROPORCION, ALINEACION Y ACCESIBILIDAD */
+  #render-auditoria-excedentes-captura .aec-header {
+    min-height: 116px;
+    grid-template-columns: minmax(280px, .95fr) minmax(420px, 1.45fr) minmax(142px, auto);
+    gap: 18px;
+  }
+  #render-auditoria-excedentes-captura .aec-id-block {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+  #render-auditoria-excedentes-captura .aec-id-block > div:last-child { min-width: 0; }
+  #render-auditoria-excedentes-captura .aec-metrics { grid-template-columns: repeat(4, minmax(94px, 1fr)); }
+  #render-auditoria-excedentes-captura .aec-actions {
+    min-width: 142px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  #render-auditoria-excedentes-captura .aec-action {
     width: 100%;
-  }
-
-  #render-auditoria-excedentes-captura .aec-kpi-topbar.red { background: var(--aec-critical); }
-  #render-auditoria-excedentes-captura .aec-kpi-topbar.amber { background: var(--aec-warning); }
-  #render-auditoria-excedentes-captura .aec-kpi-topbar.emerald { background: var(--aec-success); }
-  #render-auditoria-excedentes-captura .aec-kpi-topbar.slate { background: var(--aec-slate); }
-
-  #render-auditoria-excedentes-captura .aec-chip {
-    display: inline-flex;
-    align-items: center;
     justify-content: center;
-    gap: 6px;
-    min-height: 32px;
-    padding: 0 12px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    border: 1px solid transparent;
+    line-height: 1;
     white-space: nowrap;
+    transition: transform .16s ease, background-color .16s ease, box-shadow .16s ease;
   }
-
-  #render-auditoria-excedentes-captura .aec-chip-red {
-    background: var(--aec-critical-light);
-    color: var(--aec-critical-dark);
-    border-color: rgba(217, 48, 37, 0.25);
+  #render-auditoria-excedentes-captura .aec-action:hover { transform: translateY(-1px); background: rgba(255,255,255,.15); }
+  #render-auditoria-excedentes-captura .aec-action.danger:hover { background: var(--aec-critical-dark); }
+  #render-auditoria-excedentes-captura .aec-header .aec-chip-red,
+  #render-auditoria-excedentes-captura .aec-header .aec-chip-green,
+  #render-auditoria-excedentes-captura .aec-header .aec-chip-amber {
+    color: #fff;
+    border-color: rgba(255,255,255,.18);
   }
-
-  #render-auditoria-excedentes-captura .aec-chip-amber {
-    background: var(--aec-warning-light);
-    color: var(--aec-warning-dark);
-    border-color: rgba(217, 119, 6, 0.25);
-  }
-
-  #render-auditoria-excedentes-captura .aec-chip-emerald {
-    background: var(--aec-success-light);
-    color: var(--aec-success-dark);
-    border-color: rgba(30, 142, 62, 0.24);
-  }
-
-  #render-auditoria-excedentes-captura .aec-chip-slate {
-    background: var(--aec-slate-light);
-    color: var(--aec-text-main);
-    border-color: rgba(28, 29, 31, 0.12);
-  }
-
-  #render-auditoria-excedentes-captura .aec-chip-open {
-    background: var(--aec-critical-light);
-    color: var(--aec-critical-dark);
-    border-color: rgba(217, 48, 37, 0.22);
-  }
-
-  #render-auditoria-excedentes-captura .aec-chip-closed {
-    background: var(--aec-success-light);
-    color: var(--aec-success-dark);
-    border-color: rgba(30, 142, 62, 0.24);
-  }
-
-  #render-auditoria-excedentes-captura .aec-label {
-    display: block;
-    margin-bottom: 8px;
-    font-size: 11px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--aec-text-secondary);
-  }
-
-  #render-auditoria-excedentes-captura .aec-input,
-  #render-auditoria-excedentes-captura .aec-select,
-  #render-auditoria-excedentes-captura .aec-textarea {
-    width: 100%;
-    border: 1px solid var(--aec-border);
-    background: #f8f9fa;
-    border-radius: 14px;
-    outline: none;
-    transition: all 0.22s ease;
-    color: var(--aec-text-main);
-    font-weight: 800;
-  }
-
-  #render-auditoria-excedentes-captura .aec-input,
-  #render-auditoria-excedentes-captura .aec-select {
-    min-height: 54px;
-    padding: 0 16px;
-    font-size: 14px;
-  }
-
-  #render-auditoria-excedentes-captura .aec-textarea {
-    min-height: 96px;
-    padding: 14px 16px;
-    font-size: 14px;
-    resize: vertical;
-  }
-
-  #render-auditoria-excedentes-captura .aec-input:focus,
-  #render-auditoria-excedentes-captura .aec-select:focus,
-  #render-auditoria-excedentes-captura .aec-textarea:focus {
-    border-color: var(--primary);
-    background: #fff;
-    box-shadow: var(--aec-shadow-red);
-  }
-
-  #render-auditoria-excedentes-captura .aec-input.scanner {
-    background: #fff;
-    border: 2px solid var(--primary);
-    box-shadow: var(--aec-shadow-red);
-  }
-
-  #render-auditoria-excedentes-captura .aec-input.locked {
-    background: #f1f3f4;
-    color: #9aa0a6;
-    cursor: not-allowed;
-  }
-
-  #render-auditoria-excedentes-captura .aec-btn-primary,
-  #render-auditoria-excedentes-captura .aec-btn-dark,
-  #render-auditoria-excedentes-captura .aec-btn-soft,
-  #render-auditoria-excedentes-captura .aec-btn-danger {
-    min-height: 50px;
-    border-radius: 14px;
-    padding: 0 18px;
-    font-size: 12px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    transition: all 0.2s ease;
-  }
-
-  #render-auditoria-excedentes-captura .aec-btn-primary {
-    border: none;
-    background: var(--primary);
-    color: white;
-  }
-
-  #render-auditoria-excedentes-captura .aec-btn-primary:hover {
-    background: var(--primary-dark, #a50e0e);
-  }
-
-  #render-auditoria-excedentes-captura .aec-btn-dark {
-    border: none;
-    background: var(--aec-slate);
-    color: white;
-  }
-
-  #render-auditoria-excedentes-captura .aec-btn-dark:hover {
-    filter: brightness(0.92);
-  }
-
-  #render-auditoria-excedentes-captura .aec-btn-soft {
-    background: #fff;
-    color: var(--aec-text-secondary);
-    border: 1px solid var(--aec-border);
-  }
-
-  #render-auditoria-excedentes-captura .aec-btn-soft:hover {
-    color: var(--primary);
-    border-color: rgba(217, 48, 37, 0.35);
-  }
-
-  #render-auditoria-excedentes-captura .aec-btn-danger {
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-  }
-
-  #render-auditoria-excedentes-captura .aec-btn-danger:hover {
-    background: #fecaca;
-  }
-
-  #render-auditoria-excedentes-captura .aec-btn-primary:disabled,
-  #render-auditoria-excedentes-captura .aec-btn-dark:disabled,
-  #render-auditoria-excedentes-captura .aec-btn-soft:disabled,
-  #render-auditoria-excedentes-captura .aec-btn-danger:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-  }
-
-  #render-auditoria-excedentes-captura .aec-table-wrap {
-    max-height: calc(100vh - 370px);
-    overflow: auto;
-  }
-
+  #render-auditoria-excedentes-captura .aec-toolbar-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #render-auditoria-excedentes-captura .aec-table {
     width: 100%;
+    min-width: 1220px;
+    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
   }
 
-  #render-auditoria-excedentes-captura .aec-table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: rgba(248, 249, 250, 0.96);
-    backdrop-filter: blur(8px);
-    padding: 9px 14px;
-    font-size: 10px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--aec-text-secondary);
-    border-bottom: 1px solid var(--aec-border);
-    white-space: nowrap;
-    text-align: left;
+  #render-auditoria-excedentes-captura .aec-table th:nth-child(1),
+  #render-auditoria-excedentes-captura .aec-table td:nth-child(1) {
+    width: 340px;
+    min-width: 340px;
   }
 
-  #render-auditoria-excedentes-captura .aec-table tbody td {
-    padding: 10px 14px;
-    border-bottom: 1px solid #eef1f4;
-    background: var(--aec-white);
-    vertical-align: middle;
+  #render-auditoria-excedentes-captura .aec-table td:nth-child(1) {
+    overflow: visible;
   }
 
-  #render-auditoria-excedentes-captura .aec-row:hover td {
-    background: #fcfcfd;
-  }
-
-  #render-auditoria-excedentes-captura .aec-row.row-correcto td {
-    background: rgba(30, 142, 62, 0.035);
-  }
-
-  #render-auditoria-excedentes-captura .aec-row.row-faltante td {
-    background: rgba(217, 119, 6, 0.045);
-  }
-
-  #render-auditoria-excedentes-captura .aec-row.row-sobrante td {
-    background: rgba(217, 48, 37, 0.05);
-  }
-
-  #render-auditoria-excedentes-captura .aec-row.row-highlight td {
-    background: rgba(217, 48, 37, 0.10);
-  }
-
-  #render-auditoria-excedentes-captura .aec-code,
-  #render-auditoria-excedentes-captura .aec-id {
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 900;
-    letter-spacing: 0.02em;
-    color: var(--aec-text-main);
-  }
-
-  #render-auditoria-excedentes-captura .aec-subtle {
-    font-size: 11px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--aec-text-secondary);
-  }
-
-  #render-auditoria-excedentes-captura .aec-empty-state {
-    min-height: 220px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    text-align: center;
-    color: #9ca3af;
-  }
-
-  #render-auditoria-excedentes-captura .aec-last-result {
-    border-radius: 1rem;
-    padding: 14px 16px;
-    border: 1px solid transparent;
-  }
-
-  #render-auditoria-excedentes-captura .aec-last-result.ok {
-    background: var(--aec-success-light);
-    border-color: rgba(30, 142, 62, 0.18);
-    color: var(--aec-success-dark);
-  }
-
-  #render-auditoria-excedentes-captura .aec-last-result.warn {
-    background: var(--aec-warning-light);
-    border-color: rgba(217, 119, 6, 0.18);
-    color: var(--aec-warning-dark);
-  }
-
-  #render-auditoria-excedentes-captura .aec-last-result.err {
-    background: var(--aec-critical-light);
-    border-color: rgba(217, 48, 37, 0.18);
-    color: var(--aec-critical-dark);
-  }
-
-  #render-auditoria-excedentes-captura .aec-sticky-focus {
-    position: sticky;
-    top: 0;
-    z-index: 15;
-    background: linear-gradient(to bottom, rgba(248,249,250,0.96), rgba(248,249,250,0.90));
-    backdrop-filter: blur(8px);
-  }
-
-  @keyframes aecFabIn {
-    from {
-      opacity: 0;
-      transform: translateY(14px) scale(0.96);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-
-  #render-auditoria-excedentes-captura .animate-fab-in {
-    animation: aecFabIn 0.22s ease-out forwards;
-  }
-
-  /* =========================================================
-    HEADER COMPACTO PREMIUM - TABLA CONCILIACIÓN
-  ========================================================= */
-
-  #render-auditoria-excedentes-captura .aec-conciliacion-header {
-    position: sticky;
-    top: 0;
-    z-index: 15;
-    padding: 10px 16px;
-    background:
-      linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,249,250,0.94));
-    backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--aec-border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  #render-auditoria-excedentes-captura .aec-conciliacion-title-wrap {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-  }
-
-  #render-auditoria-excedentes-captura .aec-conciliacion-marker {
-    width: 5px;
-    height: 34px;
-    border-radius: 999px;
-    background: var(--primary);
-    box-shadow: 0 8px 18px rgba(217, 48, 37, 0.22);
-    flex-shrink: 0;
-  }
-
-  #render-auditoria-excedentes-captura .aec-conciliacion-title-block {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    line-height: 1.05;
-  }
-
-  #render-auditoria-excedentes-captura .aec-conciliacion-eyebrow {
-    font-size: 9px;
-    font-weight: 950;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--aec-text-secondary);
+  #render-auditoria-excedentes-captura .aec-table td:nth-child(1) .aec-id {
+    display: block;
+    max-width: 100%;
+    overflow: visible;
+    text-overflow: clip;
     white-space: nowrap;
   }
-
-  #render-auditoria-excedentes-captura .aec-conciliacion-title {
-    margin-top: 3px;
-    font-size: 15px;
-    font-weight: 950;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    color: var(--aec-text-main);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  #render-auditoria-excedentes-captura .aec-conciliacion-statusbar {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  #render-auditoria-excedentes-captura .aec-chip-compact {
-    min-height: 26px !important;
-    padding: 0 9px !important;
-    font-size: 9px !important;
-    letter-spacing: 0.10em !important;
-    border-radius: 999px !important;
-  }
-
-  #render-auditoria-excedentes-captura .aec-sync-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 999px;
-    background: var(--aec-success);
-    box-shadow: 0 0 0 4px rgba(30, 142, 62, 0.12);
-    flex-shrink: 0;
-  }
-
-  #render-auditoria-excedentes-captura .aec-sync-dot.warning {
-    background: var(--aec-warning);
-    box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.14);
-  }
-
-  #render-auditoria-excedentes-captura .aec-sync-dot.pending {
-    background: var(--aec-slate);
-    box-shadow: 0 0 0 4px rgba(28, 29, 31, 0.10);
-  }
-
-  #render-auditoria-excedentes-captura .aec-conciliacion-subtle {
+  
+  #render-auditoria-excedentes-captura .aec-table th:nth-child(2),
+  #render-auditoria-excedentes-captura .aec-table td:nth-child(2) { width: 150px; }
+  #render-auditoria-excedentes-captura .aec-table th:nth-child(3),
+  #render-auditoria-excedentes-captura .aec-table td:nth-child(3) { width: 380px; }
+  #render-auditoria-excedentes-captura .aec-table th:nth-child(4),
+  #render-auditoria-excedentes-captura .aec-table td:nth-child(4) { width: 130px; text-align: center; }
+  #render-auditoria-excedentes-captura .aec-table th:nth-child(5),
+  #render-auditoria-excedentes-captura .aec-table td:nth-child(5) { width: 105px; text-align: center; }
+  #render-auditoria-excedentes-captura .aec-table td { overflow: hidden; }
+  #render-auditoria-excedentes-captura .aec-btn {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    min-height: 26px;
-    padding: 0 10px;
-    border-radius: 999px;
-    background: rgba(28, 29, 31, 0.045);
-    border: 1px solid rgba(28, 29, 31, 0.08);
-    color: var(--aec-text-secondary);
-    font-size: 9px;
-    font-weight: 950;
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
+    justify-content: center;
+    gap: 9px;
+    line-height: 1;
     white-space: nowrap;
   }
-
-  @media (max-width: 900px) {
-    #render-auditoria-excedentes-captura .aec-conciliacion-header {
-      align-items: flex-start;
-      flex-direction: column;
-      padding: 10px 14px;
-    }
-
-    #render-auditoria-excedentes-captura .aec-conciliacion-statusbar {
-      justify-content: flex-start;
-    }
+  #render-auditoria-excedentes-captura .fab-captura-contextual { flex-direction: column; gap: 12px; }
+  #render-auditoria-excedentes-captura .fab-captura-contextual > .aec-btn {
+    min-width: 210px;
+    min-height: 56px;
+    box-shadow: 0 16px 34px rgba(15,23,42,.18), 0 4px 12px rgba(15,23,42,.08);
+  }
+@media (max-width: 1050px) {
+  #render-auditoria-excedentes-captura
+  .aec-toolbar {
+    grid-template-columns:
+      minmax(220px, 1fr)
+      auto;
   }
 
-/* =========================================================
-   FAB CAPTURA CONTEXTUAL - PANEL ABSOLUTO
-========================================================= */
-
-#render-auditoria-excedentes-captura .fab-captura-contextual {
-  position: fixed !important;
-  right: 32px !important;
-  bottom: 32px !important;
-  z-index: 10050 !important;
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  pointer-events: none;
-}
-
-#render-auditoria-excedentes-captura .fab-captura-contextual > * {
-  pointer-events: auto;
-}
-
-#render-auditoria-excedentes-captura .aec-floating-panel {
-  position: absolute;
-  right: 0;
-  bottom: 76px;
-  transform-origin: bottom right;
-}
-
-#render-auditoria-excedentes-captura .aec-floating-panel-close {
-  width: 430px;
-  max-width: calc(100vw - 32px);
-}
-
-#render-auditoria-excedentes-captura .aec-floating-panel-open {
-  width: 380px;
-  max-width: calc(100vw - 32px);
-}
-
-@media (max-width: 640px) {
-  #render-auditoria-excedentes-captura .fab-captura-contextual {
-    right: 16px !important;
-    bottom: 16px !important;
+  #render-auditoria-excedentes-captura
+  .aec-toolbar-bodega {
+    max-width: 150px;
   }
 
-  #render-auditoria-excedentes-captura .aec-floating-panel {
-    right: 0;
-    bottom: 72px;
+  #render-auditoria-excedentes-captura
+  .aec-toolbar-context {
+    overflow-x: auto;
+    justify-content: flex-end;
+    scrollbar-width: none;
   }
 
-  #render-auditoria-excedentes-captura .aec-floating-panel-close,
-  #render-auditoria-excedentes-captura .aec-floating-panel-open {
-    width: calc(100vw - 32px);
+  #render-auditoria-excedentes-captura
+  .aec-toolbar-context::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  #render-auditoria-excedentes-captura
+  .aec-toolbar {
+    min-height: auto;
+    padding: 9px 12px 9px 16px;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  #render-auditoria-excedentes-captura
+  .aec-toolbar-context {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
+  #render-auditoria-excedentes-captura
+  .aec-toolbar-bodega {
+    max-width: 130px;
   }
 }
 
 </style>
 
-<div
-  id="render-auditoria-excedentes-captura"
-  class="h-full w-full flex flex-col bg-[var(--bg-color)] overflow-y-auto p-4 md:p-8"
-></div>
+<div id="render-auditoria-excedentes-captura"></div>
 
 <script type="text/babel">
 window.cargar_AuditoriaExcedentesCaptura = () => {
-  const { useState, useEffect, useCallback, useRef } = React;
+    const { useState, useEffect, useCallback, useRef } = React;
+    const FLUSH_CADA = 2;
+    const FLUSH_MS = 350;
+    const notify_ = (m, t = "info", timer = 2200, o = {}) => { const f = window.notificar || window.lanzarNotificacion; if (typeof f === "function")
+        f(m, t, timer, o); };
+    const toStr_ = v => String(v == null ? "" : v).trim();
+    const toUpper_ = v => toStr_(v).slice(0, 160).toUpperCase();
+    const nowTime_ = () => new Date().toLocaleTimeString("es-MX", { hour12: false });
+    const fmtTime_ = v => { if (!v)
+        return "--"; if (/^\d{1,2}:\d{2}/.test(String(v)))
+        return String(v).slice(0, 5); const d = v instanceof Date ? v : new Date(v); return isNaN(d.getTime()) ? String(v) : d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false }); };
+    const estadoVisual_ = e => { e = toUpper_(e); if (e === "CORRECTO")
+        return { chip: "aec-chip aec-chip-green", row: "row-correcto", text: "Correcto" }; if (e === "FALTANTE")
+        return { chip: "aec-chip aec-chip-amber", row: "row-faltante", text: "Faltante" }; if (e === "SOBRANTE")
+        return { chip: "aec-chip aec-chip-red", row: "row-sobrante", text: "Sobrante" }; return { chip: "aec-chip aec-chip-slate", row: "", text: "Pendiente" }; };
+    const LocalIcon = ({ name, size = 18 }) => { const r = useRef(null); useEffect(() => { if (!window.lucide || !r.current)
+        return; r.current.innerHTML = ""; const i = document.createElement("i"); i.setAttribute("data-lucide", String(name || "").toLowerCase()); i.style.width = `${size}px`; i.style.height = `${size}px`; r.current.appendChild(i); window.lucide.createIcons(); }, [name, size]); return <span ref={r} className="inline-flex items-center justify-center"/>; };
+    const View = () => {
+        const [loading, setLoading] = useState(true), [syncing, setSyncing] = useState(false);
+        const [auditId, setAuditId] = useState(window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ || window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ || "");
+        const [auditHeader, setAuditHeader] = useState(null), [auditResumen, setAuditResumen] = useState({});
+        const [locationInput, setLocationInput] = useState("");
+        const [locationState, setLocationState] = useState({ ubicacion: "", bodega: "", abierta: false, detalle: [], resumen: { esperados: 0, escaneados: 0, correctos: 0, faltantes: 0, sobrantes: 0 } });
+        const [lastResult, setLastResult] = useState(null), [highlightId, setHighlightId] = useState(""), [busyLocation, setBusyLocation] = useState(false), [busyCloseLocation, setBusyCloseLocation] = useState(false), [busyCloseAudit, setBusyCloseAudit] = useState(false), [locationCloseNotes, setLocationCloseNotes] = useState(""), [panelCaptura, setPanelCaptura] = useState(""), [pendingCount, setPendingCount] = useState(0);
+        
+        const cacheRef = useRef({ expectedById: {}, expectedByLocation: {}, scannedById: {}, pendingSync: [], syncing: false, flushTimer: null });
+        const locationRef = useRef(null);
+        const closeNotesRef = useRef(null);
+        const scannerBufferRef = useRef("");
+        const scannerLastKeyRef = useRef(0);
+        const locationStateRef = useRef(locationState);
+        const auditIdRef = useRef(auditId);
 
-  const FLUSH_CADA = 2;
-  const FLUSH_MS = 350;
+        useEffect(() => {
+          locationStateRef.current = locationState;
+        }, [locationState]);
 
-  const notify_ = (msg, type = "info", timer = 2200, options = {}) => {
-    const fn = window.notificar || window.lanzarNotificacion;
-    if (typeof fn === "function") fn(msg, type, timer, options);
-  };
+        useEffect(() => {
+          auditIdRef.current = auditId;
+        }, [auditId]);
 
-  const toStr_ = (v) => String(v == null ? "" : v).trim();
-  const toUpper_ = (v) => toStr_(v).toUpperCase();
-  const toNum_ = (v) => {
-    const n = Number(v || 0);
-    return isNaN(n) ? 0 : n;
-  };
-
-  const nowTime_ = () => new Date().toLocaleTimeString("es-MX", { hour12: false });
-
-  const fmtTime_ = (v) => {
-    if (!v) return "--";
-    if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(String(v))) return String(v).slice(0, 5);
-    const d = v instanceof Date ? v : new Date(v);
-    if (isNaN(d.getTime())) return String(v);
-    return d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false });
-  };
-
-  const estadoVisual_ = (estado) => {
-    const e = toUpper_(estado);
-    if (e === "CORRECTO") return { chip: "aec-chip aec-chip-emerald", row: "row-correcto", text: "Correcto" };
-    if (e === "FALTANTE") return { chip: "aec-chip aec-chip-amber", row: "row-faltante", text: "Faltante" };
-    if (e === "SOBRANTE") return { chip: "aec-chip aec-chip-red", row: "row-sobrante", text: "Sobrante" };
-    return { chip: "aec-chip aec-chip-slate", row: "", text: "Pendiente" };
-  };
-
-  const confiabilidad_ = (valor) => {
-    const n = Number(valor || 0);
-    if (n < 90) return { label: "Crítica", className: "aec-chip aec-chip-red" };
-    if (n >= 97) return { label: "Controlada", className: "aec-chip aec-chip-emerald" };
-    return { label: "Atención", className: "aec-chip aec-chip-amber" };
-  };
-
-  const LocalIcon = ({ name, size = 18 }) => {
-    const ref = useRef(null);
-
-    useEffect(() => {
-      if (!window.lucide || !ref.current) return;
-      ref.current.innerHTML = "";
-      const i = document.createElement("i");
-      i.setAttribute("data-lucide", String(name || "").toLowerCase());
-      i.style.width = `${size}px`;
-      i.style.height = `${size}px`;
-      ref.current.appendChild(i);
-      window.lucide.createIcons();
-    }, [name, size]);
-
-    return <span ref={ref} className="inline-flex items-center justify-center"></span>;
-  };
-
-  const View = () => {
-    const [loading, setLoading] = useState(true);
-    const [syncing, setSyncing] = useState(false);
-    const [bootstrap, setBootstrap] = useState({ auditoriasAbiertas: [] });
-
-    const [auditId, setAuditId] = useState(
-      window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ ||
-      window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ ||
-      ""
-    );
-
-    const [auditHeader, setAuditHeader] = useState(null);
-    const [auditResumen, setAuditResumen] = useState({});
-    const [locationInput, setLocationInput] = useState("");
-    const [idInput, setIdInput] = useState("");
-
-    const [locationState, setLocationState] = useState({
-      ubicacion: "",
-      bodega: "",
-      abierta: false,
-      detalle: [],
-      resumen: { esperados: 0, escaneados: 0, correctos: 0, faltantes: 0, sobrantes: 0 }
-    });
-
-    const [lastResult, setLastResult] = useState(null);
-    const [highlightId, setHighlightId] = useState("");
-    const [busyLocation, setBusyLocation] = useState(false);
-    const [busyCloseLocation, setBusyCloseLocation] = useState(false);
-    const [busyCloseAudit, setBusyCloseAudit] = useState(false);
-    const [auditCloseNotes, setAuditCloseNotes] = useState("");
-    const [locationCloseNotes, setLocationCloseNotes] = useState("");
-    const [panelCaptura, setPanelCaptura] = useState("");
-    const [pendingCount, setPendingCount] = useState(0);
-
-    const cacheRef = useRef({
-      expectedById: {},
-      expectedByLocation: {},
-      scannedById: {},
-      pendingSync: [],
-      syncing: false,
-      flushTimer: null
-    });
-
-    
-    const esCodigoUbicacionLocal_ = (valor) => {
-      const raw = toUpper_(valor);
-      if (!raw) return false;
-
-      // Si coincide con ubicación canónica cargada en el paquete
-      if (cacheRef.current.expectedByLocation && cacheRef.current.expectedByLocation[raw]) {
-        return true;
-      }
-
-      // Patrones de identificadores de ubicación comunes
-      const patronesUbicacion = [
-        /^B\d[A-Z0-9_-]*$/i,
-        /^CB\d[A-Z0-9_-]*$/i,
-        /^BM[A-Z0-9_-]*$/i,
-        /^MO[A-Z0-9_-]*$/i,
-        /^CU[A-Z0-9_-]*$/i
-      ];
-
-      return patronesUbicacion.some((rx) => rx.test(raw));
-    };
-
-
-    const enrichRef = useRef({
-      queue: [],
-      running: false,
-      timer: null,
-      known: {}
-    });
-
-    const locationRef = useRef(null);
-    const idRef = useRef(null);
-    const closeNotesRef = useRef(null);
-
-    const focusSinScroll_ = (ref, delay = 80) => {
-      setTimeout(() => {
-        const el = ref?.current;
-        if (!el) return;
-
-        const contenedor = document.getElementById("render-auditoria-excedentes-captura");
-
-        const scrollTopContenedor = contenedor ? contenedor.scrollTop : 0;
-        const scrollLeftContenedor = contenedor ? contenedor.scrollLeft : 0;
-
-        const scrollXVentana = window.scrollX || window.pageXOffset || 0;
-        const scrollYVentana = window.scrollY || window.pageYOffset || 0;
-
-        try {
-          el.focus({ preventScroll: true });
-        } catch (e) {
-          el.focus();
+        const focus_ = (ref, delay = 80) => setTimeout(() => { try {
+            ref.current?.focus({ preventScroll: true });
         }
+        catch (e) {
+            ref.current?.focus();
+        } }, delay);
+        
+        const resumenRows_ = rows => ({ 
+          esperados: rows.filter(x => toUpper_(x.estado) !== "SOBRANTE").length, 
+          escaneados: rows.filter(x => ["CORRECTO", "SOBRANTE"].includes(toUpper_(x.estado))).length, 
+          correctos: rows.filter(x => toUpper_(x.estado) === "CORRECTO").length, 
+          faltantes: rows.filter(x => toUpper_(x.estado) === "FALTANTE").length, 
+          sobrantes: rows.filter(x => toUpper_(x.estado) === "SOBRANTE").length });
+        
+        const buildRows_ = useCallback((ubicacionParam) => {
+          const ubicacion = toUpper_(ubicacionParam);
 
-        if (contenedor) {
-          contenedor.scrollTop = scrollTopContenedor;
-          contenedor.scrollLeft = scrollLeftContenedor;
-        }
+          const expected =
+            cacheRef.current.expectedByLocation[ubicacion] || [];
 
-        window.scrollTo(scrollXVentana, scrollYVentana);
-      }, delay);
-    };
+          const scanned =
+            cacheRef.current.scannedById || {};
 
-    const resumenRows_ = (rows) => ({
-          esperados: rows.filter((x) => toUpper_(x.estado) !== "SOBRANTE").length,
-          escaneados: rows.filter((x) => ["CORRECTO", "SOBRANTE"].includes(toUpper_(x.estado))).length,
-          correctos: rows.filter((x) => toUpper_(x.estado) === "CORRECTO").length,
-          faltantes: rows.filter((x) => toUpper_(x.estado) === "FALTANTE").length,
-          sobrantes: rows.filter((x) => toUpper_(x.estado) === "SOBRANTE").length
-        });
-
-        const mapDetallePersistido_ = (rows) => {
-          return (Array.isArray(rows) ? rows : [])
-            .filter((row) => row && row.idunico)
-            .map((row) => {
-              let estado = "PENDIENTE";
-
-              if (row.escorrecto === true) {
-                estado = "CORRECTO";
-              } else if (row.esfaltante === true) {
-                estado = "FALTANTE";
-              } else if (row.essobrante === true) {
-                estado = "SOBRANTE";
-              }
-
-              return {
-                idunico: toUpper_(row.idunico),
-                codigo: toUpper_(row.codigo || ""),
-                descripcion: toUpper_(row.descripcion || ""),
-                bodega: toUpper_(row.bodega || ""),
-                ubicacion: toUpper_(row.ubicacion || ""),
-                estado: estado,
-                hora: row.horaescaneoidunico || row.hora || "",
-                observaciones: row.observaciones || ""
-              };
-            });
-        };
-
-        const buildRowsForLocation_ = useCallback((ubicacion) => {
-          const ubi = toUpper_(ubicacion);
-          const expected = cacheRef.current.expectedByLocation[ubi] || [];
-          const scanned = cacheRef.current.scannedById || {};
           const rows = [];
 
           expected.forEach((item) => {
             const id = toUpper_(item.idunico);
-            const s = scanned[id];
-            const perteneceMismaUbicacion = s && toUpper_(s.ubicacion) === ubi;
+            const registroEscaneado = scanned[id];
+
+            const perteneceUbicacion =
+              registroEscaneado &&
+              toUpper_(registroEscaneado.ubicacion) === ubicacion;
 
             rows.push({
               idunico: id,
-              codigo: item.codigo || "",
-              descripcion: item.descripcion || "",
-              bodega: item.bodegaActual || item.bodega || "",
-              ubicacion: ubi,
-              estado: perteneceMismaUbicacion ? s.estado : "PENDIENTE",
-              hora: perteneceMismaUbicacion ? s.hora : "",
-              observaciones: perteneceMismaUbicacion ? s.observaciones : "",
-              ubicacionSistema: perteneceMismaUbicacion ? s.ubicacionSistema || "" : "",
-              bodegaSistema: perteneceMismaUbicacion ? s.bodegaSistema || "" : ""
+              codigo:
+                registroEscaneado?.codigo ||
+                item.codigo ||
+                "",
+              descripcion:
+                registroEscaneado?.descripcion ||
+                item.descripcion ||
+                "",
+              bodega:
+                registroEscaneado?.bodega ||
+                item.bodegaActual ||
+                item.bodega ||
+                "",
+              ubicacion: ubicacion,
+              estado: perteneceUbicacion
+                ? registroEscaneado.estado
+                : "PENDIENTE",
+              hora: perteneceUbicacion
+                ? registroEscaneado.hora
+                : "",
+              observaciones: perteneceUbicacion
+                ? registroEscaneado.observaciones
+                : ""
             });
           });
 
-          Object.keys(scanned).forEach((id) => {
-            const s = scanned[id];
+          /*
+          * Incluye escaneos que no estaban en la precarga original.
+          * Se conservan tanto CORRECTOS como SOBRANTES después de que
+          * el servidor confirme o corrija la clasificación preliminar.
+          */
+          Object.keys(scanned).forEach((idKey) => {
+            const registro = scanned[idKey];
+            const id = toUpper_(
+              registro?.idunico || idKey
+            );
 
-            if (toUpper_(s.ubicacion) !== ubi) return;
-            if (toUpper_(s.estado) !== "SOBRANTE") return;
-            if (rows.some((r) => toUpper_(r.idunico) === id)) return;
+            if (!id) {
+              return;
+            }
+
+            if (
+              toUpper_(registro?.ubicacion) !== ubicacion
+            ) {
+              return;
+            }
+
+            const yaExiste = rows.some(
+              (row) => toUpper_(row.idunico) === id
+            );
+
+            if (yaExiste) {
+              return;
+            }
 
             rows.unshift({
+              ...registro,
               idunico: id,
-              codigo: s.codigo || "",
-              descripcion: s.descripcion || "",
-              bodega: s.bodega || "",
-              ubicacion: ubi,
-              estado: "SOBRANTE",
-              hora: s.hora || "",
-              observaciones: s.observaciones || "",
-              ubicacionSistema: s.ubicacionSistema || "",
-              bodegaSistema: s.bodegaSistema || ""
+              ubicacion: ubicacion
             });
           });
 
-          return rows.sort((a, b) => {
-            return String(a.idunico).localeCompare(String(b.idunico), "es", {
-              numeric: true,
-              sensitivity: "base"
-            });
-          });
+          return rows.sort((a, b) =>
+            String(a.idunico || "").localeCompare(
+              String(b.idunico || ""),
+              "es",
+              {
+                numeric: true,
+                sensitivity: "base"
+              }
+            )
+          );
         }, []);
-
-        const setLocationFromRows_ = useCallback((ubicacion, bodega, abierta) => {
-          const rows = buildRowsForLocation_(ubicacion);
-
-          setLocationState({
-            ubicacion: toUpper_(ubicacion),
-            bodega: toUpper_(bodega),
-            abierta: !!abierta,
-            detalle: rows,
-            resumen: resumenRows_(rows)
-          });
-        }, [buildRowsForLocation_]);
-
-        const ejecutarEnriquecimientoSobrantes_ = useCallback(() => {
-          const state = enrichRef.current;
-
-          if (state.running) return;
-          if (!state.queue.length) return;
-
-          const ids = state.queue.splice(0, 25);
-          state.running = true;
-
-          google.script.run
-            .withSuccessHandler((resp) => {
-              state.running = false;
-
-              const data = resp && resp.data ? resp.data : {};
-
-              const actualizacionesObservaciones = [];
-
-              Object.keys(data).forEach((id) => {
-                const info = data[id] || {};
-                const current = cacheRef.current.scannedById[id];
-
-                if (!current) return;
-                if (toUpper_(current.estado) !== "SOBRANTE") return;
-
-                const observacionEnriquecida = info.encontrado
-                  ? "Excedente ubicado en " + (info.ubicacionActual || "SIN UBICACIÓN")
-                  : info.observaciones || current.observaciones || "IDUNICO NO EXISTE EN UNIVERSO DE AUDITORÍA";
-
-                const actualizado = {
-                  ...current,
-                  codigo: info.codigo || current.codigo || "",
-                  descripcion: info.descripcion || current.descripcion || "",
-                  bodegaSistema: info.bodegaActual || "",
-                  ubicacionSistema: info.ubicacionActual || "",
-                  observaciones: observacionEnriquecida
-                };
-
-                cacheRef.current.scannedById[id] = actualizado;
-
-                
-                cacheRef.current.pendingSync = cacheRef.current.pendingSync.map((scan) => {
-                  if (toUpper_(scan.idunico) !== id) return scan;
-
-                  return {
-                    ...scan,
-                    codigo: actualizado.codigo || scan.codigo || "",
-                    descripcion: actualizado.descripcion || scan.descripcion || "",
-                    observaciones: actualizado.observaciones || scan.observaciones || ""
-                  };
-                });
-
-
-                actualizacionesObservaciones.push({
-                  idunico: id,
-                  codigo: actualizado.codigo || "",
-                  descripcion: actualizado.descripcion || "",
-                  bodegaSistema: actualizado.bodegaSistema || "",
-                  ubicacionSistema: actualizado.ubicacionSistema || "",
-                  observaciones: actualizado.observaciones || ""
-                });
-              });
-
-              if (locationState.ubicacion) {
-                const rows = buildRowsForLocation_(locationState.ubicacion);
-
-                setLocationState((prev) => ({
-                  ...prev,
-                  detalle: rows,
-                  resumen: resumenRows_(rows)
-                }));
-              }
-
-              if (actualizacionesObservaciones.length && locationState.ubicacion) {
-                google.script.run
-                  .withSuccessHandler(() => {
-                    console.log(
-                      "✅ Observaciones enriquecidas persistidas:",
-                      actualizacionesObservaciones.length
-                    );
-                  })
-                  .withFailureHandler((err) => {
-                    console.warn(
-                      "⚠️ No se pudieron persistir observaciones enriquecidas:",
-                      err
-                    );
-                  })
-                  .AuditoriaExcedentesCapturaController_actualizarObservacionesSobrantes({
-                    idauditoria: auditId,
-                    ubicacionAuditada: locationState.ubicacion,
-                    actualizaciones: actualizacionesObservaciones
-                  });
-              }
-
-
-
-              if (state.queue.length) {
-                setTimeout(() => ejecutarEnriquecimientoSobrantes_(), 500);
-              }
-            })
-            .withFailureHandler((err) => {
-              state.running = false;
-
-              console.warn("No se pudo enriquecer sobrantes:", err);
-
-              if (state.queue.length) {
-                setTimeout(() => ejecutarEnriquecimientoSobrantes_(), 1500);
-              }
-            })
-            .AuditoriaExcedentesCapturaController_enriquecerSobrantesLote({
-              ids: ids
-            });
-        }, [buildRowsForLocation_, locationState.ubicacion, auditId]);
-
-        const programarEnriquecimientoSobrante_ = useCallback((idunico) => {
-          const id = toUpper_(idunico);
-
-          if (!id) return;
-          if (enrichRef.current.known[id]) return;
-
-          enrichRef.current.known[id] = true;
-          enrichRef.current.queue.push(id);
-
-          if (enrichRef.current.timer) {
-            clearTimeout(enrichRef.current.timer);
-          }
-
-          enrichRef.current.timer = setTimeout(() => {
-            ejecutarEnriquecimientoSobrantes_();
-          }, 700);
-        }, [ejecutarEnriquecimientoSobrantes_]);
-
-
-
-
-
-    const cargarPaquete_ = useCallback((idauditoria) => {
-      if (!idauditoria) return;
-
-      setLoading(true);
-
-      google.script.run
-        .withSuccessHandler((resp) => {
-          const safe = resp || {};
-          const expectedByLocation = safe.esperadosPorUbicacion || {};
-          const expectedById = safe.esperadoIndex || {};
-          const scannedById = safe.escaneadosPrevios || {};
-
-          cacheRef.current.expectedByLocation = expectedByLocation;
-          cacheRef.current.expectedById = expectedById;
-          cacheRef.current.scannedById = scannedById;
-          cacheRef.current.pendingSync = [];
-          setPendingCount(0);
-          setPanelCaptura("");
-          setLocationCloseNotes("");
-
-
-          setAuditHeader(safe.auditoria || null);
-          setAuditResumen({
-            ...(safe.auditoria || {}),
-            ...(safe.resumen || {})
-          });
-
-          const abierta = (safe.ubicaciones || []).find((u) => u.abierta);
-
-          if (abierta) {
+        
+        const setLocationRows_ = useCallback((ubi, bodega, abierta) => { const rows = buildRows_(ubi); setLocationState({ ubicacion: toUpper_(ubi), bodega: toUpper_(bodega), abierta: !!abierta, detalle: rows, resumen: resumenRows_(rows) }); }, [buildRows_]);
+        
+        const cargarPaquete_ = useCallback(id => { if (!id)
+            return; setLoading(true); google.script.run.withSuccessHandler(resp => { const s = resp || {}; cacheRef.current.expectedByLocation = s.esperadosPorUbicacion || {}; cacheRef.current.expectedById = s.esperadoIndex || {}; cacheRef.current.scannedById = s.escaneadosPrevios || {}; cacheRef.current.pendingSync = []; setPendingCount(0); setAuditHeader(s.auditoria || null); setAuditResumen({ ...s.auditoria, ...s.resumen }); const abierta = (s.ubicaciones || []).find(u => u.abierta); if (abierta) {
             setLocationInput(toUpper_(abierta.ubicacion));
-            setLocationFromRows_(abierta.ubicacion, abierta.bodega, true);
-          } else {
-            setLocationInput("");
-            setLocationState({
-              ubicacion: "",
-              bodega: "",
-              abierta: false,
-              detalle: [],
-              resumen: { esperados: 0, escaneados: 0, correctos: 0, faltantes: 0, sobrantes: 0 }
-            });
-          }
-
-
-          setLoading(false);
-          notify_("Auditoría cargada en memoria.", "success", 1500, { title: "Captura lista", sound: false });
-
-          if (abierta) {
-            focusSinScroll_(idRef, 80);
-          } else {
-            focusSinScroll_(locationRef, 80);
-          }
-
-
-        })
-        .withFailureHandler((err) => {
-          console.error("Error paquete captura:", err);
-          setLoading(false);
-          notify_(err?.message || "No se pudo cargar el paquete de captura.", "error", 4200, { title: "Error", sound: true });
-        })
-        .AuditoriaExcedentesCapturaController_obtenerPaqueteCaptura(idauditoria);
-    }, [setLocationFromRows_]);
-
-    const cargarBootstrap_ = useCallback(() => {
-      setLoading(true);
-
-      google.script.run
-        .withSuccessHandler((resp) => {
-          const safe = resp || {};
-          const abiertas = Array.isArray(safe.auditoriasAbiertas) ? safe.auditoriasAbiertas : [];
-          setBootstrap({ ...safe, auditoriasAbiertas: abiertas });
-
-          let id = auditId;
-          if (!id && abiertas.length) id = abiertas[0].idauditoria;
-
-          if (id) {
-            setAuditId(id);
-            window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ = id;
-            cargarPaquete_(id);
-          } else {
-            setLoading(false);
-          }
-        })
-        .withFailureHandler((err) => {
-          console.error("Error bootstrap captura:", err);
-          setLoading(false);
-          notify_(err?.message || "No se pudo cargar captura.", "error", 4200, { title: "Error", sound: true });
-        })
-        .AuditoriaExcedentesCapturaController_obtenerBootstrapCaptura();
-    }, [auditId, cargarPaquete_]);
-
-    useEffect(() => {
-      if (typeof google === "undefined" || !google.script || !google.script.run) {
-        setLoading(false);
-        notify_("google.script.run no está disponible.", "error", 4200, { title: "Entorno inválido", sound: true });
-        return;
-      }
-
-      cargarBootstrap_();
-
-      return () => {
-        if (cacheRef.current.flushTimer) clearTimeout(cacheRef.current.flushTimer);
-      };
-    }, [cargarBootstrap_]);
-
-    const flushPendientes_ = useCallback((callback) => {
-      const cache = cacheRef.current;
-
-      if (cache.syncing) {
-        if (callback) {
-          setTimeout(() => flushPendientes_(callback), 350);
+            setLocationRows_(abierta.ubicacion, abierta.bodega, true);
         }
-        return;
-      }
+        else {
+            setLocationState({ ubicacion: "", bodega: "", abierta: false, detalle: [], resumen: { esperados: 0, escaneados: 0, correctos: 0, faltantes: 0, sobrantes: 0 } });
+            focus_(locationRef);
+        } setLoading(false); }).withFailureHandler(e => { setLoading(false); notify_(e?.message || "No se pudo cargar la auditoría.", "error", 4200); }).AuditoriaExcedentesCapturaController_obtenerPaqueteCaptura(id); }, [setLocationRows_]);
 
-      if (!cache.pendingSync.length) {
-        if (callback) callback(true);
-        return;
-      }
+        const abrirUbicacion_ = useCallback(() => {
+          const idAuditoriaActual = toStr_(
+            auditIdRef.current
+          );
 
-      const lote = cache.pendingSync.splice(0, 50);
-      setPendingCount(cache.pendingSync.length);
-      cache.syncing = true;
-      setSyncing(true);
+          const identificador = toUpper_(
+            locationInput
+          );
 
-      const ubicacionActual = toUpper_(locationState.ubicacion);
-      const esperadosUbicacion = (
-        cacheRef.current.expectedByLocation[ubicacionActual] || []
-      ).length;
-
-      google.script.run
-        .withSuccessHandler((resp) => {
-          cache.syncing = false;
-          setSyncing(false);
-
-          if (resp?.auditSnapshot) {
-            setAuditResumen((prev) => ({ ...prev, ...resp.auditSnapshot }));
-            setAuditHeader((prev) => ({ ...(prev || {}), ...resp.auditSnapshot }));
-          }
-
-          if (cache.pendingSync.length) {
-            setTimeout(() => flushPendientes_(), 250);
-          }
-
-          if (callback) callback(true);
-        })
-        .withFailureHandler((err) => {
-          cache.syncing = false;
-          setSyncing(false);
-          cache.pendingSync.unshift(...lote);
-          setPendingCount(cache.pendingSync.length);
-
-          console.error("Error sincronizando lote:", err);
-          notify_("No se pudo sincronizar el lote. Se conservará pendiente.", "warning", 3200, {
-            title: "Sync pendiente",
-            sound: true
-          });
-
-          if (callback) callback(false);
-        })
-        .AuditoriaExcedentesCapturaController_registrarEscaneosLote({
-          idauditoria: auditId,
-          ubicacion: ubicacionActual,
-          esperadosUbicacion: esperadosUbicacion,
-          escaneos: lote
-        });
-    }, [auditId, locationState.ubicacion]);
-
-
-    const programarFlush_ = useCallback(() => {
-      const cache = cacheRef.current;
-      setPendingCount(cache.pendingSync.length);
-
-      if (cache.pendingSync.length >= FLUSH_CADA) {
-        flushPendientes_();
-        return;
-      }
-
-      if (cache.flushTimer) clearTimeout(cache.flushTimer);
-      cache.flushTimer = setTimeout(() => flushPendientes_(), FLUSH_MS);
-    }, [flushPendientes_]);
-
-    const abrirUbicacion_ = () => {
-      const identificador = toUpper_(locationInput);
-
-      if (!auditId) {
-        notify_("Selecciona una auditoría abierta.", "warning", 2500, {
-          title: "Auditoría requerida",
-          sound: true
-        });
-        return;
-      }
-
-      if (!identificador) {
-        notify_("Escanea una ubicación válida.", "warning", 2500, {
-          title: "Ubicación requerida",
-          sound: true
-        });
-        return;
-      }
-
-      if (locationState.abierta && locationState.ubicacion) {
-        notify_("Cierra la ubicación actual antes de abrir otra.", "warning", 3200, {
-          title: "Ubicación activa",
-          sound: true
-        });
-        setPanelCaptura("");
-        focusSinScroll_(idRef, 80);
-        return;
-      }
-
-      setBusyLocation(true);
-
-      google.script.run
-        .withSuccessHandler((resp) => {
-          const safe = resp || {};
-          const ubicacion = toUpper_(safe.ubicacion || identificador);
-          const bodega = toUpper_(safe.bodega || "");
-
-          setBusyLocation(false);
-          setLocationInput(ubicacion);
-          setIdInput("");
-
-          setLastResult({
-            tipoResultado: "UBICACION_ABIERTA",
-            mensaje: safe.mensaje || "Ubicación abierta correctamente.",
-            detalle: { ubicacion }
-          });
-
-          setLocationFromRows_(ubicacion, bodega, true);
-          setPanelCaptura("");
-          setLocationCloseNotes("");
-
-          notify_(safe.mensaje || `Ubicación ${ubicacion} abierta.`, "success", 1400, {
-            title: "Ubicación activa",
-            sound: false
-          });
-
-          focusSinScroll_(idRef, 80);
-        })
-        .withFailureHandler((err) => {
-          console.error("Error abriendo ubicación:", err);
-
-          setBusyLocation(false);
-          setLocationInput("");
-
-          notify_(err?.message || "No se pudo abrir la ubicación.", "error", 4200, {
-            title: "Error",
-            sound: true
-          });
-
-          focusSinScroll_(locationRef, 80);
-        })
-        .AuditoriaExcedentesCapturaController_abrirUbicacionPorEscaneo({
-          idauditoria: auditId,
-          identificadorUbicacion: identificador
-        });
-    };
-
-    const evaluarEscaneoLocal_ = (idunico) => {
-      const id = toUpper_(idunico);
-      const ubicacion = toUpper_(locationState.ubicacion);
-
-    if (!id) {
-      return {
-        ok: false,
-        tipoResultado: "VACIO",
-        mensaje: "IdUnico vacío."
-      };
-    }
-
-    if (!ubicacion) {
-      return {
-        ok: false,
-        tipoResultado: "SIN_UBICACION",
-        mensaje: "Primero abre una ubicación."
-      };
-    }
-
-    // =========================================================
-    // BLOQUEO: NO PERMITIR UBICACIÓN COMO IDUNICO
-    // =========================================================
-    if (esCodigoUbicacionLocal_(id)) {
-      return {
-        ok: false,
-        tipoResultado: "QR_UBICACION_EN_CAMPO_ID",
-        mensaje: `El código ${id} corresponde a una ubicación, no a una etiqueta IdUnico.`
-      };
-    }
-
-    const scanned = cacheRef.current.scannedById[id];
-
-      if (scanned) {
-        return {
-          ok: true,
-          persistir: false,
-          tipoResultado: "DUPLICADO",
-          mensaje: "Esta etiqueta ya fue escaneada.",
-          idunico: id,
-          detalle: scanned
-        };
-      }
-
-      const esperado = cacheRef.current.expectedById[id];
-
-      if (!esperado) {
-        return {
-          ok: true,
-          persistir: true,
-          tipoResultado: "SOBRANTE",
-          mensaje: "IdUnico no esperado en esta auditoría.",
-          idunico: id,
-          codigo: "",
-          descripcion: "",
-          bodega: locationState.bodega,
-          observaciones: "IDUNICO NO EXISTE EN UNIVERSO DE AUDITORÍA"
-        };
-      }
-
-      if (toUpper_(esperado.ubicacionActual) !== ubicacion) {
-        return {
-          ok: true,
-          persistir: true,
-          tipoResultado: "SOBRANTE",
-          mensaje: `Sobrante. Esperado en ${esperado.ubicacionActual}.`,
-          idunico: id,
-          codigo: esperado.codigo,
-          descripcion: esperado.descripcion,
-          bodega: locationState.bodega || esperado.bodegaActual,
-          observaciones: `ESPERADO EN ${esperado.ubicacionActual}`
-        };
-      }
-
-      return {
-        ok: true,
-        persistir: true,
-        tipoResultado: "CORRECTO",
-        mensaje: "Escaneo correcto.",
-        idunico: id,
-        codigo: esperado.codigo,
-        descripcion: esperado.descripcion,
-        bodega: esperado.bodegaActual || locationState.bodega,
-        observaciones: ""
-      };
-    };
-
-    const procesarIdLocal_ = () => {
-      const id = toUpper_(idInput);
-
-      if (!locationState.abierta) {
-        notify_("Primero abre una ubicación.", "warning", 2500, { title: "Ubicación requerida", sound: true });
-        setIdInput("");
-        return;
-      }
-
-      const res = evaluarEscaneoLocal_(id);
-      setIdInput("");
-
-      if (!res.ok) {
-        notify_(res.mensaje, "warning", 2500, { title: "Escaneo inválido", sound: true });
-        focusSinScroll_(idRef, 50);
-        return;
-      }
-
-      if (res.tipoResultado === "DUPLICADO") {
-        setLastResult(res);
-        setHighlightId(res.idunico);
-        setTimeout(() => setHighlightId(""), 1800);
-        notify_(res.mensaje, "warning", 1600, { title: "Duplicado", sound: true });
-        focusSinScroll_(idRef, 50);
-        return;
-      }
-
-      const hora = nowTime_();
-
-      const row = {
-        idunico: res.idunico,
-        tipoResultado: res.tipoResultado,
-        codigo: res.codigo || "",
-        descripcion: res.descripcion || "",
-        bodega: res.bodega || "",
-        horaLocal: hora,
-        observaciones: res.observaciones || ""
-      };
-
-      cacheRef.current.scannedById[res.idunico] = {
-        idunico: res.idunico,
-        ubicacion: locationState.ubicacion,
-        bodega: row.bodega,
-        codigo: row.codigo,
-        descripcion: row.descripcion,
-        estado: res.tipoResultado,
-        hora,
-        observaciones: row.observaciones
-      };
-
-      cacheRef.current.pendingSync.push(row);
-      setPendingCount(cacheRef.current.pendingSync.length);
-
-      if (
-        res.tipoResultado === "SOBRANTE" &&
-        (!res.codigo || !res.descripcion)
-      ) {
-        programarEnriquecimientoSobrante_(res.idunico);
-      }
-
-      const rows = buildRowsForLocation_(locationState.ubicacion);
-      setLocationState((prev) => ({
-        ...prev,
-        detalle: rows,
-        resumen: resumenRows_(rows)
-      }));
-
-      setLastResult({
-        tipoResultado: res.tipoResultado,
-        mensaje: res.mensaje,
-        detalle: { idunico: res.idunico, ubicacion: locationState.ubicacion }
-      });
-
-      setHighlightId(res.idunico);
-      setTimeout(() => setHighlightId(""), 1800);
-
-      notify_(
-        res.mensaje,
-        res.tipoResultado === "CORRECTO" ? "success" : "warning",
-        res.tipoResultado === "CORRECTO" ? 900 : 1700,
-        { title: res.tipoResultado === "CORRECTO" ? "Correcto" : "Sobrante", sound: res.tipoResultado !== "CORRECTO" }
-      );
-
-      programarFlush_();
-      focusSinScroll_(idRef, 30);
-    };
-
-    const calcularFaltantes_ = () => {
-      const ubicacion = toUpper_(locationState.ubicacion);
-      const expected = cacheRef.current.expectedByLocation[ubicacion] || [];
-      const scanned = cacheRef.current.scannedById || {};
-
-      return expected.filter((item) => {
-        const id = toUpper_(item.idunico);
-        const s = scanned[id];
-
-        return !(
-          s &&
-          toUpper_(s.ubicacion) === ubicacion &&
-          toUpper_(s.estado) === "CORRECTO"
-        );
-      });
-    };
-
-    const cerrarUbicacion_ = (sinConfirmar = false) => {
-      const ubicacion = toUpper_(locationState.ubicacion);
-
-      if (!auditId || !ubicacion) {
-        notify_("No hay ubicación activa.", "warning", 2500, { title: "Ubicación requerida", sound: true });
-        return;
-      }
-
-      const ejecutar = () => {
-        setBusyCloseLocation(true);
-
-        flushPendientes_((ok) => {
-          if (!ok) {
-            setBusyCloseLocation(false);
-            notify_("No se puede cerrar con sincronización pendiente.", "error", 3500, { title: "Cierre bloqueado", sound: true });
+          if (!idAuditoriaActual) {
+            notify_(
+              "No existe una auditoría activa para abrir la ubicación.",
+              "warning",
+              3200,
+              {
+                title: "Auditoría requerida",
+                sound: true
+              }
+            );
             return;
           }
 
-          const faltantes = calcularFaltantes_();
+          if (!identificador) {
+            notify_(
+              "Escanea o escribe un identificador de ubicación válido.",
+              "warning",
+              3200,
+              {
+                title: "Ubicación requerida",
+                sound: true
+              }
+            );
+            focus_(locationRef, 80);
+            return;
+          }
+
+          if (busyLocation) {
+            return;
+          }
+
+          setBusyLocation(true);
 
           google.script.run
-            .withSuccessHandler((resp) => {
-              const safe = resp || {};
-              setBusyCloseLocation(false);
+            .withSuccessHandler((respuesta) => {
+              setBusyLocation(false);
 
-              if (safe.auditSnapshot) {
-                setAuditResumen((prev) => ({ ...prev, ...safe.auditSnapshot }));
-                setAuditHeader((prev) => ({ ...(prev || {}), ...safe.auditSnapshot }));
+              const ubicacion = toUpper_(
+                respuesta?.ubicacion || ""
+              );
+
+              const bodega = toUpper_(
+                respuesta?.bodega || ""
+              );
+
+              if (!ubicacion) {
+                notify_(
+                  "El servidor no devolvió una ubicación válida.",
+                  "error",
+                  4200,
+                  {
+                    title: "Respuesta inválida",
+                    sound: true
+                  }
+                );
+                focus_(locationRef, 80);
+                return;
               }
 
-              setLocationState({
-                ubicacion: "",
-                bodega: "",
-                abierta: false,
-                detalle: [],
+              const nuevoEstado = {
+                ubicacion: ubicacion,
+                bodega: bodega,
+                abierta: true,
+                detalle: buildRows_(ubicacion),
                 resumen: {
                   esperados: 0,
                   escaneados: 0,
@@ -1496,698 +690,740 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
                   faltantes: 0,
                   sobrantes: 0
                 }
-              });
+              };
 
-              setLocationInput("");
-              setIdInput("");
-              setHighlightId("");
+              nuevoEstado.resumen = resumenRows_(
+                nuevoEstado.detalle
+              );
+
+              locationStateRef.current = nuevoEstado;
+              setLocationState(nuevoEstado);
+              setLocationInput(ubicacion);
               setPanelCaptura("");
-              setLocationCloseNotes("");
-
               setLastResult({
-                tipoResultado: "UBICACION_CERRADA",
-                mensaje: safe.mensaje || "Ubicación cerrada correctamente.",
-                detalle: { ubicacion }
+                tipoResultado: "UBICACION_ABIERTA",
+                ubicacion: ubicacion
               });
 
-              notify_(safe.mensaje || `Ubicación ${ubicacion} cerrada.`, "success", 1800, {
-                title: "Ubicación cerrada",
-                sound: true
-              });
+              scannerBufferRef.current = "";
+              scannerLastKeyRef.current = 0;
 
-              focusSinScroll_(locationRef, 80);
+              notify_(
+                respuesta?.mensaje ||
+                  `Ubicación ${ubicacion} abierta correctamente.`,
+                "success",
+                2200,
+                {
+                  title: "Ubicación activa",
+                  sound: false
+                }
+              );
             })
-            .withFailureHandler((err) => {
-              console.error("Error cerrando ubicación:", err);
-              setBusyCloseLocation(false);
-              notify_(err?.message || "No se pudo cerrar la ubicación.", "error", 4200, { title: "Error", sound: true });
+            .withFailureHandler((error) => {
+              setBusyLocation(false);
+
+              notify_(
+                error?.message ||
+                  "No se pudo abrir la ubicación.",
+                "error",
+                4200,
+                {
+                  title: "Error al abrir ubicación",
+                  sound: true
+                }
+              );
+
+              focus_(locationRef, 100);
             })
-            .AuditoriaExcedentesCapturaController_cerrarUbicacion({
-              idauditoria: auditId,
-              ubicacion,
-              faltantes,
-              observaciones: locationCloseNotes || ""
+            .AuditoriaExcedentesCapturaController_abrirUbicacionPorEscaneo({
+              idauditoria: idAuditoriaActual,
+              identificadorUbicacion: identificador
             });
-        });
-      };
+        }, [
+          locationInput,
+          busyLocation,
+          buildRows_
+        ]);
 
-      if (!sinConfirmar && typeof window.confirmarSistema === "function") {
-        window.confirmarSistema({
-          tipo: "warning",
-          title: "Cerrar ubicación",
-          text: `¿Cerrar ubicación ${ubicacion}? Los pendientes serán faltantes.`,
-          confirmText: "Cerrar ubicación",
-          cancelText: "Cancelar"
-        }).then((r) => {
-          if (r.isConfirmed) ejecutar();
-        });
-      } else {
-        ejecutar();
-      }
-    };
+        useEffect(() => { google.script.run.withSuccessHandler(resp => { const abiertas = Array.isArray(resp?.auditoriasAbiertas) ? resp.auditoriasAbiertas : []; const id = auditId || (abiertas[0]?.idauditoria || ""); if (id) {
+            setAuditId(id);
+            window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ = id;
+            cargarPaquete_(id);
+        }
+        else
+            setLoading(false); }).withFailureHandler(e => { setLoading(false); notify_(e?.message || "No se pudo cargar captura.", "error"); }).AuditoriaExcedentesCapturaController_obtenerBootstrapCaptura(); return () => { if (cacheRef.current.flushTimer)
+            clearTimeout(cacheRef.current.flushTimer); }; }, []);
+        
+        const flush_ = useCallback((cb) => {
+          const c = cacheRef.current;
 
-    const cerrarAuditoria_ = () => {
-      if (!auditId) {
-        notify_("No hay auditoría activa.", "warning", 2500, { title: "Auditoría requerida", sound: true });
-        return;
-      }
-
-      const ejecutar = () => {
-        setBusyCloseAudit(true);
-
-        flushPendientes_((ok) => {
-          if (!ok) {
-            setBusyCloseAudit(false);
-            notify_("No se puede cerrar con sincronización pendiente.", "error", 3500, { title: "Cierre bloqueado", sound: true });
+          if (c.syncing) {
+            if (cb) setTimeout(() => flush_(cb), 350);
             return;
           }
 
+          if (!c.pendingSync.length) {
+            cb?.(true);
+            return;
+          }
+
+          const lote = c.pendingSync.splice(0, 50);
+          setPendingCount(c.pendingSync.length);
+          c.syncing = true;
+          setSyncing(true);
+
+          const ubicacionLote = toUpper_(locationStateRef.current.ubicacion);
+          const auditoriaLote = toStr_(auditIdRef.current);
+
           google.script.run
-            .withSuccessHandler(() => {
-              setBusyCloseAudit(false);
-              notify_(`Auditoría ${auditId} cerrada.`, "success", 2200, { title: "Auditoría cerrada", sound: true });
+            .withSuccessHandler((resp) => {
+              c.syncing = false;
+              setSyncing(false);
 
-              setAuditId("");
-              setAuditHeader(null);
-              setAuditResumen({});
-              setLocationInput("");
-              setIdInput("");
-              setLastResult(null);
-              setPendingCount(0);
+              const clasificaciones = Array.isArray(resp?.clasificaciones)
+                ? resp.clasificaciones
+                : [];
 
-              setLocationState({
-                ubicacion: "",
-                bodega: "",
-                abierta: false,
-                detalle: [],
-                resumen: { esperados: 0, escaneados: 0, correctos: 0, faltantes: 0, sobrantes: 0 }
+              clasificaciones.forEach((resultado) => {
+                const id = toUpper_(resultado?.idunico);
+                if (!id) return;
+
+                const previo = c.scannedById[id] || {};
+                const tipoDefinitivo = toUpper_(resultado?.tipoResultado);
+
+                if (tipoDefinitivo === "DUPLICADO") {
+                  /*
+                  * Si el backend informa duplicado, se conserva el registro
+                  * local únicamente cuando ya existía en el paquete inicial.
+                  */
+                  if (!previo.ubicacion) {
+                    delete c.scannedById[id];
+                  }
+                  return;
+                }
+
+                c.scannedById[id] = {
+                  ...previo,
+                  idunico: id,
+                  ubicacion: toUpper_(
+                    resultado?.ubicacionAuditada || previo.ubicacion || ubicacionLote
+                  ),
+                  bodega: toUpper_(
+                    resultado?.bodegaEsperada || previo.bodega || ""
+                  ),
+                  codigo: toUpper_(resultado?.codigo || previo.codigo || ""),
+                  descripcion: toUpper_(
+                    resultado?.descripcion || previo.descripcion || ""
+                  ),
+                  estado: tipoDefinitivo || previo.estado || "SOBRANTE",
+                  hora: previo.hora || "",
+                  observaciones: toStr_(resultado?.observaciones || "")
+                };
+
+                if (resultado?.corregido === true) {
+                  setLastResult({
+                    tipoResultado: tipoDefinitivo,
+                    corregido: true,
+                    idunico: id
+                  });
+                  setHighlightId(id);
+                  setTimeout(() => setHighlightId(""), 1800);
+                }
               });
 
-              window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ = "";
-              cargarBootstrap_();
-            })
-            .withFailureHandler((err) => {
-              console.error("Error cerrando auditoría:", err);
-              setBusyCloseAudit(false);
-              notify_(err?.message || "No se pudo cerrar la auditoría.", "error", 4200, { title: "Error", sound: true });
-            })
-            .AuditoriaExcedentesCapturaController_cerrarAuditoria({
-              idauditoria: auditId,
-              observaciones: auditCloseNotes || ""
-            });
-        });
-      };
-
-      if (typeof window.confirmarSistema === "function") {
-        window.confirmarSistema({
-          tipo: "warning",
-          title: "Cerrar auditoría",
-          text: `¿Cerrar auditoría ${auditId}?`,
-          confirmText: "Cerrar auditoría",
-          cancelText: "Cancelar"
-        }).then((r) => {
-          if (r.isConfirmed) ejecutar();
-        });
-      } else {
-        ejecutar();
-      }
-    };
-
-    const conf = confiabilidad_(auditResumen.confiabilidadtotal || auditHeader?.confiabilidadtotal || 0);
-    const rows = Array.isArray(locationState.detalle) ? locationState.detalle : [];
-    const expectedRows = rows.filter((r) => toUpper_(r.estado) !== "SOBRANTE");
-    const sobrantes = rows.filter((r) => toUpper_(r.estado) === "SOBRANTE");
-    const canScan = !!auditId && !!locationState.ubicacion && locationState.abierta && !busyLocation;
-    const canCloseLocation = !!auditId && !!locationState.ubicacion && locationState.abierta;
-
-    const debeMantenerFocusEscaner_ = useCallback(() => {
-      if (!auditId) return false;
-      if (!locationState.ubicacion) return false;
-      if (!locationState.abierta) return false;
-      if (busyLocation || busyCloseLocation || busyCloseAudit) return false;
-      if (panelCaptura === "ABRIR_UBICACION") return false;
-      if (panelCaptura === "CERRAR_UBICACION") return false;
-
-      // Si hay modal normal SweetAlert abierto, no robar foco.
-      try {
-        if (
-          typeof Swal !== "undefined" &&
-          Swal.isVisible &&
-          Swal.isVisible()
-        ) {
-          const popup = Swal.getPopup ? Swal.getPopup() : document.querySelector(".swal2-popup");
-          const esToast = popup && popup.classList.contains("swal2-toast");
-
-          if (!esToast) return false;
-        }
-      } catch (e) {}
-
-      return true;
-    }, [
-      auditId,
-      locationState.ubicacion,
-      locationState.abierta,
-      busyLocation,
-      busyCloseLocation,
-      busyCloseAudit,
-      panelCaptura
-    ]);
-
-    const reenfocarEscaner_ = useCallback((delay = 80) => {
-      if (!debeMantenerFocusEscaner_()) return;
-      focusSinScroll_(idRef, delay);
-    }, [debeMantenerFocusEscaner_]);
-
-    useEffect(() => {
-      const onWindowFocus = () => {
-        reenfocarEscaner_(120);
-      };
-
-      const onVisibilityChange = () => {
-        if (document.visibilityState === "visible") {
-          reenfocarEscaner_(120);
-        }
-      };
-
-      const onPointerUp = (e) => {
-        const tag = String(e.target?.tagName || "").toUpperCase();
-
-        // No robar foco si está escribiendo en textarea/select/input visible.
-        if (tag === "TEXTAREA" || tag === "SELECT") return;
-
-        // Si está en panel de abrir/cerrar ubicación, no reenfocar al escáner oculto.
-        if (panelCaptura === "ABRIR_UBICACION" || panelCaptura === "CERRAR_UBICACION") return;
-
-        reenfocarEscaner_(80);
-      };
-
-      window.addEventListener("focus", onWindowFocus);
-      document.addEventListener("visibilitychange", onVisibilityChange);
-      document.addEventListener("pointerup", onPointerUp, true);
-
-      return () => {
-        window.removeEventListener("focus", onWindowFocus);
-        document.removeEventListener("visibilitychange", onVisibilityChange);
-        document.removeEventListener("pointerup", onPointerUp, true);
-      };
-    }, [reenfocarEscaner_, panelCaptura]);
-
-
-    if (loading) {
-      return (
-        <div className="p-28 flex flex-col items-center justify-center gap-4 fade-in-up">
-          <div className="w-10 h-10 border-4 border-slate-100 border-t-[var(--primary)] rounded-full animate-spin"></div>
-
-          <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-            Cargando captura de auditoría...
-          </span>
-        </div>
-      );
-    }
-    return (
-      <div className="space-y-3 fade-in-up">
-        <div className="aec-panel p-4">
-          <div className="grid grid-cols-1 2xl:grid-cols-[minmax(280px,0.9fr)_minmax(280px,0.85fr)_minmax(620px,1.55fr)] gap-4 items-stretch">
-            
-            <div className="aec-card p-4 flex flex-col justify-center min-h-[118px]">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
-                Captura operativa
-              </p>
-
-              <h2 className="m-0 p-0 bg-transparent border-none text-[24px] font-black text-[var(--text-main)] leading-tight">
-                {auditHeader?.idauditoria || auditId || "SIN AUDITORÍA"}
-              </h2>
-
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                {auditHeader?.estatus && (
-                  <span className={`aec-chip ${toUpper_(auditHeader.estatus) === "ABIERTA" ? "aec-chip-open" : "aec-chip-closed"}`}>
-                    {auditHeader.estatus}
-                  </span>
-                )}
-
-                <span className={conf.className}>
-                  {Number(auditHeader?.confiabilidadtotal || auditResumen.confiabilidadtotal || 0).toFixed(2)}% · {conf.label}
-                </span>
-
-                {syncing && (
-                  <span className="aec-chip aec-chip-amber">
-                    Sincronizando
-                  </span>
-                )}
-
-                {pendingCount > 0 && (
-                  <span className="aec-chip aec-chip-slate">
-                    Pendientes: {pendingCount}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="aec-card p-4 flex flex-col justify-center min-h-[118px]">
-              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-1 text-center">
-                Auditor / Tipo
-              </div>
-
-              <div className="text-[17px] font-black uppercase tracking-[0.08em] text-[var(--text-main)] text-center leading-tight">
-                {auditHeader?.auditor || "SIN AUDITOR"}
-              </div>
-
-              <div className="mt-2 flex justify-center gap-2 flex-wrap">
-                {auditHeader?.tipoauditoria && (
-                  <span className="aec-chip aec-chip-amber">
-                    {toUpper_(auditHeader.tipoauditoria) === "POR_BODEGA" ? "POR BODEGA" : "GLOBAL"}
-                  </span>
-                )}
-
-                {auditHeader?.bodegaobjetivo && (
-                  <span className="aec-chip aec-chip-slate">
-                    {auditHeader.bodegaobjetivo}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="aec-card p-3 min-h-[118px]">
-              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-2">
-                Métricos de auditoría
-              </div>
-
-              <div className="grid grid-cols-4 gap-2">
-                <div className="aec-kpi !min-h-[78px] !p-3">
-                  <div className="aec-kpi-topbar slate"></div>
-                  <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    Esperados
-                  </div>
-                  <div className="text-[22px] font-black text-[var(--text-main)] mt-2 leading-none">
-                    {Number(auditResumen.idunicosesperadostotales || auditResumen.esperados || 0)}
-                  </div>
-                </div>
-
-                <div className="aec-kpi !min-h-[78px] !p-3">
-                  <div className="aec-kpi-topbar emerald"></div>
-                  <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    Correctos
-                  </div>
-                  <div className="text-[22px] font-black text-[var(--text-main)] mt-2 leading-none">
-                    {Number(auditResumen.idunicoscorrectostotales || auditResumen.correctos || 0)}
-                  </div>
-                </div>
-
-                <div className="aec-kpi !min-h-[78px] !p-3">
-                  <div className="aec-kpi-topbar amber"></div>
-                  <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    Faltantes
-                  </div>
-                  <div className="text-[22px] font-black text-[var(--text-main)] mt-2 leading-none">
-                    {Number(auditResumen.idunicosfaltantestotales || auditResumen.faltantes || 0)}
-                  </div>
-                </div>
-
-                <div className="aec-kpi !min-h-[78px] !p-3">
-                  <div className="aec-kpi-topbar red"></div>
-                  <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                    Sobrantes
-                  </div>
-                  <div className="text-[22px] font-black text-[var(--text-main)] mt-2 leading-none">
-                    {Number(auditResumen.idunicossobrantestotales || auditResumen.sobrantes || 0)}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        <input
-          ref={idRef}
-          type="text"
-          inputMode="none"
-          autoComplete="off"
-          className="fixed opacity-0 pointer-events-none w-px h-px left-0 bottom-0"
-          value={idInput}
-          onChange={(e) => setIdInput(e.target.value.toUpperCase())}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              procesarIdLocal_();
-            }
-          }}
-          onBlur={() => {
-            reenfocarEscaner_(100);
-          }}
-          onPaste={(e) => e.preventDefault()}
-          disabled={!canScan || panelCaptura === "CERRAR_UBICACION"}
-        />
-
-        <div className="space-y-3">
-          <div className="aec-panel p-4">
-            <div className="grid grid-cols-1 2xl:grid-cols-[minmax(260px,0.55fr)_minmax(720px,1.45fr)] gap-4 items-stretch">
-              
-              <div className="aec-card p-4 flex flex-col justify-center min-h-[108px]">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
-                  Ubicación activa
-                </p>
-
-                <h3 className="m-0 p-0 bg-transparent border-none text-[22px] font-black font-mono-premium text-[var(--text-main)] leading-tight">
-                  {locationState.ubicacion || "SIN UBICACIÓN"}
-                </h3>
-
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className={`aec-chip ${locationState.abierta ? "aec-chip-red" : "aec-chip-slate"}`}>
-                    {locationState.abierta ? "Abierta" : "Inactiva"}
-                  </span>
-
-                  {canScan && (
-                    <span className="aec-chip aec-chip-emerald">
-                      Escáner activo
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="aec-card p-3 min-h-[108px]">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-2">
-                  Métricos de ubicación
-                </div>
-
-                <div className="grid grid-cols-5 gap-2">
-                  {[
-                    ["Esperados", locationState.resumen.esperados, "slate"],
-                    ["Escaneados", locationState.resumen.escaneados, "slate"],
-                    ["Correctos", locationState.resumen.correctos, "emerald"],
-                    ["Faltantes", locationState.resumen.faltantes, "amber"],
-                    ["Sobrantes", locationState.resumen.sobrantes, "red"]
-                  ].map(([label, value, tone]) => (
-                    <div className="aec-kpi !min-h-[78px] !p-3" key={label}>
-                      <div className={`aec-kpi-topbar ${tone}`}></div>
-
-                      <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)] leading-tight">
-                        {label}
-                      </div>
-
-                      <div className="text-[22px] font-black text-[var(--text-main)] mt-2 leading-none">
-                        {Number(value || 0)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          <div className="aec-panel overflow-hidden">
-            <div className="aec-conciliacion-header">
-              <div className="aec-conciliacion-title-wrap">
-                <div className="aec-conciliacion-marker"></div>
-
-                <div className="aec-conciliacion-title-block">
-                  <span className="aec-conciliacion-eyebrow">
-                    Conciliación operativa
-                  </span>
-
-                  <span className="aec-conciliacion-title">
-                    Material esperado
-                  </span>
-                </div>
-              </div>
-
-              <div className="aec-conciliacion-statusbar">
-                {lastResult && (
-                  <span
-                    className={
-                      toUpper_(lastResult.tipoResultado) === "CORRECTO"
-                        ? "aec-chip aec-chip-emerald aec-chip-compact"
-                        : toUpper_(lastResult.tipoResultado) === "SOBRANTE"
-                        ? "aec-chip aec-chip-red aec-chip-compact"
-                        : "aec-chip aec-chip-amber aec-chip-compact"
-                    }
-                  >
-                    {lastResult.tipoResultado}
-                  </span>
-                )}
-
-                {syncing && (
-                  <span className="aec-conciliacion-subtle">
-                    <span className="aec-sync-dot warning"></span>
-                    Sincronizando
-                  </span>
-                )}
-
-                {!syncing && pendingCount === 0 && (
-                  <span className="aec-conciliacion-subtle">
-                    <span className="aec-sync-dot"></span>
-                    Listo para escaneo
-                  </span>
-                )}
-
-                {pendingCount > 0 && (
-                  <span className="aec-conciliacion-subtle">
-                    <span className="aec-sync-dot pending"></span>
-                    Pendientes: {pendingCount}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="aec-table-wrap custom-scroll">
-              <table className="aec-table">
-                <thead>
-                  <tr>
-                    <th>IdUnico</th>
-                    <th>Código</th>
-                    <th>Descripción</th>
-                    <th>Estado</th>
-                    <th>Hora</th>
-                    <th>Observaciones</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {rows.map((row, idx) => {
-                    const visual = estadoVisual_(row.estado);
-                    const rowId = toUpper_(row.idunico);
-                    const high = rowId && highlightId && rowId === highlightId;
-
-                    return (
-                      <tr
-                        key={`${row.idunico || "SIN-ID"}-${idx}`}
-                        className={`aec-row ${visual.row} ${high ? "row-highlight flash-row" : ""}`}
-                      >
-                        <td>
-                          <span className="aec-id text-[14px]">
-                            {row.idunico || "—"}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="aec-code text-[13px]">
-                            {row.codigo || "—"}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[12px] font-semibold uppercase text-[var(--text-secondary)]">
-                            {row.descripcion || "Sin descripción"}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className={visual.chip}>
-                            {visual.text}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="aec-code text-[12px]">
-                            {fmtTime_(row.hora)}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[12px] font-semibold text-[var(--text-secondary)]">
-                            {row.observaciones || "—"}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-
-              {!rows.length && (
-                <div className="aec-empty-state">
-                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                    <LocalIcon name="scan-line" size={28} />
-                  </div>
-
-                  <span className="text-[13px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
-                    Sin ubicación cargada
-                  </span>
-
-                  <span className="text-[11px] text-slate-400 font-semibold">
-                    Presiona “Auditar ubicación” para iniciar.
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="fab-captura-contextual flex flex-col items-end gap-3">
-
-          {panelCaptura === "ABRIR_UBICACION" && (
-            <div className="aec-card p-5 aec-floating-panel aec-floating-panel-open animate-fab-in">
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                    Paso 1
-                  </div>
-                  <div className="text-[20px] font-black text-[var(--text-main)]">
-                    Escanea ubicación
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  className="aec-btn-soft !min-h-[36px] !px-3"
-                  onClick={() => {
-                    setPanelCaptura("");
-                    if (locationState.abierta) {
-                      focusSinScroll_(idRef, 80);
-                    }
-                  }}
-                >
-                  Cerrar
-                </button>
-              </div>
-
-              <input
-                ref={locationRef}
-                type="text"
-                inputMode="none"
-                autoComplete="off"
-                className={`aec-input scanner font-mono-premium ${busyLocation ? "locked" : ""}`}
-                placeholder="Escanea ubicación"
-                value={locationInput}
-                onChange={(e) => setLocationInput(e.target.value.toUpperCase())}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    abrirUbicacion_();
+              if (ubicacionLote) {
+                const rowsActualizados = buildRows_(ubicacionLote);
+                setLocationState((previous) => ({
+                  ...previous,
+                  detalle: rowsActualizados,
+                  resumen: resumenRows_(rowsActualizados)
+                }));
+              }
+
+              if (resp?.auditSnapshot) {
+                setAuditResumen((previous) => ({
+                  ...previous,
+                  ...resp.auditSnapshot
+                }));
+                setAuditHeader((previous) => ({
+                  ...previous,
+                  ...resp.auditSnapshot
+                }));
+              }
+
+              if (Number(resp?.correccionesClasificacion || 0) > 0) {
+                notify_(
+                  `${resp.correccionesClasificacion} clasificación(es) fueron confirmadas o corregidas por el servidor.`,
+                  "info",
+                  2600,
+                  {
+                    title: "Validación del servidor",
+                    sound: false
                   }
-                }}
-                onPaste={(e) => e.preventDefault()}
-                disabled={!auditId || busyLocation}
-              />
+                );
+              }
 
-              <button
-                className="aec-btn-primary w-full mt-3"
-                onClick={abrirUbicacion_}
-                disabled={!auditId || !locationInput || busyLocation}
-              >
-                {busyLocation ? "Abriendo..." : "Procesar ubicación"}
-              </button>
-            </div>
-          )}
+              if (c.pendingSync.length) {
+                setTimeout(() => flush_(), 250);
+              }
 
-          
-          {panelCaptura === "CERRAR_UBICACION" && (
-            <div className="aec-card p-5 aec-floating-panel aec-floating-panel-close animate-fab-in">
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                    Paso 3
-                  </div>
-                  <div className="text-[20px] font-black text-[var(--text-main)]">
-                    Cierre de ubicación
-                  </div>
-                  <div className="aec-id text-[14px] mt-1">
-                    {locationState.ubicacion || "SIN UBICACIÓN"}
-                  </div>
-                </div>
+              cb?.(true);
+            })
+            .withFailureHandler((error) => {
+              c.syncing = false;
+              setSyncing(false);
+              c.pendingSync.unshift(...lote);
+              setPendingCount(c.pendingSync.length);
+              notify_(
+                error?.message || "No se pudo sincronizar el lote.",
+                "warning",
+                3200
+              );
+              cb?.(false);
+            })
+            .AuditoriaExcedentesCapturaController_registrarEscaneosLote({
+              idauditoria: auditoriaLote,
+              ubicacion: ubicacionLote,
+              esperadosUbicacion:
+                (c.expectedByLocation[ubicacionLote] || []).length,
+              escaneos: lote
+            });
+        }, [buildRows_]);
 
-                <button
-                  type="button"
-                  className="aec-btn-soft !min-h-[36px] !px-3"
-                  onClick={() => {
-                    setPanelCaptura("");
-                    focusSinScroll_(idRef, 80);
-                  }}
-                  disabled={busyCloseLocation}
-                >
-                  Cancelar
-                </button>
-              </div>
+        const programarFlush_ = useCallback(() => {
+          const cache = cacheRef.current;
+          const totalPendientes =
+            cache.pendingSync.length;
 
-              <textarea
-                ref={closeNotesRef}
-                className="aec-textarea"
-                placeholder="Observaciones de cierre de ubicación..."
-                value={locationCloseNotes}
-                onChange={(e) => setLocationCloseNotes(e.target.value)}
-                disabled={busyCloseLocation}
-              />
+          setPendingCount(totalPendientes);
 
-              <button
-                className="aec-btn-danger w-full mt-3"
-                onClick={() => cerrarUbicacion_(true)}
-                disabled={!canCloseLocation || busyCloseLocation}
-              >
-                {busyCloseLocation ? "Cerrando..." : "Confirmar cierre de ubicación"}
-              </button>
-            </div>
-          )}
+          if (totalPendientes <= 0) {
+            return;
+          }
+
+          if (totalPendientes >= FLUSH_CADA) {
+            if (cache.flushTimer) {
+              clearTimeout(cache.flushTimer);
+              cache.flushTimer = null;
+            }
+
+            flush_();
+            return;
+          }
+
+          if (cache.flushTimer) {
+            clearTimeout(cache.flushTimer);
+          }
+
+          cache.flushTimer = setTimeout(() => {
+            cache.flushTimer = null;
+            flush_();
+          }, FLUSH_MS);
+        }, [flush_]);
+
+        const procesarIdLocal_ = useCallback((valorCapturado) => {
+          const id = toUpper_(valorCapturado);
+          const estadoUbicacion = locationStateRef.current;
+          const ubi = toUpper_(estadoUbicacion.ubicacion);
+
+          if (!id || !ubi || estadoUbicacion.abierta !== true) return;
+
+          const scanned = cacheRef.current.scannedById[id];
+
+          if (scanned) {
+            setLastResult({ tipoResultado: "DUPLICADO", idunico: id });
+            setHighlightId(id);
+            setTimeout(() => setHighlightId(""), 1800);
+            return;
+          }
+
+          const esperado = cacheRef.current.expectedById[id];
+          let estado = "CORRECTO";
+          let codigo = "";
+          let descripcion = "";
+          let observaciones = "";
+
+          if (!esperado) {
+            estado = "SOBRANTE";
+            observaciones = "VALIDACIÓN PENDIENTE DEL SERVIDOR";
+          } else if (toUpper_(esperado.ubicacionActual) !== ubi) {
+            estado = "SOBRANTE";
+            codigo = esperado.codigo || "";
+            descripcion = esperado.descripcion || "";
+            observaciones = `PRELIMINAR: ESPERADO EN ${esperado.ubicacionActual}`;
+          } else {
+            codigo = esperado.codigo || "";
+            descripcion = esperado.descripcion || "";
+          }
+
+          const hora = nowTime_();
+          const row = {
+            idunico: id,
+            tipoResultadoPreliminar: estado,
+            codigo: codigo,
+            descripcion: descripcion,
+            bodega: estadoUbicacion.bodega,
+            horaLocal: hora,
+            observaciones: observaciones
+          };
+
+          cacheRef.current.scannedById[id] = {
+            idunico: id,
+            ubicacion: ubi,
+            bodega: estadoUbicacion.bodega,
+            codigo: codigo,
+            descripcion: descripcion,
+            estado: estado,
+            hora: hora,
+            observaciones: observaciones
+          };
+
+          cacheRef.current.pendingSync.push(row);
+          setPendingCount(cacheRef.current.pendingSync.length);
+
+          const rows = buildRows_(ubi);
+          setLocationState((previous) => ({
+            ...previous,
+            detalle: rows,
+            resumen: resumenRows_(rows)
+          }));
+
+          setLastResult({
+            tipoResultado: estado,
+            preliminar: true,
+            idunico: id
+          });
+          setHighlightId(id);
+          setTimeout(() => setHighlightId(""), 1800);
+
+          programarFlush_();
+        }, [buildRows_, programarFlush_]);
+
+        useEffect(() => {
+          const onScannerKeyDown = (event) => {
+            const estadoUbicacion = locationStateRef.current;
+
+            if (!auditIdRef.current || estadoUbicacion.abierta !== true) {
+              scannerBufferRef.current = "";
+              return;
+            }
+
+            const target = event.target;
+            const tagName = String(target?.tagName || "").toUpperCase();
+            const isEditable =
+              tagName === "INPUT" ||
+              tagName === "TEXTAREA" ||
+              tagName === "SELECT" ||
+              target?.isContentEditable === true;
+
+            /*
+            * No interceptar escritura manual en formularios visibles.
+            */
+            if (isEditable) return;
+
+            const now = Date.now();
+
+            if (now - scannerLastKeyRef.current > 180) {
+              scannerBufferRef.current = "";
+            }
+
+            scannerLastKeyRef.current = now;
+
+            if (event.key === "Enter") {
+              const value = toUpper_(scannerBufferRef.current);
+              scannerBufferRef.current = "";
+
+              if (value) {
+                event.preventDefault();
+                event.stopPropagation();
+                procesarIdLocal_(value);
+              }
+              return;
+            }
+
+            if (
+              event.key.length === 1 &&
+              !event.ctrlKey &&
+              !event.altKey &&
+              !event.metaKey
+            ) {
+              scannerBufferRef.current += event.key;
+            }
+          };
+
+          document.addEventListener("keydown", onScannerKeyDown, true);
+
+          return () => {
+            document.removeEventListener("keydown", onScannerKeyDown, true);
+          };
+        }, [procesarIdLocal_]);
+
+        const cerrarUbicacion_ = () => {
+          const ubicacion =
+            toUpper_(locationStateRef.current.ubicacion);
+
+          if (!ubicacion) {
+            return;
+          }
+
+          setBusyCloseLocation(true);
+
+          /*
+          * Antes de cerrar, obliga a terminar todos los
+          * escaneos pendientes y la sincronización activa.
+          */
+          flush_((sincronizacionCorrecta) => {
+            if (!sincronizacionCorrecta) {
+              setBusyCloseLocation(false);
+
+              notify_(
+                "No se puede cerrar la ubicación porque hay escaneos sin sincronizar.",
+                "warning",
+                3600,
+                {
+                  title: "Sincronización pendiente",
+                  sound: true
+                }
+              );
+
+              return;
+            }
+
+            google.script.run
+              .withSuccessHandler((respuesta) => {
+                setBusyCloseLocation(false);
+
+                if (respuesta?.auditSnapshot) {
+                  setAuditResumen((previous) => ({
+                    ...previous,
+                    ...respuesta.auditSnapshot
+                  }));
+
+                  setAuditHeader((previous) => ({
+                    ...previous,
+                    ...respuesta.auditSnapshot
+                  }));
+                }
+
+                setLocationState({
+                  ubicacion: "",
+                  bodega: "",
+                  abierta: false,
+                  detalle: [],
+                  resumen: {
+                    esperados: 0,
+                    escaneados: 0,
+                    correctos: 0,
+                    faltantes: 0,
+                    sobrantes: 0
+                  }
+                });
+
+                locationStateRef.current = {
+                  ubicacion: "",
+                  bodega: "",
+                  abierta: false,
+                  detalle: [],
+                  resumen: {
+                    esperados: 0,
+                    escaneados: 0,
+                    correctos: 0,
+                    faltantes: 0,
+                    sobrantes: 0
+                  }
+                };
+
+                setLocationInput("");
+                setLocationCloseNotes("");
+                setPanelCaptura("");
+                setLastResult(null);
+
+                scannerBufferRef.current = "";
+
+                notify_(
+                  respuesta?.mensaje ||
+                    "Ubicación cerrada correctamente.",
+                  "success",
+                  2400,
+                  {
+                    title: "Ubicación cerrada",
+                    sound: true
+                  }
+                );
+              })
+              .withFailureHandler((error) => {
+                setBusyCloseLocation(false);
+
+                notify_(
+                  error?.message ||
+                    "No se pudo cerrar la ubicación.",
+                  "error",
+                  4200,
+                  {
+                    title: "Error de cierre",
+                    sound: true
+                  }
+                );
+              })
+              .AuditoriaExcedentesCapturaController_cerrarUbicacion({
+                idauditoria: auditIdRef.current,
+                ubicacion: ubicacion,
+                observaciones:
+                  locationCloseNotes || ""
+              });
+          });
+        };
+
+        const cerrarAuditoria_ = () => { const idAuditoriaActual = toStr_(auditIdRef.current);
+
+        if (!idAuditoriaActual)
+            return; setBusyCloseAudit(true); flush_(ok => { if (!ok) {
+            setBusyCloseAudit(false);
+            return;
+        } google.script.run.withSuccessHandler(() => { 
+        setBusyCloseAudit(false); 
+        notify_( `Auditoría ${idAuditoriaActual} cerrada.`, "success" );
+          setAuditId(""); 
+          setAuditHeader(null); 
+          setAuditResumen({}); 
+          setLocationState({ ubicacion: "", bodega: "", abierta: false, detalle: [], resumen: { esperados: 0, escaneados: 0, correctos: 0, faltantes: 0, sobrantes:  0 
+          } 
+          }); 
+          })
+        .withFailureHandler(e => { setBusyCloseAudit(false); notify_(e?.message || "No se pudo cerrar la auditoría.", "error"
+          ); 
+        })
+        .AuditoriaExcedentesCapturaController_cerrarAuditoria({
+          idauditoria: idAuditoriaActual,
+          observaciones: ""
+        }); 
+        }); 
+        };
+
+        const rows = Array.isArray(locationState.detalle) ? locationState.detalle : [];
+          const canScan = !!auditId && locationState.abierta && !busyLocation;
+        if (loading)
+            return <div className="aec-empty"><div className="w-10 h-10 border-4 border-slate-100 border-t-red-600 rounded-full animate-spin"/><b>CARGANDO CAPTURA...</b></div>;
+        return <div className="aec-page"><section className="aec-workspace">
+      <header className="aec-header">
+        <div className="aec-id-block"><div className="aec-icon-box"><LocalIcon name="clipboard-check" size={23}/></div><div><p className="aec-eyebrow">Captura operativa de auditoría</p><h2 className="aec-title">{auditHeader?.idauditoria || auditId || "SIN AUDITORÍA"}</h2><p className="aec-subtitle">{auditHeader?.auditor || "SIN AUDITOR"} · {toUpper_(auditHeader?.tipoauditoria) === "POR_BODEGA" ? "POR BODEGA" : "GLOBAL"} · {auditHeader?.bodegaobjetivo || "TODAS LAS BODEGAS"}</p><div className="aec-chips"><span className={toUpper_(auditHeader?.estatus) === "ABIERTA" ? "aec-chip aec-chip-red" : "aec-chip aec-chip-green"}>{auditHeader?.estatus || "SIN ESTADO"}</span></div></div></div>
+        <div className="aec-metrics">{[["Esperados", auditResumen.idunicosesperadostotales || auditResumen.esperados || 0, ""], ["Correctos", auditResumen.idunicoscorrectostotales || auditResumen.correctos || 0, "green"], ["Faltantes", auditResumen.idunicosfaltantestotales || auditResumen.faltantes || 0, "amber"], ["Sobrantes", auditResumen.idunicossobrantestotales || auditResumen.sobrantes || 0, "red"]].map(([l, v, t]) => <div key={l} className={`aec-metric ${t}`}><div className="aec-metric-value">{Number(v)}</div><div className="aec-metric-label">{l}</div></div>)}</div>
+        <div className="aec-actions">
+          <button
+            type="button"
+            className="aec-action"
+            onClick={() => {
+              /*
+              * Primero sincroniza cualquier escaneo pendiente.
+              * Solo recarga el paquete si la sincronización terminó
+              * correctamente.
+              */
+              flush_((sincronizacionCorrecta) => {
+                if (!sincronizacionCorrecta) {
+                  notify_(
+                    "No se puede actualizar porque existen escaneos sin sincronizar.",
+                    "warning",
+                    3600,
+                    {
+                      title: "Sincronización pendiente",
+                      sound: true
+                    }
+                  );
+
+                  return;
+                }
+
+                cargarPaquete_(auditIdRef.current);
+              });
+            }}
+            disabled={
+              busyLocation ||
+              busyCloseLocation ||
+              busyCloseAudit
+            }
+          >
+            <LocalIcon
+              name="refresh-cw"
+              size={16}
+            />
+
+            {syncing || pendingCount > 0
+              ? "Sincronizando..."
+              : "Actualizar"}
+          </button>
 
           <button
             type="button"
-            className={`min-h-[58px] rounded-2xl px-5 shadow-xl flex items-center gap-3 font-black uppercase tracking-[0.12em] text-[12px] transition-all ${
-              locationState.abierta
-                ? "bg-[#fee2e2] text-[#991b1b] border border-[#fecaca]"
-                : "bg-[var(--primary)] text-white"
-            }`}
-
-            onClick={() => {
-              if (locationState.abierta) {
-                setPanelCaptura("CERRAR_UBICACION");
-                focusSinScroll_(closeNotesRef, 120);
-              } else {
-                setPanelCaptura("ABRIR_UBICACION");
-                focusSinScroll_(locationRef, 120);
-              }
-            }}
-
-            disabled={!auditId || busyLocation || busyCloseLocation}
+            className="aec-action danger"
+            onClick={cerrarAuditoria_}
+            disabled={
+              busyCloseAudit ||
+              busyCloseLocation ||
+              busyLocation ||
+              syncing ||
+              pendingCount > 0
+            }
           >
-            <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-white/20">
-              <LocalIcon name={locationState.abierta ? "lock" : "plus"} size={20} />
-            </span>
+            <LocalIcon
+              name="lock-keyhole"
+              size={16}
+            />
 
-            {locationState.abierta ? "Cerrar ubicación" : "Auditar ubicación"}
+            {busyCloseAudit
+              ? "Cerrando..."
+              : syncing || pendingCount > 0
+                ? "Sincronizando..."
+                : "Cerrar auditoría"}
           </button>
         </div>
+      </header>
+      <div className="aec-toolbar">
+  <div className="aec-toolbar-main">
+    <div className="aec-toolbar-icon">
+      <LocalIcon
+        name="warehouse"
+        size={17}
+      />
+    </div>
+
+    <div className="aec-toolbar-copy">
+      <span className="aec-toolbar-eyebrow">
+        Conciliación
+      </span>
+
+      <span className="aec-toolbar-separator" />
+
+      <div className="aec-toolbar-location">
+        <h3
+          className="aec-toolbar-title"
+          title={
+            locationState.ubicacion ||
+            "Sin ubicación activa"
+          }
+        >
+          {locationState.ubicacion ||
+            "SIN UBICACIÓN ACTIVA"}
+        </h3>
+
+        {locationState.abierta && (
+          <span
+            className="aec-toolbar-bodega"
+            title={
+              locationState.bodega ||
+              "Sin bodega"
+            }
+          >
+            {locationState.bodega ||
+              "SIN BODEGA"}
+          </span>
+        )}
       </div>
-    );
-  };
+    </div>
+  </div>
 
-  const target = document.getElementById("render-auditoria-excedentes-captura");
+  <div className="aec-toolbar-context">
+    {lastResult && (
+      <span
+        className={
+          toUpper_(
+            lastResult.tipoResultado
+          ) === "CORRECTO"
+            ? "aec-chip aec-chip-green"
+            : toUpper_(
+                lastResult.tipoResultado
+              ) === "SOBRANTE"
+              ? "aec-chip aec-chip-red"
+              : "aec-chip aec-chip-amber"
+        }
+      >
+        {lastResult.tipoResultado}
+      </span>
+    )}
 
-  if (!target) {
-    notify_("No se encontró el contenedor de captura.", "error", 4200, { title: "Error", sound: true });
-    return;
-  }
+    <span
+      className={`aec-live ${
+        syncing || pendingCount > 0
+          ? "warning"
+          : canScan
+            ? "ready"
+            : ""
+      }`}
+    >
+      <span className="aec-dot" />
 
-  if (window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__) {
-    try {
-      window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__.unmount();
-    } catch (e) {
-      console.warn("No se pudo desmontar root previo:", e);
+      {syncing
+        ? "Sincronizando"
+        : pendingCount > 0
+          ? `${pendingCount} pendientes`
+          : canScan
+            ? "Escáner activo"
+            : "Sin captura"}
+    </span>
+
+    <span
+      className="aec-live"
+      title={`${rows.length} registros visibles`}
+    >
+      <LocalIcon
+        name="rows-3"
+        size={13}
+      />
+
+      {rows.length}
+    </span>
+  </div>
+</div>
+      
+      <div className="aec-content"><div className="aec-table-wrap custom-scroll"><table className="aec-table"><thead><tr><th>IdUnico</th><th>Código</th><th>Descripción</th><th>Estado</th><th>Hora</th><th>Observaciones</th></tr></thead><tbody>{rows.map((row, idx) => { const v = estadoVisual_(row.estado), high = toUpper_(row.idunico) === highlightId; return <tr key={`${row.idunico}-${idx}`} className={`aec-row ${v.row} ${high ? "row-highlight flash-row" : ""}`}><td><span className="aec-id">{row.idunico || "—"}</span></td><td><span className="aec-code">{row.codigo || "—"}</span></td><td>{row.descripcion || "Sin descripción"}</td><td><span className={v.chip}>{v.text}</span></td><td className="aec-code">{fmtTime_(row.hora)}</td><td>{row.observaciones || "—"}</td></tr>; })}</tbody></table>{!rows.length && <div className="aec-empty"><LocalIcon name="scan-line" size={30}/><b>{locationState.abierta ? "SIN REGISTROS EN ESTA UBICACIÓN" : "SIN UBICACIÓN CARGADA"}</b></div>}</div></div>
+    </section>
+    <div className="fab-captura-contextual">
+      {panelCaptura === "ABRIR_UBICACION" && <div className="aec-floating-panel animate-fab-in"><div className="flex justify-between items-start mb-4"><div><div className="aec-eyebrow !text-slate-500">Paso 1</div><h3 className="text-xl font-black">Escanea ubicación</h3></div><button className="aec-btn soft" onClick={() => setPanelCaptura("")}>Cerrar</button></div><input ref={locationRef} className="aec-input" value={locationInput} onChange={e => setLocationInput(e.target.value.toUpperCase())} onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.stopPropagation();
+          abrirUbicacion_();
+        }
+      }} 
+      placeholder="Escanea ubicación"/><button className="aec-btn primary w-full mt-3" onClick={abrirUbicacion_} disabled={busyLocation}>{busyLocation ? "Abriendo..." : "Procesar ubicación"}</button></div>}
+      {panelCaptura === "CERRAR_UBICACION" && <div className="aec-floating-panel animate-fab-in"><div className="flex justify-between items-start mb-4"><div><div className="aec-eyebrow !text-slate-500">Paso 3</div><h3 className="text-xl font-black">Cierre de ubicación</h3><div className="aec-id">{locationState.ubicacion}</div></div><button className="aec-btn soft" onClick={() => setPanelCaptura("")}>Cancelar</button></div><textarea ref={closeNotesRef} className="aec-textarea" value={locationCloseNotes} onChange={e => setLocationCloseNotes(e.target.value)} placeholder="Observaciones de cierre..."/><button className="aec-btn danger w-full mt-3" onClick={cerrarUbicacion_} disabled={busyCloseLocation}>{busyCloseLocation ? "Cerrando..." : "Confirmar cierre"}</button></div>}
+      <button className={`aec-btn ${locationState.abierta ? "danger" : "primary"}`} onClick={() => { if (locationState.abierta) {
+            setPanelCaptura("CERRAR_UBICACION");
+            focus_(closeNotesRef, 120);
+        }
+        else {
+            setPanelCaptura("ABRIR_UBICACION");
+            focus_(locationRef, 120);
+        } }}><LocalIcon name={locationState.abierta ? "lock" : "plus"} size={18}/>{locationState.abierta ? "Cerrar ubicación" : "Auditar ubicación"}</button>
+    </div>
+    </div>;
+    };
+    const target = document.getElementById("render-auditoria-excedentes-captura");
+    if (!target) {
+        notify_("No se encontró el contenedor.", "error");
+        return;
     }
-  }
-
-  window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__ = ReactDOM.createRoot(target);
-  window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__.render(<View />);
+    if (window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__) {
+        try {
+            window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__.unmount();
+        }
+        catch (e) {
+            console.warn(e);
+        }
+    }
+    window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__ = ReactDOM.createRoot(target);
+    window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__.render(<View />);
 };
-
 window.initVista = window.cargar_AuditoriaExcedentesCaptura;
 </script>
+
+<!--
+NOTA DE SEGURIDAD Y DESPLIEGUE
+Este archivo requiere que los controladores de Google Apps Script validen nuevamente:
+- permisos del usuario
+- auditoria abierta
+- ubicacion activa
+- longitud/formato de IDUNICO
+- duplicados e idempotencia
+- limites del lote
+La validacion en el navegador no sustituye la validacion del servidor.
+-->

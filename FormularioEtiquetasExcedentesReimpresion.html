@@ -779,13 +779,91 @@
 
       const idsDisponibles = useMemo(() => {
         const origen = filtrados.length ? filtrados : baseDatos;
-        return [...new Set(origen.map(item => item.IDUNICO).filter(Boolean))].sort();
-      }, [filtrados, baseDatos]);
+
+        const idsEnCola = new Set(
+          cola.map(item => normalizarTexto(item.idUnico)).filter(Boolean)
+        );
+
+        return origen
+          .map(item => {
+            const idUnico = String(item.IDUNICO || "").trim();
+            const idNormalizado = normalizarTexto(idUnico);
+
+            return {
+              idUnico: idUnico,
+              idNormalizado: idNormalizado,
+              codigo: normalizarTexto(item.CODIGO),
+              descripcion: normalizarTexto(item.DESCRIPCION || "SIN DESCRIPCIÓN"),
+              ubicacion: normalizarTexto(
+                item.UBICACION ||
+                item.ESTADOACTUALEXCEDENTES ||
+                "DISPONIBLE"
+              ),
+              cantidad: Number(item.CANTIDAD || 0)
+            };
+          })
+          .filter(item => item.idUnico)
+          .filter(item => !idsEnCola.has(item.idNormalizado))
+          .sort((a, b) =>
+            String(a.idUnico).localeCompare(String(b.idUnico), "es", {
+              numeric: true,
+              sensitivity: "base"
+            })
+          );
+      }, [filtrados, baseDatos, cola]);
 
       const codigosDisponibles = useMemo(() => {
         const origen = filtrados.length ? filtrados : baseDatos;
-        return [...new Set(origen.map(item => item.CODIGO).filter(Boolean))].sort();
-      }, [filtrados, baseDatos]);
+
+        const idsEnCola = new Set(
+          cola.map(item => normalizarTexto(item.idUnico)).filter(Boolean)
+        );
+
+        return origen
+          .map(item => {
+            const idUnico = String(item.IDUNICO || "").trim();
+            const idNormalizado = normalizarTexto(idUnico);
+
+            return {
+              codigo: normalizarTexto(item.CODIGO),
+              cantidad: Number(item.CANTIDAD || 0),
+              ubicacion: normalizarTexto(
+                item.UBICACION ||
+                item.ESTADOACTUALEXCEDENTES ||
+                "DISPONIBLE"
+              ),
+              idUnico: idUnico,
+              idNormalizado: idNormalizado,
+              descripcion: normalizarTexto(item.DESCRIPCION || "SIN DESCRIPCIÓN")
+            };
+          })
+          .filter(item => item.codigo)
+          .filter(item => item.idUnico)
+          .filter(item => !idsEnCola.has(item.idNormalizado))
+          .sort((a, b) => {
+            const ordenCodigo = String(a.codigo).localeCompare(String(b.codigo), "es", {
+              numeric: true,
+              sensitivity: "base"
+            });
+
+            if (ordenCodigo !== 0) return ordenCodigo;
+
+            const ordenCantidad = Number(a.cantidad || 0) - Number(b.cantidad || 0);
+            if (ordenCantidad !== 0) return ordenCantidad;
+
+            const ordenUbicacion = String(a.ubicacion).localeCompare(String(b.ubicacion), "es", {
+              numeric: true,
+              sensitivity: "base"
+            });
+
+            if (ordenUbicacion !== 0) return ordenUbicacion;
+
+            return String(a.idUnico).localeCompare(String(b.idUnico), "es", {
+              numeric: true,
+              sensitivity: "base"
+            });
+          });
+      }, [filtrados, baseDatos, cola]);
 
       const ubicacionesDisponibles = useMemo(() => {
         const origen = filtrados.length ? filtrados : baseDatos;
@@ -1180,8 +1258,14 @@
                     />
 
                     <datalist id="lista-ids-reimpresion">
-                      {idsDisponibles.map((id, index) => (
-                        <option key={`${index}-${id}`} value={id} />
+                      {idsDisponibles.map((item, index) => (
+                        <option
+                          key={`${index}-${item.idUnico}`}
+                          value={item.idUnico}
+                          label={`${item.codigo || "SIN CÓDIGO"} | ${item.ubicacion || "SIN UBICACIÓN"} | Cant: ${item.cantidad}`}
+                        >
+                          {item.idUnico} | {item.codigo || "SIN CÓDIGO"} | {item.ubicacion || "SIN UBICACIÓN"} | Cant: {item.cantidad}
+                        </option>
                       ))}
                     </datalist>
                   </div>
@@ -1205,8 +1289,14 @@
                     />
 
                     <datalist id="lista-codigos-reimpresion">
-                      {codigosDisponibles.map((codigo, index) => (
-                        <option key={`${index}-${codigo}`} value={codigo} />
+                      {codigosDisponibles.map((item, index) => (
+                        <option
+                          key={`${index}-${item.codigo}-${item.idUnico}`}
+                          value={item.codigo}
+                          label={`Cant: ${item.cantidad} | ${item.ubicacion || "SIN UBICACIÓN"} | ${item.idUnico}`}
+                        >
+                          {item.codigo} | Cant: {item.cantidad} | {item.ubicacion || "SIN UBICACIÓN"} | {item.idUnico}
+                        </option>
                       ))}
                     </datalist>
                   </div>

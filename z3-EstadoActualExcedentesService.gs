@@ -1,19 +1,58 @@
 /**
  * EstadoActualExcedentesService.gs
+ *
+ * Fuente unica del estado operativo de cada IdUnico.
+ * BD-EXCEDENTES.CANTIDAD permanece como cantidad inicial.
+ * saldoActual = cantidadInicial - suma absoluta de movimientos SURTIDO.
  */
-
 const EstadoActualExcedentesService = (() => {
+  "use strict";
+
+  function _perfEstadoStart_(operation, metadata) {
+    const now = Date.now();
+    return {
+      operation: String(operation || "ESTADO_OPERATION"),
+      startedAt: now,
+      lastAt: now,
+      metadata: metadata || {},
+      marks: []
+    };
+  }
+
+  function _perfEstadoMark_(trace, stage, metadata) {
+    if (!trace) return;
+    const now = Date.now();
+    trace.marks.push({
+      stage: String(stage || "MARK"),
+      segmentMs: now - trace.lastAt,
+      totalMs: now - trace.startedAt,
+      metadata: metadata || {}
+    });
+    trace.lastAt = now;
+  }
+
+  function _perfEstadoEnd_(trace, status, metadata) {
+    if (!trace) return null;
+    const result = {
+      operation: trace.operation,
+      status: String(status || "ok"),
+      totalMs: Date.now() - trace.startedAt,
+      metadata: Object.assign({}, trace.metadata, metadata || {}),
+      marks: trace.marks.slice()
+    };
+    console.log(
+      "[APPALMACEN][ESTADO_BACKEND_PERF] " + JSON.stringify(result)
+    );
+    return result;
+  }
 
   const DOMAIN = Object.freeze({
     TIPO_AUDITORIA: Object.freeze({
       GLOBAL: "GLOBAL",
       POR_BODEGA: "POR_BODEGA"
     }),
-
     VALOR_TODAS: "TODAS",
-
     BODEGA_FALLBACK: "PENDIENTE DE UBICACIÓN",
-
     ESTATUS_LOGICOS: Object.freeze({
       UBICADO: "UBICADO",
       PENDIENTE_UBICACION: "PENDIENTE_UBICACION",
@@ -23,38 +62,25 @@ const EstadoActualExcedentesService = (() => {
       SIN_TRASPASOS: "SIN_TRASPASOS",
       DESCONOCIDO: "DESCONOCIDO"
     }),
-
-    /**
-     * AJUSTA ESTA LISTA si manejas otros valores válidos en BD-EXCEDENTES.
-     * Aquí se define qué STATUS permiten que el IdUnico entre al universo.
-     */
     STATUS_BD_VALIDOS: Object.freeze([
       "",
       "ACOMODADO",
       "DISPONIBLE",
+      "PARCIAL",
       "PENDIENTE",
       "SIN UBICACION",
       "SIN UBICACIÓN"
     ]),
-
-    /**
-     * AJUSTA ESTA LISTA si manejas otros valores terminales / inválidos.
-     */
     STATUS_BD_INVALIDOS: Object.freeze([
       "SURTIDO",
-      "PARCIAL",
       "CERRADO",
       "CANCELADO",
       "ELIMINADO",
       "BAJA",
       "INACTIVO"
     ])
-
   });
 
-  // =========================================================
-  // HELPERS SEGUROS
-  // =========================================================
   function _toSafeStr_(value) {
     return toStr_(value || "");
   }
@@ -77,6 +103,7 @@ const EstadoActualExcedentesService = (() => {
       : 0;
 
     let horaMs = 0;
+
     if (row.horaexcedente instanceof Date) {
       horaMs =
         row.horaexcedente.getHours() * 3600000 +
@@ -87,50 +114,87 @@ const EstadoActualExcedentesService = (() => {
     return fecha + horaMs;
   }
 
-  function _timestampFromMovimiento_(mov) {
-    const fecha = mov.fechatraspaso instanceof Date
-      ? mov.fechatraspaso.getTime()
+  function _formatDateFast_(value) {
+    if (!(value instanceof Date) || isNaN(value.getTime())) return "";
+    const day = String(value.getDate()).padStart(2, "0");
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    return day + "/" + month + "/" + value.getFullYear();
+  }
+
+  function _formatTimeFast_(value) {
+    if (!(value instanceof Date) || isNaN(value.getTime())) return "";
+    return [
+      String(value.getHours()).padStart(2, "0"),
+      String(value.getMinutes()).padStart(2, "0"),
+      String(value.getSeconds()).padStart(2, "0")
+    ].join(":");
+  }
+
+  function _timestampFromMovimiento_(movimiento) {
+    const fecha = movimiento.fechatraspaso instanceof Date
+      ? movimiento.fechatraspaso.getTime()
       : 0;
 
     let horaMs = 0;
-    if (mov.horatraspaso instanceof Date) {
+
+    if (movimiento.horatraspaso instanceof Date) {
       horaMs =
-        mov.horatraspaso.getHours() * 3600000 +
-        mov.horatraspaso.getMinutes() * 60000 +
-        mov.horatraspaso.getSeconds() * 1000;
+        movimiento.horatraspaso.getHours() * 3600000 +
+        movimiento.horatraspaso.getMinutes() * 60000 +
+        movimiento.horatraspaso.getSeconds() * 1000;
     }
 
     return fecha + horaMs;
   }
 
   function _esUbicacionFisica_(valor) {
-    const v = _toSafeUpper_(valor);
+    const value = _toSafeUpper_(valor);
+
+    if (!value) return false;
 
     return (
-      v.startsWith("B1") ||
-      v.startsWith("B2") ||
-      v.startsWith("B3") ||
-      v.startsWith("BM") ||
-      v.startsWith("CB1") ||
-      v.startsWith("CB2") ||
-      v.startsWith("CU") ||
-      v.startsWith("MO")
+      value.startsWith("B1") ||
+      value.startsWith("B2") ||
+      value.startsWith("B3") ||
+      value.startsWith("BM") ||
+      value.startsWith("CB1") ||
+      value.startsWith("CB2") ||
+      value.startsWith("P1-") ||
+      value.startsWith("A1-") ||
+      value.startsWith("A2-") ||
+      value.startsWith("A3-") ||
+      value.startsWith("E1-") ||
+      value.startsWith("CU") ||
+      value.startsWith("MO")
     );
   }
 
-  function _obtenerNombreBodegaPorSerie_(serie, fallback = DOMAIN.BODEGA_FALLBACK) {
-    const s = _toSafeUpper_(serie);
+  function _obtenerNombreBodegaPorSerie_(
+    serie,
+    fallback = DOMAIN.BODEGA_FALLBACK
+  ) {
+    const value = _toSafeUpper_(serie);
 
-    if (!s) return fallback;
+    if (!value) return fallback;
+    if (value.startsWith("B1")) return "BODEGA 1";
+    if (value.startsWith("B2")) return "BODEGA 2";
+    if (value.startsWith("B3")) return "BODEGA 3";
+    if (value.startsWith("BM")) return "BODEGA MOSTRADOR";
+    if (value.startsWith("CB1")) return "CASA BLANCA 1";
 
-    if (s.startsWith("B1")) return "BODEGA 1";
-    if (s.startsWith("B2")) return "BODEGA 2";
-    if (s.startsWith("B3")) return "BODEGA 3";
-    if (s.startsWith("BM")) return "BODEGA MOSTRADOR";
-    if (s.startsWith("CB1")) return "CASA BLANCA 1";
-    if (s.startsWith("CB2")) return "CASA BLANCA 2";
-    if (s.startsWith("CU")) return "CUARTO ALTO RIESGO";
-    if (s.startsWith("MO")) return "MOSTRADOR";
+    if (
+      value.startsWith("CB2") ||
+      value.startsWith("P1-") ||
+      value.startsWith("A1-") ||
+      value.startsWith("A2-") ||
+      value.startsWith("A3-") ||
+      value.startsWith("E1-")
+    ) {
+      return "CASA BLANCA 2";
+    }
+
+    if (value.startsWith("CU")) return "CUARTO ALTO RIESGO";
+    if (value.startsWith("MO")) return "MOSTRADOR";
 
     return _toSafeUpper_(fallback) || DOMAIN.BODEGA_FALLBACK;
   }
@@ -152,8 +216,12 @@ const EstadoActualExcedentesService = (() => {
       };
     }
 
-    const tipoAuditoria = _toSafeUpper_(config && config.tipoAuditoria);
-    const bodegaObjetivo = _toSafeUpper_(config && config.bodegaObjetivo);
+    const tipoAuditoria = _toSafeUpper_(
+      config && config.tipoAuditoria
+    );
+    const bodegaObjetivo = _toSafeUpper_(
+      config && config.bodegaObjetivo
+    );
 
     if (!tipoAuditoria && !bodegaObjetivo) {
       return {
@@ -178,53 +246,46 @@ const EstadoActualExcedentesService = (() => {
     };
   }
 
-  // =========================================================
-  // REGLAS DE VALIDACIÓN BD-EXCEDENTES
-  // =========================================================
   function _esStatusBDValido_(status) {
-    const s = _toSafeUpper_(status);
+    const value = _toSafeUpper_(status);
 
-    if (DOMAIN.STATUS_BD_INVALIDOS.includes(s)) {
+    if (DOMAIN.STATUS_BD_INVALIDOS.includes(value)) {
       return false;
     }
 
-    if (DOMAIN.STATUS_BD_VALIDOS.includes(s)) {
-      return true;
-    }
-
-    return false;
+    return DOMAIN.STATUS_BD_VALIDOS.includes(value);
   }
 
-  // =========================================================
-  // INDEXACIÓN BD-EXCEDENTES
-  // =========================================================
   function _indexarExcedentesPorIdUnico_() {
-    const rows = (
-      ExcedentesRepository.getAllRaw
-        ? ExcedentesRepository.getAllRaw()
-        : ExcedentesRepository.getAll()
-    ).filter(item => _toSafeStr_(item.idunico));
+    const rows =
+          typeof ExcedentesRepository.getAllForEstado === "function"
+            ? ExcedentesRepository.getAllForEstado()
+            : (
+                ExcedentesRepository.getAllRaw
+                  ? ExcedentesRepository.getAllRaw()
+                  : ExcedentesRepository.getAll()
+              ).filter(item => _toSafeStr_(item.idunico));
 
-    /**
-     * Si por alguna razón existe más de una fila por IdUnico,
-     * tomamos la más reciente por fecha/hora.
-     */
     return rows.reduce((acc, row) => {
-      const id = _toSafeStr_(row.idunico);
-      const ts = _timestampFromExcedente_(row);
+      const id =
+      _toSafeUpper_(
+        row.idunico
+      );
+      const timestamp = _timestampFromExcedente_(row);
 
-      if (!acc[id] || ts >= acc[id]._timestamp) {
+      if (!acc[id] || timestamp >= acc[id]._timestamp) {
         acc[id] = {
           idUnico: id,
           codigo: _toSafeUpper_(row.codigo),
           descripcion: _toSafeUpper_(row.descripcion),
-          saldoBase: _toSafeNum_(row.cantidad),
+          cantidadInicial: Math.abs(_toSafeNum_(row.cantidad)),
+          saldoBase: Math.abs(_toSafeNum_(row.cantidad)),
           estatusRegistro: _toSafeUpper_(row.status),
           idproducto: _toSafeStr_(row.idproducto),
-          fechaBase: formatDate_(row.fechaexcedente),
-          horaBase: formatTime_(row.horaexcedente),
+          fechaBase: _formatDateFast_(row.fechaexcedente),
+          horaBase: _formatTimeFast_(row.horaexcedente),
           validoBD: _esStatusBDValido_(row.status),
-          _timestamp: ts
+          _timestamp: timestamp
         };
       }
 
@@ -232,275 +293,461 @@ const EstadoActualExcedentesService = (() => {
     }, {});
   }
 
-  // =========================================================
-  // INDEXACIÓN TRASPASOS
-  // =========================================================
-  function _indexarUltimoMovimientoPorIdUnico_() {
-    const movimientos = (
+  function _obtenerMovimientos_() {
+    if (
+      typeof TraspasosRepository.getAllForEstado === "function"
+    ) {
+      return TraspasosRepository.getAllForEstado();
+    }
+
+    return (
       TraspasosRepository.getAllRaw
         ? TraspasosRepository.getAllRaw()
         : TraspasosRepository.getAll()
-    ).filter(m => _toSafeStr_(m.idunico));
+    ).filter(item => _toSafeStr_(item.idunico));
+  }
 
+  function _indexarUltimoMovimientoPorIdUnico_(
+    movimientos
+  ) {
+    return (
+      movimientos || []
+    ).reduce(
+      (
+        acc,
+        movimiento
+      ) => {
+        const id =
+          _toSafeUpper_(
+            movimiento.idunico
+          );
 
-    return movimientos.reduce((acc, mov) => {
-      const id = _toSafeStr_(mov.idunico);
-      const ts = _timestampFromMovimiento_(mov);
+        const timestamp =
+          _timestampFromMovimiento_(
+            movimiento
+          );
 
-      const fila = _toSafeNum_(mov.fila || 0);
+        const fila =
+          _toSafeNum_(
+            movimiento.fila || 0
+          );
 
-      if (
-        !acc[id] ||
-        ts > acc[id]._timestamp ||
-        (ts === acc[id]._timestamp && fila >= _toSafeNum_(acc[id]._fila || 0))
-      ) {
+        if (
+          !acc[id] ||
+          timestamp >
+            acc[id]._timestamp ||
+          (
+            timestamp ===
+              acc[id]._timestamp &&
+            fila >=
+              _toSafeNum_(
+                acc[id]._fila || 0
+              )
+          )
+        ) {
+          acc[id] = {
+            idUnico:
+              id,
+
+            ultimoTipo:
+              _toSafeUpper_(
+                movimiento.tipomovimiento
+              ),
+
+            ultimaSerie:
+              _toSafeUpper_(
+                movimiento.serie
+              ),
+
+            ultimaUbicacionEntrada:
+              _toSafeUpper_(
+                movimiento
+                  .ubicacionentrada
+              ),
+
+            ultimaUbicacionSalida:
+              _toSafeUpper_(
+                movimiento
+                  .ubicacionsalida
+              ),
+
+            ultimaBodegaEntrada:
+              _toSafeUpper_(
+                movimiento
+                  .bodegaentrada
+              ),
+
+            ultimaBodegaSalida:
+              _toSafeUpper_(
+                movimiento
+                  .bodegasalida
+              ),
+
+            cantidadMovimiento:
+              _toSafeNum_(
+                movimiento.cantidad
+              ),
+
+            codigoMovimiento:
+              _toSafeUpper_(
+                movimiento.codigo
+              ),
+
+            descripcionMovimiento:
+              _toSafeUpper_(
+                movimiento.descripcion
+              ),
+
+            idOperacion:
+              _toSafeStr_(
+                movimiento.folio
+              ),
+
+            _fechaRaw:
+              movimiento.fechatraspaso,
+
+            _horaRaw:
+              movimiento.horatraspaso,
+
+            _timestamp:
+              timestamp,
+
+            _fila:
+              fila
+          };
+        }
+
+        return acc;
+      },
+      {}
+    );
+  }
+
+  function _indexarResumenMovimientosPorIdUnico_(movimientos) {
+    return (movimientos || []).reduce((acc, movimiento) => {
+      const id =
+        _toSafeUpper_(
+          movimiento.idunico
+        );
+
+      if (!acc[id]) {
         acc[id] = {
           idUnico: id,
-          ultimoTipo: _toSafeUpper_(mov.tipomovimiento),
-          ultimaSerie: _toSafeUpper_(mov.serie),
-          ultimaUbicacionEntrada: _toSafeUpper_(mov.ubicacionentrada),
-          ultimaUbicacionSalida: _toSafeUpper_(mov.ubicacionsalida),
-          ultimaBodegaEntrada: _toSafeUpper_(mov.bodegaentrada),
-          ultimaBodegaSalida: _toSafeUpper_(mov.bodegasalida),
-          cantidadMovimiento: _toSafeNum_(mov.cantidad),
-          codigoMovimiento: _toSafeUpper_(mov.codigo),
-          descripcionMovimiento: _toSafeUpper_(mov.descripcion),
-          ultimaFecha: formatDate_(mov.fechatraspaso),
-          ultimaHora: formatTime_(mov.horatraspaso),
-          _timestamp: ts,
-          _fila: fila
+          totalAcomodo: 0,
+          totalSurtido: 0,
+          cantidadMovimientos: 0,
+          cantidadAcomodos: 0,
+          cantidadSurtidos: 0
         };
       }
+
+      const tipo = _toSafeUpper_(movimiento.tipomovimiento);
+      const cantidad = Math.abs(
+        _toSafeNum_(movimiento.cantidad)
+      );
+
+      acc[id].cantidadMovimientos += 1;
+
+      if (tipo === "ACOMODO") {
+        acc[id].totalAcomodo = round2_(
+          acc[id].totalAcomodo + cantidad
+        );
+        acc[id].cantidadAcomodos += 1;
+      }
+
+      if (tipo === "SURTIDO") {
+        acc[id].totalSurtido = round2_(
+          acc[id].totalSurtido + cantidad
+        );
+        acc[id].cantidadSurtidos += 1;
+      }
+
       return acc;
     }, {});
   }
 
-  // =========================================================
-  // RESOLUCIÓN DE ESTADO ACTUAL DESDE TRASPASOS
-  // =========================================================
-  function _resolverUbicacionActualDesdeTraspasos_(ultimoMov) {
-    const tipoUltimo = _toSafeUpper_(ultimoMov ? ultimoMov.ultimoTipo : "");
-    const ultimaUbicacionEntrada = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaUbicacionEntrada : "");
-    const ultimaUbicacionSalida = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaUbicacionSalida : "");
-    const ultimaSerie = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaSerie : "");
+  function _resolverSaldoActual_(base, resumenMovimientos) {
+    const cantidadInicial = Math.abs(
+      _toSafeNum_(base ? base.cantidadInicial : 0)
+    );
 
-    // Regla principal:
-    // El balance / ubicación actual lo determina TRASPASOS.
+    const totalSurtido = Math.abs(
+      _toSafeNum_(
+        resumenMovimientos
+          ? resumenMovimientos.totalSurtido
+          : 0
+      )
+    );
 
-    if (tipoUltimo === "ACOMODO" || tipoUltimo === "CAMBIO DE BODEGA") {
-      if (_esUbicacionFisica_(ultimaUbicacionEntrada)) {
-        return ultimaUbicacionEntrada;
-      }
+    return Math.max(
+      0,
+      round2_(cantidadInicial - totalSurtido)
+    );
+  }
 
-      if (_esUbicacionFisica_(ultimaSerie)) {
-        return ultimaSerie;
+  function _resolverUbicacionActualDesdeTraspasos_(
+    ultimoMovimiento,
+    saldoActual
+  ) {
+    const tipo = _toSafeUpper_(
+      ultimoMovimiento ? ultimoMovimiento.ultimoTipo : ""
+    );
+    const entrada = _toSafeUpper_(
+      ultimoMovimiento
+        ? ultimoMovimiento.ultimaUbicacionEntrada
+        : ""
+    );
+    const salida = _toSafeUpper_(
+      ultimoMovimiento
+        ? ultimoMovimiento.ultimaUbicacionSalida
+        : ""
+    );
+    const serie = _toSafeUpper_(
+      ultimoMovimiento ? ultimoMovimiento.ultimaSerie : ""
+    );
+
+    if (tipo === "ACOMODO" || tipo === "CAMBIO DE BODEGA") {
+      if (_esUbicacionFisica_(entrada)) return entrada;
+      if (_esUbicacionFisica_(serie)) return serie;
+      return "";
+    }
+
+    if (tipo === "SURTIDO") {
+      if (_toSafeNum_(saldoActual) > 0) {
+        if (_esUbicacionFisica_(salida)) return salida;
+        if (_esUbicacionFisica_(serie)) return serie;
       }
 
       return "";
     }
 
-    // Si el último fue surtido, sale del universo auditable.
-    if (tipoUltimo === "SURTIDO") {
-      return "";
-    }
-
-    // Fallback defensivo para tipos distintos:
-    if (_esUbicacionFisica_(ultimaUbicacionEntrada)) {
-      return ultimaUbicacionEntrada;
-    }
-
-    if (_esUbicacionFisica_(ultimaSerie)) {
-      return ultimaSerie;
-    }
-
-    if (_esUbicacionFisica_(ultimaUbicacionSalida)) {
-      return ultimaUbicacionSalida;
-    }
+    if (_esUbicacionFisica_(entrada)) return entrada;
+    if (_esUbicacionFisica_(serie)) return serie;
+    if (_esUbicacionFisica_(salida)) return salida;
 
     return "";
   }
 
-  function _resolverBodegaActual_(ubicacionActual, ultimoMov) {
+  function _resolverBodegaActual_(ubicacionActual, ultimoMovimiento) {
     const ubicacion = _toSafeUpper_(ubicacionActual);
 
     if (_esUbicacionFisica_(ubicacion)) {
-      return _obtenerNombreBodegaPorSerie_(ubicacion, DOMAIN.BODEGA_FALLBACK);
+      return _obtenerNombreBodegaPorSerie_(
+        ubicacion,
+        DOMAIN.BODEGA_FALLBACK
+      );
     }
 
-    const ultimaBodegaEntrada = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaBodegaEntrada : "");
-    const ultimaBodegaSalida = _toSafeUpper_(ultimoMov ? ultimoMov.ultimaBodegaSalida : "");
+    const entrada = _toSafeUpper_(
+      ultimoMovimiento
+        ? ultimoMovimiento.ultimaBodegaEntrada
+        : ""
+    );
+    const salida = _toSafeUpper_(
+      ultimoMovimiento
+        ? ultimoMovimiento.ultimaBodegaSalida
+        : ""
+    );
 
-    if (ultimaBodegaEntrada && ultimaBodegaEntrada !== "1 - ALMACEN BIRLOS") {
-      return ultimaBodegaEntrada;
+    if (entrada && entrada !== "1 - ALMACEN BIRLOS") {
+      return entrada;
     }
 
-    if (ultimaBodegaSalida && ultimaBodegaSalida !== "1 - ALMACEN BIRLOS") {
-      return ultimaBodegaSalida;
+    if (salida && salida !== "1 - ALMACEN BIRLOS") {
+      return salida;
     }
 
     return DOMAIN.BODEGA_FALLBACK;
   }
 
-  function _resolverSaldoActual_(base, ultimoMov) {
-    // Informativo, no define vigencia
-    const saldoBase = _toSafeNum_(base ? base.saldoBase : 0);
-    const tipoUltimo = _toSafeUpper_(ultimoMov ? ultimoMov.ultimoTipo : "");
-    const cantidadMovimiento = _toSafeNum_(ultimoMov ? ultimoMov.cantidadMovimiento : 0);
-
-    if (tipoUltimo === "ACOMODO" || tipoUltimo === "CAMBIO DE BODEGA") {
-      return Math.abs(cantidadMovimiento || saldoBase);
-    }
-
-    if (tipoUltimo === "SURTIDO") {
-      return 0;
-    }
-
-    return saldoBase || Math.abs(cantidadMovimiento || 0);
-  }
-
-  function _resolverEstatusLogico_(base, ultimoMov, ubicacionActual) {
-    const existeBD = !!base;
-    const validoBD = base ? base.validoBD === true : false;
-    const tieneUbicacionFisica = _esUbicacionFisica_(ubicacionActual);
-    const tipoUltimo = _toSafeUpper_(ultimoMov ? ultimoMov.ultimoTipo : "");
-
-    if (!ultimoMov) {
-      return existeBD
-        ? DOMAIN.ESTATUS_LOGICOS.SIN_TRASPASOS
-        : DOMAIN.ESTATUS_LOGICOS.SIN_REGISTRO_BD;
-    }
-
-    if (!existeBD) {
+  function _resolverEstatusLogico_(
+    base,
+    ultimoMovimiento,
+    ubicacionActual,
+    saldoActual
+  ) {
+    if (!base) {
       return DOMAIN.ESTATUS_LOGICOS.SIN_REGISTRO_BD;
     }
 
-    if (!validoBD) {
+    if (base.validoBD !== true) {
       return DOMAIN.ESTATUS_LOGICOS.INVALIDO_BD;
     }
 
-    if (tieneUbicacionFisica) {
-      return DOMAIN.ESTATUS_LOGICOS.UBICADO;
+    if (_toSafeNum_(saldoActual) <= 0) {
+      return DOMAIN.ESTATUS_LOGICOS.FUERA_DE_AUDITORIA;
     }
 
-    if (tipoUltimo === "SURTIDO") {
-      return DOMAIN.ESTATUS_LOGICOS.FUERA_DE_AUDITORIA;
+    if (!ultimoMovimiento) {
+      return DOMAIN.ESTATUS_LOGICOS.SIN_TRASPASOS;
+    }
+
+    if (_esUbicacionFisica_(ubicacionActual)) {
+      return DOMAIN.ESTATUS_LOGICOS.UBICADO;
     }
 
     return DOMAIN.ESTATUS_LOGICOS.PENDIENTE_UBICACION;
   }
 
-  // =========================================================
-  // CONSTRUCCIÓN DEL DATASET CONSOLIDADO
-  // =========================================================
-  function _construirEstado_() {
+  function _construirEstado_(trace) {
+    const baseStartedAt = Date.now();
     const mapaBase = _indexarExcedentesPorIdUnico_();
-    const mapaMov = _indexarUltimoMovimientoPorIdUnico_();
+    _perfEstadoMark_(trace, "INDEXAR_EXCEDENTES", {
+      elapsedMs: Date.now() - baseStartedAt,
+      ids: Object.keys(mapaBase).length
+    });
 
-    // MODELO INVERTIDO:
-    // La base principal es TRASPASOS.
-    // BD-EXCEDENTES solo valida / enriquece.
+    const movimientosStartedAt = Date.now();
+    const movimientos = _obtenerMovimientos_();
+    _perfEstadoMark_(trace, "OBTENER_MOVIMIENTOS", {
+      elapsedMs: Date.now() - movimientosStartedAt,
+      rows: Array.isArray(movimientos) ? movimientos.length : 0
+    });
+
+    const ultimoStartedAt = Date.now();
+    const mapaUltimoMovimiento =
+      _indexarUltimoMovimientoPorIdUnico_(movimientos);
+    _perfEstadoMark_(trace, "INDEXAR_ULTIMO_MOVIMIENTO", {
+      elapsedMs: Date.now() - ultimoStartedAt,
+      ids: Object.keys(mapaUltimoMovimiento).length
+    });
+
+    const resumenStartedAt = Date.now();
+    const mapaResumenMovimientos =
+      _indexarResumenMovimientosPorIdUnico_(movimientos);
+    _perfEstadoMark_(trace, "INDEXAR_RESUMEN_MOVIMIENTOS", {
+      elapsedMs: Date.now() - resumenStartedAt,
+      ids: Object.keys(mapaResumenMovimientos).length
+    });
+
+    const idsStartedAt = Date.now();
     const ids = Array.from(
       new Set([
-        ...Object.keys(mapaMov),
+        ...Object.keys(mapaUltimoMovimiento),
         ...Object.keys(mapaBase)
       ])
     );
+    _perfEstadoMark_(trace, "UNIR_IDS", {
+      elapsedMs: Date.now() - idsStartedAt,
+      ids: ids.length
+    });
 
-    return ids
-      .map(id => {
-        const base = mapaBase[id] || null;
-        const ultimoMov = mapaMov[id] || null;
+    const buildStartedAt = Date.now();
+    const estado = ids.map(id => {
+      const base = mapaBase[id] || null;
+      const ultimoMovimiento = mapaUltimoMovimiento[id] || null;
+      const resumenMovimientos = mapaResumenMovimientos[id] || null;
 
-        const ubicacionActual = _resolverUbicacionActualDesdeTraspasos_(ultimoMov);
-        const bodegaActual = _resolverBodegaActual_(ubicacionActual, ultimoMov);
-        const saldoActual = _resolverSaldoActual_(base, ultimoMov);
-        const estatusLogico = _resolverEstatusLogico_(base, ultimoMov, ubicacionActual);
+      const saldoActual = _resolverSaldoActual_(base, resumenMovimientos);
+      const ubicacionActual = _resolverUbicacionActualDesdeTraspasos_(
+        ultimoMovimiento,
+        saldoActual
+      );
+      const bodegaActual = _resolverBodegaActual_(
+        ubicacionActual,
+        ultimoMovimiento
+      );
+      const estatusLogico = _resolverEstatusLogico_(
+        base,
+        ultimoMovimiento,
+        ubicacionActual,
+        saldoActual
+      );
 
-        const existeBD = !!base;
-        const validoBD = base ? base.validoBD === true : false;
-        const vigente = existeBD && validoBD;
-        const conUbicacion = _esUbicacionFisica_(ubicacionActual);
-        const pendienteUbicacion = vigente && !conUbicacion;
-        const auditable = vigente && conUbicacion;
+      const existeBD = !!base;
+      const validoBD = base ? base.validoBD === true : false;
+      const vigente = existeBD && validoBD && saldoActual > 0;
+      const conUbicacion = _esUbicacionFisica_(ubicacionActual);
+      const pendienteUbicacion = vigente && !conUbicacion;
+      const auditable = vigente && conUbicacion;
 
-        return {
-          // Identificación
-          idUnico: id,
-          codigo: base
-            ? base.codigo
-            : _toSafeUpper_(ultimoMov ? ultimoMov.codigoMovimiento : ""),
-          descripcion: base
-            ? base.descripcion
-            : _toSafeUpper_(ultimoMov ? ultimoMov.descripcionMovimiento : ""),
-          idproducto: base ? base.idproducto : "",
+      return {
+        idUnico: id,
+        codigo: base
+          ? base.codigo
+          : _toSafeUpper_(ultimoMovimiento ? ultimoMovimiento.codigoMovimiento : ""),
+        descripcion: base
+          ? base.descripcion
+          : _toSafeUpper_(ultimoMovimiento ? ultimoMovimiento.descripcionMovimiento : ""),
+        idproducto: base ? base.idproducto : "",
+        existeBD,
+        estatusRegistro: base ? base.estatusRegistro : "",
+        validoBD,
+        vigente,
+        cantidadInicial: base ? base.cantidadInicial : 0,
+        saldoBase: base ? base.cantidadInicial : 0,
+        totalSurtido: resumenMovimientos ? resumenMovimientos.totalSurtido : 0,
+        cantidadSurtidos: resumenMovimientos ? resumenMovimientos.cantidadSurtidos : 0,
+        cantidadAcomodos: resumenMovimientos ? resumenMovimientos.cantidadAcomodos : 0,
+        saldoActual,
+        ubicacionActual,
+        bodegaActual,
+        estatusLogico,
+        conUbicacion,
+        pendienteUbicacion,
+        auditable,
+        fechaBase: base ? base.fechaBase : "",
+        horaBase: base ? base.horaBase : "",
+        ultimoMovimientoTipo: ultimoMovimiento ? ultimoMovimiento.ultimoTipo : "",
+        ultimaSerieMovimiento: ultimoMovimiento ? ultimoMovimiento.ultimaSerie : "",
+        ultimaUbicacionEntrada: ultimoMovimiento ? ultimoMovimiento.ultimaUbicacionEntrada : "",
+        ultimaUbicacionSalida: ultimoMovimiento ? ultimoMovimiento.ultimaUbicacionSalida : "",
+        ultimaBodegaEntrada: ultimoMovimiento ? ultimoMovimiento.ultimaBodegaEntrada : "",
+        ultimaBodegaSalida: ultimoMovimiento ? ultimoMovimiento.ultimaBodegaSalida : "",
+        ultimaFechaMovimiento: ultimoMovimiento ? _formatDateFast_( ultimoMovimiento._fechaRaw ) : "",
+        ultimaHoraMovimiento: ultimoMovimiento ? _formatTimeFast_( ultimoMovimiento._horaRaw ) : "",
+        ultimaIdOperacion: ultimoMovimiento ? ultimoMovimiento.idOperacion : ""
+      };
+    });
+    _perfEstadoMark_(trace, "CONSTRUIR_ESTADO", {
+      elapsedMs: Date.now() - buildStartedAt,
+      rows: estado.length
+    });
 
-          // Validación BD
-          existeBD: existeBD,
-          estatusRegistro: base ? base.estatusRegistro : "",
-          validoBD: validoBD,
-          vigente: vigente,
+    const sortStartedAt = Date.now();
+    estado.sort((a, b) => {
+      const ubicacionA = _toSafeUpper_(a.ubicacionActual) || "ZZZZZZ";
+      const ubicacionB = _toSafeUpper_(b.ubicacionActual) || "ZZZZZZ";
+      const comparacionUbicacion = ubicacionA.localeCompare(
+        ubicacionB,
+        "es",
+        { sensitivity: "base", numeric: true }
+      );
+      if (comparacionUbicacion !== 0) return comparacionUbicacion;
 
-          // Estado operativo desde TRASPASOS
-          saldoActual: saldoActual,
-          ubicacionActual: ubicacionActual,
-          bodegaActual: bodegaActual,
-          estatusLogico: estatusLogico,
+      const comparacionCodigo = _toSafeUpper_(a.codigo).localeCompare(
+        _toSafeUpper_(b.codigo),
+        "es",
+        { sensitivity: "base", numeric: true }
+      );
+      if (comparacionCodigo !== 0) return comparacionCodigo;
 
-          // Flags operativos
-          conUbicacion: conUbicacion,
-          pendienteUbicacion: pendienteUbicacion,
-          auditable: auditable,
+      return _toSafeStr_(a.idUnico).localeCompare(
+        _toSafeStr_(b.idUnico),
+        "es",
+        { sensitivity: "base", numeric: true }
+      );
+    });
+    _perfEstadoMark_(trace, "ORDENAR_ESTADO", {
+      elapsedMs: Date.now() - sortStartedAt,
+      rows: estado.length
+    });
 
-          // Base original (informativo)
-          saldoBase: base ? base.saldoBase : 0,
-          fechaBase: base ? base.fechaBase : "",
-          horaBase: base ? base.horaBase : "",
-
-          // Trazabilidad del último movimiento
-          ultimoMovimientoTipo: ultimoMov ? ultimoMov.ultimoTipo : "",
-          ultimaSerieMovimiento: ultimoMov ? ultimoMov.ultimaSerie : "",
-          ultimaUbicacionEntrada: ultimoMov ? ultimoMov.ultimaUbicacionEntrada : "",
-          ultimaUbicacionSalida: ultimoMov ? ultimoMov.ultimaUbicacionSalida : "",
-          ultimaBodegaEntrada: ultimoMov ? ultimoMov.ultimaBodegaEntrada : "",
-          ultimaBodegaSalida: ultimoMov ? ultimoMov.ultimaBodegaSalida : "",
-          ultimaFechaMovimiento: ultimoMov ? ultimoMov.ultimaFecha : "",
-          ultimaHoraMovimiento: ultimoMov ? ultimoMov.ultimaHora : ""
-        };
-      })
-      .sort((a, b) => {
-        const ubiA = _toSafeUpper_(a.ubicacionActual) || "ZZZZZZ";
-        const ubiB = _toSafeUpper_(b.ubicacionActual) || "ZZZZZZ";
-
-        const cmpUbi = ubiA.localeCompare(ubiB, "es", {
-          sensitivity: "base",
-          numeric: true
-        });
-
-        if (cmpUbi !== 0) return cmpUbi;
-
-        const cmpCodigo = _toSafeUpper_(a.codigo).localeCompare(_toSafeUpper_(b.codigo), "es", {
-          sensitivity: "base",
-          numeric: true
-        });
-
-        if (cmpCodigo !== 0) return cmpCodigo;
-
-        return _toSafeStr_(a.idUnico).localeCompare(_toSafeStr_(b.idUnico), "es", {
-          sensitivity: "base",
-          numeric: true
-        });
-      });
+    return estado;
   }
 
-  // =========================================================
-  // CACHE
-  // =========================================================
   let cacheEstado_ = null;
 
-  function _getEstado_() {
+  function _getEstado_(trace) {
     if (cacheEstado_ === null) {
-      cacheEstado_ = _construirEstado_();
-      console.log("[CACHE] EstadoActualExcedentesService cargado", {
+      const buildStartedAt = Date.now();
+      cacheEstado_ = _construirEstado_(trace);
+      _perfEstadoMark_(trace, "MEMORY_CACHE_BUILT", {
+        elapsedMs: Date.now() - buildStartedAt,
+        total: cacheEstado_.length
+      });
+    } else {
+      _perfEstadoMark_(trace, "MEMORY_CACHE_HIT", {
         total: cacheEstado_.length
       });
     }
@@ -508,78 +755,206 @@ const EstadoActualExcedentesService = (() => {
     return cacheEstado_;
   }
 
-  // =========================================================
-  // API PÚBLICA
-  // =========================================================
   function getAll() {
     return _clone_(_getEstado_());
   }
 
   function getVigentes() {
-    return _clone_(_getEstado_().filter(item => item.vigente));
+    const trace =
+      _perfEstadoStart_(
+        "ESTADO_GET_VIGENTES"
+      );
+
+    try {
+      const estado =
+        _getEstado_(trace);
+
+      const filterStartedAt =
+        Date.now();
+
+      const vigentes =
+        estado.filter(
+          item =>
+            item.vigente === true
+        );
+
+      _perfEstadoMark_(
+        trace,
+        "FILTRAR_VIGENTES",
+        {
+          elapsedMs:
+            Date.now() -
+            filterStartedAt,
+
+          sourceRows:
+            estado.length,
+
+          rows:
+            vigentes.length
+        }
+      );
+
+      const cloneStartedAt =
+        Date.now();
+
+      const result =
+        _clone_(vigentes);
+
+      _perfEstadoMark_(
+        trace,
+        "CLONAR_VIGENTES",
+        {
+          elapsedMs:
+            Date.now() -
+            cloneStartedAt,
+
+          rows:
+            result.length
+        }
+      );
+
+      _perfEstadoEnd_(
+        trace,
+        "ok",
+        {
+          sourceRows:
+            estado.length,
+
+          rows:
+            result.length
+        }
+      );
+
+      return result;
+    } catch (error) {
+      _perfEstadoMark_(
+        trace,
+        "FAILED",
+        {
+          message:
+            error &&
+            error.message
+              ? error.message
+              : String(
+                  error || ""
+                )
+        }
+      );
+
+      _perfEstadoEnd_(
+        trace,
+        "error"
+      );
+
+      throw error;
+    }
   }
 
   function getAuditables(config) {
     const cfg = _normalizarConfigAuditoria_(config);
-
-    let salida = _getEstado_().filter(item => item.auditable);
+    let output = _getEstado_().filter(item => item.auditable);
 
     if (
       cfg.tipoAuditoria === DOMAIN.TIPO_AUDITORIA.POR_BODEGA &&
       cfg.bodegaObjetivo &&
       cfg.bodegaObjetivo !== DOMAIN.VALOR_TODAS
     ) {
-      salida = salida.filter(item => _toSafeUpper_(item.bodegaActual) === cfg.bodegaObjetivo);
+      output = output.filter(
+        item =>
+          _toSafeUpper_(item.bodegaActual) ===
+          cfg.bodegaObjetivo
+      );
     }
 
-    return _clone_(salida);
+    return _clone_(output);
   }
 
   function getPorIdUnico(idUnico) {
-    const id = _toSafeStr_(idUnico);
-    return _clone_(_getEstado_().filter(item => item.idUnico === id));
+    const id =
+      _toSafeUpper_(
+        idUnico
+      );
+
+    return _clone_(
+      _getEstado_().filter(
+        function(item) {
+          return (
+            _toSafeUpper_(
+              item.idUnico
+            ) ===
+            id
+          );
+        }
+      )
+    );
   }
+
 
   function getUnoPorIdUnico(idUnico) {
     return getPorIdUnico(idUnico)[0] || null;
   }
 
   function getPorUbicacion(ubicacion) {
-    const ubi = _toSafeUpper_(ubicacion);
-    return _clone_(_getEstado_().filter(item => _toSafeUpper_(item.ubicacionActual) === ubi));
+    const value = _toSafeUpper_(ubicacion);
+
+    return _clone_(
+      _getEstado_().filter(
+        item =>
+          _toSafeUpper_(item.ubicacionActual) === value
+      )
+    );
   }
 
   function getPorBodega(bodega) {
-    const bod = _toSafeUpper_(bodega);
+    const value = _toSafeUpper_(bodega);
 
-    if (!bod || bod === DOMAIN.VALOR_TODAS) {
+    if (!value || value === DOMAIN.VALOR_TODAS) {
       return getAll();
     }
 
-    return _clone_(_getEstado_().filter(item => _toSafeUpper_(item.bodegaActual) === bod));
+    return _clone_(
+      _getEstado_().filter(
+        item => _toSafeUpper_(item.bodegaActual) === value
+      )
+    );
   }
 
   function getResumen() {
     const all = _getEstado_();
     const vigentes = all.filter(item => item.vigente);
     const auditables = all.filter(item => item.auditable);
-    const pendientesUbicacion = all.filter(item => item.pendienteUbicacion);
-    const invalidosBD = all.filter(item => item.estatusLogico === DOMAIN.ESTATUS_LOGICOS.INVALIDO_BD);
-    const sinRegistroBD = all.filter(item => item.estatusLogico === DOMAIN.ESTATUS_LOGICOS.SIN_REGISTRO_BD);
+    const pendientesUbicacion = all.filter(
+      item => item.pendienteUbicacion
+    );
+    const invalidosBD = all.filter(
+      item =>
+        item.estatusLogico ===
+        DOMAIN.ESTATUS_LOGICOS.INVALIDO_BD
+    );
+    const sinRegistroBD = all.filter(
+      item =>
+        item.estatusLogico ===
+        DOMAIN.ESTATUS_LOGICOS.SIN_REGISTRO_BD
+    );
 
     const porBodega = auditables.reduce((acc, item) => {
-      const bodega = _toSafeUpper_(item.bodegaActual) || DOMAIN.BODEGA_FALLBACK;
+      const bodega =
+        _toSafeUpper_(item.bodegaActual) ||
+        DOMAIN.BODEGA_FALLBACK;
 
       if (!acc[bodega]) {
         acc[bodega] = {
-          bodega: bodega,
+          bodega,
           totalIdUnicos: 0,
           stockTotal: 0
         };
       }
 
       acc[bodega].totalIdUnicos += 1;
-      acc[bodega].stockTotal += _toSafeNum_(item.saldoActual);
+      acc[bodega].stockTotal = round2_(
+        acc[bodega].stockTotal +
+        _toSafeNum_(item.saldoActual)
+      );
 
       return acc;
     }, {});
@@ -592,18 +967,38 @@ const EstadoActualExcedentesService = (() => {
       conUbicacion: all.filter(item => item.conUbicacion).length,
       pendientesUbicacion: pendientesUbicacion.length,
       auditables: auditables.length,
-      stockTotalVigente: vigentes.reduce((acc, item) => acc + _toSafeNum_(item.saldoActual), 0),
-      stockTotalAuditable: auditables.reduce((acc, item) => acc + _toSafeNum_(item.saldoActual), 0),
-      bodegasAuditables: Object.keys(porBodega).sort(),
+      cerrados: all.filter(
+        item => item.saldoActual <= 0
+      ).length,
+      stockTotalVigente: round2_(
+        vigentes.reduce(
+          (total, item) =>
+            total + _toSafeNum_(item.saldoActual),
+          0
+        )
+      ),
+      stockTotalAuditable: round2_(
+        auditables.reduce(
+          (total, item) =>
+            total + _toSafeNum_(item.saldoActual),
+          0
+        )
+      ),
+      bodegasAuditables: Object.keys(porBodega).sort(
+        compareEs_
+      ),
       porBodega: Object.keys(porBodega)
-        .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base", numeric: true }))
-        .map(k => porBodega[k])
+        .sort(compareEs_)
+        .map(key => porBodega[key])
     };
   }
 
   function clearCache() {
     cacheEstado_ = null;
-    console.log("[CACHE] EstadoActualExcedentesService limpio");
+    console.log(
+      "[CACHE] EstadoActualExcedentesService limpio"
+    );
+    return true;
   }
 
   return {
@@ -617,6 +1012,4 @@ const EstadoActualExcedentesService = (() => {
     getResumen,
     clearCache
   };
-
 })();
-

@@ -534,10 +534,30 @@
       }, [codigos]);
 
       const codigosDisponibles = useMemo(() => {
+        const codigosEnCola = new Set(
+          cola.map(item => normalizarTexto(item.codigo)).filter(Boolean)
+        );
+
         return codigos
-          .map(c => normalizarTexto(c))
-          .filter(Boolean);
-      }, [codigos]);
+          .map(codigo => {
+            const cod = normalizarTexto(codigo);
+            const producto = mapaCatalogo[cod] || {};
+
+            return {
+              codigo: cod,
+              descripcion: normalizarTexto(producto.descripcion || ""),
+              idproducto: String(producto.idproducto || producto.id || "").trim()
+            };
+          })
+          .filter(item => item.codigo)
+          .filter(item => !codigosEnCola.has(item.codigo))
+          .sort((a, b) =>
+            String(a.codigo).localeCompare(String(b.codigo), "es", {
+              numeric: true,
+              sensitivity: "base"
+            })
+          );
+      }, [codigos, mapaCatalogo, cola]);
 
       const resumenCola = useMemo(() => {
         return {
@@ -666,9 +686,9 @@
         if (!codigo) {
           setForm(prev => ({
             ...prev,
-            codigo: "",
-            descripcion: "",
-            id: "",
+            codigo: '',
+            descripcion: '',
+            id: '',
             producto: null
           }));
           return;
@@ -676,11 +696,11 @@
 
         if (!codigosSet.has(codigo)) {
           notify_(
-            `El código "${codigo}" no existe en el catálogo.`,
+            `El código "${codigo}" no existe.`,
             "error",
             3200,
             {
-              title: "Código inválido",
+              title: "Código no válido",
               sound: true
             }
           );
@@ -688,8 +708,8 @@
           setForm(prev => ({
             ...prev,
             codigo,
-            descripcion: "",
-            id: "",
+            descripcion: '',
+            id: '',
             producto: null
           }));
 
@@ -708,7 +728,7 @@
           }));
 
           notifyOnce_(
-            `producto-excedente-${codigo}`,
+            `codigo-resuelto-${codigo}`,
             "Producto localizado correctamente.",
             "success",
             1300,
@@ -719,7 +739,6 @@
             1200
           );
 
-          enfocarCantidad();
           return;
         }
 
@@ -743,8 +762,8 @@
 
               setForm(prev => ({
                 ...prev,
-                descripcion: "",
-                id: "",
+                descripcion: '',
+                id: '',
                 producto: null
               }));
 
@@ -753,6 +772,7 @@
 
             const productoFallback = {
               idproducto: res.idproducto || res.id || "",
+              id: res.idproducto || res.id || "",
               codigo,
               descripcion: res.descripcion || "",
               status: res.status || ""
@@ -771,15 +791,19 @@
               producto: productoFallback
             }));
 
+            window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+            window.DATA_ALMACEN_CACHE.mapaCatalogo = {
+              ...(window.DATA_ALMACEN_CACHE.mapaCatalogo || {}),
+              productoFallback
+            };
+
             notify_("Producto localizado correctamente.", "success", 1400, {
               title: "Código encontrado",
               sound: false
             });
-
-            enfocarCantidad();
           })
           .withFailureHandler((err) => {
-            console.error("❌ Error buscando producto de excedentes:", err);
+            console.error("❌ Error buscando producto:", err);
 
             notify_(
               "Ocurrió un error al buscar el producto.",
@@ -796,15 +820,6 @@
 
       const handleCodigoChange = (e) => {
         const valor = normalizarTexto(e.target.value);
-
-        setForm(prev => ({
-          ...prev,
-          codigo: valor,
-          descripcion: "",
-          id: "",
-          producto: null
-        }));
-
         const producto = mapaCatalogo[valor];
 
         if (producto) {
@@ -815,7 +830,16 @@
             id: producto.idproducto || producto.id || "",
             producto
           }));
+          return;
         }
+
+        setForm(prev => ({
+          ...prev,
+          codigo: valor,
+          descripcion: "",
+          id: "",
+          producto: null
+        }));
       };
 
       const handleCajasChange = (valor) => {
@@ -1228,8 +1252,8 @@
                         disabled={cargando || procesando}
                         className={`w-full border rounded-xl px-4 ex-input ex-form-input-unificado uppercase outline-none transition-all ${
                           cargando || procesando
-                            ? "bg-gray-200 cursor-not-allowed text-gray-500"
-                            : "bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                            ? 'bg-gray-200 cursor-not-allowed text-gray-500 border-gray-300'
+                            : 'bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white'
                         }`}
                         placeholder={cargando ? "Cargando catálogo..." : "Selecciona un código"}
                         value={form.codigo}
@@ -1237,6 +1261,7 @@
                         onBlur={() => resolverCodigo(form.codigo)}
                         onKeyDown={(e) => {
                           if (e.key !== "Enter") return;
+
                           e.preventDefault();
 
                           const codigo = normalizarTexto(e.currentTarget.value);
@@ -1254,13 +1279,43 @@
                             return;
                           }
 
-                          resolverCodigo(codigo);
+                          const producto = mapaCatalogo[codigo];
+
+                          if (!producto) {
+                            resolverCodigo(codigo);
+                            return;
+                          }
+
+                          setForm(prev => ({
+                            ...prev,
+                            codigo,
+                            descripcion: producto.descripcion || "",
+                            id: producto.idproducto || producto.id || "",
+                            producto
+                          }));
+
+                          // En Excedentes normalmente después del código conviene mandar foco a cantidad
+                          setTimeout(() => {
+                            if (cantidadInputRef.current && typeof cantidadInputRef.current.focus === "function") {
+                              cantidadInputRef.current.focus();
+                            }
+
+                            if (cantidadInputRef.current && typeof cantidadInputRef.current.select === "function") {
+                              cantidadInputRef.current.select();
+                            }
+                          }, 0);
                         }}
                       />
 
                       <datalist id="lista-codigos-excedentes">
-                        {codigosDisponibles.map((codigo, index) => (
-                          <option key={`${index}-${codigo}`} value={codigo} />
+                        {codigosDisponibles.map((item, index) => (
+                          <option
+                            key={`${index}-${item.codigo}`}
+                            value={item.codigo}
+                            label={item.descripcion || "SIN DESCRIPCIÓN"}
+                          >
+                            {item.codigo} | {item.descripcion || "SIN DESCRIPCIÓN"}
+                          </option>
                         ))}
                       </datalist>
 

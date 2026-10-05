@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+  >
+
+  <title>Pruebas Sidebars</title>
+
+  <?!= IMPORT_RESOURCE_TAGS ?>
+
+  <?!= SIDEBAR_BUNDLE ?>
+
+  <script>
+    window.APPALMACEN_THEME = <?!= APPALMACEN_THEME_JSON ?>;
+    window.APPALMACEN_BRAND = <?!= APPALMACEN_BRAND_JSON ?>;
+    window.APPALMACEN_COMPONENTS = <?!= APPALMACEN_COMPONENTS_JSON ?>;
+    window.APPALMACEN_TESTING = <?!= APPALMACEN_TESTING_JSON ?>;
+  </script>
+
+  <style>
+    html,
+    body,
+    #root {
+      width: 100%;
+      height: 100%;
+      min-height: 100dvh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #f8f9fa;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
+    }
+
+    #root > div {
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      background: #f8f9fa;
+    }
+
+    .test-main {
+      height: 100dvh;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: #f8f9fa;
+      transition: margin-left 260ms ease, width 260ms ease;
+    }
+
+    .test-main.sidebar1 {
+      margin-left: var(--fito-sidebar-mini-width, 80px);
+      width: calc(100vw - var(--fito-sidebar-mini-width, 80px));
+    }
+
+    .test-main.sidebar2 {
+      margin-left: calc(
+        var(--fito-sidebar2-gap, 16px) +
+        var(--fito-sidebar2-mini-width, 80px) +
+        var(--fito-sidebar2-gap, 16px)
+      );
+      width: calc(
+        100vw -
+        var(--fito-sidebar2-gap, 16px) -
+        var(--fito-sidebar2-mini-width, 80px) -
+        var(--fito-sidebar2-gap, 16px)
+      );
+    }
+
+    .test-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    .test-card {
+      background: #ffffff;
+      border: 1px solid #dadce0;
+      border-radius: 18px;
+      box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
+    }
+
+    .test-input {
+      width: 100%;
+      border: 1px solid #dadce0;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      outline: none;
+      background: #ffffff;
+      color: #1c1d1f;
+      box-sizing: border-box;
+    }
+
+    .test-input:focus {
+      border-color: #d93025;
+      box-shadow: 0 0 0 3px rgba(217, 48, 37, 0.12);
+    }
+
+    .test-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #5f6368;
+    }
+
+    .test-button {
+      border: 1px solid #dadce0;
+      border-radius: 12px;
+      padding: 10px 14px;
+      background: #ffffff;
+      color: #1c1d1f;
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: transform 120ms ease, background 160ms ease, color 160ms ease, border-color 160ms ease;
+    }
+
+    .test-button:hover {
+      background: #f1f3f4;
+    }
+
+    .test-button:active {
+      transform: scale(0.98);
+    }
+
+    .test-button.active {
+      background: #d93025;
+      border-color: #d93025;
+      color: #ffffff;
+    }
+
+    .test-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: #f1f3f4;
+      color: #5f6368;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    .test-code {
+      display: block;
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 14px;
+      background: #0f1115;
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 900px) {
+      .test-main.sidebar1 {
+        margin-left: var(--fito-sidebar-mini-width, 64px);
+        width: calc(100vw - var(--fito-sidebar-mini-width, 64px));
+      }
+
+      .test-main.sidebar2 {
+        margin-left: calc(
+          var(--fito-sidebar2-gap, 10px) +
+          var(--fito-sidebar2-mini-width, 64px) +
+          var(--fito-sidebar2-gap, 10px)
+        );
+        width: calc(
+          100vw -
+          var(--fito-sidebar2-gap, 10px) -
+          var(--fito-sidebar2-mini-width, 64px) -
+          var(--fito-sidebar2-gap, 10px)
+        );
+      }
+
+      .test-scroll {
+        padding: 12px;
+      }
+
+      .test-header {
+        padding: 14px !important;
+        height: auto !important;
+        min-height: 80px;
+        align-items: flex-start !important;
+        flex-direction: column;
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root"></div>
+
+  <script>
+    const ReactHooks = React;
+    const useEffect = ReactHooks.useEffect;
+    const useMemo = ReactHooks.useMemo;
+    const useState = ReactHooks.useState;
+    const e = React.createElement;
+
+    const MOCK_TOOLS = [
+      { id: "Dashboard", name: "Dashboard", icon: "layout-dashboard", category: "General" },
+      { id: "Inventario", name: "Inventario", icon: "boxes", category: "General" },
+      { id: "Traspasos", name: "Traspasos", icon: "arrow-right-left", category: "Operaciones" },
+      { id: "Etiquetas", name: "Etiquetas", icon: "tag", category: "Operaciones" },
+      { id: "Reimpresion", name: "Reimpresion", icon: "printer", category: "Operaciones" },
+      { id: "Auditoria", name: "Auditoria", icon: "clipboard-check", category: "Control" },
+      { id: "Reabasto", name: "Reabasto", icon: "package-plus", category: "Control" },
+      { id: "Negativos", name: "Negativos", icon: "alert-triangle", category: "Alertas" },
+      { id: "Reportes", name: "Reportes", icon: "chart-column", category: "Analitica" }
+    ];
+
+    const DARK_SIDEBAR_CLASSES = {
+      black: {
+        sidebar: "bg-[#1c1d1f] text-white",
+        divider: "bg-gray-700/50",
+        category: "text-gray-500",
+        toolInactive: "text-gray-400 hover:bg-white/5 hover:text-white",
+        brandTitle: "text-white",
+        brandSubtitle: "text-[#d93025]",
+        themeButton: "bg-white/10 text-white hover:bg-white/15 border border-white/10"
+      },
+
+      white: {
+        sidebar: "bg-[#1c1d1f] text-white",
+        divider: "bg-gray-700/50",
+        category: "text-gray-500",
+        toolInactive: "text-gray-400 hover:bg-white/5 hover:text-white",
+        brandTitle: "text-white",
+        brandSubtitle: "text-[#d93025]",
+        themeButton: "bg-white/10 text-white hover:bg-white/15 border border-white/10"
+      },
+
+      toolActive: "bg-[#d93025] text-white shadow-lg shadow-red-900/20"
+    };
+
+    function getSafeLogoUrl_() {
+      var brand = window.APPALMACEN_BRAND || {};
+      var logoUrl = String(brand.LOGO_URL || "");
+
+      if (
+        logoUrl.indexOf("http://") === 0 ||
+        logoUrl.indexOf("https://") === 0
+      ) {
+        return logoUrl;
+      }
+
+      return "";
+    }
+
+    function Field(props) {
+      return e("div", null,
+        e("label", { className: "test-label" }, props.label),
+        e("input", {
+          className: "test-input",
+          value: props.value,
+          onChange: function(event) {
+            props.onChange(event.target.value);
+          }
+        })
+      );
+    }
+
+    function App() {
+      const initialSidebarType =
+        window.APPALMACEN_COMPONENTS &&
+        window.APPALMACEN_COMPONENTS.SIDEBAR &&
+        window.APPALMACEN_COMPONENTS.SIDEBAR.ACTIVE
+          ? window.APPALMACEN_COMPONENTS.SIDEBAR.ACTIVE
+          : "sidebar1";
+
+      const [sidebarType, setSidebarType] = useState(initialSidebarType);
+
+      const [themeKey, setThemeKey] = useState("white");
+      const [activeTool, setActiveTool] = useState("Dashboard");
+      const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+      const [miniWidth, setMiniWidth] = useState("80px");
+      const [expandedWidth, setExpandedWidth] = useState("280px");
+      const [mobileWidth, setMobileWidth] = useState("64px");
+      const [mobileExpandedWidth, setMobileExpandedWidth] = useState("260px");
+
+      const [gap, setGap] = useState("16px");
+      const [mobileGap, setMobileGap] = useState("10px");
+      const [radius, setRadius] = useState("24px");
+      const [mobileRadius, setMobileRadius] = useState("18px");
+
+      const [animMs, setAnimMs] = useState("340ms");
+      const [ease, setEase] = useState("cubic-bezier(0.22,1,0.36,1)");
+
+      const SidebarComponent = useMemo(function() {
+        var components = window.FitoComponents || {};
+
+        if (sidebarType === "sidebar2" && components.Sidebar2) {
+          return components.Sidebar2;
+        }
+
+        if (sidebarType === "sidebar1" && components.Sidebar1) {
+          return components.Sidebar1;
+        }
+
+        return components.Sidebar1 || components.Sidebar2;
+      }, [sidebarType]);
+
+      const sidebarStatusText = JSON.stringify({
+        sidebarType: sidebarType,
+        hasSidebar1: !!(window.FitoComponents && window.FitoComponents.Sidebar1),
+        hasSidebar2: !!(window.FitoComponents && window.FitoComponents.Sidebar2)
+        }, null, 2);
+
+      useEffect(function() {
+        var root = document.documentElement;
+
+        root.style.setProperty("--fito-sidebar-mini-width", miniWidth);
+        root.style.setProperty("--fito-sidebar-expanded-width", expandedWidth);
+        root.style.setProperty("--fito-sidebar-mobile-width", mobileWidth);
+        root.style.setProperty("--fito-sidebar-mobile-expanded-width", mobileExpandedWidth);
+        root.style.setProperty("--fito-sidebar-transition-ms", animMs);
+        root.style.setProperty("--fito-sidebar-ease", ease);
+
+        root.style.setProperty("--fito-sidebar2-mini-width", miniWidth);
+        root.style.setProperty("--fito-sidebar2-visible-width", expandedWidth);
+        root.style.setProperty("--fito-sidebar2-mobile-width", mobileWidth);
+        root.style.setProperty("--fito-sidebar2-mobile-visible-width", mobileExpandedWidth);
+        root.style.setProperty("--fito-sidebar2-gap", gap);
+        root.style.setProperty("--fito-sidebar2-mobile-gap", mobileGap);
+        root.style.setProperty("--fito-sidebar2-radius", radius);
+        root.style.setProperty("--fito-sidebar2-mobile-radius", mobileRadius);
+        root.style.setProperty("--fito-sidebar2-anim-ms", animMs);
+        root.style.setProperty("--fito-sidebar2-ease", ease);
+      }, [
+        miniWidth,
+        expandedWidth,
+        mobileWidth,
+        mobileExpandedWidth,
+        gap,
+        mobileGap,
+        radius,
+        mobileRadius,
+        animMs,
+        ease
+      ]);
+
+      const layoutProps = {
+        miniWidth: miniWidth,
+        visibleWidth: expandedWidth,
+        mobileWidth: mobileWidth,
+        mobileVisibleWidth: mobileExpandedWidth,
+        gap: gap,
+        mobileGap: mobileGap,
+        radius: radius,
+        mobileRadius: mobileRadius
+      };
+
+      const motionProps = {
+        animMs: animMs,
+        ease: ease
+      };
+
+      const currentConfigText =
+        "Estado componentes = " + sidebarStatusText + "\n\n" +
+        "APPALMACEN_COMPONENTS = " + JSON.stringify({
+          SIDEBAR: {
+            ACTIVE: sidebarType,
+            CLIENT_COMPONENTS: {
+              sidebar1: "Sidebar1",
+              sidebar2: "Sidebar2"
+            }
+          }
+        }, null, 2) + "\n\n" +
+        "Layout prueba = " + JSON.stringify(layoutProps, null, 2) + "\n\n" +
+        "Motion prueba = " + JSON.stringify(motionProps, null, 2);
+
+      return e("div", {
+          className: "h-screen w-full overflow-hidden bg-[#f8f9fa]"
+        },
+
+        e(SidebarComponent, {
+          tools: MOCK_TOOLS,
+          activeTool: activeTool,
+          isOpen: isSidebarOpen,
+
+          onOpen: function() {
+            setIsSidebarOpen(true);
+          },
+
+          onClose: function() {
+            setIsSidebarOpen(false);
+          },
+
+          onSelect: function(tool) {
+            setActiveTool(tool.id);
+            setIsSidebarOpen(false);
+          },
+
+          onToggleTheme: function() {
+            setThemeKey(function(prev) {
+              return prev === "white" ? "black" : "white";
+            });
+          },
+
+          logoUrl: getSafeLogoUrl_(),
+          logoFallback: window.APPALMACEN_BRAND && window.APPALMACEN_BRAND.LOGO_FALLBACK
+            ? window.APPALMACEN_BRAND.LOGO_FALLBACK
+            : "GA",
+
+          appName: "Pruebas Sidebar",
+          appSubtitle: "Fito Library",
+
+          title: "Pruebas Sidebar",
+          subtitle: "Fito Library",
+
+          theme: {
+            key: themeKey,
+            sidebar: {
+              backgroundClass: "bg-[#1c1d1f] text-white",
+              dividerClass: "bg-gray-700/50",
+              categoryClass: "text-gray-500",
+              inactiveToolClass: "text-gray-400 hover:bg-white/5 hover:text-white",
+              activeToolClass: "bg-[#d93025] text-white shadow-lg shadow-red-900/20",
+              brandTitleClass: "text-white",
+              brandSubtitleClass: "text-[#d93025]",
+              themeButtonClass: "bg-white/10 text-white hover:bg-white/15 border border-white/10"
+            }
+          },
+
+          themeKey: themeKey,
+          themeClasses: DARK_SIDEBAR_CLASSES,
+
+          layout: layoutProps,
+          motion: motionProps,
+
+          labels: {
+            themeBlack: "Black",
+            themeWhite: "White",
+            changeToBlack: "Cambiar a tema black",
+            changeToWhite: "Cambiar a tema white",
+            categoryFallback: "General"
+          }
+        }),
+
+        e("main", {
+            className: "test-main " + sidebarType
+          },
+
+          e("header", {
+              className: "test-header h-20 bg-white border-b border-[#dadce0] flex items-center justify-between px-8 shrink-0"
+            },
+            e("div", null,
+              e("h1", {
+                className: "text-xl font-black uppercase tracking-tight text-[#1c1d1f]"
+              }, "Laboratorio de Sidebars"),
+              e("p", {
+                className: "text-sm font-bold text-[#5f6368]"
+              }, "Ajusta parametros visuales antes de moverlos al shell principal.")
+            ),
+
+            e("div", {
+                className: "flex items-center gap-2 flex-wrap"
+              },
+              e("button", {
+                type: "button",
+                className: "test-button " + (sidebarType === "sidebar1" ? "active" : ""),
+                onClick: function() {
+                  setSidebarType("sidebar1");
+                  setIsSidebarOpen(false);
+                }
+              }, "Sidebar 1"),
+
+              e("button", {
+                type: "button",
+                className: "test-button " + (sidebarType === "sidebar2" ? "active" : ""),
+                onClick: function() {
+                  setSidebarType("sidebar2");
+                  setIsSidebarOpen(false);
+                }
+              }, "Sidebar 2"),
+
+              e("button", {
+                type: "button",
+                className: "test-button",
+                onClick: function() {
+                  setThemeKey(function(prev) {
+                    return prev === "white" ? "black" : "white";
+                  });
+                }
+              }, themeKey)
+            )
+          ),
+
+          e("section", {
+              className: "test-scroll"
+            },
+
+            e("div", {
+                className: "grid grid-cols-1 xl:grid-cols-3 gap-5"
+              },
+
+              e("div", {
+                  className: "test-card p-5 xl:col-span-1"
+                },
+                e("div", {
+                    className: "flex items-center justify-between mb-5"
+                  },
+                  e("h2", {
+                    className: "text-base font-black uppercase text-[#1c1d1f]"
+                  }, "Parametros"),
+                  e("span", {
+                    className: "test-pill"
+                  }, sidebarType)
+                ),
+
+                e("div", {
+                    className: "grid grid-cols-1 gap-4"
+                  },
+                  e(Field, {
+                    label: "Mini width",
+                    value: miniWidth,
+                    onChange: setMiniWidth
+                  }),
+
+                  e(Field, {
+                    label: "Expanded / visible width",
+                    value: expandedWidth,
+                    onChange: setExpandedWidth
+                  }),
+
+                  e(Field, {
+                    label: "Mobile mini width",
+                    value: mobileWidth,
+                    onChange: setMobileWidth
+                  }),
+
+                  e(Field, {
+                    label: "Mobile expanded width",
+                    value: mobileExpandedWidth,
+                    onChange: setMobileExpandedWidth
+                  }),
+
+                  e(Field, {
+                    label: "Gap sidebar2",
+                    value: gap,
+                    onChange: setGap
+                  }),
+
+                  e(Field, {
+                    label: "Mobile gap sidebar2",
+                    value: mobileGap,
+                    onChange: setMobileGap
+                  }),
+
+                  e(Field, {
+                    label: "Radius sidebar2",
+                    value: radius,
+                    onChange: setRadius
+                  }),
+
+                  e(Field, {
+                    label: "Mobile radius sidebar2",
+                    value: mobileRadius,
+                    onChange: setMobileRadius
+                  }),
+
+                  e(Field, {
+                    label: "Animation duration",
+                    value: animMs,
+                    onChange: setAnimMs
+                  }),
+
+                  e(Field, {
+                    label: "Animation easing",
+                    value: ease,
+                    onChange: setEase
+                  }),
+
+                  e("button", {
+                    type: "button",
+                    className: "test-button",
+                    onClick: function() {
+                      setMiniWidth("80px");
+                      setExpandedWidth("280px");
+                      setMobileWidth("64px");
+                      setMobileExpandedWidth("260px");
+                      setGap("16px");
+                      setMobileGap("10px");
+                      setRadius("24px");
+                      setMobileRadius("18px");
+                      setAnimMs("340ms");
+                      setEase("cubic-bezier(0.22,1,0.36,1)");
+                    }
+                  }, "Reset")
+                )
+              ),
+
+              e("div", {
+                  className: "test-card p-5 xl:col-span-2"
+                },
+                e("div", {
+                    className: "flex items-start justify-between gap-4 mb-5 flex-wrap"
+                  },
+                  e("div", null,
+                    e("h2", {
+                      className: "text-base font-black uppercase text-[#1c1d1f]"
+                    }, "Vista simulada"),
+                    e("p", {
+                      className: "text-sm font-bold text-[#5f6368]"
+                    }, "Herramienta activa: " + activeTool)
+                  ),
+
+                  e("div", {
+                      className: "flex flex-wrap gap-2"
+                    },
+                    e("span", { className: "test-pill" }, "Tema: " + themeKey),
+                    e("span", { className: "test-pill" }, "Mini: " + miniWidth),
+                    e("span", { className: "test-pill" }, "Max: " + expandedWidth)
+                  )
+                ),
+
+                e("div", {
+                    className: "grid grid-cols-1 md:grid-cols-3 gap-4"
+                  },
+                  [1, 2, 3, 4, 5, 6].map(function(index) {
+                    return e("div", {
+                        key: index,
+                        className: "rounded-2xl border border-[#dadce0] bg-[#f8f9fa] p-5"
+                      },
+                      e("div", {
+                        className: "w-10 h-10 rounded-xl bg-[#d93025] mb-4"
+                      }),
+                      e("h3", {
+                        className: "font-black text-[#1c1d1f] uppercase text-sm"
+                      }, "Modulo " + index),
+                      e("p", {
+                        className: "text-sm font-semibold text-[#5f6368] mt-2"
+                      }, "Contenido simulado para revisar espacios, overlay, ancho del layout y comportamiento responsive.")
+                    );
+                  })
+                ),
+
+                e("div", {
+                    className: "mt-6 rounded-2xl bg-[#1c1d1f] text-white p-5"
+                  },
+                  e("h3", {
+                    className: "font-black uppercase text-sm mb-2"
+                  }, "Notas de prueba"),
+                  e("ul", {
+                      className: "text-sm font-semibold text-white/75 list-disc pl-5 space-y-1"
+                    },
+                    e("li", null, "Sidebar1 debe iniciar pegada al borde izquierdo."),
+                    e("li", null, "Sidebar2 debe respetar gap y radius."),
+                    e("li", null, "El boton Black/White debe alternar icono y etiqueta."),
+                    e("li", null, "Los tooltips deben aparecer cuando la sidebar esta en modo mini.")
+                  )
+                ),
+
+                e("code", {
+                  className: "test-code"
+                }, currentConfigText)
+              )
+            )
+          )
+        )
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(e(App));
+  </script>
+</body>
+</html>

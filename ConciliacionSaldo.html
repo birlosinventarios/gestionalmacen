@@ -1,0 +1,513 @@
+<script>
+  /** ConciliacionSaldo.html */
+</script>
+
+<style>
+  #render-conciliacion-saldo {
+    --cs-primary: var(--primary, #d93025);
+    --cs-primary-dark: var(--primary-dark, #a50e0e);
+    --cs-success: #1e8e3e;
+    --cs-success-dark: #157337;
+    --cs-warning: #d97706;
+    --cs-warning-dark: #b45309;
+    --cs-ink: var(--text-main, #1c1d1f);
+    --cs-muted: var(--text-secondary, #5f6368);
+    --cs-border: var(--border-color, #dadce0);
+    --cs-bg: var(--bg-color, #f8f9fa);
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    color: var(--cs-ink);
+  }
+
+  #render-conciliacion-saldo * { box-sizing: border-box; }
+
+  @keyframes csSpin { to { transform: rotate(360deg); } }
+  @keyframes csPulse { 50% { opacity: .52; transform: scale(.82); } }
+  @keyframes csCardEnter {
+    from { opacity: 0; transform: translateX(-54px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes csCardExit {
+    from { opacity: 1; transform: translateX(0) scale(1); }
+    to { opacity: 0; transform: translateX(110px) scale(.985); }
+  }
+
+  #render-conciliacion-saldo .cs-card-enter { animation: csCardEnter .38s cubic-bezier(.22,1,.36,1) both; }
+  #render-conciliacion-saldo .cs-card-exit { animation: csCardExit .34s cubic-bezier(.4,0,1,1) both; pointer-events: none; }
+  #render-conciliacion-saldo .cs-page { height: 100%; min-height: 0; padding: 16px 24px 24px; overflow: hidden; background: radial-gradient(circle at top right,rgba(217,48,37,.055),transparent 34%),var(--cs-bg); }
+  #render-conciliacion-saldo .cs-workspace { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: #fff; border: 1px solid var(--cs-border); border-radius: 22px; box-shadow: 0 24px 60px rgba(15,23,42,.11),0 6px 18px rgba(15,23,42,.05); }
+  #render-conciliacion-saldo .cs-header { flex: 0 0 auto; min-height: 116px; position: relative; padding: 18px 18px 18px 22px; display: grid; grid-template-columns: minmax(280px,.95fr) minmax(420px,1.45fr) minmax(142px,auto); align-items: center; gap: 18px; overflow: hidden; color: #fff; background: radial-gradient(circle at top right,rgba(217,48,37,.35),transparent 38%),linear-gradient(135deg,#1c1d1f 0%,#25272b 55%,#17181a 100%); }
+  #render-conciliacion-saldo .cs-header::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 7px; background: var(--cs-primary); }
+  #render-conciliacion-saldo .cs-header > * { position: relative; z-index: 2; }
+  #render-conciliacion-saldo .cs-identity { min-width: 0; display: grid; grid-template-columns: 48px minmax(0,1fr); align-items: center; gap: 13px; }
+  #render-conciliacion-saldo .cs-header-icon { width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.16); border-radius: 15px; background: rgba(255,255,255,.1); }
+  #render-conciliacion-saldo .cs-eyebrow { margin: 0 0 5px; color: rgba(255,255,255,.65); font-size: 11px; font-weight: 950; letter-spacing: .17em; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-title { margin: 0; color: #fff; font: 950 25px/1.15 "JetBrains Mono",monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #render-conciliacion-saldo .cs-subtitle { margin: 8px 0 0; color: rgba(255,255,255,.74); font-size: 11px; font-weight: 800; letter-spacing: .06em; line-height: 1.45; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-metrics { min-width: 0; display: grid; grid-template-columns: repeat(4,minmax(94px,1fr)); overflow: hidden; background: rgba(255,255,255,.96); border: 1px solid rgba(255,255,255,.21); border-radius: 15px; box-shadow: 0 12px 30px rgba(0,0,0,.13); }
+  #render-conciliacion-saldo .cs-metric { min-width: 0; min-height: 67px; padding: 12px 11px 10px; position: relative; display: flex; flex-direction: column; justify-content: center; gap: 6px; color: var(--cs-ink); border-right: 1px solid var(--cs-border); }
+  #render-conciliacion-saldo .cs-metric:last-child { border-right: 0; }
+  #render-conciliacion-saldo .cs-metric::before { content: ""; position: absolute; top: 0; left: 10px; right: 10px; height: 4px; border-radius: 0 0 999px 999px; background: var(--cs-ink); }
+  #render-conciliacion-saldo .cs-metric.green::before { background: var(--cs-success); }
+  #render-conciliacion-saldo .cs-metric.amber::before { background: var(--cs-warning); }
+  #render-conciliacion-saldo .cs-metric.red::before { background: var(--cs-primary); }
+  #render-conciliacion-saldo .cs-metric-value { font-size: 24px; font-weight: 950; line-height: 1; }
+  #render-conciliacion-saldo .cs-metric-label { color: var(--cs-muted); font-size: 10px; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-header-actions { min-width: 142px; display: flex; flex-direction: column; gap: 8px; }
+  #render-conciliacion-saldo .cs-button { min-height: 44px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; border-radius: 13px; font-size: 11px; font-weight: 950; letter-spacing: .06em; line-height: 1; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: transform .16s ease,background-color .16s ease,box-shadow .16s ease; }
+  #render-conciliacion-saldo .cs-button:hover:not(:disabled) { transform: translateY(-1px); }
+  #render-conciliacion-saldo .cs-button:disabled { opacity: .48; cursor: not-allowed; pointer-events: none; }
+  #render-conciliacion-saldo .cs-button.header { color: #fff; border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.09); }
+  #render-conciliacion-saldo .cs-button.primary { color: #fff; border-color: var(--cs-primary); background: var(--cs-primary); box-shadow: 0 8px 20px rgba(217,48,37,.22); }
+  #render-conciliacion-saldo .cs-button.primary:hover:not(:disabled) { background: var(--cs-primary-dark); }
+  #render-conciliacion-saldo .cs-input,#render-conciliacion-saldo .cs-select { width: 100%; min-height: 46px; padding: 0 13px; outline: none; border: 1px solid var(--cs-border); border-radius: 12px; background: #fff; color: var(--cs-ink); font-size: 14px; font-weight: 850; letter-spacing: .02em; }
+  #render-conciliacion-saldo .cs-input:focus,#render-conciliacion-saldo .cs-select:focus { border-color: var(--cs-primary); box-shadow: 0 0 0 4px rgba(217,48,37,.1); }
+  #render-conciliacion-saldo .cs-field-label { display: block; margin: 0 0 8px 2px; color: var(--cs-muted); font-size: 11px; font-weight: 950; letter-spacing: .13em; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-chip { min-height: 30px; padding: 0 11px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid transparent; border-radius: 999px; font-size: 10px; font-weight: 950; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
+  #render-conciliacion-saldo .cs-chip.green { color: var(--cs-success-dark); background: rgba(30,142,62,.1); border-color: rgba(30,142,62,.22); }
+  #render-conciliacion-saldo .cs-chip.amber { color: var(--cs-warning-dark); background: rgba(217,119,6,.1); border-color: rgba(217,119,6,.22); }
+  #render-conciliacion-saldo .cs-chip.red { color: var(--cs-primary-dark); background: rgba(217,48,37,.1); border-color: rgba(217,48,37,.22); }
+  #render-conciliacion-saldo .cs-chip.slate { color: var(--cs-ink); background: rgba(28,29,31,.07); border-color: rgba(28,29,31,.12); }
+  #render-conciliacion-saldo .cs-toolbar { flex: 0 0 auto; min-height: 64px; padding: 9px 14px 9px 18px; position: relative; display: grid; grid-template-columns: minmax(245px,.78fr) minmax(540px,1.6fr) auto; align-items: center; gap: 12px; background: linear-gradient(135deg,#fff 0%,#f8f9fa 100%); border-bottom: 1px solid var(--cs-border); }
+  #render-conciliacion-saldo .cs-toolbar::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--cs-primary); }
+  #render-conciliacion-saldo .cs-toolbar-main,#render-conciliacion-saldo .cs-toolbar-filters,#render-conciliacion-saldo .cs-toolbar-context { position: relative; z-index: 2; display: flex; align-items: center; gap: 8px; min-width: 0; }
+  #render-conciliacion-saldo .cs-toolbar-filters { display: grid; grid-template-columns: minmax(180px,1fr) 160px 150px; }
+  #render-conciliacion-saldo .cs-toolbar-filters .cs-input,#render-conciliacion-saldo .cs-toolbar-filters .cs-select { min-height: 38px; height: 38px; padding: 0 11px; border-radius: 10px; font-size: 12px; }
+  #render-conciliacion-saldo .cs-toolbar-context { justify-content: flex-end; }
+  #render-conciliacion-saldo .cs-toolbar-icon { width: 34px; height: 34px; flex: 0 0 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; color: #fff; background: var(--cs-ink); }
+  #render-conciliacion-saldo .cs-toolbar-title { color: var(--cs-primary); font-size: 10px; font-weight: 950; letter-spacing: .16em; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-toolbar-subtitle { color: var(--cs-ink); font-size: 13px; font-weight: 950; letter-spacing: .08em; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-live,#render-conciliacion-saldo .cs-result-count { min-height: 34px; padding: 0 10px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--cs-border); border-radius: 9px; background: #fff; font-size: 10px; font-weight: 950; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+  #render-conciliacion-saldo .cs-live { color: var(--cs-success-dark); background: rgba(30,142,62,.08); border-color: rgba(30,142,62,.22); }
+  #render-conciliacion-saldo .cs-result-count { color: var(--cs-muted); }
+  #render-conciliacion-saldo .cs-live-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: csPulse 1.8s ease-in-out infinite; }
+  #render-conciliacion-saldo .cs-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px; background: linear-gradient(180deg,#fff 0%,#fcfcfd 100%); }
+  #render-conciliacion-saldo .cs-card-list { display: grid; gap: 16px; }
+  #render-conciliacion-saldo .cs-card { position: relative; overflow: hidden; border: 1px solid var(--cs-border); border-radius: 18px; background: #fff; box-shadow: 0 8px 22px rgba(15,23,42,.07); }
+  #render-conciliacion-saldo .cs-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--cs-primary); }
+  #render-conciliacion-saldo .cs-card.is-valid::before { background: var(--cs-success); }
+  #render-conciliacion-saldo .cs-card.is-warning::before { background: var(--cs-warning); }
+  #render-conciliacion-saldo .cs-card.is-invalid::before { background: var(--cs-primary); }
+  #render-conciliacion-saldo .cs-card-header { padding: 15px 16px 14px 20px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; background: linear-gradient(135deg,#fff 0%,#fafafa 100%); border-bottom: 1px solid #eef1f4; }
+  #render-conciliacion-saldo .cs-card-identity { min-width: 0; display: flex; flex-direction: column; }
+  #render-conciliacion-saldo .cs-card-primary-row { min-width: 0; display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
+  #render-conciliacion-saldo .cs-series-block { min-width: 132px; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center; gap: 4px; border: 1px solid rgba(28,29,31,.14); border-radius: 12px; background: #fff; }
+  #render-conciliacion-saldo .cs-series-label { color: var(--cs-muted); font-size: 9px; font-weight: 950; letter-spacing: .12em; line-height: 1; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-series { margin: 0; color: var(--cs-ink); font: 950 24px/1.05 "JetBrains Mono",monospace; }
+  #render-conciliacion-saldo .cs-temporal-block { min-width: 250px; overflow: hidden; display: grid; grid-template-rows: auto auto; border: 1px solid var(--cs-border); border-radius: 12px; background: #fff; }
+  #render-conciliacion-saldo .cs-temporal-datetime { padding: 9px 12px 8px; display: flex; align-items: center; gap: 8px; color: var(--cs-ink); font-size: 11px; font-weight: 950; letter-spacing: .07em; line-height: 1.25; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-temporal-separator { color: #b4b8bf; }
+  #render-conciliacion-saldo .cs-temporal-pending { padding: 7px 12px; display: flex; align-items: center; gap: 7px; color: var(--cs-warning-dark); background: rgba(217,119,6,.075); border-top: 1px solid rgba(217,119,6,.18); font-size: 10px; font-weight: 950; letter-spacing: .07em; line-height: 1.25; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-card-stats { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+  #render-conciliacion-saldo .cs-card-body { display: grid; grid-template-columns: minmax(0,2.35fr) minmax(190px,.42fr); min-height: 0; }
+  #render-conciliacion-saldo .cs-movements { min-width: 0; padding: 14px 16px 16px 20px; border-right: 1px solid #eef1f4; }
+  #render-conciliacion-saldo .cs-movement-list { display: grid; gap: 9px; }
+  #render-conciliacion-saldo .cs-movement { display: grid; grid-template-columns: 106px minmax(155px,.82fr) minmax(210px,1.18fr) minmax(155px,1fr) 38px minmax(155px,1fr) 108px; grid-template-areas: "type product description warehouse-out arrow warehouse-in quantity" "errors errors errors errors errors errors errors"; gap: 10px; align-items: stretch; padding: 11px; border: 1px solid #e8eaed; border-radius: 13px; background: #fcfcfd; }
+  #render-conciliacion-saldo .cs-movement.invalid { border-color: rgba(217,48,37,.28); background: rgba(217,48,37,.035); }
+  #render-conciliacion-saldo .cs-movement-type { grid-area: type; min-width: 0; min-height: 76px; padding: 11px 12px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--cs-border); border-radius: 11px; font-size: 14px; font-weight: 950; letter-spacing: .06em; line-height: 1.3; text-align: center; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-movement-type.acomodo { color: var(--cs-success-dark); border-color: rgba(30,142,62,.24); background: rgba(30,142,62,.05); }
+  #render-conciliacion-saldo .cs-movement-type.surtido { color: var(--cs-primary-dark); border-color: rgba(217,48,37,.24); background: rgba(217,48,37,.05); }
+  #render-conciliacion-saldo .cs-movement-product { grid-area: product; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+  #render-conciliacion-saldo .cs-movement-description { grid-area: description; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+  #render-conciliacion-saldo .cs-sku { color: var(--cs-ink); font: 950 18px/1.3 "JetBrains Mono",monospace; }
+  #render-conciliacion-saldo .cs-idunico { margin-top: 5px; color: #7d8490; font: 850 13px/1.4 "JetBrains Mono",monospace; overflow-wrap: anywhere; }
+  #render-conciliacion-saldo .cs-description { margin-top: 5px; color: var(--cs-muted); font-size: 14px; font-weight: 800; line-height: 1.48; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-route-point { min-width: 0; min-height: 76px; padding: 11px 12px; display: flex; flex-direction: column; justify-content: center; gap: 6px; border: 1px solid var(--cs-border); border-radius: 11px; background: #fff; }
+  #render-conciliacion-saldo .cs-warehouse-out { grid-area: warehouse-out; border-color: rgba(217,48,37,.24); background: rgba(217,48,37,.05); }
+  #render-conciliacion-saldo .cs-warehouse-in { grid-area: warehouse-in; border-color: rgba(30,142,62,.24); background: rgba(30,142,62,.05); }
+  #render-conciliacion-saldo .cs-route-label { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 950; letter-spacing: .055em; line-height: 1.25; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-warehouse-out .cs-route-label { color: var(--cs-primary-dark); }
+  #render-conciliacion-saldo .cs-warehouse-in .cs-route-label { color: var(--cs-success-dark); }
+  #render-conciliacion-saldo .cs-warehouse { min-width: 0; color: var(--cs-ink); font-size: 14px; font-weight: 950; line-height: 1.42; text-align: left; text-transform: uppercase; overflow-wrap: anywhere; }
+  #render-conciliacion-saldo .cs-route-arrow { grid-area: arrow; width: 38px; min-width: 38px; display: flex; align-items: center; justify-content: center; color: var(--cs-muted); }
+  #render-conciliacion-saldo .cs-quantity-block { grid-area: quantity; min-width: 0; min-height: 76px; padding: 10px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 1px solid rgba(217,119,6,.22); border-radius: 11px; background: rgba(217,119,6,.055); }
+  #render-conciliacion-saldo .cs-quantity-label,#render-conciliacion-saldo .cs-quantity-unit { color: var(--cs-muted); font-size: 12px; font-weight: 950; letter-spacing: .055em; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-quantity-label { color: var(--cs-warning-dark); }
+  #render-conciliacion-saldo .cs-quantity { color: var(--cs-ink); font: 950 25px/1.05 "JetBrains Mono",monospace; text-align: center; }
+  #render-conciliacion-saldo .cs-error-list { grid-area: errors; margin: 0; padding: 8px 10px; border-radius: 9px; color: #991b1b; background: #fff1f2; font-size: 10px; font-weight: 850; line-height: 1.5; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-capture { padding: 14px; display: flex; flex-direction: column; justify-content: flex-start; gap: 12px; background: #f8f9fa; }
+  #render-conciliacion-saldo .cs-capture .cs-input { min-height: 42px; padding: 0 10px; font-size: 13px; }
+  #render-conciliacion-saldo .cs-capture .cs-field-label { font-size: 10px; letter-spacing: .09em; }
+  #render-conciliacion-saldo .cs-capture .cs-button { width: 100%; padding: 0 10px; font-size: 10px; white-space: normal; text-align: center; }
+  #render-conciliacion-saldo .cs-card-message { min-height: 34px; padding: 9px 10px; border-radius: 10px; font-size: 10px; font-weight: 850; line-height: 1.5; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-card-message.error { color: #991b1b; background: #fff1f2; border: 1px solid #fecaca; }
+  #render-conciliacion-saldo .cs-state { min-height: 320px; padding: 34px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #9aa0a6; text-align: center; }
+  #render-conciliacion-saldo .cs-state-title { color: var(--cs-ink); font-size: 15px; font-weight: 950; letter-spacing: .12em; text-transform: uppercase; }
+  #render-conciliacion-saldo .cs-state-text { max-width: 520px; font-size: 13px; line-height: 1.5; }
+  #render-conciliacion-saldo .cs-spinner { width: 38px; height: 38px; border: 4px solid #eef1f4; border-top-color: var(--cs-primary); border-radius: 50%; animation: csSpin .8s linear infinite; }
+
+  @media (max-width: 1220px) {
+    #render-conciliacion-saldo .cs-header { grid-template-columns: minmax(270px,1fr) auto; }
+    #render-conciliacion-saldo .cs-metrics { grid-column: 1/-1; grid-row: 2; }
+    #render-conciliacion-saldo .cs-header-actions { grid-column: 2; grid-row: 1; }
+    #render-conciliacion-saldo .cs-card-body { grid-template-columns: 1fr; }
+    #render-conciliacion-saldo .cs-movements { border-right: 0; border-bottom: 1px solid #eef1f4; }
+  }
+  @media (max-width: 1180px) {
+    #render-conciliacion-saldo .cs-toolbar { grid-template-columns: 1fr; }
+    #render-conciliacion-saldo .cs-toolbar-filters { grid-template-columns: minmax(180px,1fr) 150px 140px; }
+    #render-conciliacion-saldo .cs-movement { grid-template-columns: 90px minmax(0,1fr) 96px; grid-template-areas: "type product quantity" "description description description" "warehouse-out arrow warehouse-in" "errors errors errors"; }
+    #render-conciliacion-saldo .cs-route-arrow { width: 34px; min-width: 34px; min-height: 64px; }
+  }
+  @media (max-width: 720px) {
+    #render-conciliacion-saldo .cs-page { padding: 8px; }
+    #render-conciliacion-saldo .cs-header { display: flex; flex-direction: column; align-items: stretch; padding: 16px; }
+    #render-conciliacion-saldo .cs-metrics { grid-template-columns: repeat(2,1fr); }
+    #render-conciliacion-saldo .cs-toolbar { grid-template-columns: 1fr; padding: 10px 12px 10px 16px; }
+    #render-conciliacion-saldo .cs-toolbar-filters { grid-template-columns: 1fr; }
+    #render-conciliacion-saldo .cs-toolbar-context { justify-content: flex-start; overflow-x: auto; }
+    #render-conciliacion-saldo .cs-card-header { grid-template-columns: 1fr; }
+    #render-conciliacion-saldo .cs-card-primary-row { display: grid; grid-template-columns: 1fr; }
+    #render-conciliacion-saldo .cs-series-block,#render-conciliacion-saldo .cs-temporal-block { width: 100%; min-width: 0; }
+    #render-conciliacion-saldo .cs-card-stats { justify-content: flex-start; }
+    #render-conciliacion-saldo .cs-movement { grid-template-columns: 1fr; grid-template-areas: "type" "product" "description" "warehouse-out" "arrow" "warehouse-in" "quantity" "errors"; }
+    #render-conciliacion-saldo .cs-movement-type { width: 100%; }
+    #render-conciliacion-saldo .cs-route-arrow { width: 100%; min-width: 0; min-height: 28px; transform: rotate(90deg); }
+    #render-conciliacion-saldo .cs-quantity-block { min-height: 74px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #render-conciliacion-saldo .cs-card-enter,#render-conciliacion-saldo .cs-card-exit,#render-conciliacion-saldo .cs-live-dot { animation: none !important; }
+  }
+</style>
+
+<div id="render-conciliacion-saldo"></div>
+
+<script type="text/babel">
+  window.cargar_ConciliacionSaldo = () => {
+    const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+    const csPerfStart_ = (operation, metadata = {}) => {
+      const now = performance.now();
+      return { operation: String(operation || "CONCILIACION_OPERATION"), startedAt: now, lastAt: now, metadata: metadata && typeof metadata === "object" ? metadata : {}, marks: [], ended: false };
+    };
+
+    const csPerfMark_ = (trace, stage, metadata = {}) => {
+      if (!trace || trace.ended === true) return;
+      const now = performance.now();
+      trace.marks.push({ etapa: String(stage || "MARK"), segmento_ms: Number((now - trace.lastAt).toFixed(1)), acumulado_ms: Number((now - trace.startedAt).toFixed(1)), metadata: metadata && typeof metadata === "object" ? metadata : {} });
+      trace.lastAt = now;
+    };
+
+    const csPerfEnd_ = (trace, status = "ok", metadata = {}) => {
+      if (!trace || trace.ended === true) return null;
+      trace.ended = true;
+      const result = { operation: trace.operation, status: String(status || "ok"), totalMs: Number((performance.now() - trace.startedAt).toFixed(1)), metadata: Object.assign({}, trace.metadata, metadata || {}), marks: trace.marks.slice() };
+      console.log(`[APPALMACEN][PERF][${result.operation}] ${result.totalMs} ms | ${result.status}`);
+      if (typeof console.table === "function") console.table(result.marks); else console.log(result.marks);
+      console.log("Metadatos:", result.metadata);
+      return result;
+    };
+
+    const csAfterPaint_ = callback => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(callback));
+    };
+
+    const notify_ = (message, type = "info", timer = 2600, options = {}) => {
+      const fn = window.notificar || window.lanzarNotificacion;
+      if (typeof fn === "function") fn(message, type, timer, options);
+    };
+    const str_ = value => String(value == null ? "" : value).trim();
+    const upper_ = value => str_(value).toUpperCase();
+    const numericFolio_ = value => String(value == null ? "" : value).replace(/\D/g, "").slice(0, 80);
+    const num_ = value => Number.isFinite(Number(value)) ? Number(value) : 0;
+    const formatNumber_ = value => num_(value).toLocaleString("es-MX", { maximumFractionDigits: 2 });
+
+    function Icon({ name, size = 17, className = "" }) {
+      const ref = useRef(null);
+      useEffect(() => {
+        if (!window.lucide || !ref.current) return;
+        ref.current.innerHTML = "";
+        const element = document.createElement("i");
+        element.setAttribute("data-lucide", name || "circle");
+        element.style.width = `${size}px`;
+        element.style.height = `${size}px`;
+        element.className = className;
+        ref.current.appendChild(element);
+        window.lucide.createIcons({ nodes: [element] });
+      }, [name, size, className]);
+      return <span ref={ref} className="inline-flex items-center justify-center" />;
+    }
+
+    function Metric({ label, value, tone = "" }) {
+      return <div className={`cs-metric ${tone}`}><div className="cs-metric-value">{formatNumber_(value)}</div><div className="cs-metric-label">{label}</div></div>;
+    }
+
+    function MovementRow({ movement }) {
+      const validation = movement.validacionadministrativa || {};
+      const valid = validation.valido === true;
+      const type = upper_(movement.tipomovimiento);
+      const visibleErrors = (validation.errores || []).filter(error => upper_(error) !== "ALMACEN_SALIDA_IGUAL_A_ENTRADA");
+      return (
+        <div className={`cs-movement ${valid ? "" : "invalid"}`}>
+          <span className={`cs-movement-type ${type === "ACOMODO" ? "acomodo" : "surtido"}`}>{type || "SIN TIPO"}</span>
+          <div className="cs-movement-product"><div className="cs-sku">{movement.codigo || "SIN SKU"}</div><div className="cs-idunico">{movement.idunico || "SIN IDUNICO"}</div></div>
+          <div className="cs-movement-description"><div className="cs-description">{movement.descripcion || "SIN DESCRIPCIÓN"}</div><div className="cs-description">Serie / ubicación: <strong>{movement.serie || "SIN SERIE"}</strong></div></div>
+          <div className="cs-route-point cs-warehouse-out"><div className="cs-route-label"><Icon name="log-out" size={15} /><span>Almacén de salida</span></div><div className="cs-warehouse">{movement.almacensalidaadministrativo || "ALMACÉN DE SALIDA NO RECONOCIDO"}</div></div>
+          <div className="cs-route-arrow" aria-hidden="true"><Icon name="arrow-right" size={22} /></div>
+          <div className="cs-route-point cs-warehouse-in"><div className="cs-route-label"><Icon name="log-in" size={15} /><span>Almacén de entrada</span></div><div className="cs-warehouse">{movement.almacenentradaadministrativo || "ALMACÉN DE ENTRADA NO RECONOCIDO"}</div></div>
+          <div className="cs-quantity-block"><span className="cs-quantity-label">Cantidad</span><strong className="cs-quantity">{formatNumber_(movement.cantidadadministrativa)}</strong><span className="cs-quantity-unit">Pzas</span></div>
+          {visibleErrors.length > 0 && <div className="cs-error-list">{visibleErrors.join(" · ")}</div>}
+        </div>
+      );
+    }
+
+    function ConciliationCard({ group, index, responsibles, onRegistered }) {
+      const [folio, setFolio] = useState("");
+      const [responsible, setResponsible] = useState("");
+      const [saving, setSaving] = useState(false);
+      const [exiting, setExiting] = useState(false);
+      const [message, setMessage] = useState("");
+      const savingRef = useRef(false);
+      const mountedRef = useRef(true);
+
+      useEffect(() => () => { mountedRef.current = false; }, []);
+      const responsibleValid = useMemo(() => {
+        const value = upper_(responsible);
+        return responsibles.some(item => upper_(item && item.nombre) === value);
+      }, [responsible, responsibles]);
+      const folioValid = /^\d+$/.test(folio);
+      const canRegister = group.conciliable === true && folioValid && responsibleValid && !saving && !exiting;
+      const cardTone = group.conciliable ? "is-valid" : group.inconsistentes > 0 ? "is-invalid" : "is-warning";
+
+      const register_ = () => {
+        if (savingRef.current) {
+          console.log("[APPALMACEN][PERF][CONCILIACION_REGISTRAR_SKIPPED]", { clavegrupo: group.clavegrupo, reason: "REQUEST_ALREADY_IN_FLIGHT" });
+          return;
+        }
+        const trace = csPerfStart_("CONCILIACION_REGISTRAR", { clavegrupo: group.clavegrupo, serie: group.serie, filas: Array.isArray(group.filaspendientes) ? group.filaspendientes.length : 0, movimientos: Number(group.totalmovimientos || 0) });
+        csPerfMark_(trace, "ACTION_ACCEPTED");
+        if (!canRegister) {
+          const validationMessage = group.conciliable !== true ? "El grupo contiene movimientos que requieren corrección." : !folio ? "Captura el folio administrativo." : !folioValid ? "El folio debe contener únicamente números y no puede ser negativo." : "Selecciona un responsable válido.";
+          setMessage(validationMessage);
+          csPerfMark_(trace, "CLIENT_VALIDATION_REJECTED", { conciliable: group.conciliable === true, folioValid, responsibleValid });
+          csAfterPaint_(() => csPerfEnd_(trace, "validation_error", { message: validationMessage }));
+          return;
+        }
+        savingRef.current = true;
+        setSaving(true);
+        setMessage("");
+        const payload = { clavegrupo: group.clavegrupo, filas: Array.isArray(group.filaspendientes) ? group.filaspendientes.slice() : [], folio: numericFolio_(folio), responsable: upper_(responsible) };
+        csPerfMark_(trace, "PAYLOAD_READY", { rows: payload.filas.length, payloadBytes: JSON.stringify(payload).length });
+        csPerfMark_(trace, "SERVER_REQUEST_STARTING");
+        google.script.run
+          .withSuccessHandler(response => {
+            savingRef.current = false;
+            if (!mountedRef.current) { csPerfEnd_(trace, "ignored", { reason: "CARD_UNMOUNTED" }); return; }
+            setSaving(false);
+            csPerfMark_(trace, "SERVER_RESPONSE_RECEIVED", { ok: Boolean(response && response.ok === true), actualizados: Number(response && response.actualizados || 0), omitidos: Number(response && response.omitidos || 0) });
+            if (!response || response.ok !== true) {
+              const text = response && response.mensaje ? response.mensaje : "El servidor no confirmó la conciliación.";
+              setMessage(text);
+              notify_(text, "warning", 4200, { title: "Conciliación no registrada", sound: true });
+              csAfterPaint_(() => { csPerfMark_(trace, "WARNING_UI_PAINT_COMPLETED"); csPerfEnd_(trace, "rejected", { message: text, actualizados: 0 }); });
+              return;
+            }
+            notify_(`${response.actualizados || 0} movimiento(s) vinculados al folio ${response.folio}.`, "success", 2800, { title: "Conciliación registrada", sound: true });
+            setExiting(true);
+            csPerfMark_(trace, "EXIT_ANIMATION_REQUESTED");
+            window.setTimeout(() => {
+              if (!mountedRef.current) { csPerfEnd_(trace, "ok", { actualizados: Number(response.actualizados || 0), folio: response.folio || "", cardUnmounted: true }); return; }
+              onRegistered(group.clavegrupo);
+              csPerfMark_(trace, "GROUP_REMOVED_FROM_STATE");
+              csAfterPaint_(() => { csPerfMark_(trace, "UI_PAINT_COMPLETED"); csPerfEnd_(trace, "ok", { actualizados: Number(response.actualizados || 0), folio: response.folio || "", animationMs: 340 }); });
+            }, 340);
+          })
+          .withFailureHandler(error => {
+            savingRef.current = false;
+            const text = error && error.message ? error.message : "No se pudo registrar la conciliación.";
+            if (!mountedRef.current) { csPerfEnd_(trace, "error", { reason: "CARD_UNMOUNTED", message: text }); return; }
+            setSaving(false);
+            setMessage(text);
+            notify_(text, "error", 4800, { title: "Error de conciliación", sound: true });
+            csPerfMark_(trace, "SERVER_REQUEST_FAILED", { message: text });
+            csAfterPaint_(() => { csPerfMark_(trace, "ERROR_UI_PAINT_COMPLETED"); csPerfEnd_(trace, "error", { message: text }); });
+          })
+          .ConciliacionSaldoController_registrarConciliacion(payload);
+      };
+
+      return (
+        <article className={`cs-card cs-card-enter ${cardTone} ${exiting ? "cs-card-exit" : ""}`} style={{ animationDelay: exiting ? "0ms" : `${Math.min(index * 55, 330)}ms` }}>
+          <header className="cs-card-header">
+            <div className="cs-card-identity"><div className="cs-card-primary-row"><div className="cs-series-block"><span className="cs-series-label">Serie</span><h3 className="cs-series">{group.serie || "SIN SERIE"}</h3></div><div className="cs-temporal-block"><div className="cs-temporal-datetime"><Icon name="calendar-days" size={14} /><span>{group.fecha || "SIN FECHA"}</span><span className="cs-temporal-separator">·</span><Icon name="clock-3" size={14} /><span>{group.hora || "SIN HORA"}</span></div><div className="cs-temporal-pending"><Icon name="hourglass" size={14} /><span>Pendiente: {group.tiempotranscurridotexto || "0 min"}</span></div></div></div></div>
+            <div className="cs-card-stats"><span className="cs-chip slate">{group.totalmovimientos || 0} movimientos</span><span className="cs-chip green">{group.totalacomodos || 0} acomodos</span><span className="cs-chip red">{group.totalsurtidos || 0} surtidos</span><span className="cs-chip amber">{formatNumber_(group.cantidadabsoluta)} pzas</span></div>
+          </header>
+          <div className="cs-card-body">
+            <section className="cs-movements"><div className="cs-movement-list">{(group.movimientos || []).map(movement => <MovementRow key={`${movement.fila}-${movement.idunico}`} movement={movement} />)}</div></section>
+            <aside className="cs-capture">
+              <label><span className="cs-field-label">Folio administrativo</span><input type="text" inputMode="numeric" pattern="[0-9]*" className="cs-input" value={folio} onChange={event => { setFolio(numericFolio_(event.target.value)); if (message) setMessage(""); }} onKeyDown={event => { if (["-","+",".",",","e","E"].includes(event.key)) event.preventDefault(); }} disabled={saving || exiting || group.conciliable !== true} maxLength={80} autoComplete="off" placeholder="Captura el folio" aria-label="Folio administrativo" /></label>
+              <label><span className="cs-field-label">Responsable</span><input list={`cs-responsables-${index}`} type="text" className="cs-input" value={responsible} onChange={event => { setResponsible(event.target.value.toUpperCase()); if (message) setMessage(""); }} disabled={saving || exiting || group.conciliable !== true} autoComplete="off" placeholder="Selecciona responsable" /><datalist id={`cs-responsables-${index}`}>{responsibles.filter(item => item && item.nombre).map(item => <option key={item.nombre} value={item.nombre} />)}</datalist></label>
+              {message && <div className="cs-card-message error">{message}</div>}
+              <button type="button" className="cs-button primary" onClick={register_} disabled={!canRegister}><Icon name={saving ? "loader-2" : "save"} size={16} className={saving ? "animate-spin" : ""} />{saving ? "Registrando..." : "Registrar conciliación"}</button>
+            </aside>
+          </div>
+        </article>
+      );
+    }
+
+    function View() {
+      const [loading, setLoading] = useState(true);
+      const [refreshing, setRefreshing] = useState(false);
+      const [groups, setGroups] = useState([]);
+      const [responsibles, setResponsibles] = useState([]);
+      const [summary, setSummary] = useState({});
+      const [generatedAt, setGeneratedAt] = useState({});
+      const [query, setQuery] = useState("");
+      const [stateFilter, setStateFilter] = useState("TRABAJO");
+      const [typeFilter, setTypeFilter] = useState("TODOS");
+      const mountedRef = useRef(true);
+      const requestBusyRef = useRef(false);
+      const loadRequestSequenceRef = useRef(0);
+      const lastAppliedSequenceRef = useRef(0);
+
+      useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+
+      const applyResponse_ = useCallback(response => {
+        if (!mountedRef.current) return;
+        const safe = response || {};
+        setGroups(Array.isArray(safe.grupos) ? safe.grupos : []);
+        if (Array.isArray(safe.responsables)) setResponsibles(safe.responsables);
+        setSummary(safe.resumen || {});
+        setGeneratedAt(safe.generadoEn || {});
+      }, []);
+
+      const load_ = useCallback((silent = false, source = "unknown") => {
+        if (requestBusyRef.current) {
+          console.log("[APPALMACEN][PERF][CONCILIACION_CARGAR_SKIPPED]", { source, reason: "REQUEST_ALREADY_IN_FLIGHT" });
+          return;
+        }
+        const requestSequence = ++loadRequestSequenceRef.current;
+        const trace = csPerfStart_("CONCILIACION_CARGAR", { silent: silent === true, source, requestSequence });
+        requestBusyRef.current = true;
+        csPerfMark_(trace, "ACTION_ACCEPTED");
+        if (silent) setRefreshing(true); else setLoading(true);
+        csPerfMark_(trace, "LOADING_STATE_REQUESTED");
+        csPerfMark_(trace, "SERVER_REQUEST_STARTING");
+        google.script.run
+          .withSuccessHandler(response => {
+            const responseReceivedAt = performance.now();
+            requestBusyRef.current = false;
+            let responseBytes = -1;
+            try { responseBytes = JSON.stringify(response || {}).length; } catch (error) { responseBytes = -1; }
+            csPerfMark_(trace, "SERVER_RESPONSE_RECEIVED", { responseBytes });
+            if (!mountedRef.current) { csPerfEnd_(trace, "ignored", { reason: "VIEW_UNMOUNTED" }); return; }
+            if (requestSequence < lastAppliedSequenceRef.current) { csPerfEnd_(trace, "ignored", { reason: "STALE_RESPONSE", lastAppliedSequence: lastAppliedSequenceRef.current }); return; }
+            lastAppliedSequenceRef.current = requestSequence;
+            const safe = response || {};
+            const groupsReceived = Array.isArray(safe.grupos) ? safe.grupos.length : 0;
+            const movementsReceived = Array.isArray(safe.grupos) ? safe.grupos.reduce((total, group) => total + (Array.isArray(group && group.movimientos) ? group.movimientos.length : 0), 0) : 0;
+            const responsiblesReceived = Array.isArray(safe.responsables) ? safe.responsables.length : 0;
+            csPerfMark_(trace, "RESPONSE_VALIDATED", { groups: groupsReceived, movements: movementsReceived, responsibles: responsiblesReceived });
+            setLoading(false);
+            setRefreshing(false);
+            applyResponse_(safe);
+            csPerfMark_(trace, "REACT_STATE_REQUESTED", { groups: groupsReceived, movements: movementsReceived });
+            csAfterPaint_(() => {
+              csPerfMark_(trace, "UI_PAINT_COMPLETED", { groups: groupsReceived, movements: movementsReceived, responseHandlerMs: Number((performance.now() - responseReceivedAt).toFixed(1)) });
+              csPerfEnd_(trace, "ok", { groups: groupsReceived, movements: movementsReceived, responsibles: responsiblesReceived });
+            });
+          })
+          .withFailureHandler(error => {
+            requestBusyRef.current = false;
+            const text = error && error.message ? error.message : "No se pudo cargar Conciliación de saldo.";
+            csPerfMark_(trace, "SERVER_REQUEST_FAILED", { message: text });
+            if (!mountedRef.current) { csPerfEnd_(trace, "error", { reason: "VIEW_UNMOUNTED", message: text }); return; }
+            setLoading(false);
+            setRefreshing(false);
+            notify_(text, "error", 4800, { title: "Error de carga", sound: true });
+            csAfterPaint_(() => { csPerfMark_(trace, "ERROR_UI_PAINT_COMPLETED"); csPerfEnd_(trace, "error", { message: text }); });
+          })
+          .ConciliacionSaldoController_obtenerBootstrap();
+      }, [applyResponse_]);
+
+      useEffect(() => { load_(false, "initial"); }, [load_]);
+
+      useEffect(() => {
+        const onFocus = () => load_(true, "focus");
+        const onVisibilityChange = () => { 
+          if (document.visibilityState === "visible") load_(true, "visibilitychange"); };
+        window.addEventListener("focus", onFocus);
+        document.addEventListener("visibilitychange", onVisibilityChange);
+        return () => { window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVisibilityChange); };
+      }, [load_]);
+
+      const visibleGroups = useMemo(() => {
+        const startedAt = performance.now();
+        const q = upper_(query);
+        const result = groups.filter(group => {
+          if (stateFilter !== "TODOS" && stateFilter !== "TRABAJO" && upper_(group.estadogrupo) !== stateFilter) return false;
+          if (typeFilter !== "TODOS" && !(group.tiposmovimiento || []).includes(typeFilter)) return false;
+          if (!q) return true;
+          return upper_([group.clavegrupo, group.serie, ...(group.codigos || []), ...(group.idunicos || []), ...(group.solicitantes || []), ...(group.almacenessalidaadministrativos || []), ...(group.almacenesentradaadministrativos || [])].join(" ")).includes(q);
+        });
+        const elapsedMs = performance.now() - startedAt;
+        if (elapsedMs >= 10) console.log("[APPALMACEN][PERF][CONCILIACION_FILTER]", { elapsedMs: Number(elapsedMs.toFixed(1)), sourceGroups: groups.length, visibleGroups: result.length, queryLength: query.length, stateFilter, typeFilter });
+        return result;
+      }, [groups, query, stateFilter, typeFilter]);
+
+      const onRegistered_ = useCallback(groupKey => {
+        setGroups(previous => {
+          const removed = previous.find(group => group.clavegrupo === groupKey);
+          if (!removed) return previous;
+          setSummary(current => {
+            const next = { ...current, movimientospendientes: Math.max(0, num_(current.movimientospendientes) - num_(removed.pendientes)) };
+            if (removed.estadogrupo === "PENDIENTE") next.grupospendientes = Math.max(0, num_(current.grupospendientes) - 1);
+            if (removed.estadogrupo === "PARCIAL") next.gruposparciales = Math.max(0, num_(current.gruposparciales) - 1);
+            if (removed.estadogrupo === "INCONSISTENTE") next.gruposinconsistentes = Math.max(0, num_(current.gruposinconsistentes) - 1);
+            if (removed.conciliable !== true && num_(removed.pendientes) > 0) next.gruposnoconciliables = Math.max(0, num_(current.gruposnoconciliables) - 1);
+            return next;
+          });
+          return previous.filter(group => group.clavegrupo !== groupKey);
+        });
+      }, []);
+
+      if (loading) return <div className="cs-state"><div className="cs-spinner" /><div className="cs-state-title">Cargando conciliaciones</div><div className="cs-state-text">Consultando movimientos pendientes y responsables autorizados.</div></div>;
+
+      return (
+        <div className="cs-page"><section className="cs-workspace">
+          <header className="cs-header">
+            <div className="cs-identity"><div className="cs-header-icon"><Icon name="scale" size={23} /></div><div><p className="cs-eyebrow">Control administrativo de traspasos</p><h2 className="cs-title">Conciliación de saldo</h2><p className="cs-subtitle">Vincula movimientos físicos con el folio aplicado en el sistema administrativo</p></div></div>
+            <div className="cs-metrics"><Metric label="Grupos pendientes" value={summary.grupospendientes} tone="amber" /><Metric label="Movimientos" value={summary.movimientospendientes} /><Metric label="Sin conciliar" value={summary.gruposnoconciliables} tone="red" /><Metric label="Inconsistencias" value={summary.gruposinconsistentes} tone="red" /></div>
+            <div className="cs-header-actions"><button type="button" className="cs-button header" onClick={() => load_(true, "manual")} disabled={refreshing}><Icon name="refresh-cw" size={16} className={refreshing ? "animate-spin" : ""} />{refreshing ? "Actualizando" : "Actualizar"}</button></div>
+          </header>
+          <div className="cs-toolbar">
+            <div className="cs-toolbar-main"><div className="cs-toolbar-icon"><Icon name="clipboard-list" size={17} /></div><div><div className="cs-toolbar-title">Control operativo</div><div className="cs-toolbar-subtitle">Traspasos pendientes de afectar</div></div></div>
+            <div className="cs-toolbar-filters"><input type="search" className="cs-input" value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar serie, SKU o IdUnico" aria-label="Buscar conciliaciones" /><select className="cs-select" value={stateFilter} onChange={event => setStateFilter(event.target.value)} aria-label="Filtrar por estado"><option value="TRABAJO">Trabajo pendiente</option><option value="PENDIENTE">Pendientes</option><option value="PARCIAL">Parciales</option><option value="INCONSISTENTE">Inconsistentes</option><option value="TODOS">Todos</option></select><select className="cs-select" value={typeFilter} onChange={event => setTypeFilter(event.target.value)} aria-label="Filtrar por tipo"><option value="TODOS">Todos los tipos</option><option value="ACOMODO">Acomodo</option><option value="SURTIDO">Surtido</option></select></div>
+            <div className="cs-toolbar-context"><span className="cs-result-count">{visibleGroups.length} grupo(s)</span><span className="cs-live"><span className="cs-live-dot" />Actualizado</span><span className="cs-chip slate">{generatedAt.fecha || "--"} {generatedAt.hora || "--"}</span></div>
+          </div>
+          <main className="cs-content">{visibleGroups.length ? <div className="cs-card-list">{visibleGroups.map((group,index) => <ConciliationCard key={group.clavegrupo} group={group} index={index} responsibles={responsibles} onRegistered={onRegistered_} />)}</div> : <div className="cs-state"><Icon name="badge-check" size={38} /><div className="cs-state-title">Sin conciliaciones visibles</div><div className="cs-state-text">No existen grupos que coincidan con los filtros actuales o todos los movimientos ya fueron atendidos.</div></div>}</main>
+        </section></div>
+      );
+    }
+
+    const mountTrace = csPerfStart_("CONCILIACION_VIEW_MOUNT");
+    csPerfMark_(mountTrace, "INIT_FUNCTION_STARTED");
+    const target = document.getElementById("render-conciliacion-saldo");
+    if (!target) {
+      csPerfMark_(mountTrace, "TARGET_NOT_FOUND");
+      csPerfEnd_(mountTrace, "error", { reason: "RENDER_TARGET_NOT_FOUND" });
+      notify_("No se encontró el contenedor de Conciliación de saldo.", "error", 4200, { title: "Error de interfaz", sound: true });
+      return;
+    }
+    csPerfMark_(mountTrace, "TARGET_FOUND");
+    const hadPreviousRoot = Boolean(window.__CONCILIACION_SALDO_ROOT__);
+    if (hadPreviousRoot) {
+      try { window.__CONCILIACION_SALDO_ROOT__.unmount(); }
+      catch (error) { console.warn("[ConciliacionSaldo] No se pudo desmontar el root previo.", error); }
+      window.__CONCILIACION_SALDO_ROOT__ = null;
+    }
+    csPerfMark_(mountTrace, "PREVIOUS_ROOT_CLEANED", { hadPreviousRoot });
+    window.__CONCILIACION_SALDO_ROOT__ = ReactDOM.createRoot(target);
+    csPerfMark_(mountTrace, "REACT_ROOT_CREATED");
+    window.__CONCILIACION_SALDO_ROOT__.render(<View />);
+    csPerfMark_(mountTrace, "REACT_RENDER_REQUESTED");
+    csAfterPaint_(() => {
+      csPerfMark_(mountTrace, "INITIAL_PAINT_COMPLETED");
+      csPerfEnd_(mountTrace, "ok", { hadPreviousRoot });
+    });
+  };
+
+  window.initVista = window.cargar_ConciliacionSaldo;
+</script>

@@ -1,115 +1,109 @@
-/**
- * AuditoriaExcedentesDetalleController.gs
- */
-
-function _aedc_exec_(label, fn) {
-  try {
-    console.log(`[AuditoriaExcedentesDetalleController] ${label} :: INICIO`);
-    const result = fn();
-    console.log(`[AuditoriaExcedentesDetalleController] ${label} :: OK`, result && typeof result === "object"
-      ? JSON.stringify(result).slice(0, 1000)
-      : result
-    );
-    return result;
-  } catch (error) {
-    console.error(`[AuditoriaExcedentesDetalleController] ${label} :: ERROR message`, error && error.message);
-    console.error(`[AuditoriaExcedentesDetalleController] ${label} :: ERROR stack`, error && error.stack);
-    console.error(`[AuditoriaExcedentesDetalleController] ${label} :: ERROR raw`, error);
-    throw new Error(error && error.message ? error.message : `Error en ${label}`);
-  }
-}
+const CTRL_AEDC = "AuditoriaExcedentesDetalleController";
 
 /**
  * Abrir ubicación
- * payload:
- * {
- *   idauditoria,
- *   ubicacion,
- *   observaciones
- * }
  */
 function AuditoriaExcedentesDetalleController_abrirUbicacion(payload) {
-  return _aedc_exec_("abrirUbicacion", () => {
-    return AuditoriaExcedentesDetalleService.abrirUbicacion(payload || {});
-  });
+  return execController_(
+    CTRL_AEDC,
+    "abrirUbicacion",
+    () => AuditoriaExcedentesDetalleService.abrirUbicacion(payload || {})
+  );
 }
 
 /**
  * Obtener esperados por ubicación
  */
-function AuditoriaExcedentesDetalleController_obtenerEsperadosPorUbicacion(idauditoria, ubicacion) {
-  return _aedc_exec_("obtenerEsperadosPorUbicacion", () => {
-    return AuditoriaExcedentesDetalleService.obtenerEsperadosPorUbicacion(idauditoria, ubicacion);
-  });
+function AuditoriaExcedentesDetalleController_obtenerEsperadosPorUbicacion( idauditoria, ubicacion ) {
+  return execController_(
+    CTRL_AEDC,
+    "obtenerEsperadosPorUbicacion",
+    () => AuditoriaExcedentesDetalleService.obtenerEsperadosPorUbicacion(
+      idauditoria,
+      ubicacion
+    )
+  );
 }
 
 /**
- * Registrar escaneo de IdUnico
- * payload:
- * {
- *   idauditoria,
- *   ubicacion,
- *   idunico
- * }
+ * Registrar escaneo
  */
 function AuditoriaExcedentesDetalleController_registrarEscaneoIdUnico(payload) {
-  return _aedc_exec_("registrarEscaneoIdUnico", () => {
-    return AuditoriaExcedentesDetalleService.registrarEscaneoIdUnico(payload || {});
-  });
+  return execController_(
+    CTRL_AEDC,
+    "registrarEscaneoIdUnico",
+    () => AuditoriaExcedentesDetalleService.registrarEscaneoIdUnico(
+      payload || {}
+    )
+  );
 }
 
 /**
  * Cerrar ubicación
- * payload:
- * {
- *   idauditoria,
- *   ubicacion,
- *   observaciones
- * }
  */
 function AuditoriaExcedentesDetalleController_cerrarUbicacion(payload) {
-  return _aedc_exec_("cerrarUbicacion", () => {
-    return AuditoriaExcedentesDetalleService.cerrarUbicacion(payload || {});
-  });
+  return execController_(
+    CTRL_AEDC,
+    "cerrarUbicacion",
+    () => AuditoriaExcedentesDetalleService.cerrarUbicacion(payload || {})
+  );
 }
 
 /**
- * Obtener detalle de una ubicación
+ * Obtener detalle ubicación
  */
-function AuditoriaExcedentesDetalleController_getDetalleUbicacion(idauditoria, ubicacion) {
-  return _aedc_exec_("getDetalleUbicacion", () => {
-    return AuditoriaExcedentesDetalleService.getDetalleUbicacion(idauditoria, ubicacion);
-  });
+function AuditoriaExcedentesDetalleController_getDetalleUbicacion(
+  idauditoria,
+  ubicacion
+) {
+  return execController_(
+    CTRL_AEDC,
+    "getDetalleUbicacion",
+    () => AuditoriaExcedentesDetalleService.getDetalleUbicacion(
+      idauditoria,
+      ubicacion
+    )
+  );
 }
 
 /**
  * Listar ubicaciones auditadas
  */
-function AuditoriaExcedentesDetalleController_listarUbicacionesAuditadas(idauditoria) {
-  return _aedc_exec_("listarUbicacionesAuditadas", () => {
-    return AuditoriaExcedentesDetalleService.listarUbicacionesAuditadas(idauditoria);
-  });
+function AuditoriaExcedentesDetalleController_listarUbicacionesAuditadas( idauditoria ) {
+  return execController_(
+    CTRL_AEDC,
+    "listarUbicacionesAuditadas",
+    () => AuditoriaExcedentesDetalleService.listarUbicacionesAuditadas(
+      idauditoria
+    )
+  );
 }
 
 /**
  * Listar ubicaciones abiertas
  */
-function AuditoriaExcedentesDetalleController_listarUbicacionesAbiertas(idauditoria) {
-  return _aedc_exec_("listarUbicacionesAbiertas", () => {
-    return AuditoriaExcedentesDetalleService.listarUbicacionesAbiertas(idauditoria);
-  });
+function AuditoriaExcedentesDetalleController_listarUbicacionesAbiertas( idauditoria ) {
+  return execController_(
+    CTRL_AEDC,
+    "listarUbicacionesAbiertas",
+    () => AuditoriaExcedentesDetalleService.listarUbicacionesAbiertas(
+      idauditoria
+    )
+  );
 }
 
 /**
- * Ping simple del detalle
+ * Ping
  */
 function AuditoriaExcedentesDetalleController_ping() {
-  return _aedc_exec_("ping", () => {
-    return {
+  return execController_(
+    CTRL_AEDC,
+    "ping",
+    () => ({
       ok: true,
-      controller: "AuditoriaExcedentesDetalleController",
+      controller: CTRL_AEDC,
       modulo: "AuditoriaExcedentesDetalle",
       build: "AUDITORIA-DETALLE-CTRL-2026-06-22-01"
-    };
-  });
+    })
+  );
 }

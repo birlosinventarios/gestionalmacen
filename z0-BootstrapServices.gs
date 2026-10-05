@@ -1,7 +1,3 @@
-/**
- * BootstrapServices.gs
- * Carga inicial compartida para la SPA
- */
 const BootstrapServices = (() => {
 
   function logDuracion_(etapa, inicio, extra) {
@@ -86,102 +82,122 @@ const BootstrapServices = (() => {
     );
   }
 
+  function getInfoInicialFresh_() {
+    const tTotal = Date.now();
+
+    try {
+      console.log("[BOOT][SERVER] BootstrapServices.getInfoInicialFresh_ :: INICIO");
+
+      let t = Date.now();
+      const usuarios = UsuariosRepository.getAll();
+      logDuracion_("UsuariosRepository.getAll", t, { total: usuarios.length });
+
+      t = Date.now();
+      const ubicacionesExcedentes = UbicacionesExcedentesRepository.getAll();
+      logDuracion_("UbicacionesExcedentesRepository.getAll", t, { total: ubicacionesExcedentes.length });
+
+      t = Date.now();
+      const catalogo =
+        typeof CatalogoRepository
+          .getAllRaw === "function"
+          ? CatalogoRepository
+              .getAllRaw()
+          : CatalogoRepository
+              .getAll();
+      logDuracion_("CatalogoRepository.getAll", t, { total: catalogo.length });
+
+      t = Date.now();
+      const etiquetas = EtiquetasRepository.getAll();
+      logDuracion_("EtiquetasRepository.getAll", t, { total: etiquetas.length });
+
+      t = Date.now();
+      const usuariosOrdenados = usuariosOrdenados_(usuarios);
+      logDuracion_("usuariosOrdenados_", t, { total: usuariosOrdenados.length });
+
+      t = Date.now();
+      const {
+        mapaUbicacionesExcedentes,
+        bodegas
+      } = procesarUbicaciones_(ubicacionesExcedentes);
+
+      logDuracion_("procesarUbicaciones_", t, {
+        bodegas: bodegas.length,
+        ubicaciones: mapaUbicacionesExcedentes.length
+      });
+
+      t = Date.now();
+      const {
+        mapaCatalogo,
+        codigos
+      } = procesarCatalogo_(catalogo);
+
+      logDuracion_("procesarCatalogo_", t, {
+        codigos: codigos.length,
+        clavesMapaCatalogo: Object.keys(mapaCatalogo).length
+      });
+
+      t = Date.now();
+      const {
+        mapaMedidas,
+        nombresEtiquetas
+      } = procesarEtiquetas_(etiquetas);
+
+      logDuracion_("procesarEtiquetas_", t, {
+        clavesMapaMedidas: Object.keys(mapaMedidas).length,
+        nombresEtiquetas: nombresEtiquetas.length
+      });
+
+      t = Date.now();
+      const resultado = {
+        usuarios: usuariosOrdenados,
+        bodegas,
+        mapaUbicacionesExcedentes,
+        codigos,
+        mapaCatalogo,
+        mapaMedidas,
+        nombresEtiquetas
+      };
+
+      logDuracion_("Construcción payload final", t);
+      logDuracion_("BootstrapServices.getInfoInicialFresh_ :: TOTAL", tTotal);
+
+      return resultado;
+
+    } catch (error) {
+      console.error("❌ ERROR BootstrapServices.getInfoInicialFresh_:", error);
+      logDuracion_("BootstrapServices.getInfoInicialFresh_ :: ERROR TOTAL", tTotal);
+
+      return {
+        usuarios: [],
+        bodegas: [],
+        mapaUbicacionesExcedentes: [],
+        codigos: [],
+        mapaCatalogo: {},
+        mapaMedidas: {},
+        nombresEtiquetas: []
+      };
+    }
+  }
+
   return {
-    getInfoInicial: function() {
-      const tTotal = Date.now();
+    getInfoInicial: function(forceRefresh) {
+      const forzar = forceRefresh === true;
 
-      try {
-        console.log("[BOOT][SERVER] BootstrapServices.getInfoInicial :: INICIO");
-
-        /** ===============================
-         * REPOSITORIES
-         * =============================== */
-        let t = Date.now();
-        const usuarios = UsuariosRepository.getAll();
-        logDuracion_("UsuariosRepository.getAll", t, { total: usuarios.length });
-
-        t = Date.now();
-        const ubicacionesExcedentes = UbicacionesExcedentesRepository.getAll();
-        logDuracion_("UbicacionesExcedentesRepository.getAll", t, { total: ubicacionesExcedentes.length });
-
-        t = Date.now();
-        const catalogo = CatalogoRepository.getAll();
-        logDuracion_("CatalogoRepository.getAll", t, { total: catalogo.length });
-
-        t = Date.now();
-        const etiquetas = EtiquetasRepository.getAll();
-        logDuracion_("EtiquetasRepository.getAll", t, { total: etiquetas.length });
-
-        /** ===============================
-         * TRANSFORMACIONES
-         * =============================== */
-        t = Date.now();
-        const usuariosOrdenados = usuariosOrdenados_(usuarios);
-        logDuracion_("usuariosOrdenados_", t, { total: usuariosOrdenados.length });
-
-        t = Date.now();
-        const {
-          mapaUbicacionesExcedentes,
-          bodegas
-        } = procesarUbicaciones_(ubicacionesExcedentes);
-        logDuracion_("procesarUbicaciones_", t, {
-          bodegas: bodegas.length,
-          ubicaciones: mapaUbicacionesExcedentes.length
-        });
-
-        t = Date.now();
-        const {
-          mapaCatalogo,
-          codigos
-        } = procesarCatalogo_(catalogo);
-        logDuracion_("procesarCatalogo_", t, {
-          codigos: codigos.length,
-          clavesMapaCatalogo: Object.keys(mapaCatalogo).length
-        });
-
-        t = Date.now();
-        const {
-          mapaMedidas,
-          nombresEtiquetas
-        } = procesarEtiquetas_(etiquetas);
-        logDuracion_("procesarEtiquetas_", t, {
-          clavesMapaMedidas: Object.keys(mapaMedidas).length,
-          nombresEtiquetas: nombresEtiquetas.length
-        });
-
-        /** ===============================
-         * PAYLOAD FINAL
-         * =============================== */
-        t = Date.now();
-        const resultado = {
-          usuarios: usuariosOrdenados,
-          bodegas,
-          mapaUbicacionesExcedentes,
-          codigos,
-          mapaCatalogo,
-          mapaMedidas,
-          nombresEtiquetas
-        };
-        logDuracion_("Construcción payload final", t);
-
-        logDuracion_("BootstrapServices.getInfoInicial :: TOTAL", tTotal);
-
-        return resultado;
-
-      } catch (error) {
-        console.error("❌ ERROR BootstrapServices.getInfoInicial:", error);
-        logDuracion_("BootstrapServices.getInfoInicial :: ERROR TOTAL", tTotal);
-
-        return {
-          usuarios: [],
-          bodegas: [],
-          mapaUbicacionesExcedentes: [],
-          codigos: [],
-          mapaCatalogo: {},
-          mapaMedidas: {},
-          nombresEtiquetas: []
-        };
+      if (
+        typeof APPALMACENCache !== "undefined" &&
+        typeof APPALMACENCache.rememberBootstrap === "function"
+      ) {
+        return APPALMACENCache.rememberBootstrap(
+          function() {
+            return getInfoInicialFresh_();
+          },
+          {
+            forceRefresh: forzar
+          }
+        );
       }
+
+      return getInfoInicialFresh_();
     }
   };
 

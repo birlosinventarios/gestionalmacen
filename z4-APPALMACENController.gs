@@ -19,6 +19,8 @@ var APPALMACEN_VISTAS_PERMITIDAS = Object.freeze([
   "MonitorReabastecimiento",
   "AuditoriaExcedentes",
   "PrototipoTraspasos",
+  "ConciliacionSaldo",
+  "VerificacionEntrada",
 
   // Vistas ocultas / navegación interna
   "AuditoriaExcedentesDetalle",

@@ -69,113 +69,60 @@
     animation: nbFadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
-  #render-negativos-birlos .badge-exportar-flotante {
-    position: absolute;
-    top: -6px;
-    right: -4px;
-    min-width: 26px;
-    height: 26px;
-    padding: 0 8px;
-    border-radius: 999px;
-    background: #1c1d1f;
-    color: #ffffff;
-    font-size: 11px;
-    font-weight: 800;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid #ffffff;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+  #render-negativos-birlos .nb-top-panel {
+    position: relative;
+    z-index: 40;
+    overflow: visible !important;
   }
 
-  #render-negativos-birlos .offcanvas-export-header {
-    border-bottom: 1px solid #dadce0;
-  }
-
-  #render-negativos-birlos .kpi-export-panel {
-    background: #f8f9fa;
-    border: 1px solid #dadce0;
-    border-radius: 1rem;
-    padding: 1rem;
-  }
-
-  #render-negativos-birlos .btn-exportar-panel {
-    width: 100%;
-    border: none;
-    border-radius: 1rem;
-    background: #d93025;
-    color: white;
-    font-weight: 800;
+  #render-negativos-birlos .nb-filter-button {
+    min-height: 42px;
+    padding: 0.625rem 1rem;
+    border-radius: 0.75rem;
+    font-size: 12px;
+    line-height: 1rem;
+    font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    padding: 14px 16px;
-    transition: all 0.2s ease;
+    white-space: nowrap;
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
   }
 
-  #render-negativos-birlos .btn-exportar-panel:hover {
-    background: #a50e0e;
+  #render-negativos-birlos .nb-filter-button:active {
+    transform: scale(0.98);
   }
 
-#render-negativos-birlos .nb-fab-mode-panel {
-  min-width: 220px;
-  background: #ffffff;
-  border: 1px solid #dadce0;
-  border-radius: 1rem;
-  padding: 8px;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.14);
-}
+  #render-negativos-birlos .nb-menu-option {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-size: 12px;
+    line-height: 1rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #334155;
+    transition:
+      color 0.18s ease,
+      background-color 0.18s ease;
+  }
 
-#render-negativos-birlos .nb-fab-mode-title {
-  font-size: 9px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: #5f6368;
-  padding: 2px 4px 7px;
-}
-
-#render-negativos-birlos .nb-fab-mode-toggle {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-#render-negativos-birlos .nb-fab-mode-btn {
-  min-height: 38px;
-  border-radius: 0.75rem;
-  border: none;
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  transition: all 0.18s ease;
-}
-
-#render-negativos-birlos .nb-fab-mode-btn.idle {
-  background: #f8f9fa;
-  color: #5f6368;
-}
-
-#render-negativos-birlos .nb-fab-mode-btn.idle:hover {
-  background: #f1f3f4;
-  color: #1c1d1f;
-}
-
-#render-negativos-birlos .nb-fab-mode-btn.active-red {
-  background: #d93025;
-  color: #ffffff;
-  box-shadow: 0 4px 10px rgba(217, 48, 37, 0.18);
-}
-
-#render-negativos-birlos .nb-fab-mode-btn.active-dark {
-  background: #1c1d1f;
-  color: #ffffff;
-}
+  #render-negativos-birlos .nb-menu-option:hover {
+    background: #f8fafc;
+  }
 
 </style>
 
 <!-- Contenedor raíz -->
-<div id="render-negativos-birlos" class="h-full w-full flex flex-col bg-[#f8f9fa] overflow-y-auto p-4 md:p-8"></div>
+<div
+  id="render-negativos-birlos"
+  class="h-full w-full min-h-0 flex flex-col bg-[#f8f9fa] overflow-y-auto p-4 md:p-8"
+></div>
 
 <script type="text/babel">
   window.cargar_NegativosBirlos = () => {
@@ -202,104 +149,13 @@
     const shellNotifyStateRef = { current: {} };
     const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
 
-    const LocalIcon = ({ name, size = 18, className = "" }) => {
-      const iconRef = useRef(null);
+    const LocalIcon =
+      window.FitoComponents?.Icon?.LocalIcon ||
+      window.FitoComponents?.LocalIcon;
 
-      useEffect(() => {
-        if (window.lucide && iconRef.current) {
-          iconRef.current.innerHTML = '';
-          const i = document.createElement('i');
-          i.setAttribute('data-lucide', name.toLowerCase());
-          i.style.width = `${size}px`;
-          i.style.height = `${size}px`;
-          if (className) i.className = className;
-          iconRef.current.appendChild(i);
-          window.lucide.createIcons();
-        }
-      }, [name, size, className]);
-
-      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
-    };
-
-    const KPIBlock = ({ title, value, unit, iconName, trend, indicatorColor }) => {
-      const colorMap = {
-        red: 'bg-red-50 text-red-600 border border-red-100',
-        amber: 'bg-amber-50 text-amber-600 border border-amber-100',
-        blue: 'bg-blue-50 text-blue-600 border border-blue-100',
-        emerald: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
-        black: 'bg-slate-100 text-slate-900 border border-slate-300',
-      };
-
-      const topBarColor =
-        indicatorColor === 'red'
-          ? 'bg-red-500'
-          : indicatorColor === 'amber'
-          ? 'bg-amber-500'
-          : indicatorColor === 'blue'
-          ? 'bg-blue-500'
-          : indicatorColor === 'black'
-          ? 'bg-slate-900'
-          : 'bg-emerald-500';
-
-      const trendColor =
-        trend?.type === 'negative'
-          ? 'bg-red-50 text-red-600'
-          : trend?.type === 'neutral'
-          ? 'bg-amber-50 text-amber-700'
-          : trend?.type === 'info'
-          ? 'bg-blue-50 text-blue-700'
-          : trend?.type === 'dark'
-          ? 'bg-slate-100 text-slate-900 border border-slate-300'
-          : 'bg-emerald-50 text-emerald-700';
-
-      return (
-        <div className="bg-white border border-[#dadce0] rounded-[1.25rem] p-4 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group min-h-[112px]">
-          <div className={`absolute top-0 left-0 right-0 h-1.5 ${topBarColor}`}></div>
-
-          <div className="h-full flex flex-col pt-1">
-            <div className="grid grid-cols-[1fr_auto] items-center gap-3 h-full">
-              <div className="min-w-0">
-                <p className="text-[12px] font-black uppercase tracking-[0.12em] text-[#5f6368] leading-tight mb-2">
-                  {title}
-                </p>
-
-                <div className="flex items-end gap-2 flex-wrap">
-                  <h3 className="m-0 p-0 bg-transparent border-none text-[34px] font-black tracking-tight text-[#1c1d1f] leading-none">
-                    {value}
-                  </h3>
-
-                  {unit && (
-                    <span className="text-[13px] font-black text-[#5f6368] uppercase leading-none pb-1">
-                      {unit}
-                    </span>
-                  )}
-                </div>
-
-                {trend && (
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${trendColor}`}>
-                      {trend.text}
-                    </span>
-
-                    {trend.sub && (
-                      <span className="text-[11px] font-semibold text-[#5f6368]">
-                        {trend.sub}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="justify-self-end">
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${colorMap[indicatorColor]}`}>
-                  <LocalIcon name={iconName} size={28} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    };
+    const KPIBlock =
+      window.FitoComponents?.KPI?.Block ||
+      window.FitoComponents?.KPIBlock;
 
     const NegativosBirlosDashboard = () => {
       const [negativos, setNegativos] = useState([]);
@@ -312,87 +168,14 @@
       const [sortBy, setSortBy] = useState("NONE");
       const [hoverMenu, setHoverMenu] = useState(null);
       const [modoBalance, setModoBalance] = useState("EXISTENCIAS");
-      
-      const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-      const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
-      const [isFabMenuMounted, setIsFabMenuMounted] = useState(false);
-      const [isFabClosing, setIsFabClosing] = useState(false);
-      const [isSearchClosing, setIsSearchClosing] = useState(false);
-
+      const [exportMenuOpen, setExportMenuOpen] = useState(false);
+      const [exportCodigoFiltro, setExportCodigoFiltro] = useState("");
 
       const closeMenuTimeout = useRef(null);
       const searchInputRef = useRef(null);
       const firstLoadDoneRef = useRef(false);
       const manualRefreshCountRef = useRef(0);
-      const fabContainerRef = useRef(null);
-
-      const abrirFabMenu_ = () => {
-        setIsFabMenuMounted(true);
-        setIsFabClosing(false);
-        setIsFabMenuOpen(true);
-      };
-
-      const cerrarFabMenu_ = () => {
-        setIsFabClosing(true);
-        setIsSearchClosing(true);
-
-        setTimeout(() => {
-          setIsFabMenuOpen(false);
-          setIsFabMenuMounted(false);
-          setIsFabClosing(false);
-          setIsSearchExpanded(false);
-          setIsSearchClosing(false);
-          setSearchQuery("");
-        }, 190);
-      };
-
-      const toggleFabMenu_ = () => {
-        if (isFabMenuOpen) {
-          cerrarFabMenu_();
-        } else {
-          abrirFabMenu_();
-        }
-      };
-
-      const abrirBuscador_ = () => {
-        setIsSearchClosing(false);
-        setIsSearchExpanded(true);
-        setTimeout(() => searchInputRef.current?.focus(), 120);
-      };
-
-      const cerrarBuscador_ = () => {
-        setIsSearchClosing(true);
-
-        setTimeout(() => {
-          setIsSearchExpanded(false);
-          setIsSearchClosing(false);
-          setSearchQuery("");
-        }, 180);
-      };
-
-      const toggleBuscador_ = () => {
-        if (isSearchExpanded) {
-          cerrarBuscador_();
-        } else {
-          abrirBuscador_();
-        }
-      };
-
-      useEffect(() => {
-        if (!isFabMenuOpen) return;
-
-        const handleKeyDown = (event) => {
-          if (event.key === "Escape") {
-            cerrarFabMenu_();
-          }
-        };
-
-        document.addEventListener("keydown", handleKeyDown, true);
-
-        return () => {
-          document.removeEventListener("keydown", handleKeyDown, true);
-        };
-      }, [isFabMenuOpen]);
+      const exportMenuRef = useRef(null);
 
       const fetchDatabase = useCallback((contexto = "init") => {
         const USAR_MOCK = false;
@@ -537,6 +320,51 @@
         fetchDatabase("init");
       }, [fetchDatabase]);
 
+      useEffect(() => {
+        if (!exportMenuOpen) return;
+
+        const handleClickOutside = (event) => {
+          if (
+            exportMenuRef.current &&
+            !exportMenuRef.current.contains(event.target)
+          ) {
+            setExportMenuOpen(false);
+          }
+        };
+
+        const handleKeyDown = (event) => {
+          if (event.key === "Escape") {
+            setExportMenuOpen(false);
+          }
+        };
+
+        document.addEventListener(
+          "mousedown",
+          handleClickOutside,
+          true
+        );
+
+        document.addEventListener(
+          "keydown",
+          handleKeyDown,
+          true
+        );
+
+        return () => {
+          document.removeEventListener(
+            "mousedown",
+            handleClickOutside,
+            true
+          );
+
+          document.removeEventListener(
+            "keydown",
+            handleKeyDown,
+            true
+          );
+        };
+      }, [exportMenuOpen]);
+
       const getBodegaKey = (ubicacion) => {
         const raw = String(ubicacion || "").toUpperCase().trim();
 
@@ -545,7 +373,7 @@
         if (raw.startsWith("B2")) return "B2";
         if (raw.startsWith("B3")) return "B3";
         if (raw.startsWith("CU")) return "CU";
-        if (raw.startsWith("MO")) return "MO";
+        if (raw.startsWith("MO") || raw.startsWith("BM")) return "MO";
 
         return "OTRO";
       };
@@ -606,7 +434,7 @@
 
       const consolidadoNegativos = useMemo(() => {
         return negativos.map(item => {
-          const sku = String(item.codigo).toUpperCase().trim();
+          const sku = String(item.codigo || "").toUpperCase().trim();
           const ubicacionPiso = mapUbicacionesFloor[sku] || "SIN ASIGNAR";
           const bodegaKey = getBodegaKey(ubicacionPiso);
           const bodegaLabel = getBodegaLabel(bodegaKey);
@@ -683,28 +511,48 @@
       }, [consolidadoNegativos]);
 
       const recordsFiltered = useMemo(() => {
+        const busqueda = String(searchQuery || "").toLowerCase().trim();
+
         return consolidadoNegativos.filter(item => {
+          const codigo = String(item.codigo || "").toLowerCase();
+          const descripcion = String(item.descripcion || "").toLowerCase();
+
           const matchText =
-            item.codigo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.descripcion.toLowerCase().includes(searchQuery.toLowerCase());
+            codigo.includes(busqueda) ||
+            descripcion.includes(busqueda);
 
           if (!matchText) return false;
 
-          if (filterBodega !== "TODAS" && item.bodegakey !== filterBodega) {
+          if (
+            filterBodega !== "TODAS" &&
+            item.bodegakey !== filterBodega
+          ) {
             return false;
           }
 
-          if (filterStatus === "READY") return item.traspasoViable;
-          if (filterStatus === "NO_STOCK") return Number(item.sumaExcedente || 0) === 0;
+          if (filterStatus === "READY") {
+            return item.traspasoViable === true;
+          }
+
+          if (filterStatus === "NO_STOCK") {
+            return Number(item.sumaExcedente || 0) === 0;
+          }
 
           if (filterStatus === "PARTIAL") {
-            return Number(item.sumaExcedente || 0) > 0 &&
-                  Number(item.sumaExcedente || 0) < Number(item.deficit || 0);
+            return (
+              Number(item.sumaExcedente || 0) > 0 &&
+              Number(item.sumaExcedente || 0) < Number(item.deficit || 0)
+            );
           }
 
           return true;
         });
-      }, [consolidadoNegativos, searchQuery, filterStatus, filterBodega]);
+      }, [
+        consolidadoNegativos,
+        searchQuery,
+        filterStatus,
+        filterBodega
+      ]);
 
       const recordsFinal = useMemo(() => {
         const salida = [...recordsFiltered];
@@ -752,106 +600,84 @@
         return salida;
       }, [recordsFiltered, sortBy]);
 
-      const exportarExcelCompleto = () => {
-        if (!window.ExcelExportUtils || typeof window.ExcelExportUtils.exportarAXLSX !== "function") {
-          notify_(
-            "No se detectó el helper global de exportación XLSX.",
-            "error",
-            4200,
-            {
-              title: "Exportador no disponible",
-              sound: true
-            }
-          );
-          return;
+      const opcionesExportacionBodegaSurtido = [
+        {
+          key: "B1",
+          label: "Bodega 1"
+        },
+        {
+          key: "B2",
+          label: "Bodega 2"
+        },
+        {
+          key: "B3",
+          label: "Bodega 3"
+        },
+        {
+          key: "CU",
+          label: "Cuarto Alto Riesgo"
+        },
+        {
+          key: "MO",
+          label: "Mostrador"
+        },
+        {
+          key: "SIN_UBICACION",
+          label: "Sin ubicación"
+        },
+        {
+          key: "OTRO",
+          label: "Otro"
+        },
+        {
+          key: "TODAS",
+          label: "Todas las ubicaciones de surtido"
         }
+      ];
 
-        if (!Array.isArray(consolidadoNegativos) || consolidadoNegativos.length === 0) {
-          notify_(
-            "No existen registros disponibles para exportación.",
-            "warning",
-            3200,
-            {
-              title: "Sin datos para exportar",
-              sound: true
-            }
-          );
-          return;
-        }
+      const codigosExportablesNegativos = useMemo(() => {
+        const codigos = new Set();
 
-        const fecha = new Date().toISOString().slice(0, 10);
+        consolidadoNegativos.forEach((item) => {
+          const codigo = String(
+            item.codigo || ""
+          ).trim().toUpperCase();
 
-        window.ExcelExportUtils.exportarAXLSX({
-          fileName: `Negativos_Birlos_${fecha}.xlsx`,
-          sheetName: "Negativos",
-          rows: consolidadoNegativos,
-            columns: [
-              { key: "codigo", label: "Código" },
-              { key: "descripcion", label: "Descripción" },
-              { key: "ubicacionPiso", label: "Ubicación Surtido" },
-              { key: "bodegalabel", label: "Bodega / Zona" },
-              { key: "almacenbirlos", label: "Saldo Piso Venta" },
-              { key: "deficit", label: "Déficit" },
-              { key: "modoBalanceActivo", label: "Modo Balance" },
-              { key: "excedenteBodegaActivo", label: "Excedente Bodega Activo" },
-              { key: "excedenteCasaBlancaActivo", label: "Excedente Casa Blanca Activo" },
-              { key: "sumaExcedente", label: "Excedente Total Activo" },
-              { key: "excedentebodega", label: "Excedente Bodega Existencias" },
-              { key: "excedentecasablanca", label: "Excedente Casa Blanca Existencias" },
-              { key: "excedentebodegaIdUnico", label: "Excedente Bodega ID Único" },
-              { key: "excedentecasablancaIdUnico", label: "Excedente Casa Blanca ID Único" },
-              { key: "estatusTecnico", label: "Estatus Técnico" }
-            ]
-        });
-
-        notify_(
-          `Se inició la exportación de ${consolidadoNegativos.length} registros.`,
-          "success",
-          2200,
-          {
-            title: "Exportación iniciada",
-            sound: true
+          if (codigo) {
+            codigos.add(codigo);
           }
-        );
-      };
-
-      const abrirPanelExportacion = () => {
-        const panel = document.getElementById('panelExportarNegativos');
-
-        if (!panel) {
-          notify_(
-            "No se encontró el panel lateral de exportación.",
-            "error",
-            4200,
-            {
-              title: "Panel no disponible",
-              sound: true
-            }
-          );
-          return;
-        }
-
-        if (typeof bootstrap === 'undefined' || !bootstrap.Offcanvas) {
-          notify_(
-            "No se detectó bootstrap.bundle.min.js para abrir el panel.",
-            "error",
-            4200,
-            {
-              title: "Bootstrap no disponible",
-              sound: true
-            }
-          );
-          return;
-        }
-
-        const instancia = bootstrap.Offcanvas.getOrCreateInstance(panel);
-        instancia.show();
-
-        notify_("Panel de exportación abierto.", "info", 1200, {
-          title: "Exportación",
-          sound: false
         });
-      };
+
+        return Array.from(codigos).sort((a, b) =>
+          String(a).localeCompare(
+            String(b),
+            "es",
+            {
+              numeric: true,
+              sensitivity: "base"
+            }
+          )
+        );
+      }, [consolidadoNegativos]);
+
+      const codigosExportablesNegativosVisibles = useMemo(() => {
+        const filtro = String(
+          exportCodigoFiltro || ""
+        ).trim().toUpperCase();
+
+        const base = filtro
+          ? codigosExportablesNegativos.filter((codigo) =>
+              String(codigo)
+                .toUpperCase()
+                .includes(filtro)
+            )
+          : codigosExportablesNegativos;
+
+        return base.slice(0, 80);
+      }, [
+        codigosExportablesNegativos,
+        exportCodigoFiltro
+      ]);
 
       const escapeHtml_ = (value) => {
         return String(value ?? "")
@@ -914,28 +740,83 @@
 
           const rowsHtml = rows.map((row) => `
             <tr>
-              <td style="width:22%; padding:8px 10px; border-bottom:1px solid #e5e7eb; font-weight:800; color:#1c1d1f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              <td style="
+                width:20%;
+                padding:10px 8px;
+                border-bottom:1px solid #e5e7eb;
+                font-weight:800;
+                color:#1c1d1f;
+                text-align:center;
+                vertical-align:middle;
+                white-space:normal;
+                overflow-wrap:anywhere;
+                word-break:break-word;
+              ">
                 ${escapeHtml_(row.bodega)}
               </td>
 
-              <td style="width:20%; padding:8px 10px; border-bottom:1px solid #e5e7eb; font-family:'JetBrains Mono', monospace; font-weight:800; color:#d93025; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              <td style="
+                width:18%;
+                padding:10px 8px;
+                border-bottom:1px solid #e5e7eb;
+                font-family:'JetBrains Mono', monospace;
+                font-weight:800;
+                color:#d93025;
+                text-align:center;
+                vertical-align:middle;
+                white-space:normal;
+                overflow-wrap:anywhere;
+                word-break:break-word;
+              ">
                 ${escapeHtml_(row.ubicacion)}
               </td>
 
-              <td style="width:24%; padding:8px 10px; border-bottom:1px solid #e5e7eb; font-family:'JetBrains Mono', monospace; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              <td style="
+                width:22%;
+                padding:10px 8px;
+                border-bottom:1px solid #e5e7eb;
+                font-family:'JetBrains Mono', monospace;
+                font-weight:800;
+                color:#1c1d1f;
+                text-align:center;
+                vertical-align:middle;
+                white-space:normal;
+                overflow-wrap:anywhere;
+                word-break:break-word;
+              ">
                 ${escapeHtml_(row.sku)}
               </td>
 
-              <td style="width:20%; padding:8px 10px; border-bottom:1px solid #e5e7eb; font-family:'JetBrains Mono', monospace; font-weight:900; color:#1c1d1f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              <td style="
+                width:28%;
+                padding:10px 8px;
+                border-bottom:1px solid #e5e7eb;
+                font-family:'JetBrains Mono', monospace;
+                font-weight:900;
+                color:#1c1d1f;
+                text-align:center;
+                vertical-align:middle;
+                white-space:normal;
+                overflow-wrap:anywhere;
+                word-break:break-word;
+              ">
                 ${escapeHtml_(row.idUnico || row.idunico || "")}
               </td>
 
-              <td style="width:14%; padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:right; font-weight:900; white-space:nowrap;">
+              <td style="
+                width:12%;
+                padding:10px 8px;
+                border-bottom:1px solid #e5e7eb;
+                font-weight:900;
+                color:#1c1d1f;
+                text-align:center;
+                vertical-align:middle;
+                white-space:nowrap;
+              ">
                 ${Number(row.cantidadIdUnico || 0).toLocaleString()}
               </td>
             </tr>
           `).join("");
-
           return `
             <div style="margin-bottom:14px; border:1px solid #dadce0; border-radius:16px; overflow:hidden; background:#ffffff;">
               <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; background:#f8f9fa; border-bottom:1px solid #dadce0;">
@@ -951,20 +832,89 @@
               <div style="overflow:auto;">
                 <table style="width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed;">
                   <colgroup>
+                    <col style="width:20%;">
+                    <col style="width:18%;">
                     <col style="width:22%;">
-                    <col style="width:20%;">
-                    <col style="width:24%;">
-                    <col style="width:20%;">
-                    <col style="width:14%;">
+                    <col style="width:28%;">
+                    <col style="width:12%;">
                   </colgroup>
 
                   <thead>
                     <tr style="background:#ffffff;">
-                      <th style="width:22%; padding:8px 10px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">Bodega</th>
-                      <th style="width:20%; padding:8px 10px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">Ubicación</th>
-                      <th style="width:24%; padding:8px 10px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">SKU</th>
-                      <th style="width:20%; padding:8px 10px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">ID único</th>
-                      <th style="width:14%; padding:8px 10px; text-align:right; font-size:10px; text-transform:uppercase; letter-spacing:0.12em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">Cantidad</th>
+                      <th style="
+                        width:20%;
+                        padding:9px 8px;
+                        text-align:center;
+                        vertical-align:middle;
+                        font-size:10px;
+                        text-transform:uppercase;
+                        letter-spacing:0.10em;
+                        color:#5f6368;
+                        border-bottom:1px solid #dadce0;
+                        white-space:normal;
+                      ">
+                        Bodega
+                      </th>
+
+                      <th style="
+                        width:18%;
+                        padding:9px 8px;
+                        text-align:center;
+                        vertical-align:middle;
+                        font-size:10px;
+                        text-transform:uppercase;
+                        letter-spacing:0.10em;
+                        color:#5f6368;
+                        border-bottom:1px solid #dadce0;
+                        white-space:normal;
+                      ">
+                        Ubicación
+                      </th>
+
+                      <th style="
+                        width:22%;
+                        padding:9px 8px;
+                        text-align:center;
+                        vertical-align:middle;
+                        font-size:10px;
+                        text-transform:uppercase;
+                        letter-spacing:0.10em;
+                        color:#5f6368;
+                        border-bottom:1px solid #dadce0;
+                        white-space:normal;
+                      ">
+                        SKU
+                      </th>
+
+                      <th style="
+                        width:28%;
+                        padding:9px 8px;
+                        text-align:center;
+                        vertical-align:middle;
+                        font-size:10px;
+                        text-transform:uppercase;
+                        letter-spacing:0.10em;
+                        color:#5f6368;
+                        border-bottom:1px solid #dadce0;
+                        white-space:normal;
+                      ">
+                        ID único
+                      </th>
+
+                      <th style="
+                        width:12%;
+                        padding:9px 8px;
+                        text-align:center;
+                        vertical-align:middle;
+                        font-size:10px;
+                        text-transform:uppercase;
+                        letter-spacing:0.10em;
+                        color:#5f6368;
+                        border-bottom:1px solid #dadce0;
+                        white-space:normal;
+                      ">
+                        Cantidad
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1058,139 +1008,643 @@
         });
       };
 
+      const ejecutarExportacionNegativos_ = (
+        dataExportar,
+        criterio
+      ) => {
+        if (
+          !window.XLSXExportUtilidades ||
+          typeof window.XLSXExportUtilidades.exportarNegativosBirlos !== "function"
+        ) {
+          throw new Error(
+            "No se encontró el exportador XLSX de NegativosBirlos."
+          );
+        }
+
+        if (
+          !Array.isArray(dataExportar) ||
+          dataExportar.length === 0
+        ) {
+          throw new Error(
+            `No existen negativos disponibles para exportar en ${criterio}.`
+          );
+        }
+
+        return window.XLSXExportUtilidades.exportarNegativosBirlos({
+          data: dataExportar,
+          modoBalance,
+          criterio
+        });
+      };
+
+      const handleExportarTodosNegativos = () => {
+        try {
+          setExportMenuOpen(false);
+          setExportCodigoFiltro("");
+
+          const resultado =
+            ejecutarExportacionNegativos_(
+              consolidadoNegativos,
+              "TODAS LAS UBICACIONES DE SURTIDO"
+            );
+
+          notify_(
+            `Reporte generado correctamente (${resultado.registros} registros).`,
+            "success",
+            2600,
+            {
+              title: "Excel generado",
+              sound: false
+            }
+          );
+        } catch (error) {
+          console.error(
+            "❌ [NegativosBirlos] Error exportando todos los negativos:",
+            error
+          );
+
+          notify_(
+            error && error.message
+              ? error.message
+              : "No se pudo generar el reporte general de negativos.",
+            "error",
+            4200,
+            {
+              title: "Error de exportación",
+              sound: true
+            }
+          );
+        }
+      };
+
+      const handleExportarPorBodegaSurtido = (
+        bodegaKey,
+        bodegaLabel
+      ) => {
+        try {
+          setExportMenuOpen(false);
+          setExportCodigoFiltro("");
+
+          const registros =
+            bodegaKey === "TODAS"
+              ? consolidadoNegativos
+              : consolidadoNegativos.filter((item) => {
+                  return item.bodegakey === bodegaKey;
+                });
+
+          const resultado =
+            ejecutarExportacionNegativos_(
+              registros,
+              `UBICACION SURTIDO ${bodegaLabel}`
+            );
+
+          notify_(
+            `Reporte de ${bodegaLabel} generado correctamente (${resultado.registros} registros).`,
+            "success",
+            2600,
+            {
+              title: "Excel generado",
+              sound: false
+            }
+          );
+        } catch (error) {
+          console.error(
+            "❌ [NegativosBirlos] Error exportando por bodega de surtido:",
+            error
+          );
+
+          notify_(
+            error && error.message
+              ? error.message
+              : "No se pudo generar el reporte por ubicación de surtido.",
+            "error",
+            4200,
+            {
+              title: "Error de exportación",
+              sound: true
+            }
+          );
+        }
+      };
+
+      const handleExportarPorCodigoNegativo = (
+        codigo
+      ) => {
+        try {
+          setExportMenuOpen(false);
+          setExportCodigoFiltro("");
+
+          const codigoNormalizado = String(
+            codigo || ""
+          ).trim().toUpperCase();
+
+          const registros =
+            consolidadoNegativos.filter((item) => {
+              return String(
+                item.codigo || ""
+              ).trim().toUpperCase() === codigoNormalizado;
+            });
+
+          const resultado =
+            ejecutarExportacionNegativos_(
+              registros,
+              `CODIGO ${codigoNormalizado}`
+            );
+
+          notify_(
+            `Reporte del código ${codigoNormalizado} generado correctamente (${resultado.registros} registros).`,
+            "success",
+            2600,
+            {
+              title: "Excel generado",
+              sound: false
+            }
+          );
+        } catch (error) {
+          console.error(
+            "❌ [NegativosBirlos] Error exportando por código:",
+            error
+          );
+
+          notify_(
+            error && error.message
+              ? error.message
+              : "No se pudo generar el reporte por código.",
+            "error",
+            4200,
+            {
+              title: "Error de exportación",
+              sound: true
+            }
+          );
+        }
+      };
+
       return (
-          <div className="h-full w-full min-h-0 relative flex flex-col gap-4">
-        
-          {isFabMenuMounted && (
-            <div
-              className={`fixed inset-0 bg-slate-950/35 backdrop-blur-[1px] z-[40] transition-opacity duration-200 ${
-                isFabClosing ? "opacity-0" : "opacity-100"
-              }`}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                cerrarFabMenu_();
-              }}
-            ></div>
-          )}
+          <div className="h-full w-full min-h-0 relative flex flex-col gap-4 fade-in-up">
 
-          {/* Bloques de Métricos */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
-            <KPIBlock
-              title="Sin excedente"
-              value={metrics.negativosSinExcedentes}
-              unit="SKUs"
-              iconName="alert-triangle"
-              indicatorColor="red"
-              trend={{ text: "Conteo requerido", type: "negative" }}
-            />
+           {/* PANEL SUPERIOR: KPIS + CONTROLES */}
+            <div className="nb-top-panel grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 shrink-0">
 
-            <KPIBlock
-              title="Cobertura parcial"
-              value={metrics.negativosCoberturaParcial}
-              unit="SKUs"
-              iconName="box"
-              indicatorColor="amber"
-              trend={{ text: "No cubre déficit", type: "neutral" }}
-            />
+              {/* KPIS IZQUIERDA */}
+              <div className="contents">
+                <KPIBlock
+                  density="compact"
+                  title="Sin excedente"
+                  value={metrics.negativosSinExcedentes}
+                  unit="SKU"
+                  iconName="alert-triangle"
+                  indicatorColor="red"
+                  trend={{
+                    text: "Conteo requerido",
+                    type: "negative",
+                    sub: "Sin existencia excedente"
+                  }}
+                />
 
-            <KPIBlock
-              title="Cobertura completa"
-              value={metrics.negativosCoberturaCompleta}
-              unit="SKUs"
-              iconName="shuffle"
-              indicatorColor="emerald"
-              trend={{ text: "Viable para revisar", type: "dark" }}
-            />
-          </div>
+                <KPIBlock
+                  density="compact"
+                  title="Cobertura parcial"
+                  value={metrics.negativosCoberturaParcial}
+                  unit="SKU"
+                  iconName="box"
+                  indicatorColor="amber"
+                  trend={{
+                    text: "No cubre déficit",
+                    type: "neutral",
+                    sub: "Requiere ajuste adicional"
+                  }}
+                />
 
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 shrink-0">
-            {/* Filtros operativos */}
-            <div className="flex flex-wrap items-center gap-2">
-              {[
-                  { id: 'ALL', label: 'Negativos', count: consolidadoNegativos.length },
-                  { id: 'READY', label: 'Cobertura completa', count: consolidadoNegativos.filter(x => x.traspasoViable).length },
-                  { id: 'PARTIAL', label: 'Cobertura parcial', count: consolidadoNegativos.filter(x => Number(x.sumaExcedente || 0) > 0 && Number(x.sumaExcedente || 0) < Number(x.deficit || 0)).length },
-                  { id: 'NO_STOCK', label: 'Sin excedente', count: consolidadoNegativos.filter(x => Number(x.sumaExcedente || 0) === 0).length }
-                ]
-                  .map(btn => (
-                <button
-                  key={btn.id}
-                  onClick={() => setFilterStatus(btn.id)}
-                  className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                    filterStatus === btn.id
-                      ? 'bg-[#d93025] text-white shadow-sm'
-                      : 'bg-slate-50 text-slate-500 border border-[#dadce0] hover:bg-slate-100'
-                  }`}
-                >
-                  {btn.label} ({btn.count})
-                </button>
-              ))}
-            </div>
-
-            {/* Segmentación / ordenamientos */}
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-
-              {/* BODEGA */}
-              <div
-                className="relative"
-                onMouseEnter={() => openHoverMenu("BODEGA")}
-                onMouseLeave={closeHoverMenuWithDelay}
-              >
-                <button
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                    filterBodega !== "TODAS"
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
-                  }`}
-                >
-                  {`Bodega: ${getBodegaLabel(filterBodega)}`}
-                </button>
-
-                {hoverMenu === "BODEGA" && (
-                  <div
-                    className="absolute top-full left-0 pt-2 w-56 z-50"
-                    onMouseEnter={cancelCloseHoverMenu}
-                    onMouseLeave={closeHoverMenuWithDelay}
-                  >
-                    <div className="bg-white border border-[#dadce0] rounded-2xl shadow-lg overflow-hidden">
-                      {[
-                        { key: "TODAS", label: "Todas" },
-                        { key: "B1", label: "Bodega 1" },
-                        { key: "B2", label: "Bodega 2" },
-                        { key: "B3", label: "Bodega 3" },
-                        { key: "CU", label: "Cuarto Alto Riesgo" },
-                        { key: "MO", label: "Mostrador" },
-                        { key: "SIN_UBICACION", label: "Sin ubicación" }
-                      ].map((opt, index) => (
-                        <button
-                          key={opt.key}
-                          onClick={() => {
-                            setFilterBodega(opt.key);
-                            setHoverMenu(null);
-                          }}
-                          className={`w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 ${
-                            index > 0 ? 'border-t border-[#dadce0]' : ''
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <KPIBlock
+                  density="compact"
+                  title="Cobertura completa"
+                  value={metrics.negativosCoberturaCompleta}
+                  unit="SKU"
+                  iconName="shuffle"
+                  indicatorColor="emerald"
+                  trend={{
+                    text: "Viable para revisar",
+                    type: "positive",
+                    sub: "Excedente suficiente"
+                  }}
+                />
               </div>
 
-              {/* CÓDIGO */}
-              <div
-                className="relative"
-                onMouseEnter={() => openHoverMenu("CODIGO")}
-                onMouseLeave={closeHoverMenuWithDelay}
-              >
+              {/* CONTROLES DERECHA */}
+              <div className="bg-white border border-[#dadce0] rounded-[1.25rem] p-3 shadow-sm flex flex-col gap-2 min-h-[96px]">
+
+                {/* Buscador */}
+                <div className="relative">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Buscar código o descripción..."
+                    className="w-full h-9 rounded-xl border border-[#dadce0] bg-slate-50 pl-9 pr-9 text-[10px] font-bold uppercase tracking-[0.04em] text-[#1c1d1f] outline-none transition-all focus:bg-white focus:border-[#d93025] focus:ring-2 focus:ring-red-100"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5f6368]">
+                    <LocalIcon name="search" size={14} />
+                  </div>
+
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 flex items-center justify-center transition-all"
+                      title="Limpiar búsqueda"
+                      onClick={() => setSearchQuery("")}
+                    >
+                      <LocalIcon name="x" size={12} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Balance activo */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className={`h-8 rounded-xl text-[9px] font-black uppercase tracking-[0.08em] transition-all ${
+                      modoBalance === "EXISTENCIAS"
+                        ? "bg-[#d93025] text-white shadow-sm"
+                        : "bg-slate-50 text-slate-500 border border-[#dadce0] hover:bg-slate-100"
+                    }`}
+                    onClick={() => setModoBalance("EXISTENCIAS")}
+                    title="Usar balance desde hoja EXISTENCIAS"
+                  >
+                    Existencias
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`h-8 rounded-xl text-[9px] font-black uppercase tracking-[0.08em] transition-all ${
+                      modoBalance === "IDUNICO"
+                        ? "bg-[#1c1d1f] text-white shadow-sm"
+                        : "bg-slate-50 text-slate-500 border border-[#dadce0] hover:bg-slate-100"
+                    }`}
+                    onClick={() => setModoBalance("IDUNICO")}
+                    title="Usar balance calculado por ID único"
+                  >
+                    ID único
+                  </button>
+                </div>
+
+                {/* Acciones */}
+                <div className="grid grid-cols-2 gap-2">
+                  {/* EXPORTAR EXCEL */}
+                  <div
+                    className="relative"
+                    ref={exportMenuRef}
+                  >
+                    <button
+                      type="button"
+                      className={`h-8 w-full rounded-xl border transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-[0.07em] disabled:opacity-50 disabled:pointer-events-none ${
+                        exportMenuOpen
+                          ? "border-emerald-400 bg-emerald-100 text-emerald-800 shadow-sm"
+                          : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      }`}
+                      disabled={
+                        loading ||
+                        consolidadoNegativos.length === 0
+                      }
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setExportMenuOpen((prev) => !prev);
+                      }}
+                    >
+                      <LocalIcon
+                        name="file-spreadsheet"
+                        size={16}
+                      />
+
+                      Exportar Excel
+
+                      <LocalIcon
+                        name={
+                          exportMenuOpen
+                            ? "chevron-up"
+                            : "chevron-down"
+                        }
+                        size={14}
+                      />
+                    </button>
+
+                    {exportMenuOpen && (
+                      <div className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[380px] max-h-[430px] overflow-hidden rounded-2xl border border-[#dadce0] bg-white shadow-2xl fade-in-up">
+
+                        {/* ENCABEZADO */}
+                        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+                          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-600">
+                            Exportar negativos de Birlos
+                          </p>
+
+                          <p className="text-[11px] font-semibold text-slate-400 mt-1">
+                            La bodega corresponde a la ubicación de surtido del material.
+                          </p>
+
+                          <div className="mt-2 inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white border border-slate-200">
+                            <span className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">
+                              Balance
+                            </span>
+
+                            <span className="text-[10px] font-black uppercase text-[#d93025]">
+                              {modoBalance === "IDUNICO"
+                                ? "ID único"
+                                : "Existencias"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="max-h-[355px] overflow-y-auto custom-scroll">
+
+                          {/* REPORTE COMPLETO */}
+                          <div className="p-3 border-b border-slate-100">
+                            <button
+                              type="button"
+                              className="w-full px-3 py-3 rounded-xl text-left bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 transition-all flex items-center justify-between gap-3"
+                              onClick={handleExportarTodosNegativos}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-white text-emerald-700 border border-emerald-200 flex items-center justify-center">
+                                  <LocalIcon
+                                    name="file-spreadsheet"
+                                    size={17}
+                                  />
+                                </div>
+
+                                <div className="flex flex-col">
+                                  <span className="text-[11px] font-black uppercase tracking-[0.10em] text-emerald-800">
+                                    Reporte completo
+                                  </span>
+
+                                  <span className="text-[10px] font-semibold text-emerald-700/70">
+                                    {consolidadoNegativos.length} negativos disponibles
+                                  </span>
+                                </div>
+                              </div>
+
+                              <LocalIcon
+                                name="chevron-right"
+                                size={15}
+                                className="text-emerald-600"
+                              />
+                            </button>
+                          </div>
+
+                          {/* POR UBICACIÓN DE SURTIDO */}
+                          <div className="p-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center">
+                                <LocalIcon
+                                  name="warehouse"
+                                  size={16}
+                                />
+                              </div>
+
+                              <div className="flex flex-col">
+                                <span className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-700">
+                                  Por ubicación de surtido
+                                </span>
+
+                                <span className="text-[10px] font-semibold text-slate-400">
+                                  No utiliza la bodega donde se encuentra el excedente.
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-1.5">
+                              {opcionesExportacionBodegaSurtido.map((bodega) => {
+                                const cantidad =
+                                  bodega.key === "TODAS"
+                                    ? consolidadoNegativos.length
+                                    : consolidadoNegativos.filter((item) => {
+                                        return item.bodegakey === bodega.key;
+                                      }).length;
+
+                                return (
+                                  <button
+                                    key={bodega.key}
+                                    type="button"
+                                    disabled={cantidad === 0}
+                                    className="w-full px-3 py-2 rounded-xl text-left bg-white hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all flex items-center justify-between gap-2 disabled:opacity-40 disabled:pointer-events-none"
+                                    onClick={() => {
+                                      handleExportarPorBodegaSurtido(
+                                        bodega.key,
+                                        bodega.label
+                                      );
+                                    }}
+                                  >
+                                    <span className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-700">
+                                      {bodega.label}
+                                    </span>
+
+                                    <div className="flex items-center gap-2">
+                                      <span className="min-w-[28px] px-2 py-0.5 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 text-center">
+                                        {cantidad}
+                                      </span>
+
+                                      <LocalIcon
+                                        name="chevron-right"
+                                        size={14}
+                                        className="text-slate-400"
+                                      />
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* POR CÓDIGO */}
+                          <div className="p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-8 h-8 rounded-xl bg-red-50 text-red-700 border border-red-100 flex items-center justify-center">
+                                <LocalIcon
+                                  name="barcode"
+                                  size={16}
+                                />
+                              </div>
+
+                              <div className="flex flex-col">
+                                <span className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-700">
+                                  Por código
+                                </span>
+
+                                <span className="text-[10px] font-semibold text-slate-400">
+                                  Genera el reporte de un SKU negativo.
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* BUSCADOR DE CÓDIGO */}
+                            <div className="relative mb-2">
+                              <input
+                                type="text"
+                                placeholder="Filtrar código..."
+                                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 text-[11px] font-black uppercase tracking-[0.06em] text-slate-700 outline-none focus:bg-white focus:border-[#d93025] focus:ring-2 focus:ring-red-100"
+                                value={exportCodigoFiltro}
+                                onChange={(event) => {
+                                  setExportCodigoFiltro(
+                                    event.target.value.toUpperCase()
+                                  );
+                                }}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                }}
+                              />
+
+                              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                <LocalIcon
+                                  name="search"
+                                  size={14}
+                                />
+                              </div>
+
+                              {exportCodigoFiltro && (
+                                <button
+                                  type="button"
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white text-slate-400 hover:text-slate-900 border border-slate-200 flex items-center justify-center"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setExportCodigoFiltro("");
+                                  }}
+                                >
+                                  <LocalIcon
+                                    name="x"
+                                    size={12}
+                                  />
+                                </button>
+                              )}
+                            </div>
+
+                            {codigosExportablesNegativosVisibles.length === 0 ? (
+                              <div className="px-3 py-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                                <span className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+                                  Sin códigos coincidentes
+                                </span>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="grid grid-cols-1 gap-1.5">
+                                  {codigosExportablesNegativosVisibles.map((codigo) => (
+                                    <button
+                                      key={codigo}
+                                      type="button"
+                                      className="w-full px-3 py-2 rounded-xl text-left bg-white hover:bg-red-50 border border-transparent hover:border-red-100 transition-all flex items-center justify-between gap-2"
+                                      onClick={() => {
+                                        handleExportarPorCodigoNegativo(
+                                          codigo
+                                        );
+                                      }}
+                                    >
+                                      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-700 font-mono-premium">
+                                        {codigo}
+                                      </span>
+
+                                      <LocalIcon
+                                        name="chevron-right"
+                                        size={14}
+                                        className="text-slate-400"
+                                      />
+                                    </button>
+                                  ))}
+                                </div>
+
+                                {codigosExportablesNegativos.length >
+                                  codigosExportablesNegativosVisibles.length && (
+                                  <div className="mt-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 text-center">
+                                    <span className="text-[10px] font-bold uppercase tracking-[0.10em] text-slate-400">
+                                      Mostrando{" "}
+                                      {codigosExportablesNegativosVisibles.length}{" "}
+                                      de{" "}
+                                      {codigosExportablesNegativos.length}.
+                                      Usa el filtro para encontrar más.
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="h-8 rounded-xl border border-slate-300 bg-[#1c1d1f] text-white hover:bg-black transition-all flex items-center justify-center gap-1.5 text-[9px] font-black uppercase tracking-[0.07em] disabled:opacity-50 disabled:pointer-events-none"
+                    onClick={() => fetchDatabase("manual")}
+                    disabled={loading}
+                  >
+                    <LocalIcon
+                      name="refresh-cw"
+                      size={14}
+                      className={loading ? "animate-spin" : ""}
+                    />
+                    Actualizar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* FILTROS Y ORDENAMIENTO */}
+            <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 shrink-0">
+
+              {/* FILTROS OPERATIVOS */}
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  {
+                    id: "ALL",
+                    label: "Negativos",
+                    count: consolidadoNegativos.length
+                  },
+                  {
+                    id: "READY",
+                    label: "Cobertura completa",
+                    count: metrics.negativosCoberturaCompleta
+                  },
+                  {
+                    id: "PARTIAL",
+                    label: "Cobertura parcial",
+                    count: metrics.negativosCoberturaParcial
+                  },
+                  {
+                    id: "NO_STOCK",
+                    label: "Sin excedente",
+                    count: metrics.negativosSinExcedentes
+                  }
+                ].map((opcion) => (
+                  <button
+                    key={opcion.id}
+                    type="button"
+                    onClick={() => setFilterStatus(opcion.id)}
+                    className={`nb-filter-button ${
+                      filterStatus === opcion.id
+                        ? "bg-[#d93025] text-white border border-[#d93025] shadow-sm"
+                        : "bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50"
+                    }`}
+                  >
+                    {opcion.label} ({opcion.count})
+                  </button>
+                ))}
+              </div>
+
+              {/* Segmentación y ordenamientos */}
+              <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+
+                {/* CÓDIGO */}
+                <div
+                  className="relative"
+                  onMouseEnter={() => openHoverMenu("CODIGO")}
+                  onMouseLeave={closeHoverMenuWithDelay}
+                >
                 <button
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  type="button"
+                  className={`nb-filter-button ${
                     sortBy === "CODIGO_ASC" || sortBy === "CODIGO_DESC"
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                      ? "bg-slate-900 text-white border border-slate-900 shadow-sm"
+                      : "bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50"
                   }`}
                 >
                   Código
@@ -1208,20 +1662,63 @@
                           setSortBy("CODIGO_ASC");
                           setHoverMenu(null);
                         }}
-                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                        className="nb-menu-option"
                       >
                         Código A-Z
                       </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-                      <button
-                        onClick={() => {
-                          setSortBy("CODIGO_DESC");
-                          setHoverMenu(null);
-                        }}
-                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 border-t border-[#dadce0]"
-                      >
-                        Código Z-A
-                      </button>
+              {/* BODEGA */}
+              <div
+                className="relative"
+                onMouseEnter={() => openHoverMenu("BODEGA")}
+                onMouseLeave={closeHoverMenuWithDelay}
+              >
+                <button
+                  type="button"
+                  className={`nb-filter-button ${
+                    filterBodega !== "TODAS"
+                      ? "bg-slate-900 text-white border border-slate-900 shadow-sm"
+                      : "bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50"
+                  }`}
+                >
+                  {`Bodega: ${getBodegaLabel(filterBodega)}`}
+                </button>
+
+                {hoverMenu === "BODEGA" && (
+                  <div
+                    className="absolute top-full right-0 pt-2 w-56 z-50"
+                    onMouseEnter={cancelCloseHoverMenu}
+                    onMouseLeave={closeHoverMenuWithDelay}
+                  >
+                    <div className="bg-white border border-[#dadce0] rounded-2xl shadow-lg overflow-hidden">
+                      {[
+                        { key: "TODAS", label: "Todas" },
+                        { key: "B1", label: "Bodega 1" },
+                        { key: "B2", label: "Bodega 2" },
+                        { key: "B3", label: "Bodega 3" },
+                        { key: "CU", label: "Cuarto Alto Riesgo" },
+                        { key: "MO", label: "Mostrador" },
+                        { key: "SIN_UBICACION", label: "Sin ubicación" },
+                        { key: "OTRO", label: "Otro" }
+                      ].map((opcion, index) => (
+                        <button
+                          key={opcion.key}
+                          type="button"
+                          onClick={() => {
+                            setFilterBodega(opcion.key);
+                            setHoverMenu(null);
+                          }}
+                          className={`w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 ${
+                            index > 0 ? "border-t border-[#dadce0]" : ""
+                          }`}
+                        >
+                          {opcion.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -1234,10 +1731,11 @@
                 onMouseLeave={closeHoverMenuWithDelay}
               >
                 <button
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  type="button"
+                  className={`nb-filter-button ${
                     sortBy === "UBICACION_ASC" || sortBy === "UBICACION_DESC"
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                      ? "bg-slate-900 text-white border border-slate-900 shadow-sm"
+                      : "bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50"
                   }`}
                 >
                   Ubicación
@@ -1255,19 +1753,9 @@
                           setSortBy("UBICACION_ASC");
                           setHoverMenu(null);
                         }}
-                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                        className="nb-menu-option"
                       >
                         Ubicación A-Z
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setSortBy("UBICACION_DESC");
-                          setHoverMenu(null);
-                        }}
-                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 border-t border-[#dadce0]"
-                      >
-                        Ubicación Z-A
                       </button>
                     </div>
                   </div>
@@ -1276,11 +1764,12 @@
 
               {/* SIN ORDEN */}
               <button
+                type="button"
                 onClick={() => setSortBy("NONE")}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                className={`nb-filter-button ${
                   sortBy === "NONE"
-                    ? 'bg-slate-200 text-slate-900 shadow-sm'
-                    : 'bg-white text-slate-500 border border-[#dadce0] hover:bg-slate-50'
+                    ? "bg-slate-200 text-slate-900 border border-slate-300 shadow-sm"
+                    : "bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50"
                 }`}
               >
                 Sin orden
@@ -1289,8 +1778,9 @@
           </div>
 
           {/* Tabla */}
-          <div className="flex-1 min-h-0 bg-white border border-[#dadce0] rounded-[1.5rem] overflow-hidden shadow-sm">
-            <div className="h-full overflow-auto custom-scroll">
+          <div className="flex-1 min-h-0">
+            <div className="h-full min-h-0 bg-white border border-[#dadce0] rounded-[1.5rem] overflow-hidden shadow-sm">
+              <div className="h-full overflow-auto custom-scroll">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-[#f8f9fa] border-b border-[#dadce0] sticky top-0 z-10">
                   <tr>
@@ -1503,231 +1993,8 @@
               )}
             </div>
           </div>
-
-          
-            {/* MENÚ FLOTANTE GLOBALIZADO */}
-            <div
-              ref={fabContainerRef}
-              className="app-fab-container z-[60]"
-            >
-
-
-            {isFabMenuMounted && isSearchExpanded && (
-              <div className={`app-fab-row ${isSearchClosing || isFabClosing ? "app-fab-slide-right" : "app-fab-slide-left"}`}>
-                <input
-                  ref={searchInputRef}
-                  autoFocus
-                  type="text"
-                  placeholder="Escribe un código, SKU o descripción..."
-                  className="app-fab-search"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            )}
-
-            {isFabMenuMounted && (
-              <div className={`app-fab-stack ${isFabClosing ? "app-fab-out" : "app-fab-in"}`}>
-
-                <div className="nb-fab-mode-panel">
-                  <div className="nb-fab-mode-title">
-                    Balance activo
-                  </div>
-
-                  <div className="nb-fab-mode-toggle">
-                    <button
-                      type="button"
-                      className={`nb-fab-mode-btn ${
-                        modoBalance === "EXISTENCIAS" ? "active-red" : "idle"
-                      }`}
-                      onClick={() => setModoBalance("EXISTENCIAS")}
-                      title="Usar balance desde hoja EXISTENCIAS"
-                    >
-                      Existencias
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`nb-fab-mode-btn ${
-                        modoBalance === "IDUNICO" ? "active-dark" : "idle"
-                      }`}
-                      onClick={() => setModoBalance("IDUNICO")}
-                      title="Usar balance calculado por ID único"
-                    >
-                      ID único
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  className={`app-fab-action ${isSearchExpanded ? "dark" : ""}`}
-                  title={isSearchExpanded ? "Cerrar buscador" : "Buscar material"}
-                  onClick={toggleBuscador_}
-                >
-                  <LocalIcon name={isSearchExpanded ? "x" : "search"} size={24} />
-                </button>
-
-                <button
-                  type="button"
-                  className="app-fab-action"
-                  title="Actualizar tabla"
-                  onClick={() => fetchDatabase("manual")}
-                  disabled={loading}
-                >
-                  <LocalIcon
-                    name="refresh-cw"
-                    size={24}
-                    className={loading ? "text-[#d93025] animate-spin" : ""}
-                  />
-                </button>
-
-                <button
-                  type="button"
-                  className="app-fab-action primary relative"
-                  onClick={() => {
-                    abrirPanelExportacion();
-                    cerrarFabMenu_();
-                  }}
-                  aria-controls="panelExportarNegativos"
-                  disabled={loading || consolidadoNegativos.length === 0}
-                  title="Abrir panel de exportación"
-                >
-                  <LocalIcon name="file-spreadsheet" size={24} />
-
-                  <span className="badge-exportar-flotante">
-                    {consolidadoNegativos.length > 99 ? "99+" : consolidadoNegativos.length}
-                  </span>
-                </button>
-
-              </div>
-            )}
-
-              <button
-                type="button"
-                className={`app-fab-main ${isFabMenuOpen ? "open" : ""} relative`}
-                title={
-                  isFabMenuOpen
-                    ? "Cerrar acciones"
-                    : `Abrir acciones • Balance: ${modoBalance === "IDUNICO" ? "ID único" : "Existencias"}`
-                }
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleFabMenu_();
-                }}
-              >
-
-              <LocalIcon name={isFabMenuOpen ? "x" : "ellipsis-vertical"} size={26} />
-
-              {!isFabMenuOpen && (
-                <span className="badge-exportar-flotante">
-                  {modoBalance === "IDUNICO" ? "ID" : "EX"}
-                </span>
-              )}
-            </button>
-
-          </div>
-
-          {/* OFFCANVAS EXPORTACIÓN */}
-          <div
-            className="offcanvas offcanvas-end"
-            tabIndex="-1"
-            id="panelExportarNegativos"
-            aria-labelledby="panelExportarNegativosLabel"
-          >
-            <div className="offcanvas-header offcanvas-export-header">
-              <div>
-                <h5 id="panelExportarNegativosLabel" className="mb-1 fw-bold">
-                  Exportación de Excel
-                </h5>
-                <p className="mb-0 text-muted" style={{ fontSize: "13px" }}>
-                  Descarga el dataset completo de negativos consolidados.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className="btn-close text-reset"
-                data-bs-dismiss="offcanvas"
-                aria-label="Cerrar"
-              ></button>
-            </div>
-
-            <div className="offcanvas-body d-flex flex-column gap-3">
-              <div className="kpi-export-panel">
-                <div className="d-flex align-items-center justify-content-between">
-                  <div>
-                    <div
-                      className="text-uppercase fw-bold text-muted"
-                      style={{ fontSize: "11px", letterSpacing: "0.08em" }}
-                    >
-                      Registros disponibles
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "32px",
-                        fontWeight: 900,
-                        color: "#1c1d1f",
-                        lineHeight: 1
-                      }}
-                    >
-                      {consolidadoNegativos.length.toLocaleString()}
-                    </div>
-                  </div>
-
-                  <div
-                    className="d-flex align-items-center justify-content-center rounded-4 border"
-                    style={{
-                      width: "56px",
-                      height: "56px",
-                      background: "#fff",
-                      borderColor: "#dadce0"
-                    }}
-                  >
-                    <LocalIcon name="database" size={26} className="text-slate-700" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="kpi-export-panel">
-                <div
-                  className="text-uppercase fw-bold text-muted mb-2"
-                  style={{ fontSize: "11px", letterSpacing: "0.08em" }}
-                >
-                  Se exportarán estas columnas
-                </div>
-
-                <ul
-                  className="mb-0 ps-3"
-                  style={{ fontSize: "13px", color: "#334155", lineHeight: 1.7 }}
-                >
-                  <li>Código</li>
-                  <li>Descripción</li>
-                  <li>Ubicación Surtido</li>
-                  <li>Bodega / Zona</li>
-                  <li>Saldo Piso Venta</li>
-                  <li>Modo balance activo</li>
-                  <li>Excedente Bodega activo</li>
-                  <li>Excedente Casa Blanca activo</li>
-                  <li>Excedente Total activo</li>
-                  <li>Balance Existencias</li>
-                  <li>Balance ID único</li>
-                  <li>Estatus técnico</li>
-                </ul>
-              </div>
-
-              <button
-                type="button"
-                className="btn-exportar-panel mt-auto"
-                onClick={exportarExcelCompleto}
-                disabled={loading || consolidadoNegativos.length === 0}
-                data-bs-dismiss="offcanvas"
-              >
-                Exportar Excel
-              </button>
-            </div>
-          </div>
         </div>
+      </div>
       );
     };
 

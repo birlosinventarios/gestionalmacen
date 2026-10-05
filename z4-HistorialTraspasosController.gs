@@ -1,16 +1,29 @@
 /**
  * HistorialTraspasosController.gs
- * Funciones globales invocables desde google.script.run
  */
 
+const CTRL_HISTORIAL_TRASPASOS = "HistorialTraspasosController";
+
 function HistorialTraspasosController_getBootstrap() {
-  return HistorialTraspasosService.getBootstrap();
+  return execController_(
+    CTRL_HISTORIAL_TRASPASOS,
+    "getBootstrap",
+    () => HistorialTraspasosService.getBootstrap()
+  );
 }
 
 function HistorialTraspasosController_obtenerRegistros() {
-  return HistorialTraspasosService.obtenerRegistros();
+  return execController_(
+    CTRL_HISTORIAL_TRASPASOS,
+    "obtenerRegistros",
+    () => HistorialTraspasosService.obtenerRegistros()
+  );
 }
 
 function HistorialTraspasosController_actualizarRegistro(numFila, datos) {
-  return HistorialTraspasosService.actualizarRegistro(numFila, datos);
+  return execController_(
+    CTRL_HISTORIAL_TRASPASOS,
+    "actualizarRegistro",
+    () => HistorialTraspasosService.actualizarRegistro(numFila, datos)
+  );
 }

@@ -19,15 +19,6 @@ const UbicacionesExcedentesRepository = (() => {
 
   /**
    * NORMALIZACIÓN DE FILA
-   *
-   * SUPOSICIÓN ACTUAL:
-   * - COL.UBICACIONES_EXCEDENTES.IDUBICACIONES_EXCEDENTES = identificador escaneable
-   *   ejemplo: B1B101
-   * - COL.UBICACIONES_EXCEDENTES.UBICACION = ubicación canónica
-   *   ejemplo: B1-01
-   * - COL.UBICACIONES_EXCEDENTES.BODEGA = BODEGA 1
-   *
-   * Si tu hoja realmente usa otra columna para el QR, aquí es donde se ajusta.
    */
   function normalize_(fila) {
     var identificadorRaw = fila[COL.UBICACIONES_EXCEDENTES.IDUBICACIONES_EXCEDENTES] || "";

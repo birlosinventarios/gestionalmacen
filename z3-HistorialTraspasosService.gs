@@ -10,32 +10,20 @@ const HistorialTraspasosService = (() => {
     ROLES_RESPONSABLES: ["RESPONSABLE", "ADMIN"]
   });
 
-  function _toSafeStr_(value) {
-    return toStr_(value || "");
-  }
-
-  function _toSafeUpper_(value) {
-    return toStrUpper_(value || "");
-  }
-
-  function _toSafeNum_(value) {
-    return toNum_(value || 0);
-  }
-
   function _tipoUI_(tipo) {
-    const t = _toSafeUpper_(tipo);
+    const t = toStrUpper_(tipo);
     if (t === "ACOMODO") return "Acomodo";
     if (t === "SURTIDO") return "Surtido";
     if (t === "CAMBIO DE BODEGA") return "Cambio de bodega";
-    return _toSafeStr_(tipo);
+    return toStr_(tipo);
   }
 
   function _buildUsuarios_() {
     return UsuariosRepository.getAll()
       .map(u => ({
         idusuario: u.idusuario,
-        nombre: _toSafeUpper_(u.nombre),
-        rol: _toSafeUpper_(u.rol)
+        nombre: toStrUpper_(u.nombre),
+        rol: toStrUpper_(u.rol)
       }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }
@@ -52,7 +40,7 @@ const HistorialTraspasosService = (() => {
 
   function _buildBodegas_() {
     const bodegas = UbicacionesExcedentesRepository.getBodegas()
-      .map(x => _toSafeUpper_(x))
+      .map(x => toStrUpper_(x))
       .filter(Boolean);
 
     return [...new Set([DOMAIN.BODEGA_PRINCIPAL, ...bodegas])].sort();
@@ -60,7 +48,7 @@ const HistorialTraspasosService = (() => {
 
   function _buildUbicaciones_() {
     const ubicaciones = UbicacionesExcedentesRepository.getUbicaciones()
-      .map(x => _toSafeUpper_(x))
+      .map(x => toStrUpper_(x))
       .filter(Boolean);
 
     return [...new Set(ubicaciones)].sort();
@@ -71,30 +59,30 @@ const HistorialTraspasosService = (() => {
     const hora = item.horatraspaso ? formatTime_(item.horatraspaso) : "";
     const tipoUI = _tipoUI_(item.tipomovimiento);
 
-    const origen = _toSafeStr_(item.bodegasalida) || "---";
-    const destino = _toSafeStr_(item.bodegaentrada) || "---";
-    const responsable = _toSafeUpper_(item.responsable) || "Sin asignar";
+    const origen = toStr_(item.bodegasalida) || "---";
+    const destino = toStr_(item.bodegaentrada) || "---";
+    const responsable = toStrUpper_(item.responsable) || "Sin asignar";
 
     return {
       fila: item.fila,
       fecha: fecha || "---",
       hora: hora || "---",
       tipo: tipoUI,
-      serie: _toSafeStr_(item.serie) || "---",
+      serie: toStr_(item.serie) || "---",
       origen: origen,
-      uSalida: _toSafeStr_(item.ubicacionsalida) || "---",
+      uSalida: toStr_(item.ubicacionsalida) || "---",
       destino: destino,
-      uEntrada: _toSafeStr_(item.ubicacionentrada) || "---",
-      solicitante: _toSafeUpper_(item.solicitante) || "---",
-      codigo: _toSafeUpper_(item.codigo) || "SIN CODIGO",
-      descripcion: _toSafeUpper_(item.descripcion) || "",
-      cantidad: _toSafeNum_(item.cantidad),
-      folio: _toSafeStr_(item.folio),
+      uEntrada: toStr_(item.ubicacionentrada) || "---",
+      solicitante: toStrUpper_(item.solicitante) || "---",
+      codigo: toStrUpper_(item.codigo) || "SIN CODIGO",
+      descripcion: toStrUpper_(item.descripcion) || "",
+      cantidad: toNum_(item.cantidad),
+      folio: toStr_(item.folio),
       responsable: responsable,
-      idUnico: _toSafeStr_(item.idunico),
-      bodegaOriginal: _toSafeUpper_(item.tipomovimiento) === "ACOMODO"
-        ? (_toSafeStr_(item.bodegaentrada) || "GENERAL")
-        : (_toSafeStr_(item.bodegasalida) || "GENERAL")
+      idUnico: toStr_(item.idunico),
+      bodegaOriginal: toStrUpper_(item.tipomovimiento) === "ACOMODO"
+        ? (toStr_(item.bodegaentrada) || "GENERAL")
+        : (toStr_(item.bodegasalida) || "GENERAL")
     };
   }
 
@@ -107,7 +95,7 @@ const HistorialTraspasosService = (() => {
   }
 
   function _validarSolicitante_(solicitante, solicitantesSet) {
-    const valor = _toSafeUpper_(solicitante);
+    const valor = toStrUpper_(solicitante);
     if (!valor) throw new Error("El solicitante es obligatorio.");
     if (!solicitantesSet.has(valor)) {
       throw new Error(`El solicitante "${valor}" no es válido.`);
@@ -116,7 +104,7 @@ const HistorialTraspasosService = (() => {
   }
 
   function _validarResponsable_(responsable, responsablesSet) {
-    const valor = _toSafeUpper_(responsable);
+    const valor = toStrUpper_(responsable);
     if (!valor) throw new Error("El responsable es obligatorio.");
     if (!responsablesSet.has(valor)) {
       throw new Error(`El responsable "${valor}" no es válido.`);
@@ -125,7 +113,7 @@ const HistorialTraspasosService = (() => {
   }
 
   function _validarBodega_(bodega, bodegasSet, nombreCampo) {
-    const valor = _toSafeUpper_(bodega);
+    const valor = toStrUpper_(bodega);
     if (!valor) throw new Error(`La ${nombreCampo} es obligatoria.`);
     if (!bodegasSet.has(valor)) {
       throw new Error(`La ${nombreCampo} "${valor}" no es válida.`);
@@ -134,15 +122,15 @@ const HistorialTraspasosService = (() => {
   }
 
   function _validarSerie_(serie) {
-    return _toSafeUpper_(serie);
+    return toStrUpper_(serie);
   }
 
   function _validarFolio_(folio) {
-    return _toSafeStr_(folio);
+    return toStr_(folio);
   }
 
   function _validarCantidad_(cantidad) {
-    const valor = _toSafeNum_(cantidad);
+    const valor = toNum_(cantidad);
     if (valor <= 0) {
       throw new Error("La cantidad debe ser mayor a cero.");
     }
@@ -152,7 +140,7 @@ const HistorialTraspasosService = (() => {
   function _obtenerSignoCantidadOriginal_(fila) {
     const hoja = getSheetByKey_("TRASPASOS");
     const cantidadActual = hoja.getRange(fila, COL.TRASPASOS.CANTIDAD + 1).getValue();
-    const tipoActual = _toSafeUpper_(hoja.getRange(fila, COL.TRASPASOS.TIPOMOVIMIENTO + 1).getValue());
+    const tipoActual = toStrUpper_(hoja.getRange(fila, COL.TRASPASOS.TIPOMOVIMIENTO + 1).getValue());
 
     const n = Number(cantidadActual || 0);
 

@@ -1,189 +1,108 @@
-<script>/** EtiquetaExcedentesImpresa.html */</script>
+<script>
+  /** EtiquetaExcedentesImpresa.html */
+</script>
 
 <?
-  var LOGO_QR_URL = 'https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png';
+  var LOGO_QR_URL = "https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png";
 
   var QR_CONFIG = {
     size: 800,
     margin: 3,
-    ecLevel: 'H',
-    dark: '000000',
-    light: 'FFFFFF',
-    dotStyle: 'dot',
-    finderStyle: 'rounded',
-    finderDotStyle: 'rounded',
-    finderColor: '000000',
+    ecLevel: "H",
+    dark: "000000",
+    light: "FFFFFF",
+    dotStyle: "dot",
+    finderStyle: "rounded",
+    finderDotStyle: "rounded",
+    finderColor: "000000",
     centerImageSizeRatio: 0.24
   };
 
   function construirQr_(texto) {
     var params = [
-      'text=' + encodeURIComponent(String(texto || '')),
-      'size=' + QR_CONFIG.size,
-      'margin=' + QR_CONFIG.margin,
-      'ecLevel=' + QR_CONFIG.ecLevel,
-      'dark=' + QR_CONFIG.dark,
-      'light=' + QR_CONFIG.light,
-      'dotStyle=' + QR_CONFIG.dotStyle,
-      'finderStyle=' + QR_CONFIG.finderStyle,
-      'finderDotStyle=' + QR_CONFIG.finderDotStyle,
-      'finderColor=' + QR_CONFIG.finderColor,
-      'centerImageUrl=' + encodeURIComponent(LOGO_QR_URL),
-      'centerImageSizeRatio=' + QR_CONFIG.centerImageSizeRatio
+      "text=" + encodeURIComponent(String(texto || "")),
+      "size=" + QR_CONFIG.size,
+      "margin=" + QR_CONFIG.margin,
+      "ecLevel=" + QR_CONFIG.ecLevel,
+      "dark=" + QR_CONFIG.dark,
+      "light=" + QR_CONFIG.light,
+      "dotStyle=" + QR_CONFIG.dotStyle,
+      "finderStyle=" + QR_CONFIG.finderStyle,
+      "finderDotStyle=" + QR_CONFIG.finderDotStyle,
+      "finderColor=" + QR_CONFIG.finderColor,
+      "centerImageUrl=" + encodeURIComponent(LOGO_QR_URL),
+      "centerImageSizeRatio=" + QR_CONFIG.centerImageSizeRatio
     ];
 
-    return 'https://quickchart.io/qr?' + params.join('&');
+    return "https://quickchart.io/qr?" + params.join("&");
   }
 
   function construirQrFallback_(texto) {
-    return 'https://api.qrserver.com/v1/create-qr-code/?'
-      + 'size=800x800'
-      + '&data=' + encodeURIComponent(String(texto || ''))
-      + '&ecc=H'
-      + '&margin=3'
-      + '&color=000000'
-      + '&bgcolor=FFFFFF';
+    return "https://api.qrserver.com/v1/create-qr-code/?" +
+      "size=800x800" +
+      "&data=" + encodeURIComponent(String(texto || "")) +
+      "&ecc=H" +
+      "&margin=3" +
+      "&color=000000" +
+      "&bgcolor=FFFFFF";
   }
 
-  var MODO_IMPRESION = (typeof modoImpresion !== "undefined" && modoImpresion)
-    ? String(modoImpresion).toUpperCase()
-    : "LOCAL";
+  function normalizarItemEtiqueta_(item) {
+    var safe = item || {};
+    var saldo = safe.saldoActual != null
+      ? Number(safe.saldoActual)
+      : Number(safe.cantidad || 0);
 
-  var ES_ONLINE = MODO_IMPRESION === "ONLINE";
+    return {
+      codigo: String(safe.codigo || "").trim().toUpperCase(),
+      descripcion: String(safe.descripcion || "").trim().toUpperCase(),
+      cantidad: isFinite(saldo) && saldo > 0 ? saldo : 0,
+      saldoActual: isFinite(saldo) && saldo > 0 ? saldo : 0,
+      cantidadInicial: Number(safe.cantidadInicial || 0),
+      ubicacion: String(safe.ubicacion || "").trim().toUpperCase(),
+      idUnico: String(safe.idUnico || safe.id || "").trim(),
+      status: String(safe.status || "PARCIAL").trim().toUpperCase()
+    };
+  }
 
-  var TOTAL_IMAGENES_ESPERADAS = (lote && lote.length) ? lote.length * 2 : 0;
+  var LOTE_ETIQUETAS = Array.isArray(lote)
+    ? lote.map(normalizarItemEtiqueta_).filter(function(item) {
+        return item.idUnico && item.cantidad > 0;
+      })
+    : [];
+
+  var MODO_IMPRESION =
+    typeof modoImpresion !== "undefined" && modoImpresion
+      ? String(modoImpresion).toUpperCase()
+      : "LOCAL";
+
+  var TOTAL_IMAGENES_ESPERADAS = LOTE_ETIQUETAS.length * 2;
 ?>
 
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <base target="_top">
-<style>
-  :root {
-    --ancho-papel: 150mm;
-    --alto-papel: 100mm;
-    --ancho-diseno: 145mm;
-    --alto-diseno: 95mm;
-  }
+  <meta charset="UTF-8">
+  <title>Etiqueta de saldo de excedente</title>
 
-  * {
-    box-sizing: border-box;
-  }
-
-  @page {
-    size: 150mm 100mm;
-    margin: 0;
-  }
-
-  html,
-  body {
-    width: 150mm;
-    height: auto;
-    min-height: 0;
-    margin: 0;
-    padding: 0;
-    font-family: "Century Gothic", AppleGothic, sans-serif;
-    background: white;
-    overflow: visible;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .contenedor-impresion {
-    width: 150mm;
-    height: auto;
-    min-height: 0;
-    margin: 0;
-    padding: 0;
-    background: white;
-    display: block;
-    overflow: visible;
-  }
-
-  .pagina-etiqueta {
-    width: 150mm;
-    height: 100mm;
-    min-height: 100mm;
-    max-height: 100mm;
-    margin: 0;
-    padding: 0;
-    background: white;
-    overflow: hidden;
-    display: block;
-    position: relative;
-
-    page-break-inside: avoid;
-    break-inside: avoid;
-
-    page-break-after: always;
-    break-after: page;
-  }
-
-  .pagina-etiqueta + .pagina-etiqueta {
-    page-break-before: always;
-    break-before: page;
-  }
-
-  .pagina-etiqueta:last-child {
-    page-break-after: auto;
-    break-after: auto;
-  }
-
-  .etiqueta {
-    width: var(--ancho-diseno);
-    height: var(--alto-diseno);
-    border: 2px solid black;
-    padding: 30px;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    overflow: hidden;
-    background: white;
-
-    margin: 2.5mm;
-
-    transform: none;
-    transform-origin: initial;
-
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-
-  @media screen {
-    html,
-    body {
-      width: 100%;
-      height: auto;
-      min-height: 100%;
-      background-color: #f0f0f0;
-      overflow: visible;
+  <style>
+    :root {
+      --ancho-papel: 150mm;
+      --alto-papel: 100mm;
+      --ancho-diseno: 145mm;
+      --alto-diseno: 95mm;
     }
 
-    .contenedor-impresion {
-      width: 100%;
-      height: auto;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10mm;
-      padding: 10mm 0;
-      background-color: #f0f0f0;
-      overflow: visible;
+    * {
+      box-sizing: border-box;
     }
 
-    .pagina-etiqueta {
-      width: 150mm;
-      height: 100mm;
-      min-height: 100mm;
-      max-height: 100mm;
-      flex: 0 0 100mm;
+    @page {
+      size: 150mm 100mm;
       margin: 0;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-      background: white;
     }
-  }
 
-  @media print {
     html,
     body {
       width: 150mm;
@@ -191,8 +110,11 @@
       min-height: 0;
       margin: 0;
       padding: 0;
+      font-family: "Century Gothic", AppleGothic, sans-serif;
       background: white;
       overflow: visible;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
 
     .contenedor-impresion {
@@ -201,8 +123,6 @@
       margin: 0;
       padding: 0;
       background: white;
-      display: block;
-      overflow: visible;
     }
 
     .pagina-etiqueta {
@@ -212,22 +132,13 @@
       max-height: 100mm;
       margin: 0;
       padding: 0;
-      box-shadow: none;
       background: white;
       overflow: hidden;
-      display: block;
       position: relative;
-
       page-break-inside: avoid;
       break-inside: avoid;
-
       page-break-after: always;
       break-after: page;
-    }
-
-    .pagina-etiqueta + .pagina-etiqueta {
-      page-break-before: always;
-      break-before: page;
     }
 
     .pagina-etiqueta:last-child {
@@ -236,368 +147,440 @@
     }
 
     .etiqueta {
-      width: 145mm;
-      height: 95mm;
+      width: var(--ancho-diseno);
+      height: var(--alto-diseno);
       margin: 2.5mm;
-      page-break-inside: avoid;
-      break-inside: avoid;
-      transform: none;
-      transform-origin: initial;
+      border: 2px solid black;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      background: white;
     }
-  }
 
-  .marca-agua {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 80%;
-    opacity: 0.07;
-    z-index: -1;
-    filter: grayscale(100%);
-  }
+    .marca-agua {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80%;
+      opacity: 0.07;
+      z-index: 0;
+      filter: grayscale(100%);
+      pointer-events: none;
+    }
 
-  .header {
-    display: flex;
-    justify-content: space-between;
-    border-bottom: 4px solid black;
-    padding-bottom: 5px;
-    margin-bottom: 10px;
-  }
+    .header,
+    .cuerpo,
+    .footer-datos {
+      position: relative;
+      z-index: 1;
+    }
 
-  .codigo-titulo {
-    font-size: 16pt;
-    font-weight: 700;
-    margin: 0;
-  }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      border-bottom: 4px solid black;
+      padding-bottom: 5px;
+      margin-bottom: 10px;
+    }
 
-  .fecha-badge {
-    font-size: 11pt;
-    font-weight: bold;
-    color: #000;
-    padding: 0;
-    border-radius: 0;
-    background: none;
-    text-align: right;
-  }
+    .codigo-titulo {
+      font-size: 16pt;
+      font-weight: 700;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
 
-  .cuerpo {
-    display: flex;
-    flex: 1;
-    justify-content: space-between;
-    align-items: stretch;
-  }
+    .fecha-badge {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #000;
+      text-align: right;
+      white-space: nowrap;
+    }
 
-  .info {
-    width: 55%;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
+    .status-badge {
+      display: inline-block;
+      margin-top: 5px;
+      padding: 3px 8px;
+      border: 2px solid #000;
+      border-radius: 999px;
+      font-size: 8pt;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+    }
 
-  .descripcion {
-    font-weight: bold;
-    font-size: 16pt;
-    color: #333;
-    line-height: 1.1;
-    text-transform: uppercase;
-    margin-bottom: 5px;
-  }
+    .cuerpo {
+      display: flex;
+      flex: 1;
+      justify-content: space-between;
+      align-items: stretch;
+    }
 
-  .pzas-container {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-  }
+    .info {
+      width: 55%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
 
-  .pzas-valor {
-    font-size: 28pt;
-    font-weight: 900;
-    line-height: 0.8;
-  }
+    .descripcion {
+      font-weight: bold;
+      font-size: 16pt;
+      color: #333;
+      line-height: 1.1;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      overflow-wrap: anywhere;
+    }
 
-  .pzas-label {
-    font-size: 12pt;
-    font-weight: bold;
-  }
+    .saldo-caption {
+      margin-bottom: 4px;
+      font-size: 9pt;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
 
-  .qr-seccion {
-    width: 40%;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: flex-end;
-  }
+    .pzas-container {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
 
-  .qr-container {
-    width: 170px;
-    height: 170px;
-    border: 1px solid #ddd;
-    background: white;
-    margin-bottom: 5px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
+    .pzas-valor {
+      font-size: 28pt;
+      font-weight: 900;
+      line-height: 0.8;
+    }
 
-  .qr-container img {
-    width: 90%;
-    height: 90%;
-    object-fit: contain;
-    display: block;
-  }
+    .pzas-label {
+      font-size: 12pt;
+      font-weight: bold;
+    }
 
-  .excedentes-label {
-    font-size: 10pt;
-    font-weight: 900;
-    text-align: right;
-    width: 140px;
-    border-top: 3px solid black;
-    padding-top: 3px;
-  }
+    .ubicacion-label {
+      margin-top: 10px;
+      font-size: 9pt;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
 
-  .footer-datos {
-    margin-top: 5px;
-    font-size: 8pt;
-    font-weight: bold;
-    font-family: monospace;
-  }
-</style>
+    .qr-seccion {
+      width: 40%;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: flex-end;
+    }
+
+    .qr-container {
+      width: 170px;
+      height: 170px;
+      border: 1px solid #ddd;
+      background: white;
+      margin-bottom: 5px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .qr-container img {
+      width: 90%;
+      height: 90%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .excedentes-label {
+      font-size: 10pt;
+      font-weight: 900;
+      text-align: right;
+      width: 140px;
+      border-top: 3px solid black;
+      padding-top: 3px;
+    }
+
+    .footer-datos {
+      margin-top: 5px;
+      font-size: 8pt;
+      font-weight: bold;
+      font-family: monospace;
+      overflow-wrap: anywhere;
+    }
+
+    @media screen {
+      html,
+      body {
+        width: 100%;
+        min-height: 100%;
+        background-color: #f0f0f0;
+      }
+
+      .contenedor-impresion {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10mm;
+        padding: 10mm 0;
+        background-color: #f0f0f0;
+      }
+
+      .pagina-etiqueta {
+        flex: 0 0 100mm;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+      }
+    }
+
+    @media print {
+      html,
+      body,
+      .contenedor-impresion {
+        width: 150mm;
+        margin: 0;
+        padding: 0;
+        background: white;
+      }
+
+      .pagina-etiqueta {
+        box-shadow: none;
+      }
+    }
+  </style>
 </head>
 <body>
-
-<? if (!lote || !lote.length) { ?>
-  <div style="padding:20px; text-align:center;">
-    <b>No hay registros para imprimir</b>
-  </div>
-<? } else { ?>
-
+  <? if (!LOTE_ETIQUETAS.length) { ?>
+    <div style="padding:20px; text-align:center;">
+      <b>No hay registros válidos para imprimir</b>
+    </div>
+  <? } else { ?>
     <div class="contenedor-impresion">
-      <? lote.forEach(function(item) { ?>
-
+      <? LOTE_ETIQUETAS.forEach(function(item) { ?>
         <div class="pagina-etiqueta">
           <div class="etiqueta">
+            <img
+              src="<?= LOGO_QR_URL ?>"
+              class="marca-agua"
+              alt=""
+              aria-hidden="true"
+              onload="registrarCarga()"
+              onerror="registrarCarga()"
+            >
 
+            <div class="header">
+              <div>
+                <h1 class="codigo-titulo"><?= item.codigo ?></h1>
+              </div>
+              <span class="fecha-badge"><?= fechaHora ?></span>
+            </div>
 
+            <div class="cuerpo">
+              <div class="info">
+                <div class="descripcion"><?= item.descripcion ?></div>
+                <div class="pzas-container">
+                  <span class="pzas-valor"><?= item.saldoActual ?></span>
+                  <span class="pzas-label">PZAS</span>
+                </div>
 
+              </div>
 
-        <img
-          src="<?= LOGO_QR_URL ?>"
-          class="marca-agua"
-          alt=""
-          aria-hidden="true"
-          onload="registrarCarga()"
-          onerror="registrarCarga()"
-        >
+              <div class="qr-seccion">
+                <div class="qr-container">
+                  <img
+                    src="<?= construirQr_(item.idUnico) ?>"
+                    onload="registrarCarga()"
+                    onerror="this.onerror=null; this.src='<?= construirQrFallback_(item.idUnico) ?>'; registrarCarga();"
+                    alt="QR <?= item.idUnico ?>"
+                  >
+                </div>
+                <div class="excedentes-label">EXCEDENTES</div>
+              </div>
+            </div>
 
-        <div class="header">
-          <h1 class="codigo-titulo"><?= item.codigo ?></h1>
-          <span class="fecha-badge"><?= fechaHora ?></span>
-        </div>
-
-        <div class="cuerpo">
-          <div class="info">
-            <div class="descripcion"><?= item.descripcion ?></div>
-            <div class="pzas-container">
-              <span class="pzas-valor"><?= item.cantidad ?></span>
-              <span class="pzas-label">PZAS</span>
+            <div class="footer-datos">
+              <span><?= item.idUnico ?></span>
             </div>
           </div>
-
-          <div class="qr-seccion">
-            <div class="qr-container">
-              <img
-                src="<?= construirQr_(item.idUnico) ?>"
-                onload="registrarCarga()"
-                onerror="this.onerror=null; this.src='<?= construirQrFallback_(item.idUnico) ?>'; registrarCarga();"
-                alt="QR <?= item.idUnico ?>"
-              >
-            </div>
-            <div class="excedentes-label">EXCEDENTES</div>
-          </div>
         </div>
-
-        <div class="footer-datos">
-          <span><?= item.idUnico ?></span>
-        </div>
-
-      </div>
+      <? }); ?>
     </div>
+  <? } ?>
 
-  <? }); ?>
-</div>
+  <script>
+    (function () {
+      let imagenesCargadas = 0;
+      const totalImagenesEsperadas =
+        <?= TOTAL_IMAGENES_ESPERADAS ?>;
 
-<? } ?>
+      window.registrarCarga = function () {
+        imagenesCargadas++;
+        console.log(
+          "[EtiquetaExcedentesImpresa] Imagen registrada:",
+          imagenesCargadas,
+          "/",
+          totalImagenesEsperadas
+        );
+      };
 
-<script>
-  (function () {
-    let imagenesCargadas = 0;
-    const totalImagenesEsperadas = <?= TOTAL_IMAGENES_ESPERADAS ?>;
+      function esperar(ms) {
+        return new Promise(function (resolve) {
+          setTimeout(resolve, ms);
+        });
+      }
 
-    /*
-      Compatibilidad:
-      Los img actuales todavía llaman registrarCarga() en onload/onerror.
-      La dejamos viva para no romper esos handlers,
-      pero YA NO imprime.
-    */
-    window.registrarCarga = function () {
-      imagenesCargadas++;
-      console.log(
-        "[EtiquetaExcedentesImpresa] Imagen registrada:",
-        imagenesCargadas,
-        "/",
-        totalImagenesEsperadas
-      );
-    };
+      function esperarLoadDocumento() {
+        if (document.readyState === "complete") {
+          return Promise.resolve();
+        }
 
-    function esperar(ms) {
-      return new Promise(function (resolve) {
-        setTimeout(resolve, ms);
-      });
-    }
+        return new Promise(function (resolve) {
+          window.addEventListener("load", resolve, { once: true });
+          setTimeout(resolve, 3500);
+        });
+      }
 
-    function esperarLoadDocumento() {
-      if (document.readyState === "complete") {
+      function esperarFuentes() {
+        try {
+          if (document.fonts && document.fonts.ready) {
+            return Promise.race([
+              document.fonts.ready,
+              esperar(3000)
+            ]);
+          }
+        } catch (error) {
+          console.warn(
+            "[EtiquetaExcedentesImpresa] No se pudo esperar fuentes:",
+            error
+          );
+        }
+
         return Promise.resolve();
       }
 
-      return new Promise(function (resolve) {
-        window.addEventListener("load", resolve, { once: true });
-        setTimeout(resolve, 3500);
-      });
-    }
+      function esperarImagen(img) {
+        return new Promise(function (resolve) {
+          if (img.complete && img.naturalWidth > 0) {
+            if (typeof img.decode === "function") {
+              img.decode().then(resolve).catch(resolve);
+              return;
+            }
 
-    function esperarFuentes() {
-      try {
-        if (document.fonts && document.fonts.ready) {
-          return Promise.race([
-            document.fonts.ready,
-            esperar(3000)
-          ]);
-        }
-      } catch (error) {
-        console.warn("[EtiquetaExcedentesImpresa] No se pudo esperar fuentes:", error);
-      }
-
-      return Promise.resolve();
-    }
-
-    function esperarImagen(img) {
-      return new Promise(function (resolve) {
-        if (img.complete && img.naturalWidth > 0) {
-          if (typeof img.decode === "function") {
-            img.decode().then(resolve).catch(resolve);
+            resolve();
             return;
           }
 
-          resolve();
-          return;
-        }
+          img.onload = function () {
+            if (typeof img.decode === "function") {
+              img.decode().then(resolve).catch(resolve);
+              return;
+            }
 
-        img.onload = function () {
-          if (typeof img.decode === "function") {
-            img.decode().then(resolve).catch(resolve);
-            return;
-          }
+            resolve();
+          };
 
-          resolve();
-        };
-
-        img.onerror = function () {
-          console.warn("[EtiquetaExcedentesImpresa] Imagen no cargó:", img.src);
-          resolve();
-        };
-
-        setTimeout(resolve, 4500);
-      });
-    }
-
-    function esperarImagenes() {
-      const imagenes = Array.from(document.images || []);
-
-      if (!imagenes.length) {
-        return Promise.resolve();
-      }
-
-      return Promise.all(imagenes.map(esperarImagen));
-    }
-
-    function esperarQRVisual() {
-      let intentos = 0;
-      const maxIntentos = 45;
-
-      return new Promise(function (resolve) {
-        function revisar() {
-          intentos++;
-
-          const qrs = Array.from(document.querySelectorAll(".qr-container img"));
-
-          const todosListos = qrs.every(function (img) {
-            const rect = img.getBoundingClientRect();
-
-            return (
-              img.complete &&
-              img.naturalWidth > 0 &&
-              rect &&
-              rect.width > 0 &&
-              rect.height > 0
+          img.onerror = function () {
+            console.warn(
+              "[EtiquetaExcedentesImpresa] Imagen no cargó:",
+              img.src
             );
-          });
-
-          if (todosListos || intentos >= maxIntentos) {
             resolve();
-            return;
-          }
+          };
 
-          setTimeout(revisar, 100);
+          setTimeout(resolve, 4500);
+        });
+      }
+
+      function esperarImagenes() {
+        const imagenes = Array.from(document.images || []);
+
+        if (!imagenes.length) {
+          return Promise.resolve();
         }
 
-        revisar();
-      });
-    }
+        return Promise.all(imagenes.map(esperarImagen));
+      }
 
-    function esperarFrames(cantidad) {
-      cantidad = cantidad || 4;
+      function esperarQRVisual() {
+        let intentos = 0;
+        const maxIntentos = 45;
 
-      return new Promise(function (resolve) {
-        let count = 0;
+        return new Promise(function (resolve) {
+          function revisar() {
+            intentos++;
 
-        function step() {
-          count++;
+            const qrs = Array.from(
+              document.querySelectorAll(".qr-container img")
+            );
 
-          if (count >= cantidad) {
-            resolve();
-            return;
+            const todosListos = qrs.every(function (img) {
+              const rect = img.getBoundingClientRect();
+
+              return (
+                img.complete &&
+                img.naturalWidth > 0 &&
+                rect.width > 0 &&
+                rect.height > 0
+              );
+            });
+
+            if (todosListos || intentos >= maxIntentos) {
+              resolve();
+              return;
+            }
+
+            setTimeout(revisar, 100);
+          }
+
+          revisar();
+        });
+      }
+
+      function esperarFrames(cantidad) {
+        const total = cantidad || 4;
+
+        return new Promise(function (resolve) {
+          let count = 0;
+
+          function step() {
+            count++;
+
+            if (count >= total) {
+              resolve();
+              return;
+            }
+
+            requestAnimationFrame(step);
           }
 
           requestAnimationFrame(step);
-        }
+        });
+      }
 
-        requestAnimationFrame(step);
-      });
-    }
+      window.__APP_PRINT_READY = (async function () {
+        await esperarLoadDocumento();
+        await esperarFuentes();
+        await esperarImagenes();
+        await esperarQRVisual();
+        await esperarFrames(4);
+        await esperar(300);
 
-    /*
-      Esta promesa es la que espera ImpresionModoUtilidades.abrirHtmlLocal().
-      IMPORTANTE:
-      Aquí ya NO se llama window.print().
-    */
-    window.__APP_PRINT_READY = (async function () {
-      await esperarLoadDocumento();
-      await esperarFuentes();
-      await esperarImagenes();
-      await esperarQRVisual();
-      await esperarFrames(4);
-      await esperar(300);
+        document.documentElement.setAttribute(
+          "data-print-ready",
+          "1"
+        );
 
-      document.documentElement.setAttribute("data-print-ready", "1");
+        console.log(
+          "[EtiquetaExcedentesImpresa] Documento listo para impresión."
+        );
 
-      console.log("[EtiquetaExcedentesImpresa] Documento listo para impresión.");
-
-      return true;
+        return true;
+      })();
     })();
-  })();
-</script>
-
+  </script>
 </body>
 </html>

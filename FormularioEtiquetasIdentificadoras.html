@@ -532,15 +532,30 @@
       };
 
       const codigosDisponibles = useMemo(() => {
-        const idsEnCola = new Set(
+        const codigosEnCola = new Set(
           cola.map(item => normalizarTexto(item.codigo)).filter(Boolean)
         );
 
         return codigos
-          .map(c => normalizarTexto(c))
-          .filter(Boolean)
-          .filter(c => !idsEnCola.has(c));
-      }, [codigos, cola]);
+          .map(codigo => {
+            const cod = normalizarTexto(codigo);
+            const producto = mapaCatalogo[cod] || {};
+
+            return {
+              codigo: cod,
+              descripcion: normalizarTexto(producto.descripcion || ""),
+              idproducto: String(producto.idproducto || "").trim()
+            };
+          })
+          .filter(item => item.codigo)
+          .filter(item => !codigosEnCola.has(item.codigo))
+          .sort((a, b) =>
+            String(a.codigo).localeCompare(String(b.codigo), "es", {
+              numeric: true,
+              sensitivity: "base"
+            })
+          );
+      }, [codigos, mapaCatalogo, cola]);
 
       const resumenCola = useMemo(() => {
         return {
@@ -674,6 +689,12 @@
       // =========================================================
       // BUSCAR PRODUCTO
       // =========================================================
+      const codigosSet = useMemo(() => {
+        return new Set(
+          codigos.map(x => normalizarTexto(x)).filter(Boolean)
+        );
+      }, [codigos]);
+
       const resolverCodigo = (codigoParam) => {
         const codigo = normalizarTexto(codigoParam);
 
@@ -688,7 +709,7 @@
           return;
         }
 
-        if (!codigos.map(x => normalizarTexto(x)).includes(codigo)) {
+        if (!codigosSet.has(codigo)) {
           notify_(
             `El código "${codigo}" no existe.`,
             "error",
@@ -806,15 +827,6 @@
 
       const handleCodigoChange = (e) => {
         const valor = normalizarTexto(e.target.value);
-
-        setForm(prev => ({
-          ...prev,
-          codigo: valor,
-          descripcion: '',
-          id: '',
-          producto: null
-        }));
-
         const producto = mapaCatalogo[valor];
 
         if (producto) {
@@ -825,7 +837,16 @@
             id: producto.idproducto || "",
             producto
           }));
+          return;
         }
+
+        setForm(prev => ({
+          ...prev,
+          codigo: valor,
+          descripcion: "",
+          id: "",
+          producto: null
+        }));
       };
 
       // =========================================================
@@ -1197,6 +1218,7 @@
                         onBlur={() => resolverCodigo(form.codigo)}
                         onKeyDown={(e) => {
                           if (e.key !== "Enter") return;
+
                           e.preventDefault();
 
                           const codigo = normalizarTexto(e.currentTarget.value);
@@ -1214,19 +1236,85 @@
                             return;
                           }
 
-                          resolverCodigo(codigo);
+                          const producto = mapaCatalogo[codigo];
+
+                          if (!producto) {
+                            resolverCodigo(codigo);
+                            return;
+                          }
+
+                          const itemTemporal = {
+                            codigo,
+                            descripcion: producto.descripcion || "",
+                            id: producto.idproducto || "",
+                            producto
+                          };
+
+                          setForm(prev => ({
+                            ...prev,
+                            ...itemTemporal
+                          }));
 
                           setTimeout(() => {
-                            handleAdd({
-                              preventDefault: () => {}
+                            const codigoLimpio = normalizarTexto(itemTemporal.codigo);
+
+                            if (!codigoLimpio || !itemTemporal.id || !itemTemporal.descripcion) {
+                              notify_(
+                                "El código todavía no se encontró correctamente.",
+                                "error",
+                                3200,
+                                {
+                                  title: "Código inválido",
+                                  sound: true
+                                }
+                              );
+                              return;
+                            }
+
+                            if (existeCodigoEnCola(codigoLimpio)) {
+                              notify_(
+                                `El código ${codigoLimpio} ya está agregado en la fila.`,
+                                "warning",
+                                3000,
+                                {
+                                  title: "Código duplicado",
+                                  sound: true
+                                }
+                              );
+                              return;
+                            }
+
+                            const nuevoItem = {
+                              tipo: TIPO_ETIQUETA_FIJO,
+                              codigo: codigoLimpio,
+                              descripcion: itemTemporal.descripcion,
+                              id: itemTemporal.id,
+                              alto: ALTO_FIJO,
+                              ancho: ANCHO_FIJO,
+                              rowId: `${Date.now()}&${codigoLimpio}&#ETIQ`
+                            };
+
+                            setCola(prev => [nuevoItem, ...prev]);
+
+                            notify_("Etiqueta añadida correctamente a la fila.", "success", 1500, {
+                              title: "Añadido a fila",
+                              sound: false
                             });
-                          }, 80);
+
+                            limpiarCampos();
+                          }, 0);
                         }}
                       />
 
                       <datalist id="lista-codigos-identificadoras">
-                        {codigosDisponibles.map((codigo, index) => (
-                          <option key={`${index}-${codigo}`} value={codigo} />
+                        {codigosDisponibles.map((item, index) => (
+                          <option
+                            key={`${index}-${item.codigo}`}
+                            value={item.codigo}
+                            label={item.descripcion || "SIN DESCRIPCIÓN"}
+                          >
+                            {item.codigo} | {item.descripcion || "SIN DESCRIPCIÓN"}
+                          </option>
                         ))}
                       </datalist>
 

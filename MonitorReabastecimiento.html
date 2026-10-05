@@ -116,6 +116,47 @@
     color: #ffffff;
   }
 
+  #render-monitor-reabastecimiento .mr-filter-button {
+    min-height: 42px;
+    padding: 0.625rem 1rem;
+    border-radius: 0.75rem;
+    font-size: 12px;
+    line-height: 1rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
+  }
+
+  #render-monitor-reabastecimiento .mr-filter-button:active {
+    transform: scale(0.98);
+  }
+
+  #render-monitor-reabastecimiento .mr-menu-option {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-size: 12px;
+    line-height: 1rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #334155;
+    transition:
+      color 0.18s ease,
+      background-color 0.18s ease;
+  }
+
+  #render-monitor-reabastecimiento .mr-menu-option:hover {
+    background: #f8fafc;
+  }
+
 </style>
 
 <div id="render-monitor-reabastecimiento" class="h-full w-full flex flex-col bg-[#f8f9fa] overflow-y-auto p-4 md:p-8"></div>
@@ -123,6 +164,45 @@
 <script type="text/babel">
   window.cargar_MonitorReabastecimiento = () => {
     const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+    const LocalIcon =
+      window.FitoComponents &&
+      window.FitoComponents.Icon &&
+      window.FitoComponents.Icon.LocalIcon
+        ? window.FitoComponents.Icon.LocalIcon
+        : window.FitoComponents.LocalIcon;
+
+    const KPIBlock =
+      window.FitoComponents &&
+      window.FitoComponents.KPI &&
+      window.FitoComponents.KPI.Block
+        ? window.FitoComponents.KPI.Block
+        : window.FitoComponents.KPIBlock;
+
+    const KPISegments =
+      window.FitoComponents &&
+      window.FitoComponents.KPI &&
+      window.FitoComponents.KPI.Segments
+        ? window.FitoComponents.KPI.Segments
+        : window.FitoComponents.KPISegments;
+
+    if (!LocalIcon) {
+      throw new Error(
+        "No se encontró FitoComponents.Icon.LocalIcon."
+      );
+    }
+
+    if (!KPIBlock) {
+      throw new Error(
+        "No se encontró FitoComponents.KPI.Block."
+      );
+    }
+
+    if (!KPISegments) {
+      throw new Error(
+        "No se encontró FitoComponents.KPI.Segments."
+      );
+    }
 
     const PAGE_SIZE = 100;
 
@@ -146,105 +226,6 @@
 
     const shellNotifyStateRef = { current: {} };
     const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
-
-    const LocalIcon = ({ name, size = 18, className = "" }) => {
-      const iconRef = useRef(null);
-
-      useEffect(() => {
-        if (window.lucide && iconRef.current) {
-          iconRef.current.innerHTML = '';
-          const i = document.createElement('i');
-          i.setAttribute('data-lucide', name.toLowerCase());
-          i.style.width = `${size}px`;
-          i.style.height = `${size}px`;
-          if (className) i.className = className;
-          iconRef.current.appendChild(i);
-          window.lucide.createIcons();
-        }
-      }, [name, size, className]);
-
-      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
-    };
-
-    const KPIBlock = ({ title, value, unit, iconName, indicatorColor = 'slate', trend }) => {
-      const iconStyles = {
-        green: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
-        amber: 'bg-amber-50 text-amber-600 border border-amber-100',
-        red: 'bg-red-50 text-red-600 border border-red-100',
-        blue: 'bg-blue-50 text-blue-600 border border-blue-100',
-        slate: 'bg-slate-100 text-slate-900 border border-slate-300'
-      };
-
-      const topBarColor =
-        indicatorColor === 'green'
-          ? 'bg-emerald-500'
-          : indicatorColor === 'amber'
-          ? 'bg-amber-500'
-          : indicatorColor === 'red'
-          ? 'bg-red-500'
-          : indicatorColor === 'blue'
-          ? 'bg-blue-500'
-          : 'bg-slate-900';
-
-      const trendColor =
-        trend?.type === 'green'
-          ? 'bg-emerald-50 text-emerald-700'
-          : trend?.type === 'amber'
-          ? 'bg-amber-50 text-amber-700'
-          : trend?.type === 'red'
-          ? 'bg-red-50 text-red-700'
-          : trend?.type === 'blue'
-          ? 'bg-blue-50 text-blue-700'
-          : 'bg-slate-100 text-slate-900 border border-slate-300';
-
-      return (
-        <div className="bg-white border border-[#dadce0] rounded-[1.25rem] p-4 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group min-h-[112px]">
-          <div className={`absolute top-0 left-0 right-0 h-1.5 ${topBarColor}`}></div>
-
-          <div className="h-full flex flex-col pt-1">
-            <div className="grid grid-cols-[1fr_auto] items-center gap-3 h-full">
-              <div className="min-w-0">
-                <p className="text-[12px] font-black uppercase tracking-[0.12em] text-[#5f6368] leading-tight mb-2">
-                  {title}
-                </p>
-
-                <div className="flex items-end gap-2 flex-wrap">
-                  <h3 className="m-0 p-0 bg-transparent border-none text-[34px] font-black tracking-tight text-[#1c1d1f] leading-none">
-                    {value}
-                  </h3>
-
-                  {unit && (
-                    <span className="text-[13px] font-black text-[#5f6368] uppercase leading-none pb-1">
-                      {unit}
-                    </span>
-                  )}
-                </div>
-
-                {trend && (
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${trendColor}`}>
-                      {trend.text}
-                    </span>
-
-                    {trend.sub && (
-                      <span className="text-[11px] font-semibold text-[#5f6368]">
-                        {trend.sub}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="justify-self-end">
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${iconStyles[indicatorColor]}`}>
-                  <LocalIcon name={iconName} size={28} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    };
 
     const StatusBadge = ({ status }) => {
       const map = {
@@ -653,25 +634,77 @@
         return {
           totalRegistros: rows.length,
 
-          verdes: rows.filter(x =>
-            String(x.statussemaforo || "").toUpperCase() === "VERDE"
-          ).length,
+          verdes: rows.filter((item) => {
+            return String(
+              item.statussemaforo || ""
+            ).toUpperCase() === "VERDE";
+          }).length,
 
-          rellenosPreventivos: rows.filter(x =>
-            String(x.accionOperativaActiva || x.accionoperativa || "").toUpperCase() === "RELLENO PREVENTIVO"
-          ).length,
+          rellenosPreventivos: rows.filter((item) => {
+            return String(
+              item.accionOperativaActiva ||
+              item.accionoperativa ||
+              ""
+            ).toUpperCase() === "RELLENO PREVENTIVO";
+          }).length,
 
-          rellenosUrgentes: rows.filter(x =>
-            String(x.accionOperativaActiva || x.accionoperativa || "").toUpperCase() === "RELLENO URGENTE"
-          ).length,
+          rellenosUrgentes: rows.filter((item) => {
+            return String(
+              item.accionOperativaActiva ||
+              item.accionoperativa ||
+              ""
+            ).toUpperCase() === "RELLENO URGENTE";
+          }).length,
 
-          casosCompras: rows.filter(x =>
-            String(x.accionOperativaActiva || x.accionoperativa || "").toUpperCase() === "REPORTAR A COMPRAS"
-          ).length,
+          casosCompras: rows.filter((item) => {
+            return String(
+              item.accionOperativaActiva ||
+              item.accionoperativa ||
+              ""
+            ).toUpperCase() === "REPORTAR A COMPRAS";
+          }).length,
 
-          bodega1: rows.filter(x => String(x.bodegakey || "").toUpperCase() === "B1").length,
-          bodega2: rows.filter(x => String(x.bodegakey || "").toUpperCase() === "B2").length,
-          bodega3: rows.filter(x => String(x.bodegakey || "").toUpperCase() === "B3").length
+          bodega1: rows.filter((item) => {
+            return String(
+              item.bodegakey || ""
+            ).toUpperCase() === "B1";
+          }).length,
+
+          bodega2: rows.filter((item) => {
+            return String(
+              item.bodegakey || ""
+            ).toUpperCase() === "B2";
+          }).length,
+
+          bodega3: rows.filter((item) => {
+            return String(
+              item.bodegakey || ""
+            ).toUpperCase() === "B3";
+          }).length,
+
+          cuartoAltoRiesgo: rows.filter((item) => {
+            return String(
+              item.bodegakey || ""
+            ).toUpperCase() === "CU";
+          }).length,
+
+          mostrador: rows.filter((item) => {
+            return String(
+              item.bodegakey || ""
+            ).toUpperCase() === "MO";
+          }).length,
+
+          sinUbicacion: rows.filter((item) => {
+            return String(
+              item.bodegakey || ""
+            ).toUpperCase() === "SIN_UBICACION";
+          }).length,
+
+          otro: rows.filter((item) => {
+            return String(
+              item.bodegakey || ""
+            ).toUpperCase() === "OTRO";
+          }).length
         };
       }, [registrosConBalanceActivo]);
 
@@ -931,391 +964,527 @@
         cerrarFabMenu_();
       };
 
-const escapeHtml_ = (value) => {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-};
+      const escapeHtml_ = (value) => {
+        return String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      };
 
-const compareEsLocal_ = (a, b) => {
-  return String(a || "").localeCompare(String(b || ""), "es", {
-    sensitivity: "base",
-    numeric: true
-  });
-};
+      const compareEsLocal_ = (a, b) => {
+        return String(a || "").localeCompare(String(b || ""), "es", {
+          sensitivity: "base",
+          numeric: true
+        });
+      };
 
-const buildDetalleIdUnicoHtml_ = (item) => {
-  const detalles = Array.isArray(item.detalleIdUnicoExcedentes)
-    ? [...item.detalleIdUnicoExcedentes]
-    : [];
+      const buildDetalleIdUnicoHtml_ = (item) => {
+        const detalles = Array.isArray(item.detalleIdUnicoExcedentes)
+          ? [...item.detalleIdUnicoExcedentes]
+          : [];
 
-  detalles.sort((a, b) => {
-    const cmpBodega = compareEsLocal_(a.bodega, b.bodega);
-    if (cmpBodega !== 0) return cmpBodega;
+        detalles.sort((a, b) => {
+          const cmpBodega = compareEsLocal_(a.bodega, b.bodega);
+          if (cmpBodega !== 0) return cmpBodega;
 
-    const cmpUbicacion = compareEsLocal_(a.ubicacion, b.ubicacion);
-    if (cmpUbicacion !== 0) return cmpUbicacion;
+          const cmpUbicacion = compareEsLocal_(a.ubicacion, b.ubicacion);
+          if (cmpUbicacion !== 0) return cmpUbicacion;
 
-    const cmpSku = compareEsLocal_(a.sku, b.sku);
-    if (cmpSku !== 0) return cmpSku;
+          const cmpSku = compareEsLocal_(a.sku, b.sku);
+          if (cmpSku !== 0) return cmpSku;
 
-    return compareEsLocal_(a.idUnico || a.idunico, b.idUnico || b.idunico);
-  });
+          return compareEsLocal_(a.idUnico || a.idunico, b.idUnico || b.idunico);
+        });
 
-  if (detalles.length === 0) {
-    return `
-      <div style="margin-top:12px; padding:14px; border:1px dashed #cbd5e1; border-radius:18px; background:#f8fafc; text-align:center;">
-        <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#64748b;">
-          Sin detalle de ID único para este SKU
-        </div>
-      </div>
-    `;
-  }
+        if (detalles.length === 0) {
+          return `
+            <div style="margin-top:12px; padding:14px; border:1px dashed #cbd5e1; border-radius:18px; background:#f8fafc; text-align:center;">
+              <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#64748b;">
+                Sin detalle de ID único para este SKU
+              </div>
+            </div>
+          `;
+        }
 
-  const grupos = detalles.reduce((acc, row) => {
-    const bodega = String(row.bodega || "SIN BODEGA").toUpperCase();
+        const grupos = detalles.reduce((acc, row) => {
+          const bodega = String(row.bodega || "SIN BODEGA").toUpperCase();
 
-    if (!acc[bodega]) acc[bodega] = [];
-    acc[bodega].push(row);
+          if (!acc[bodega]) acc[bodega] = [];
+          acc[bodega].push(row);
 
-    return acc;
-  }, {});
+          return acc;
+        }, {});
 
-  const bodegasOrdenadas = Object.keys(grupos).sort((a, b) => compareEsLocal_(a, b));
-
-  return `
-    <div style="margin-top:14px;">
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; text-align:left;">
-        <div style="width:4px; height:18px; background:#d93025; border-radius:999px;"></div>
-        <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#1c1d1f;">
-          Detalle de excedentes
-        </div>
-      </div>
-
-      ${bodegasOrdenadas.map((bodega) => {
-        const rows = grupos[bodega];
-
-        const totalBodega = rows.reduce((acc, row) => {
-          return acc + Number(row.cantidadIdUnico || 0);
-        }, 0);
-
-        const rowsHtml = rows.map((row) => `
-          <tr>
-            <td style="width:20%; padding:9px 10px; border-bottom:1px solid #e5e7eb; font-weight:800; color:#1c1d1f; text-align:center; vertical-align:middle;">
-              ${escapeHtml_(row.bodega)}
-            </td>
-
-            <td style="width:20%; padding:9px 10px; border-bottom:1px solid #e5e7eb; font-family:'JetBrains Mono', monospace; font-weight:800; color:#d93025; text-align:center; vertical-align:middle;">
-              ${escapeHtml_(row.ubicacion)}
-            </td>
-
-            <td style="width:22%; padding:9px 10px; border-bottom:1px solid #e5e7eb; font-family:'JetBrains Mono', monospace; font-weight:800; color:#1c1d1f; text-align:center; vertical-align:middle;">
-              ${escapeHtml_(row.sku)}
-            </td>
-
-            <td style="width:24%; padding:9px 10px; border-bottom:1px solid #e5e7eb; font-family:'JetBrains Mono', monospace; font-weight:900; color:#334155; text-align:center; vertical-align:middle;">
-              ${escapeHtml_(row.idUnico || row.idunico || "")}
-            </td>
-
-            <td style="width:14%; padding:9px 10px; border-bottom:1px solid #e5e7eb; font-weight:900; color:#1c1d1f; text-align:center; vertical-align:middle;">
-              ${Number(row.cantidadIdUnico || 0).toLocaleString()}
-            </td>
-          </tr>
-        `).join("");
+        const bodegasOrdenadas = Object.keys(grupos).sort((a, b) => compareEsLocal_(a, b));
 
         return `
-          <div style="margin-bottom:14px; border:1px solid #dadce0; border-radius:16px; overflow:hidden; background:#ffffff;">
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; background:#f8f9fa; border-bottom:1px solid #dadce0;">
-              <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#1c1d1f; text-align:left;">
-                ${escapeHtml_(bodega)}
-              </div>
-
-              <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#5f6368; text-align:right;">
-                Total: ${totalBodega.toLocaleString()} pzas
+          <div style="margin-top:14px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; text-align:left;">
+              <div style="width:4px; height:18px; background:#d93025; border-radius:999px;"></div>
+              <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#1c1d1f;">
+                Detalle de excedentes
               </div>
             </div>
 
-            <div style="overflow:auto;">
-              <table style="width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed;">
-                <colgroup>
-                  <col style="width:20%;">
-                  <col style="width:20%;">
-                  <col style="width:22%;">
-                  <col style="width:24%;">
-                  <col style="width:14%;">
-                </colgroup>
+            ${bodegasOrdenadas.map((bodega) => {
+              const rows = grupos[bodega];
 
-                <thead>
-                  <tr style="background:#ffffff;">
-                    <th style="width:20%; padding:9px 10px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.11em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">Bodega</th>
-                    <th style="width:20%; padding:9px 10px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.11em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">Ubicación</th>
-                    <th style="width:22%; padding:9px 10px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.11em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">SKU</th>
-                    <th style="width:24%; padding:9px 10px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.11em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">ID único</th>
-                    <th style="width:14%; padding:9px 10px; text-align:center; font-size:11px; text-transform:uppercase; letter-spacing:0.11em; color:#5f6368; border-bottom:1px solid #dadce0; white-space:nowrap;">Cantidad</th>
-                  </tr>
-                </thead>
+              const totalBodega = rows.reduce((acc, row) => {
+                return acc + Number(row.cantidadIdUnico || 0);
+              }, 0);
 
-                <tbody>
-                  ${rowsHtml}
-                </tbody>
-              </table>
+              const rowsHtml = rows.map((row) => `
+                <tr>
+                  <td style="
+                    width:20%;
+                    padding:10px 8px;
+                    border-bottom:1px solid #e5e7eb;
+                    font-weight:800;
+                    color:#1c1d1f;
+                    text-align:center;
+                    vertical-align:middle;
+                    white-space:normal;
+                    overflow-wrap:anywhere;
+                    word-break:break-word;
+                  ">
+                    ${escapeHtml_(row.bodega)}
+                  </td>
+
+                  <td style="
+                    width:18%;
+                    padding:10px 8px;
+                    border-bottom:1px solid #e5e7eb;
+                    font-family:'JetBrains Mono', monospace;
+                    font-weight:800;
+                    color:#d93025;
+                    text-align:center;
+                    vertical-align:middle;
+                    white-space:normal;
+                    overflow-wrap:anywhere;
+                    word-break:break-word;
+                  ">
+                    ${escapeHtml_(row.ubicacion)}
+                  </td>
+
+                  <td style="
+                    width:22%;
+                    padding:10px 8px;
+                    border-bottom:1px solid #e5e7eb;
+                    font-family:'JetBrains Mono', monospace;
+                    font-weight:800;
+                    color:#1c1d1f;
+                    text-align:center;
+                    vertical-align:middle;
+                    white-space:normal;
+                    overflow-wrap:anywhere;
+                    word-break:break-word;
+                  ">
+                    ${escapeHtml_(row.sku)}
+                  </td>
+
+                  <td style="
+                    width:28%;
+                    padding:10px 8px;
+                    border-bottom:1px solid #e5e7eb;
+                    font-family:'JetBrains Mono', monospace;
+                    font-weight:900;
+                    color:#334155;
+                    text-align:center;
+                    vertical-align:middle;
+                    white-space:normal;
+                    overflow-wrap:anywhere;
+                    word-break:break-word;
+                  ">
+                    ${escapeHtml_(row.idUnico || row.idunico || "")}
+                  </td>
+
+                  <td style="
+                    width:12%;
+                    padding:10px 8px;
+                    border-bottom:1px solid #e5e7eb;
+                    font-weight:900;
+                    color:#1c1d1f;
+                    text-align:center;
+                    vertical-align:middle;
+                    white-space:nowrap;
+                  ">
+                    ${Number(row.cantidadIdUnico || 0).toLocaleString()}
+                  </td>
+                </tr>
+              `).join("");
+
+              return `
+                <div style="margin-bottom:14px; border:1px solid #dadce0; border-radius:16px; overflow:hidden; background:#ffffff;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; background:#f8f9fa; border-bottom:1px solid #dadce0;">
+                    <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#1c1d1f; text-align:left;">
+                      ${escapeHtml_(bodega)}
+                    </div>
+
+                    <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#5f6368; text-align:right;">
+                      Total: ${totalBodega.toLocaleString()} pzas
+                    </div>
+                  </div>
+
+                  <div style="
+                      width:100%;
+                      overflow-x:auto;
+                      overflow-y:visible;
+                      -webkit-overflow-scrolling:touch;
+                    ">
+                      <table style="
+                        width:100%;
+                        min-width:760px;
+                        border-collapse:collapse;
+                        font-size:12px;
+                        table-layout:fixed;
+                      ">
+                        <colgroup>
+                          <col style="width:20%;">
+                          <col style="width:18%;">
+                          <col style="width:22%;">
+                          <col style="width:28%;">
+                          <col style="width:12%;">
+                        </colgroup>
+
+                        <thead>
+                          <tr style="background:#ffffff;">
+                            <th style="
+                              width:20%;
+                              padding:9px 8px;
+                              text-align:center;
+                              vertical-align:middle;
+                              font-size:10px;
+                              text-transform:uppercase;
+                              letter-spacing:0.10em;
+                              color:#5f6368;
+                              border-bottom:1px solid #dadce0;
+                              white-space:normal;
+                            ">
+                              Bodega
+                            </th>
+
+                            <th style="
+                              width:18%;
+                              padding:9px 8px;
+                              text-align:center;
+                              vertical-align:middle;
+                              font-size:10px;
+                              text-transform:uppercase;
+                              letter-spacing:0.10em;
+                              color:#5f6368;
+                              border-bottom:1px solid #dadce0;
+                              white-space:normal;
+                            ">
+                              Ubicación
+                            </th>
+
+                            <th style="
+                              width:22%;
+                              padding:9px 8px;
+                              text-align:center;
+                              vertical-align:middle;
+                              font-size:10px;
+                              text-transform:uppercase;
+                              letter-spacing:0.10em;
+                              color:#5f6368;
+                              border-bottom:1px solid #dadce0;
+                              white-space:normal;
+                            ">
+                              SKU
+                            </th>
+
+                            <th style="
+                              width:28%;
+                              padding:9px 8px;
+                              text-align:center;
+                              vertical-align:middle;
+                              font-size:10px;
+                              text-transform:uppercase;
+                              letter-spacing:0.10em;
+                              color:#5f6368;
+                              border-bottom:1px solid #dadce0;
+                              white-space:normal;
+                            ">
+                              ID único
+                            </th>
+
+                            <th style="
+                              width:12%;
+                              padding:9px 8px;
+                              text-align:center;
+                              vertical-align:middle;
+                              font-size:10px;
+                              text-transform:uppercase;
+                              letter-spacing:0.10em;
+                              color:#5f6368;
+                              border-bottom:1px solid #dadce0;
+                              white-space:normal;
+                            ">
+                              Cantidad
+                            </th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          ${rowsHtml}
+                        </tbody>
+                      </table>
+                    </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        `;
+      };
+
+      const openDetalle = (item) => {
+        const esIdUnico = item.modoBalanceActivo === "IDUNICO";
+
+        const existenciaActual = Number(item.existenciaactual || 0);
+        const minimo = Number(item.minimo || 0);
+        const maximo = Number(item.maximo || 0);
+        const objetivoRelleno = Number(item.cantidadobjetivorelleno || 0);
+
+        const rellenoPosible = Number(
+          item.rellenoPosibleConExcedenteActivo ??
+          item.rellenoposibleconexcedente ??
+          0
+        );
+
+        const excedenteBodega = Number(
+          item.excedenteBodegaActivo ??
+          item.excedentebodega ??
+          0
+        );
+
+        const excedenteCasaBlanca = Number(
+          item.excedenteCasaBlancaActivo ??
+          item.excedentecasablanca ??
+          0
+        );
+
+        const excedenteTotal = Number(
+          item.excedenteTotalActivo ??
+          item.excedentetotal ??
+          0
+        );
+
+        const porcentajeExistencia = maximo > 0
+          ? Math.min((existenciaActual / maximo) * 100, 100)
+          : 0;
+
+        const porcentajeCobertura = objetivoRelleno > 0
+          ? Math.min((rellenoPosible / objetivoRelleno) * 100, 100)
+          : 0;
+
+        const porcentajeBodega = excedenteTotal > 0
+          ? Math.min((excedenteBodega / excedenteTotal) * 100, 100)
+          : 0;
+
+        const porcentajeCasaBlanca = excedenteTotal > 0
+          ? Math.min((excedenteCasaBlanca / excedenteTotal) * 100, 100)
+          : 0;
+
+        const tieneDetalleIdUnico = Array.isArray(item.detalleIdUnicoExcedentes) &&
+          item.detalleIdUnicoExcedentes.length > 0;
+
+        const sectionHeader_ = (titulo) => `
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; text-align:left;">
+            <div style="width:4px; height:18px; background:#d93025; border-radius:999px;"></div>
+            <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#1c1d1f;">
+              ${escapeHtml_(titulo)}
             </div>
           </div>
         `;
-      }).join("")}
-    </div>
-  `;
-};
-
-const openDetalle = (item) => {
-  const esIdUnico = item.modoBalanceActivo === "IDUNICO";
-
-  const existenciaActual = Number(item.existenciaactual || 0);
-  const minimo = Number(item.minimo || 0);
-  const maximo = Number(item.maximo || 0);
-  const objetivoRelleno = Number(item.cantidadobjetivorelleno || 0);
-
-  const rellenoPosible = Number(
-    item.rellenoPosibleConExcedenteActivo ??
-    item.rellenoposibleconexcedente ??
-    0
-  );
-
-  const excedenteBodega = Number(
-    item.excedenteBodegaActivo ??
-    item.excedentebodega ??
-    0
-  );
-
-  const excedenteCasaBlanca = Number(
-    item.excedenteCasaBlancaActivo ??
-    item.excedentecasablanca ??
-    0
-  );
-
-  const excedenteTotal = Number(
-    item.excedenteTotalActivo ??
-    item.excedentetotal ??
-    0
-  );
-
-  const porcentajeExistencia = maximo > 0
-    ? Math.min((existenciaActual / maximo) * 100, 100)
-    : 0;
-
-  const porcentajeCobertura = objetivoRelleno > 0
-    ? Math.min((rellenoPosible / objetivoRelleno) * 100, 100)
-    : 0;
-
-  const porcentajeBodega = excedenteTotal > 0
-    ? Math.min((excedenteBodega / excedenteTotal) * 100, 100)
-    : 0;
-
-  const porcentajeCasaBlanca = excedenteTotal > 0
-    ? Math.min((excedenteCasaBlanca / excedenteTotal) * 100, 100)
-    : 0;
-
-  const tieneDetalleIdUnico = Array.isArray(item.detalleIdUnicoExcedentes) &&
-    item.detalleIdUnicoExcedentes.length > 0;
-
-  const sectionHeader_ = (titulo) => `
-    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; text-align:left;">
-      <div style="width:4px; height:18px; background:#d93025; border-radius:999px;"></div>
-      <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#1c1d1f;">
-        ${escapeHtml_(titulo)}
-      </div>
-    </div>
-  `;
 
 
-  const smallLabel_ = (texto) => `
-    <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#94a3b8; margin-bottom:4px;">
-      ${escapeHtml_(texto)}
-    </div>
-  `;
-
-
-  Swal.fire({
-    title: "Detalle de Reabastecimiento",
-    html: `
-      <div style="text-align:left; color:#334155;">
-
-        <!-- ENCABEZADO SKU -->
-        <div style="margin-bottom:16px; background:#ffffff; border:1px solid #dadce0; border-radius:20px; padding:14px;">
-          <div style="display:grid; grid-template-columns:1fr auto; gap:14px; align-items:center;">
-            <div style="min-width:0;">
-              <div style="font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:0.14em; color:#94a3b8; margin-bottom:4px;">
-                SKU / Material
-              </div>
-
-              <div style="font-family:'JetBrains Mono', monospace; font-size:21px; font-weight:900; color:#d93025; line-height:1.1;">
-                ${escapeHtml_(item.codigo)}
-              </div>
-
-              <div style="margin-top:7px; padding:8px 10px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0; font-size:12px; font-weight:800; text-transform:uppercase; color:#334155; line-height:1.35;">
-                ${escapeHtml_(item.descripcion || "SIN DESCRIPCIÓN")}
-              </div>
-            </div>
-
-            <div style="justify-self:end; align-self:start; padding:8px 12px; border-radius:999px; background:${esIdUnico ? "#1c1d1f" : "#d93025"}; color:#ffffff; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; white-space:nowrap;">
-              ${esIdUnico ? "Balance ID único" : "Balance Existencias"}
-            </div>
+        const smallLabel_ = (texto) => `
+          <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#94a3b8; margin-bottom:4px;">
+            ${escapeHtml_(texto)}
           </div>
-        </div>
-
-        <!-- GRID PRINCIPAL -->
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
-
-          <!-- UBICACIÓN -->
-          <div style="background:#ffffff; border:1px solid #dadce0; border-radius:18px; padding:14px;">
-            ${sectionHeader_("Ubicación de surtido")}
+        `;
 
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:stretch;">
-              <div style="padding:10px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0; text-align:left;">
-                ${smallLabel_("Ubicación")}
-                <div style="font-family:'JetBrains Mono', monospace; font-size:18px; font-weight:900; color:#d93025; line-height:1.2;">
-                  ${escapeHtml_(item.ubicacionsurtido || "SIN ASIGNAR")}
+        Swal.fire({
+          title: "Detalle de Reabastecimiento",
+          html: `
+            <div style="text-align:left; color:#334155;">
+
+              <!-- ENCABEZADO SKU -->
+              <div style="margin-bottom:16px; background:#ffffff; border:1px solid #dadce0; border-radius:20px; padding:14px;">
+                <div style="display:grid; grid-template-columns:1fr auto; gap:14px; align-items:center;">
+                  <div style="min-width:0;">
+                    <div style="font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:0.14em; color:#94a3b8; margin-bottom:4px;">
+                      SKU / Material
+                    </div>
+
+                    <div style="font-family:'JetBrains Mono', monospace; font-size:21px; font-weight:900; color:#d93025; line-height:1.1;">
+                      ${escapeHtml_(item.codigo)}
+                    </div>
+
+                    <div style="margin-top:7px; padding:8px 10px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0; font-size:12px; font-weight:800; text-transform:uppercase; color:#334155; line-height:1.35;">
+                      ${escapeHtml_(item.descripcion || "SIN DESCRIPCIÓN")}
+                    </div>
+                  </div>
+
+                  <div style="justify-self:end; align-self:start; padding:8px 12px; border-radius:999px; background:${esIdUnico ? "#1c1d1f" : "#d93025"}; color:#ffffff; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; white-space:nowrap;">
+                    ${esIdUnico ? "Balance ID único" : "Balance Existencias"}
+                  </div>
                 </div>
               </div>
 
-              <div style="padding:10px; border-radius:14px; background:#ffffff; border:1px solid #e5e7eb; text-align:right;">
-                ${smallLabel_("Zona / Bodega")}
-                <div style="font-size:15px; font-weight:900; color:#1c1d1f; line-height:1.2;">
-                  ${escapeHtml_(item.bodegalabel || "Sin ubicación")}
+              <!-- GRID PRINCIPAL -->
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+
+                <!-- UBICACIÓN -->
+                <div style="background:#ffffff; border:1px solid #dadce0; border-radius:18px; padding:14px;">
+                  ${sectionHeader_("Ubicación de surtido")}
+
+
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:stretch;">
+                    <div style="padding:10px; border-radius:14px; background:#f8fafc; border:1px solid #e2e8f0; text-align:left;">
+                      ${smallLabel_("Ubicación")}
+                      <div style="font-family:'JetBrains Mono', monospace; font-size:18px; font-weight:900; color:#d93025; line-height:1.2;">
+                        ${escapeHtml_(item.ubicacionsurtido || "SIN ASIGNAR")}
+                      </div>
+                    </div>
+
+                    <div style="padding:10px; border-radius:14px; background:#ffffff; border:1px solid #e5e7eb; text-align:right;">
+                      ${smallLabel_("Zona / Bodega")}
+                      <div style="font-size:15px; font-weight:900; color:#1c1d1f; line-height:1.2;">
+                        ${escapeHtml_(item.bodegalabel || "Sin ubicación")}
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+
+              <!-- ESTADO PISO -->
+              <div style="background:#ffffff; border:1px solid #dadce0; border-radius:18px; padding:14px;">
+                ${sectionHeader_("Estado en piso")}
+
+                <div>
+                  ${smallLabel_("Existencia actual")}
+                  <div style="font-size:32px; font-weight:900; color:#1c1d1f; line-height:1;">
+                    ${existenciaActual.toLocaleString()}
+                  </div>
+                </div>
+
+                <div style="height:9px; width:100%; background:#f1f5f9; border-radius:999px; overflow:hidden; margin-top:14px;">
+                  <div style="height:100%; width:${porcentajeExistencia}%; background:${
+                    existenciaActual <= minimo
+                      ? "#d93025"
+                      : existenciaActual >= maximo
+                        ? "#10b981"
+                        : "#f59e0b"
+                  }; border-radius:999px;"></div>
+                </div>
+
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; width:100%;">
+                  <div style="font-size:12px; font-weight:900; color:#d93025; text-align:left;">
+                    Min: ${minimo.toLocaleString()}
+                  </div>
+
+                  <div style="font-size:12px; font-weight:900; color:#1c1d1f; text-align:right;">
+                    Max: ${maximo.toLocaleString()}
+                  </div>
                 </div>
               </div>
-            </div>
 
-          </div>
+                  </div>
 
+              <!-- GRID OPERATIVO -->
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
 
-        <!-- ESTADO PISO -->
-        <div style="background:#ffffff; border:1px solid #dadce0; border-radius:18px; padding:14px;">
-          ${sectionHeader_("Estado en piso")}
+              <!-- REABASTECIMIENTO -->
+              <div style="background:#ffffff; border:1px solid #dadce0; border-radius:18px; padding:14px;">
+                ${sectionHeader_("Necesidad de reabastecimiento")}
 
-          <div>
-            ${smallLabel_("Existencia actual")}
-            <div style="font-size:32px; font-weight:900; color:#1c1d1f; line-height:1;">
-              ${existenciaActual.toLocaleString()}
-            </div>
-          </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:start;">
+                  <div style="padding:7px 9px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0; min-height:48px;">
+                    <div style="font-size:11px; line-height:1; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#94a3b8; margin-bottom:3px;">
+                      Objetivo
+                    </div>
 
-          <div style="height:9px; width:100%; background:#f1f5f9; border-radius:999px; overflow:hidden; margin-top:14px;">
-            <div style="height:100%; width:${porcentajeExistencia}%; background:${
-              existenciaActual <= minimo
-                ? "#d93025"
-                : existenciaActual >= maximo
-                  ? "#10b981"
-                  : "#f59e0b"
-            }; border-radius:999px;"></div>
-          </div>
+                    <div style="font-size:22px; line-height:1; font-weight:900; color:#1c1d1f;">
+                      ${objetivoRelleno.toLocaleString()}
+                    </div>
+                  </div>
 
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; width:100%;">
-            <div style="font-size:12px; font-weight:900; color:#d93025; text-align:left;">
-              Min: ${minimo.toLocaleString()}
-            </div>
+                  <div style="padding:7px 9px; border-radius:12px; background:${rellenoPosible >= objetivoRelleno && objetivoRelleno > 0 ? "#ecfdf5" : "#fff1f2"}; border:1px solid ${rellenoPosible >= objetivoRelleno && objetivoRelleno > 0 ? "#a7f3d0" : "#fecdd3"}; min-height:48px; text-align:right;">
+                    <div style="font-size:11px; line-height:1; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#94a3b8; margin-bottom:3px;">
+                      Posible
+                    </div>
 
-            <div style="font-size:12px; font-weight:900; color:#1c1d1f; text-align:right;">
-              Max: ${maximo.toLocaleString()}
-            </div>
-          </div>
-        </div>
+                    <div style="font-size:22px; line-height:1; font-weight:900; color:${rellenoPosible >= objetivoRelleno && objetivoRelleno > 0 ? "#059669" : "#d93025"};">
+                      ${rellenoPosible.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
 
-            </div>
+                <div style="height:8px; width:100%; background:#e2e8f0; border-radius:999px; overflow:hidden; margin-top:8px;">
+                  <div style="height:100%; width:${porcentajeCobertura}%; background:${rellenoPosible >= objetivoRelleno && objetivoRelleno > 0 ? "#10b981" : "#d93025"}; border-radius:999px;"></div>
+                </div>
 
-        <!-- GRID OPERATIVO -->
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
-
-        <!-- REABASTECIMIENTO -->
-        <div style="background:#ffffff; border:1px solid #dadce0; border-radius:18px; padding:14px;">
-          ${sectionHeader_("Necesidad de reabastecimiento")}
-
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:start;">
-            <div style="padding:7px 9px; border-radius:12px; background:#f8fafc; border:1px solid #e2e8f0; min-height:48px;">
-              <div style="font-size:11px; line-height:1; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#94a3b8; margin-bottom:3px;">
-                Objetivo
-              </div>
-
-              <div style="font-size:22px; line-height:1; font-weight:900; color:#1c1d1f;">
-                ${objetivoRelleno.toLocaleString()}
-              </div>
-            </div>
-
-            <div style="padding:7px 9px; border-radius:12px; background:${rellenoPosible >= objetivoRelleno && objetivoRelleno > 0 ? "#ecfdf5" : "#fff1f2"}; border:1px solid ${rellenoPosible >= objetivoRelleno && objetivoRelleno > 0 ? "#a7f3d0" : "#fecdd3"}; min-height:48px; text-align:right;">
-              <div style="font-size:11px; line-height:1; font-weight:900; text-transform:uppercase; letter-spacing:0.10em; color:#94a3b8; margin-bottom:3px;">
-                Posible
-              </div>
-
-              <div style="font-size:22px; line-height:1; font-weight:900; color:${rellenoPosible >= objetivoRelleno && objetivoRelleno > 0 ? "#059669" : "#d93025"};">
-                ${rellenoPosible.toLocaleString()}
-              </div>
-            </div>
-          </div>
-
-          <div style="height:8px; width:100%; background:#e2e8f0; border-radius:999px; overflow:hidden; margin-top:8px;">
-            <div style="height:100%; width:${porcentajeCobertura}%; background:${rellenoPosible >= objetivoRelleno && objetivoRelleno > 0 ? "#10b981" : "#d93025"}; border-radius:999px;"></div>
-          </div>
-
-          <div style="font-size:10px; font-weight:800; color:#64748b; margin-top:6px; text-align:left;">
-            Cobertura estimada: ${porcentajeCobertura.toFixed(0)}%
-          </div>
-        </div>
-
-          <!-- EXCEDENTE ACTIVO -->
-          <div style="background:#ffffff; border:1px solid #dadce0; border-radius:18px; padding:14px;">
-            ${sectionHeader_("Excedente disponible")}
-
-            <div>
-              ${smallLabel_("Total disponible")}
-              <div style="font-size:32px; font-weight:900; color:#1c1d1f; line-height:1;">
-                ${excedenteTotal.toLocaleString()}
-              </div>
-            </div>
-
-            <div style="height:9px; width:100%; background:#f1f5f9; border-radius:999px; overflow:hidden; display:flex; margin-top:14px;">
-              <div style="height:100%; width:${porcentajeBodega}%; background:#d93025;"></div>
-              <div style="height:100%; width:${porcentajeCasaBlanca}%; background:#1c1d1f;"></div>
-            </div>
-
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; width:100%;">
-              <div style="font-size:12px; font-weight:900; color:#d93025; text-align:left;">
-                B: ${excedenteBodega.toLocaleString()}
-              </div>
-
-              <div style="font-size:12px; font-weight:900; color:#1c1d1f; text-align:right;">
-                CB: ${excedenteCasaBlanca.toLocaleString()}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        ${
-          tieneDetalleIdUnico
-            ? buildDetalleIdUnicoHtml_(item)
-            : `
-              <div style="margin-top:12px; padding:14px; border:1px dashed #cbd5e1; border-radius:18px; background:#f8fafc; text-align:center;">
-                <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#64748b;">
-                  Sin detalle de ID único para este SKU
+                <div style="font-size:10px; font-weight:800; color:#64748b; margin-top:6px; text-align:left;">
+                  Cobertura estimada: ${porcentajeCobertura.toFixed(0)}%
                 </div>
               </div>
-            `
-        }
-      </div>
-    `,
-    background: "#ffffff",
-    width: tieneDetalleIdUnico ? 980 : 760,
-    confirmButtonColor: "#d93025",
-    confirmButtonText: "Cerrar",
-    customClass: {
-      popup: "rounded-[1.5rem]",
-      confirmButton: "rounded-xl px-5 py-3"
-    }
-  });
-};
+
+                <!-- EXCEDENTE ACTIVO -->
+                <div style="background:#ffffff; border:1px solid #dadce0; border-radius:18px; padding:14px;">
+                  ${sectionHeader_("Excedente disponible")}
+
+                  <div>
+                    ${smallLabel_("Total disponible")}
+                    <div style="font-size:32px; font-weight:900; color:#1c1d1f; line-height:1;">
+                      ${excedenteTotal.toLocaleString()}
+                    </div>
+                  </div>
+
+                  <div style="height:9px; width:100%; background:#f1f5f9; border-radius:999px; overflow:hidden; display:flex; margin-top:14px;">
+                    <div style="height:100%; width:${porcentajeBodega}%; background:#d93025;"></div>
+                    <div style="height:100%; width:${porcentajeCasaBlanca}%; background:#1c1d1f;"></div>
+                  </div>
+
+                  <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; width:100%;">
+                    <div style="font-size:12px; font-weight:900; color:#d93025; text-align:left;">
+                      B: ${excedenteBodega.toLocaleString()}
+                    </div>
+
+                    <div style="font-size:12px; font-weight:900; color:#1c1d1f; text-align:right;">
+                      CB: ${excedenteCasaBlanca.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              ${
+                tieneDetalleIdUnico
+                  ? buildDetalleIdUnicoHtml_(item)
+                  : `
+                    <div style="margin-top:12px; padding:14px; border:1px dashed #cbd5e1; border-radius:18px; background:#f8fafc; text-align:center;">
+                      <div style="font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.12em; color:#64748b;">
+                        Sin detalle de ID único para este SKU
+                      </div>
+                    </div>
+                  `
+              }
+            </div>
+          `,
+          background: "#ffffff",
+          width: tieneDetalleIdUnico ? 980 : 760,
+          confirmButtonColor: "#d93025",
+          confirmButtonText: "Cerrar",
+          customClass: {
+            popup: "rounded-[1.5rem]",
+            confirmButton: "rounded-xl px-5 py-3"
+          }
+        });
+      };
 
 
       return (
@@ -1338,115 +1507,216 @@ const openDetalle = (item) => {
           <div className="h-full w-full min-h-0 flex flex-col gap-4 fade-in-up">
 
 
-          {/* MÉTRICOS PRINCIPALES */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
+          {/* KPI PRINCIPALES + CONTROLES */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 shrink-0">
             <KPIBlock
+              density="compact"
               title="Inventario Saludable"
               value={metrics.verdes}
-              unit="SKU'S"
+              unit="SKU"
               iconName="badge-check"
-              indicatorColor="green"
-              trend={{ text: "Existencia saludable", type: "green" }}
+              indicatorColor="emerald"
+              trend={{
+                text: "Existencia saludable",
+                type: "positive"
+              }}
             />
 
             <KPIBlock
+              density="compact"
               title="Rellenos Preventivos"
               value={metrics.rellenosPreventivos}
-              unit="SKU'S"
+              unit="SKU"
               iconName="package-plus"
               indicatorColor="amber"
-              trend={{ text: "Cuentan con excedente", type: "amber" }}
+              trend={{
+                text: "Con respaldo",
+                type: "neutral"
+              }}
             />
 
             <KPIBlock
+              density="compact"
               title="Reabastecimientos Urgentes"
               value={metrics.rellenosUrgentes}
-              unit="SKU'S"
+              unit="SKU"
               iconName="flame"
               indicatorColor="red"
-              trend={{ text: "Existencia insuficiente", type: "red" }}
+              trend={{
+                text: "Existencia insuficiente",
+                type: "negative"
+              }}
             />
 
-            <KPIBlock
-              title="Reportar a Compras"
-              value={metrics.casosCompras}
-              unit="SKU'S"
-              iconName="shopping-cart"
-              indicatorColor="slate"
-              trend={{ text: "Sin excedente para reabastecimiento", type: "slate" }}
-            />
-          </div>
+            {/* PANEL DE CONTROLES */}
+            <div className="bg-white border border-[#dadce0] rounded-[1.25rem] p-3 shadow-sm flex flex-col gap-2 min-h-[96px]">
+              {/* BUSCADOR */}
+              <div className="relative">
+                <input
+                  type="text"
+                  ref={searchInputRef}
+                  value={searchQuery}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value);
+                  }}
+                  placeholder="Buscar material..."
+                  className="w-full h-9 rounded-xl border border-[#dadce0] bg-slate-50 pl-9 pr-9 text-[10px] font-bold uppercase tracking-[0.04em] text-[#1c1d1f] outline-none transition-all focus:bg-white focus:border-[#d93025] focus:ring-2 focus:ring-red-100"
+                />
 
-          {/* MÉTRICOS POR BODEGA */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
-            <KPIBlock
-              title="Bodega 1"
-              value={metrics.bodega1}
-              unit="SKU'S"
-              iconName="warehouse"
-              indicatorColor="slate"
-              trend={{ text: "Ubicaciones B1", type: "slate" }}
-            />
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5f6368]">
+                  <LocalIcon
+                    name="search"
+                    size={14}
+                  />
+                </div>
 
-            <KPIBlock
-              title="Bodega 2"
-              value={metrics.bodega2}
-              unit="SKU'S"
-              iconName="warehouse"
-              indicatorColor="slate"
-              trend={{ text: "Ubicaciones B2", type: "slate" }}
-            />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery("");
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-900 flex items-center justify-center"
+                    title="Limpiar búsqueda"
+                  >
+                    <LocalIcon
+                      name="x"
+                      size={12}
+                    />
+                  </button>
+                )}
+              </div>
 
-            <KPIBlock
-              title="Bodega 3"
-              value={metrics.bodega3}
-              unit="SKU'S"
-              iconName="warehouse"
-              indicatorColor="slate"
-              trend={{ text: "Ubicaciones B3", type: "slate" }}
-            />
+              {/* BALANCE ACTIVO */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModoBalance("EXISTENCIAS");
+                  }}
+                  className={`h-8 rounded-xl text-[9px] font-black uppercase tracking-[0.08em] transition-all ${
+                    modoBalance === "EXISTENCIAS"
+                      ? "bg-[#d93025] text-white shadow-sm"
+                      : "bg-slate-50 text-slate-500 border border-[#dadce0] hover:bg-slate-100"
+                  }`}
+                  title="Usar balance desde existencias"
+                >
+                  Existencias
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModoBalance("IDUNICO");
+                  }}
+                  className={`h-8 rounded-xl text-[9px] font-black uppercase tracking-[0.08em] transition-all ${
+                    modoBalance === "IDUNICO"
+                      ? "bg-[#1c1d1f] text-white shadow-sm"
+                      : "bg-slate-50 text-slate-500 border border-[#dadce0] hover:bg-slate-100"
+                  }`}
+                  title="Usar balance calculado por ID único"
+                >
+                  ID único
+                </button>
+              </div>
+
+              {/* ACCIONES */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetchDatabase("manual");
+                  }}
+                  disabled={loading}
+                  className="h-8 rounded-xl border border-[#dadce0] bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 text-[9px] font-black uppercase tracking-[0.07em]"
+                  title="Actualizar monitor"
+                >
+                  <LocalIcon
+                    name="refresh-cw"
+                    size={14}
+                    className={loading ? "animate-spin" : ""}
+                  />
+                  Actualizar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={exportarExcelCompleto}
+                  disabled={loading || recordsFinal.length === 0}
+                  className="h-8 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-1.5 text-[9px] font-black uppercase tracking-[0.07em]"
+                  title="Exportar registros visibles"
+                >
+                  <LocalIcon
+                    name="file-spreadsheet"
+                    size={14}
+                  />
+                  Exportar
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 shrink-0">
             {/* FILTROS OPERATIVOS */}
             <div className="flex flex-wrap items-center gap-2">
-
-              {
-                [
-                  { id: 'ALL', label: 'Todos', count: metrics.totalRegistros },
-                  { id: 'VERDE', label: 'Saludables', count: metrics.verdes },
-                  { id: 'PREVENTIVO', label: 'Preventivos', count: metrics.rellenosPreventivos },
-                  { id: 'URGENTE', label: 'Urgentes', count: metrics.rellenosUrgentes },
-                  { id: 'COMPRAS', label: 'Compras', count: metrics.casosCompras }
-                ].map(btn => (
-
+              {[
+                {
+                  id: "ALL",
+                  label: "Todos",
+                  count: metrics.totalRegistros
+                },
+                {
+                  id: "VERDE",
+                  label: "Saludables",
+                  count: metrics.verdes
+                },
+                {
+                  id: "PREVENTIVO",
+                  label: "Preventivos",
+                  count: metrics.rellenosPreventivos
+                },
+                {
+                  id: "URGENTE",
+                  label: "Urgentes",
+                  count: metrics.rellenosUrgentes
+                },
+                {
+                  id: "COMPRAS",
+                  label: "Compras",
+                  count: metrics.casosCompras
+                }
+              ].map((button) => (
                 <button
-                  key={btn.id}
-                  onClick={() => setFilterStatus(btn.id)}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                    filterStatus === btn.id
-                      ? 'bg-[#d93025] text-white shadow-sm'
-                      : 'bg-slate-50 text-slate-500 border border-[#dadce0] hover:bg-slate-100'
+                  key={button.id}
+                  type="button"
+                  onClick={() => {
+                    setFilterStatus(button.id);
+                  }}
+                  className={`mr-filter-button ${
+                    filterStatus === button.id
+                      ? "bg-[#d93025] text-white border border-[#d93025] shadow-sm"
+                      : "bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50"
                   }`}
                 >
-                  {btn.label}{btn.count !== null ? ` (${btn.count || 0})` : ''}
+                  {button.label} ({button.count || 0})
                 </button>
               ))}
             </div>
 
-            {/* SEGMENTACIÓN / ORDEN */}
+            {/* SEGMENTACIÓN Y ORDEN */}
             <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              {/* BODEGA CON SUBMENÚ */}
+              {/* BODEGA */}
               <div
                 className="relative"
                 onMouseEnter={() => openHoverMenu("BODEGA")}
                 onMouseLeave={closeHoverMenuWithDelay}
               >
                 <button
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  type="button"
+                  className={`mr-filter-button ${
                     filterBodega !== "TODAS"
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                      ? "bg-slate-900 text-white border border-slate-900 shadow-sm"
+                      : "bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50"
                   }`}
                 >
                   {`Bodega: ${getBodegaLabel(filterBodega)}`}
@@ -1466,19 +1736,21 @@ const openDetalle = (item) => {
                         { key: "B3", label: "Bodega 3" },
                         { key: "CU", label: "Cuarto Alto Riesgo" },
                         { key: "MO", label: "Mostrador" },
-                        { key: "SIN_UBICACION", label: "Sin ubicación" }
-                      ].map((opt, index) => (
+                        { key: "SIN_UBICACION", label: "Sin ubicación" },
+                        { key: "OTRO", label: "Otro" }
+                      ].map((option, index) => (
                         <button
-                          key={opt.key}
+                          key={option.key}
+                          type="button"
                           onClick={() => {
-                            setFilterBodega(opt.key);
+                            setFilterBodega(option.key);
                             setHoverMenu(null);
                           }}
-                          className={`w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 ${
-                            index > 0 ? 'border-t border-[#dadce0]' : ''
+                          className={`mr-menu-option ${
+                            index > 0 ? "border-t border-[#dadce0]" : ""
                           }`}
                         >
-                          {opt.label}
+                          {option.label}
                         </button>
                       ))}
                     </div>
@@ -1488,27 +1760,31 @@ const openDetalle = (item) => {
 
               {/* PRIORIDAD */}
               <button
-                onClick={() => setSortBy("PRIORIDAD")}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                type="button"
+                onClick={() => {
+                  setSortBy("PRIORIDAD");
+                }}
+                className={`mr-filter-button ${
                   sortBy === "PRIORIDAD"
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                    ? "bg-slate-900 text-white border border-slate-900 shadow-sm"
+                    : "bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50"
                 }`}
               >
                 Prioridad
               </button>
 
-              {/* CÓDIGO CON SUBMENÚ */}
+              {/* CÓDIGO */}
               <div
                 className="relative"
                 onMouseEnter={() => openHoverMenu("CODIGO")}
                 onMouseLeave={closeHoverMenuWithDelay}
               >
                 <button
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  type="button"
+                  className={`mr-filter-button ${
                     sortBy === "CODIGO_ASC" || sortBy === "CODIGO_DESC"
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                      ? "bg-slate-900 text-white border border-slate-900 shadow-sm"
+                      : "bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50"
                   }`}
                 >
                   Código
@@ -1522,21 +1798,23 @@ const openDetalle = (item) => {
                   >
                     <div className="bg-white border border-[#dadce0] rounded-2xl shadow-lg overflow-hidden">
                       <button
+                        type="button"
                         onClick={() => {
                           setSortBy("CODIGO_ASC");
                           setHoverMenu(null);
                         }}
-                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                        className="mr-menu-option"
                       >
                         Código A-Z
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => {
                           setSortBy("CODIGO_DESC");
                           setHoverMenu(null);
                         }}
-                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 border-t border-[#dadce0]"
+                        className="mr-menu-option border-t border-[#dadce0]"
                       >
                         Código Z-A
                       </button>
@@ -1545,17 +1823,18 @@ const openDetalle = (item) => {
                 )}
               </div>
 
-              {/* UBICACIÓN CON SUBMENÚ */}
+              {/* UBICACIÓN */}
               <div
                 className="relative"
                 onMouseEnter={() => openHoverMenu("UBICACION")}
                 onMouseLeave={closeHoverMenuWithDelay}
               >
                 <button
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                  type="button"
+                  className={`mr-filter-button ${
                     sortBy === "UBICACION_ASC" || sortBy === "UBICACION_DESC"
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                      ? "bg-slate-900 text-white border border-slate-900 shadow-sm"
+                      : "bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50"
                   }`}
                 >
                   Ubicación
@@ -1569,21 +1848,23 @@ const openDetalle = (item) => {
                   >
                     <div className="bg-white border border-[#dadce0] rounded-2xl shadow-lg overflow-hidden">
                       <button
+                        type="button"
                         onClick={() => {
                           setSortBy("UBICACION_ASC");
                           setHoverMenu(null);
                         }}
-                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                        className="mr-menu-option"
                       >
                         Ubicación A-Z
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => {
                           setSortBy("UBICACION_DESC");
                           setHoverMenu(null);
                         }}
-                        className="w-full text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50 border-t border-[#dadce0]"
+                        className="mr-menu-option border-t border-[#dadce0]"
                       >
                         Ubicación Z-A
                       </button>
@@ -1594,11 +1875,14 @@ const openDetalle = (item) => {
 
               {/* EXISTENCIA */}
               <button
-                onClick={() => setSortBy("EXISTENCIA_ASC")}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                type="button"
+                onClick={() => {
+                  setSortBy("EXISTENCIA_ASC");
+                }}
+                className={`mr-filter-button ${
                   sortBy === "EXISTENCIA_ASC"
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                    ? "bg-slate-900 text-white border border-slate-900 shadow-sm"
+                    : "bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50"
                 }`}
               >
                 Existencia ↑
@@ -1606,11 +1890,14 @@ const openDetalle = (item) => {
 
               {/* EXCEDENTE */}
               <button
-                onClick={() => setSortBy("EXCEDENTE_DESC")}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
+                type="button"
+                onClick={() => {
+                  setSortBy("EXCEDENTE_DESC");
+                }}
+                className={`mr-filter-button ${
                   sortBy === "EXCEDENTE_DESC"
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50'
+                    ? "bg-slate-900 text-white border border-slate-900 shadow-sm"
+                    : "bg-white text-slate-600 border border-[#dadce0] hover:bg-slate-50"
                 }`}
               >
                 Excedente ↓
@@ -1926,11 +2213,7 @@ const openDetalle = (item) => {
           </div>
 
           {/* MENÚ FLOTANTE GLOBALIZADO */} 
-              <div
-                ref={fabContainerRef}
-                className="app-fab-container"
-                style={{ zIndex: 9010 }}
-              >
+              <div ref={fabContainerRef} className="app-fab-container xl:hidden" style={{ zIndex: 9010 }} >
 
               {isFabMenuMounted && isSearchExpanded && (
                 <div className={`app-fab-row ${isSearchClosing || isFabClosing ? "app-fab-slide-right" : "app-fab-slide-left"}`}>

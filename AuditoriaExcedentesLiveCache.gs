@@ -666,7 +666,7 @@ const AuditoriaExcedentesLiveCache = (() => {
 
     const pendientesVivos = ubicacionesEnVivo.reduce(function(acc, u) {
       return acc + _toNum_(u.pendientes);
-    }, 0);
+    }, 0);    
 
     return {
       ok: true,
@@ -707,6 +707,83 @@ const AuditoriaExcedentesLiveCache = (() => {
     };
   }
 
+    function reconciliarUbicaciones(
+      idauditoria,
+      ubicacionesValidas
+    ) {
+      const id = _safeId_(idauditoria);
+
+      if (!id) {
+        return {
+          ok: false,
+          eliminadas: 0,
+          motivo: "SIN_IDAUDITORIA"
+        };
+      }
+
+      return _withLock_(function () {
+        const state = _getRaw_(id);
+
+        if (!state) {
+          return {
+            ok: true,
+            idauditoria: id,
+            eliminadas: 0,
+            motivo: "SIN_CACHE"
+          };
+        }
+
+        const validas = new Set(
+          (
+            Array.isArray(ubicacionesValidas)
+              ? ubicacionesValidas
+              : []
+          )
+            .map(function (item) {
+              if (
+                item &&
+                typeof item === "object"
+              ) {
+                return _safeUbicacion_(
+                  item.ubicacion ||
+                  item.key ||
+                  ""
+                );
+              }
+
+              return _safeUbicacion_(item);
+            })
+            .filter(Boolean)
+        );
+
+        const ubicacionesCache = Object.keys(
+          state.ubicaciones || {}
+        );
+
+        let eliminadas = 0;
+
+        ubicacionesCache.forEach(function (key) {
+          const ubicacion = _safeUbicacion_(key);
+
+          if (!validas.has(ubicacion)) {
+            delete state.ubicaciones[key];
+            eliminadas++;
+          }
+        });
+
+        if (eliminadas > 0) {
+          _putRaw_(id, state);
+        }
+
+        return {
+          ok: true,
+          idauditoria: id,
+          eliminadas: eliminadas,
+          ubicacionesValidas: validas.size
+        };
+      });
+    }  
+
   /**
    * Elimina el cache vivo de una auditoría.
    * Útil al cerrar auditoría o para debug.
@@ -731,6 +808,7 @@ const AuditoriaExcedentesLiveCache = (() => {
     registrarEscaneos,
     cerrarUbicacion,
     getPulso,
+    reconciliarUbicaciones,
     clear,
     debugGetRaw
   };

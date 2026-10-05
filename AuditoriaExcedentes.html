@@ -1,57 +1,48 @@
-<script>/** AuditoriaExcedentes.html */</script>
+<script>
+  /** AuditoriaExcedentes.html */
+</script>
 
 <style>
   #render-auditoria-excedentes {
-    --ae-critical: var(--primary);
+    --ae-critical: var(--primary, #d93025);
     --ae-critical-dark: var(--primary-dark, #a50e0e);
-    --ae-critical-light: var(--primary-light, rgba(217, 48, 37, 0.20));
-
+    --ae-critical-light: var(--primary-light, rgba(217, 48, 37, 0.2));
     --ae-warning: #d97706;
     --ae-warning-dark: #b45309;
     --ae-warning-light: rgba(217, 119, 6, 0.14);
-
     --ae-success: #1e8e3e;
     --ae-success-dark: #157337;
     --ae-success-light: rgba(30, 142, 62, 0.14);
-
     --ae-white: var(--white, #ffffff);
-    --ae-bg: var(--bg-color, #f8f9fa);
     --ae-text-main: var(--text-main, #1c1d1f);
     --ae-text-secondary: var(--text-secondary, #5f6368);
     --ae-border: var(--border-color, #dadce0);
-    --ae-shadow-soft: var(--shadow-soft, 0 10px 25px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.05));
+    --ae-shadow-soft: var(
+      --shadow-soft,
+      0 10px 25px rgba(0, 0, 0, 0.1),
+      0 4px 10px rgba(0, 0, 0, 0.05)
+    );
     --ae-shadow-red: var(--shadow-red, 0 4px 10px rgba(217, 48, 37, 0.1));
-  }
-
-  #render-auditoria-excedentes .font-mono-premium {
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  #render-auditoria-excedentes .custom-scroll::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  #render-auditoria-excedentes .custom-scroll::-webkit-scrollbar-track {
-    background: rgba(0,0,0,0.03);
-  }
-
-  #render-auditoria-excedentes .custom-scroll::-webkit-scrollbar-thumb {
-    background: rgba(0,0,0,0.15);
-    border-radius: 99px;
-  }
-
-  #render-auditoria-excedentes .custom-scroll::-webkit-scrollbar-thumb:hover {
-    background: var(--primary);
-  }
-
-  #render-auditoria-excedentes {
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
 
   #render-auditoria-excedentes::-webkit-scrollbar {
     display: none;
+  }
+  #render-auditoria-excedentes .custom-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  #render-auditoria-excedentes .custom-scroll::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.03);
+  }
+  #render-auditoria-excedentes .custom-scroll::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 99px;
+  }
+  #render-auditoria-excedentes .custom-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--ae-critical);
   }
 
   @keyframes aeFadeInUp {
@@ -65,26 +56,30 @@
     }
   }
 
+  @keyframes aeInlineSearchIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes aeInlineSearchOut {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+  }
+
   #render-auditoria-excedentes .fade-in-up {
     animation: aeFadeInUp 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  @keyframes aePulseCritical {
-    0% { box-shadow: 0 0 0 0px rgba(217, 48, 37, 0.25); }
-    70% { box-shadow: 0 0 0 8px rgba(217, 48, 37, 0); }
-    100% { box-shadow: 0 0 0 0px rgba(217, 48, 37, 0); }
-  }
-
-  #render-auditoria-excedentes .pulse-critical {
-    animation: aePulseCritical 2s infinite ease-in-out;
-  }
-
-  #render-auditoria-excedentes .animate-fab-in {
-    animation: aeFabIn 0.25s ease-out;
-  }
-
-  #render-auditoria-excedentes .animate-slide-left {
-    animation: aeSlideLeft 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   #render-auditoria-excedentes .ae-card {
@@ -94,35 +89,6 @@
     box-shadow: var(--ae-shadow-soft);
   }
 
-  #render-auditoria-excedentes .ae-kpi-card {
-    background: var(--ae-white);
-    border: 1px solid var(--ae-border);
-    border-radius: 1.25rem;
-    padding: 1rem;
-    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.03);
-    position: relative;
-    overflow: hidden;
-    min-height: 112px;
-    transition: all 0.28s ease;
-  }
-
-  #render-auditoria-excedentes .ae-kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--ae-shadow-soft);
-  }
-
-  #render-auditoria-excedentes .ae-kpi-topbar {
-    position: absolute;
-    inset: 0 auto auto 0;
-    width: 100%;
-    height: 6px;
-  }
-
-  #render-auditoria-excedentes .ae-topbar-red { background: var(--ae-critical); }
-  #render-auditoria-excedentes .ae-topbar-amber { background: var(--ae-warning); }
-  #render-auditoria-excedentes .ae-topbar-emerald { background: var(--ae-success); }
-  #render-auditoria-excedentes .ae-topbar-slate { background: var(--ae-text-main); }
-
   #render-auditoria-excedentes .ae-chip {
     display: inline-flex;
     align-items: center;
@@ -130,30 +96,18 @@
     min-height: 34px;
     padding: 0 12px;
     border-radius: 9999px;
+    border: 1px solid transparent;
     font-size: 11px;
     font-weight: 900;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    border: 1px solid transparent;
     white-space: nowrap;
-  }
-
-  #render-auditoria-excedentes .ae-chip-red {
-    background: var(--ae-critical-light);
-    color: var(--ae-critical-dark);
-    border-color: rgba(217, 48, 37, 0.25);
   }
 
   #render-auditoria-excedentes .ae-chip-amber {
     background: var(--ae-warning-light);
     color: var(--ae-warning-dark);
     border-color: rgba(217, 119, 6, 0.22);
-  }
-
-  #render-auditoria-excedentes .ae-chip-emerald {
-    background: var(--ae-success-light);
-    color: var(--ae-success-dark);
-    border-color: rgba(30, 142, 62, 0.24);
   }
 
   #render-auditoria-excedentes .ae-chip-slate {
@@ -165,7 +119,7 @@
   #render-auditoria-excedentes .ae-status-open {
     background: var(--ae-critical-light);
     color: var(--ae-critical-dark);
-    border-color: rgba(217, 48, 37, 0.20);
+    border-color: rgba(217, 48, 37, 0.2);
   }
 
   #render-auditoria-excedentes .ae-status-closed {
@@ -174,54 +128,51 @@
     border-color: rgba(30, 142, 62, 0.24);
   }
 
-  #render-auditoria-excedentes .ae-mini-card {
-    background: #f8f9fa;
-    border: 1px solid var(--ae-border);
-    border-radius: 1rem;
-    padding: 1rem;
-  }
-
   #render-auditoria-excedentes .ae-filter-btn {
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 900;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    width: auto;
+    min-height: 42px;
+    padding: 0.625rem 1rem;
+    border-radius: 0.75rem;
     border: 1px solid var(--ae-border);
+    font-size: 12px;
+    line-height: 1rem;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
     transition: all 0.2s ease;
   }
 
+  #render-auditoria-excedentes .ae-filter-btn:active {
+    transform: scale(0.98);
+  }
   #render-auditoria-excedentes .ae-filter-btn.active-primary {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
+    background: var(--ae-critical);
+    color: #fff;
+    border-color: var(--ae-critical);
     box-shadow: var(--ae-shadow-red);
   }
-
   #render-auditoria-excedentes .ae-filter-btn.active-dark {
     background: var(--ae-text-main);
-    color: white;
+    color: #fff;
     border-color: var(--ae-text-main);
   }
-
   #render-auditoria-excedentes .ae-filter-btn.idle {
     background: var(--ae-white);
     color: var(--ae-text-secondary);
   }
-
   #render-auditoria-excedentes .ae-filter-btn.idle:hover {
     background: #f3f4f6;
   }
 
   #render-auditoria-excedentes .ae-form-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--ae-text-secondary);
     font-size: 11px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.14em;
-    color: var(--ae-text-secondary);
-    margin-bottom: 8px;
-    display: block;
   }
 
   #render-auditoria-excedentes .ae-form-input,
@@ -232,9 +183,9 @@
     background: #f8f9fa;
     border-radius: 14px;
     outline: none;
-    transition: all 0.22s ease;
     color: var(--ae-text-main);
     font-weight: 700;
+    transition: all 0.22s ease;
   }
 
   #render-auditoria-excedentes .ae-form-input,
@@ -243,121 +194,224 @@
     padding: 0 16px;
     font-size: 14px;
   }
-
   #render-auditoria-excedentes .ae-form-textarea {
     min-height: 110px;
     padding: 14px 16px;
     font-size: 14px;
     resize: vertical;
   }
-
   #render-auditoria-excedentes .ae-form-input:focus,
   #render-auditoria-excedentes .ae-form-select:focus,
   #render-auditoria-excedentes .ae-form-textarea:focus {
-    border-color: var(--primary);
-    background: white;
+    border-color: var(--ae-critical);
+    background: #fff;
     box-shadow: var(--ae-shadow-red);
   }
 
-  #render-auditoria-excedentes .ae-btn-primary {
-    width: 100%;
-    min-height: 54px;
-    border: none;
-    border-radius: 16px;
-    background: var(--primary);
-    color: white;
+  #render-auditoria-excedentes .ae-toolbar-action {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--ae-border);
+    background: var(--ae-white);
+    color: var(--ae-text-secondary);
+    font-size: 11px;
     font-weight: 900;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    transition: all 0.22s ease;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s ease;
   }
 
-  #render-auditoria-excedentes .ae-btn-primary:hover {
-    background: var(--primary-dark, #a50e0e);
+  #render-auditoria-excedentes .ae-toolbar-action:hover {
+    color: var(--ae-text-main);
+    background: #f8f9fa;
+    border-color: #b9bec5;
+    transform: translateY(-1px);
+    box-shadow: 0 5px 13px rgba(15, 23, 42, 0.08);
   }
-
-  #render-auditoria-excedentes .ae-btn-primary:disabled {
-    opacity: 0.55;
+  #render-auditoria-excedentes .ae-toolbar-action:active {
+    transform: scale(0.98);
+  }
+  #render-auditoria-excedentes .ae-toolbar-action.active-dark {
+    color: #fff;
+    background: var(--ae-text-main);
+    border-color: var(--ae-text-main);
+  }
+  #render-auditoria-excedentes .ae-toolbar-action.primary {
+    color: #fff;
+    background: var(--ae-critical);
+    border-color: var(--ae-critical);
+    box-shadow: var(--ae-shadow-red);
+  }
+  #render-auditoria-excedentes .ae-toolbar-action.primary:hover {
+    color: #fff;
+    background: var(--ae-critical-dark);
+    border-color: var(--ae-critical-dark);
+  }
+  #render-auditoria-excedentes .ae-toolbar-action.success {
+    color: #fff;
+    background: var(--ae-success);
+    border-color: var(--ae-success);
+    box-shadow: 0 5px 13px rgba(30, 142, 62, 0.18);
+  }
+  #render-auditoria-excedentes .ae-toolbar-action.success:hover {
+    color: #fff;
+    background: var(--ae-success-dark);
+    border-color: var(--ae-success-dark);
+  }
+  #render-auditoria-excedentes .ae-toolbar-action:disabled {
+    opacity: 0.5;
     cursor: not-allowed;
+    pointer-events: none;
+    transform: none;
+    box-shadow: none;
+  }
+
+  #render-auditoria-excedentes .ae-inline-search-wrap {
+    width: 100%;
+    min-height: 50px;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--ae-text-secondary);
+    background: #f8f9fa;
+    border: 1px solid var(--ae-border);
+    border-radius: 14px;
+    animation: aeInlineSearchIn 0.22s ease-out forwards;
+  }
+
+  #render-auditoria-excedentes .ae-inline-search-wrap:focus-within {
+    color: var(--ae-critical);
+    background: #fff;
+    border-color: var(--ae-critical);
+    box-shadow: var(--ae-shadow-red);
+  }
+  #render-auditoria-excedentes .ae-inline-search-wrap.closing {
+    animation: aeInlineSearchOut 0.18s ease-in forwards;
+  }
+  #render-auditoria-excedentes .ae-inline-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 48px;
+    padding: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--ae-text-main);
+    font-size: 14px;
+    font-weight: 800;
+    text-transform: none;
+  }
+  #render-auditoria-excedentes .ae-inline-search-input::placeholder {
+    color: #9ca3af;
+    font-weight: 700;
+  }
+  #render-auditoria-excedentes .ae-inline-search-clear {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 10px;
+    background: rgba(28, 29, 31, 0.07);
+    color: var(--ae-text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  #render-auditoria-excedentes .ae-inline-search-clear:hover {
+    color: #fff;
+    background: var(--ae-text-main);
   }
 
   #render-auditoria-excedentes .ae-table-wrap {
-    max-height: calc(100vh - 360px);
+    --ae-event-header-height: 58px;
+    --ae-event-row-height: 108px;
+    position: relative;
+    max-height: calc(var(--ae-event-header-height) + (var(--ae-event-row-height) * 5));
     overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
   }
 
   #render-auditoria-excedentes .ae-table {
     width: 100%;
+    min-width: 980px;
     border-collapse: separate;
     border-spacing: 0;
   }
-
   #render-auditoria-excedentes .ae-table thead th {
     position: sticky;
     top: 0;
     z-index: 10;
+    height: var(--ae-event-header-height);
+    padding: 16px 18px;
     background: rgba(248, 249, 250, 0.96);
     backdrop-filter: blur(8px);
-    padding: 16px 18px;
+    border-bottom: 1px solid var(--ae-border);
+    color: var(--ae-text-secondary);
     font-size: 11px;
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.16em;
-    color: var(--ae-text-secondary);
-    border-bottom: 1px solid var(--ae-border);
     white-space: nowrap;
     text-align: left;
   }
-
+  #render-auditoria-excedentes .ae-row {
+    height: var(--ae-event-row-height);
+  }
   #render-auditoria-excedentes .ae-row td {
+    height: var(--ae-event-row-height);
     padding: 16px 18px;
     border-bottom: 1px solid #eef1f4;
     vertical-align: middle;
     background: var(--ae-white);
     transition: background-color 0.18s ease;
   }
-
-  #render-auditoria-excedentes .ae-row:hover td {
-    background: #fcfcfd;
-  }
-
+  #render-auditoria-excedentes .ae-row:hover td,
   #render-auditoria-excedentes .ae-row.active td {
     background: #fafafa;
   }
-
   #render-auditoria-excedentes .ae-folio-main {
+    color: var(--ae-text-main);
+    font-family: "JetBrains Mono", monospace;
     font-size: 16px;
     font-weight: 900;
-    color: var(--ae-text-main);
-    letter-spacing: 0.04em;
-    font-family: 'JetBrains Mono', monospace;
     line-height: 1.15;
+    letter-spacing: 0.04em;
   }
-
   #render-auditoria-excedentes .ae-folio-sub {
     display: block;
     margin-top: 4px;
+    color: var(--ae-text-secondary);
     font-size: 11px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    color: var(--ae-text-secondary);
   }
-
   #render-auditoria-excedentes .ae-folio-desc {
     display: block;
+    max-width: 420px;
     margin-top: 6px;
+    overflow: hidden;
+    color: #9ca3af;
     font-size: 12px;
     font-weight: 700;
-    color: #9ca3af;
     line-height: 1.3;
-    text-transform: uppercase;
-    max-width: 360px;
-    white-space: nowrap;
-    overflow: hidden;
     text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
   }
-
   #render-auditoria-excedentes .ae-empty-state {
     min-height: 260px;
     display: flex;
@@ -368,339 +422,220 @@
     text-align: center;
     color: #9ca3af;
   }
-
+  #render-auditoria-excedentes .ae-mini-card {
+    background: #f8f9fa;
+    border: 1px solid var(--ae-border);
+    border-radius: 1rem;
+    padding: 1rem;
+  }
+  #render-auditoria-excedentes .ae-btn-primary {
+    width: 100%;
+    min-height: 54px;
+    border: none;
+    border-radius: 16px;
+    background: var(--ae-critical);
+    color: #fff;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    transition: all 0.22s ease;
+  }
+  #render-auditoria-excedentes .ae-btn-primary:hover {
+    background: var(--ae-critical-dark);
+  }
   #render-auditoria-excedentes .ae-offcanvas .offcanvas-header {
     border-bottom: 1px solid var(--ae-border);
+  }
+
+  @media (max-width: 1279px) {
+    #render-auditoria-excedentes .ae-toolbar-label {
+      display: none;
+    }
+    #render-auditoria-excedentes .ae-toolbar-action {
+      width: 44px;
+      padding: 0;
+    }
   }
 </style>
 
 <div
   id="render-auditoria-excedentes"
-  class="h-full w-full flex flex-col bg-[var(--bg-color)] overflow-y-auto p-4 md:p-8"
+  class="h-full w-full flex flex-col bg-[var(--bg-color)] overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-4"
 ></div>
 
 <script type="text/babel">
   window.cargar_AuditoriaExcedentes = () => {
     const { useState, useEffect, useMemo, useCallback, useRef } = React;
+    const LocalIcon = window.FitoComponents?.Icon?.LocalIcon || window.FitoComponents?.LocalIcon;
+    if (!LocalIcon) throw new Error("No se encontró FitoComponents.Icon.LocalIcon.");
 
-    // =========================================================
-    // HELPERS DE NOTIFICACIÓN
-    // =========================================================
-    const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
+    const notify_ = (message, type = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
-      if (typeof fn === "function") {
-        fn(mensaje, tipo, timer, options);
-      }
+      if (typeof fn === "function") fn(message, type, timer, options);
     };
 
-    const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
-      const now = Date.now();
-      const last = ref.current[key] || 0;
-      if (now - last < cooldown) return;
-      ref.current[key] = now;
-      notify_(mensaje, tipo, timer, options);
-    };
-
-    const shellNotifyStateRef = { current: {} };
-    const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
-
-    // =========================================================
-    // UTILIDADES DE FECHA / HORA
-    // =========================================================
-    function _esDateValida_(d) {
-      return d instanceof Date && !isNaN(d.getTime());
-    }
-
-    function _parseFechaFlexible_(value) {
+    const parseDate_ = (value) => {
       if (!value) return null;
-
-      if (value instanceof Date) {
-        return _esDateValida_(value) ? value : null;
+      if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+      const text = String(value).trim();
+      const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (match) {
+        const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+        return Number.isNaN(date.getTime()) ? null : date;
       }
+      const date = new Date(text);
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
 
-      const str = String(value).trim();
-      if (!str) return null;
-
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
-        const parts = str.split("/");
-        const day = Number(parts[0]);
-        const month = Number(parts[1]);
-        const year = Number(parts[2]);
-        const d = new Date(year, month - 1, day, 0, 0, 0, 0);
-        return _esDateValida_(d) ? d : null;
-      }
-
-      const parsed = new Date(str);
-      return _esDateValida_(parsed) ? parsed : null;
-    }
-
-    function _parseHoraFlexible_(value) {
+    const parseTime_ = (value) => {
       if (!value) return null;
-
-      if (value instanceof Date) {
-        return _esDateValida_(value) ? value : null;
+      if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+      const text = String(value).trim();
+      if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(text)) {
+        const [h, m, s = 0] = text.split(":").map(Number);
+        return new Date(2000, 0, 1, h, m, s);
       }
-
-      const str = String(value).trim();
-      if (!str) return null;
-
-      if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(str)) {
-        const parts = str.split(":");
-        const hh = Number(parts[0] || 0);
-        const mm = Number(parts[1] || 0);
-        const ss = Number(parts[2] || 0);
-        const d = new Date(2000, 0, 1, hh, mm, ss, 0);
-        return _esDateValida_(d) ? d : null;
-      }
-
-      const parsed = new Date(str);
-      return _esDateValida_(parsed) ? parsed : null;
-    }
-
-    function formatearFecha_(value) {
-      const d = _parseFechaFlexible_(value);
-      if (!d) return "Sin fecha";
-
-      return d.toLocaleDateString("es-MX", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric"
-      });
-    }
-
-    function formatearHora_(value) {
-      const d = _parseHoraFlexible_(value);
-      if (!d) return "--";
-
-      return d.toLocaleTimeString("es-MX", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false
-      });
-    }
-
-    function construirResumenFechaHora_(item) {
-      return `${formatearFecha_(item.fecha)} • ${formatearHora_(item.horainicio)} - ${formatearHora_(item.horafin)}`;
-    }
-
-    // =========================================================
-    // ICONO LOCAL
-    // =========================================================
-    const LocalIcon = ({ name, size = 18, className = "" }) => {
-      const iconRef = useRef(null);
-
-      useEffect(() => {
-        if (window.lucide && iconRef.current) {
-          iconRef.current.innerHTML = "";
-          const i = document.createElement("i");
-          i.setAttribute("data-lucide", name.toLowerCase());
-          i.style.width = `${size}px`;
-          i.style.height = `${size}px`;
-          if (className) i.className = className;
-          iconRef.current.appendChild(i);
-          window.lucide.createIcons();
-        }
-      }, [name, size, className]);
-
-      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+      const date = new Date(text);
+      return Number.isNaN(date.getTime()) ? null : date;
     };
 
-    // =========================================================
-    // HELPERS VISUALES
-    // =========================================================
-    const getConfiabilidadVisual = (valor) => {
-      const n = Number(valor || 0);
-
-      if (n < 90) {
-        return {
-          level: "RED",
-          label: "Crítica",
-          className: "ae-chip ae-chip-red",
-          tone: "red"
-        };
-      }
-
-      if (n >= 97) {
-        return {
-          level: "EMERALD",
-          label: "Controlada",
-          className: "ae-chip ae-chip-emerald",
-          tone: "emerald"
-        };
-      }
-
-      return {
-        level: "AMBER",
-        label: "Atención",
-        className: "ae-chip ae-chip-amber",
-        tone: "amber"
-      };
+    const formatDate_ = (value) => {
+      const date = parseDate_(value);
+      return date
+        ? date.toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" })
+        : "Sin fecha";
     };
 
-    const getStatusChipClass = (estatus) => {
-      const e = String(estatus || "").toUpperCase();
-      return e === "ABIERTA" ? "ae-chip ae-status-open" : "ae-chip ae-status-closed";
+    const formatTime_ = (value) => {
+      const date = parseTime_(value);
+      return date
+        ? date.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false })
+        : "--";
     };
 
-    const getTipoChipClass = (tipo) => {
-      const t = String(tipo || "").toUpperCase();
-      return t === "POR_BODEGA" ? "ae-chip ae-chip-amber" : "ae-chip ae-chip-slate";
-    };
+    const summary_ = (item) =>
+      `${formatDate_(item.fecha)} • ${formatTime_(item.horainicio)} - ${formatTime_(item.horafin)}`;
+    const statusClass_ = (status) =>
+      String(status || "").toUpperCase() === "ABIERTA"
+        ? "ae-chip ae-status-open"
+        : "ae-chip ae-status-closed";
+    const typeClass_ = (type) =>
+      String(type || "").toUpperCase() === "POR_BODEGA"
+        ? "ae-chip ae-chip-amber"
+        : "ae-chip ae-chip-slate";
+    const userName_ = (user) =>
+      typeof user === "string"
+        ? user.toUpperCase()
+        : String(user?.nombre || user?.name || user?.usuario || "").toUpperCase();
 
-    const getKpiTopBarClass = (tone) => {
-      if (tone === "red") return "ae-topbar-red";
-      if (tone === "amber") return "ae-topbar-amber";
-      if (tone === "emerald") return "ae-topbar-emerald";
-      return "ae-topbar-slate";
-    };
-
-    const getKpiIconClass = (tone) => {
-      if (tone === "red") return "bg-red-50 text-red-600 border border-red-100";
-      if (tone === "amber") return "bg-amber-50 text-amber-600 border border-amber-100";
-      if (tone === "emerald") return "bg-emerald-50 text-emerald-600 border border-emerald-100";
-      return "bg-slate-100 text-slate-900 border border-slate-200";
-    };
-
-    function obtenerNombreUsuario_(u) {
-      if (!u) return "";
-      if (typeof u === "string") return u.toUpperCase();
-      return String(u.nombre || u.name || u.usuario || "").toUpperCase();
-    }
-
-    // =========================================================
-    // KPI
-    // =========================================================
-    const KPIBlock = ({ title, value, unit, iconName, tone = "slate", trend }) => (
-      <div className="ae-kpi-card">
-        <div className={`ae-kpi-topbar ${getKpiTopBarClass(tone)}`}></div>
-
-        <div className="h-full flex flex-col pt-1">
-          <div className="grid grid-cols-[1fr_auto] items-center gap-3 h-full">
-            <div className="min-w-0">
-              <p className="text-[12px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)] leading-tight mb-2">
-                {title}
-              </p>
-
-              <div className="flex items-end gap-2 flex-wrap">
-                <h3 className="m-0 p-0 bg-transparent border-none text-[34px] font-black tracking-tight text-[var(--text-main)] leading-none">
-                  {typeof value === "number" ? value.toLocaleString() : value}
-                </h3>
-
-                {unit && (
-                  <span className="text-[13px] font-black text-[var(--text-secondary)] uppercase leading-none pb-1">
-                    {unit}
-                  </span>
-                )}
-              </div>
-
-              {trend && (
-                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                  <span className={trend.className || "ae-chip ae-chip-slate"}>
-                    {trend.text}
-                  </span>
-
-                  {trend.sub && (
-                    <span className="text-[11px] font-semibold text-[var(--text-secondary)]">
-                      {trend.sub}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="justify-self-end">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${getKpiIconClass(tone)}`}>
-                <LocalIcon name={iconName} size={28} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-
-    // =========================================================
-    // DASHBOARD
-    // =========================================================
-    const AuditoriaExcedentesDashboard = () => {
-      const [bootstrapData, setBootstrapData] = useState({
-        usuarios: [],
-        bodegas: [],
-        auditoriasAbiertas: [],
-        auditoriasCerradas: []
-      });
-
-      const [dashboard, setDashboard] = useState({
-        fechaCorte: {},
-        resumenGlobal: {},
-        destacados: {},
-        porBodega: []
-      });
-
+    const Dashboard = () => {
+      const [bootstrapData, setBootstrapData] = useState({ usuarios: [], bodegas: [] });
       const [auditorias, setAuditorias] = useState([]);
       const [loading, setLoading] = useState(true);
-
       const [searchQuery, setSearchQuery] = useState("");
       const [filterStatus, setFilterStatus] = useState("TODAS");
       const [filterTipo, setFilterTipo] = useState("TODOS");
       const [filterBodega, setFilterBodega] = useState("TODAS");
       const [sortBy, setSortBy] = useState("FECHA_DESC");
       const [activeRow, setActiveRow] = useState(null);
-
       const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-      const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
-      const [isFabMenuMounted, setIsFabMenuMounted] = useState(false);
-      const [isFabClosing, setIsFabClosing] = useState(false);
       const [isSearchClosing, setIsSearchClosing] = useState(false);
-
-      const [formNuevaAuditoria, setFormNuevaAuditoria] = useState({
+      const [form, setForm] = useState({
         auditor: "",
         tipoauditoria: "GLOBAL",
         bodegaobjetivo: "TODAS",
-        observaciones: ""
+        observaciones: "",
       });
+      const searchRef = useRef(null);
+      const inFlightRef = useRef(false);
+      const sequenceRef = useRef(0);
 
-      const firstLoadDoneRef = useRef(false);
-      const searchInputRef = useRef(null);
-      const refreshSeqRef = useRef(0);
-      const refreshInFlightRef = useRef(false);
-
-      const abrirFabMenu_ = () => {
-        setIsFabMenuMounted(true);
-        setIsFabClosing(false);
-        setIsFabMenuOpen(true);
-      };
-
-      const cerrarFabMenu_ = () => {
-        setIsFabClosing(true);
-        setIsSearchClosing(true);
-
-        setTimeout(() => {
-          setIsFabMenuOpen(false);
-          setIsFabMenuMounted(false);
-          setIsFabClosing(false);
-          setIsSearchExpanded(false);
-          setIsSearchClosing(false);
-          setSearchQuery("");
-        }, 190);
-      };
-
-      const toggleFabMenu_ = () => {
-        if (isFabMenuOpen) {
-          cerrarFabMenu_();
-        } else {
-          abrirFabMenu_();
+      const refresh = useCallback((context = "init") => {
+        if (inFlightRef.current) return;
+        if (typeof google === "undefined" || !google.script?.run) {
+          setLoading(false);
+          notify_("google.script.run no está disponible.", "error", 4200, {
+            title: "Entorno inválido",
+            sound: true,
+          });
+          return;
         }
-      };
 
-      const abrirBuscador_ = () => {
+        const sequence = Date.now();
+        sequenceRef.current = sequence;
+        inFlightRef.current = true;
+        if (context !== "auto") setLoading(true);
+
+        const finishError = (title, error) => {
+          if (sequenceRef.current !== sequence) return;
+          inFlightRef.current = false;
+          setLoading(false);
+          notify_(error?.message || "No se pudo cargar la información.", "error", 4200, {
+            title,
+            sound: true,
+          });
+        };
+
+        const watchdog = setTimeout(() => {
+          if (sequenceRef.current !== sequence || !inFlightRef.current) return;
+          inFlightRef.current = false;
+          setLoading(false);
+          notify_("La carga tardó demasiado. Intenta actualizar nuevamente.", "warning", 5200, {
+            title: "Carga detenida",
+            sound: true,
+          });
+        }, 25000);
+
+        google.script.run
+          .withSuccessHandler((data) => {
+            if (sequenceRef.current !== sequence) return;
+            setBootstrapData({
+              usuarios: Array.isArray(data?.usuarios) ? data.usuarios : [],
+              bodegas: Array.isArray(data?.bodegas) ? data.bodegas : [],
+            });
+
+            google.script.run
+              .withSuccessHandler((list) => {
+                if (sequenceRef.current !== sequence) return;
+                clearTimeout(watchdog);
+                setAuditorias(Array.isArray(list) ? list : []);
+                inFlightRef.current = false;
+                setLoading(false);
+                if (context === "manual")
+                  notify_("Datos actualizados correctamente.", "success", 1800, {
+                    title: "Actualización completada",
+                    sound: false,
+                  });
+              })
+              .withFailureHandler((error) => {
+                clearTimeout(watchdog);
+                finishError("Error de auditorías", error);
+              })
+              .AuditoriaExcedentesController_listarAuditorias({});
+          })
+          .withFailureHandler((error) => {
+            clearTimeout(watchdog);
+            finishError("Error de carga", error);
+          })
+          .AuditoriaExcedentesController_obtenerBootstrap();
+      }, []);
+
+      useEffect(() => {
+        refresh("init");
+      }, [refresh]);
+      useEffect(() => {
+        const timer = setInterval(() => refresh("auto"), 30000);
+        return () => clearInterval(timer);
+      }, [refresh]);
+
+      const openSearch = () => {
         setIsSearchClosing(false);
         setIsSearchExpanded(true);
-        setTimeout(() => searchInputRef.current?.focus(), 120);
+        setTimeout(() => searchRef.current?.focus(), 80);
       };
 
-      const cerrarBuscador_ = () => {
+      const closeSearch = () => {
         setIsSearchClosing(true);
-
         setTimeout(() => {
           setIsSearchExpanded(false);
           setIsSearchClosing(false);
@@ -708,881 +643,310 @@
         }, 180);
       };
 
-      const toggleBuscador_ = () => {
-        if (isSearchExpanded) {
-          cerrarBuscador_();
-        } else {
-          abrirBuscador_();
-        }
-      };
+      const toggleSearch = () => (isSearchExpanded ? closeSearch() : openSearch());
 
-      // ---------------------------------------------------------
-      // CARGA
-      // ---------------------------------------------------------
-      const refrescarDatos = useCallback((contexto = "init") => {
-        const seq = Date.now();
-        const logPrefix = `[AE REFRESH ${seq}]`;
-
-        if (refreshInFlightRef.current && contexto === "auto") {
-          console.warn(`${logPrefix} ⏭️ Auto refresh omitido: ya hay una carga activa.`);
-          return;
-        }
-
-        refreshSeqRef.current = seq;
-        refreshInFlightRef.current = true;
-
-        console.log(`${logPrefix} 🚦 Inicio`, { contexto });
-
-        if (contexto !== "auto") {
-          setLoading(true);
-        }
-
-        if (typeof google === "undefined" || !google.script || !google.script.run) {
-          console.error(`${logPrefix} ❌ google.script.run no disponible`);
-
-          refreshInFlightRef.current = false;
-          setLoading(false);
-
-          notify_("google.script.run no está disponible en este contexto.", "error", 4200, {
-            title: "Entorno inválido",
-            sound: true
-          });
-
-          return;
-        }
-
-        let finalizado = false;
-
-        const finalizarCarga_ = () => {
-          if (refreshSeqRef.current !== seq) {
-            console.warn(`${logPrefix} ⚠️ Respuesta vieja ignorada.`);
-            return false;
-          }
-
-          finalizado = true;
-          refreshInFlightRef.current = false;
-          setLoading(false);
-          return true;
-        };
-
-        const finalizarError_ = (titulo, mensaje, err) => {
-          if (refreshSeqRef.current !== seq) {
-            console.warn(`${logPrefix} ⚠️ Error viejo ignorado.`);
-            return;
-          }
-
-          finalizado = true;
-          refreshInFlightRef.current = false;
-          setLoading(false);
-
-          console.error(`${logPrefix} ❌ ${titulo}`, err);
-
-          notify_(
-            mensaje,
-            "error",
-            4200,
-            {
-              title: titulo,
-              sound: true
-            }
-          );
-        };
-
-        const watchdog = setTimeout(() => {
-          if (finalizado) return;
-
-          console.error(`${logPrefix} ⏱️ Timeout de carga. Se liberará la pantalla.`);
-
-          finalizado = true;
-          refreshInFlightRef.current = false;
-          setLoading(false);
-
-          notify_(
-            "La carga tardó demasiado. Se liberó la pantalla; intenta actualizar nuevamente.",
-            "warning",
-            5200,
-            {
-              title: "Carga detenida",
-              sound: true
-            }
-          );
-        }, 25000);
-
-        const limpiarWatchdog_ = () => {
-          try {
-            clearTimeout(watchdog);
-          } catch (e) {}
-        };
-
-        if (contexto === "init") {
-          notify_("Cargando auditorías de excedentes...", "info", 1600, {
-            title: "Inicializando módulo",
-            sound: false
-          });
-        } else if (contexto === "manual") {
-          notify_("Actualizando auditorías de excedentes...", "info", 1400, {
-            title: "Sincronizando",
-            sound: false
-          });
-        }
-
-        const cargarAuditorias_ = (dashboardOk = true) => {
-          console.log(`${logPrefix} 🚦 Paso 3: listarAuditorias`);
-
-          google.script.run
-            .withSuccessHandler((auditoriasResp) => {
-              try {
-                if (refreshSeqRef.current !== seq) {
-                  console.warn(`${logPrefix} ⚠️ listarAuditorias ignorado por refresh viejo.`);
-                  return;
-                }
-
-                const lista = Array.isArray(auditoriasResp) ? auditoriasResp : [];
-
-                console.log(`${logPrefix} ✅ listarAuditorias OK`, {
-                  total: lista.length,
-                  dashboardOk
-                });
-
-                setAuditorias(lista);
-
-                limpiarWatchdog_();
-
-                if (!finalizarCarga_()) return;
-
-                if (!firstLoadDoneRef.current) {
-                  firstLoadDoneRef.current = true;
-
-                  notify_(
-                    `Se cargaron ${lista.length} auditorías.`,
-                    "success",
-                    2200,
-                    {
-                      title: "Dashboard listo",
-                      sound: false
-                    }
-                  );
-                } else if (contexto !== "init") {
-                  notify_(
-                    `Datos actualizados correctamente (${lista.length} auditorías).`,
-                    "success",
-                    1800,
-                    {
-                      title: "Actualización completada",
-                      sound: false
-                    }
-                  );
-                }
-
-              } catch (e) {
-                limpiarWatchdog_();
-
-                finalizarError_(
-                  "Error frontend",
-                  "Error procesando la lista de auditorías.",
-                  e
-                );
-              }
-            })
-            .withFailureHandler((err) => {
-              limpiarWatchdog_();
-
-              finalizarError_(
-                "Error de auditorías",
-                err && err.message ? err.message : "No se pudo listar auditorías.",
-                err
-              );
-            })
-            .AuditoriaExcedentesController_listarAuditorias({});
-        };
-
-        console.log(`${logPrefix} 🚦 Paso 1: obtenerBootstrap`);
-
-        google.script.run
-          .withSuccessHandler((bootstrapResp) => {
-            try {
-              if (refreshSeqRef.current !== seq) {
-                console.warn(`${logPrefix} ⚠️ obtenerBootstrap ignorado por refresh viejo.`);
-                return;
-              }
-
-              const bootstrapSafe = bootstrapResp || {};
-
-              console.log(`${logPrefix} ✅ obtenerBootstrap OK`, bootstrapSafe);
-
-              setBootstrapData({
-                usuarios: Array.isArray(bootstrapSafe.usuarios) ? bootstrapSafe.usuarios : [],
-                bodegas: Array.isArray(bootstrapSafe.bodegas) ? bootstrapSafe.bodegas : [],
-                auditoriasAbiertas: Array.isArray(bootstrapSafe.auditoriasAbiertas) ? bootstrapSafe.auditoriasAbiertas : [],
-                auditoriasCerradas: Array.isArray(bootstrapSafe.auditoriasCerradas) ? bootstrapSafe.auditoriasCerradas : []
-              });
-
-              console.log(`${logPrefix} 🚦 Paso 2: obtenerDashboardMetricos`);
-
-              google.script.run
-                .withSuccessHandler((dashboardResp) => {
-                  try {
-                    if (refreshSeqRef.current !== seq) {
-                      console.warn(`${logPrefix} ⚠️ obtenerDashboardMetricos ignorado por refresh viejo.`);
-                      return;
-                    }
-
-                    const dash = dashboardResp || {};
-
-                    console.log(`${logPrefix} ✅ obtenerDashboardMetricos OK`, dash);
-
-                    setDashboard({
-                      fechaCorte: dash.fechaCorte || {},
-                      resumenGlobal: dash.resumenGlobal || {},
-                      destacados: dash.destacados || {},
-                      porBodega: Array.isArray(dash.porBodega) ? dash.porBodega : []
-                    });
-
-                    cargarAuditorias_(true);
-
-                  } catch (e) {
-                    console.error(`${logPrefix} ❌ Error procesando dashboard en frontend`, e);
-
-                    setDashboard({
-                      fechaCorte: {},
-                      resumenGlobal: {},
-                      destacados: {},
-                      porBodega: []
-                    });
-
-                    cargarAuditorias_(false);
-                  }
-                })
-                .withFailureHandler((err) => {
-                  console.error(`${logPrefix} ⚠️ Dashboard falló. Se cargará lista de auditorías de todos modos.`, err);
-
-                  notify_(
-                    err && err.message
-                      ? err.message
-                      : "No se pudo obtener el dashboard, pero se cargará la lista de auditorías.",
-                    "warning",
-                    4200,
-                    {
-                      title: "Métricos no disponibles",
-                      sound: true
-                    }
-                  );
-
-                  setDashboard({
-                    fechaCorte: {},
-                    resumenGlobal: {},
-                    destacados: {},
-                    porBodega: []
-                  });
-
-                  cargarAuditorias_(false);
-                })
-                .AuditoriaExcedentesController_obtenerDashboardMetricos();
-
-            } catch (e) {
-              limpiarWatchdog_();
-
-              finalizarError_(
-                "Error frontend",
-                "Error procesando bootstrap de auditorías.",
-                e
-              );
-            }
-          })
-          .withFailureHandler((err) => {
-            limpiarWatchdog_();
-
-            finalizarError_(
-              "Error de carga",
-              err && err.message ? err.message : "No se pudo cargar el módulo de auditoría.",
-              err
-            );
-          })
-          .AuditoriaExcedentesController_obtenerBootstrap();
-
-      }, []);
-
-      useEffect(() => {
-        refrescarDatos("init");
-      }, [refrescarDatos]);
-
-      
-      useEffect(() => {
-        const timer = setInterval(() => {
-          refrescarDatos("auto");
-        }, 30000);
-
-        return () => clearInterval(timer);
-      }, [refrescarDatos]);
-
-
-      // ---------------------------------------------------------
-      // NUEVA AUDITORÍA
-      // ---------------------------------------------------------
-      const abrirPanelNuevaAuditoria = () => {
+      const openNew = () => {
         const panel = document.getElementById("panelNuevaAuditoriaExcedentes");
-        if (!panel) {
-          notify_("No se encontró el panel de nueva auditoría.", "error", 3200, {
+        if (!panel || typeof bootstrap === "undefined" || !bootstrap.Offcanvas) {
+          notify_("No se pudo abrir el panel de nueva auditoría.", "error", 3200, {
             title: "Panel no disponible",
-            sound: true
+            sound: true,
           });
           return;
         }
-
-        if (typeof bootstrap === "undefined" || !bootstrap.Offcanvas) {
-          notify_("Bootstrap Offcanvas no está disponible.", "error", 3200, {
-            title: "Bootstrap no disponible",
-            sound: true
-          });
-          return;
-        }
-
-        const instancia = bootstrap.Offcanvas.getOrCreateInstance(panel);
-        instancia.show();
+        bootstrap.Offcanvas.getOrCreateInstance(panel).show();
       };
 
-      const submitNuevaAuditoria = () => {
+      const submitNew = () => {
+        const type = String(form.tipoauditoria || "GLOBAL").toUpperCase();
         const payload = {
-          auditor: String(formNuevaAuditoria.auditor || "").toUpperCase().trim(),
-          tipoauditoria: String(formNuevaAuditoria.tipoauditoria || "GLOBAL").toUpperCase().trim(),
+          auditor: String(form.auditor || "")
+            .toUpperCase()
+            .trim(),
+          tipoauditoria: type,
           bodegaobjetivo:
-            String(formNuevaAuditoria.tipoauditoria || "GLOBAL").toUpperCase().trim() === "POR_BODEGA"
-              ? String(formNuevaAuditoria.bodegaobjetivo || "").toUpperCase().trim()
+            type === "POR_BODEGA"
+              ? String(form.bodegaobjetivo || "")
+                  .toUpperCase()
+                  .trim()
               : "TODAS",
-          observaciones: String(formNuevaAuditoria.observaciones || "").trim()
+          observaciones: String(form.observaciones || "").trim(),
         };
-
-        if (!payload.auditor) {
-          notify_("Debes seleccionar un auditor válido.", "warning", 2800, {
+        if (!payload.auditor)
+          return notify_("Debes seleccionar un auditor válido.", "warning", 2800, {
             title: "Auditor requerido",
-            sound: true
+            sound: true,
           });
-          return;
-        }
-
-        if (payload.tipoauditoria === "POR_BODEGA" && !payload.bodegaobjetivo) {
-          notify_("Debes seleccionar una bodega objetivo.", "warning", 2800, {
+        if (type === "POR_BODEGA" && !payload.bodegaobjetivo)
+          return notify_("Debes seleccionar una bodega objetivo.", "warning", 2800, {
             title: "Bodega requerida",
-            sound: true
+            sound: true,
           });
-          return;
-        }
-
-        notify_("Abriendo auditoría...", "info", 1400, {
-          title: "Procesando",
-          sound: false
-        });
 
         google.script.run
-          .withSuccessHandler((resp) => {
-            const id = resp?.auditoria?.idauditoria || "NUEVA AUDITORÍA";
-
+          .withSuccessHandler((response) => {
             notify_(
-              `Auditoría creada correctamente: ${id}`,
+              `Auditoría creada correctamente: ${response?.auditoria?.idauditoria || "NUEVA AUDITORÍA"}`,
               "success",
               2400,
-              {
-                title: "Auditoría abierta",
-                sound: true
-              }
+              { title: "Auditoría abierta", sound: true },
             );
-
             const panel = document.getElementById("panelNuevaAuditoriaExcedentes");
-            if (panel && typeof bootstrap !== "undefined" && bootstrap.Offcanvas) {
-              const instancia = bootstrap.Offcanvas.getOrCreateInstance(panel);
-              instancia.hide();
-            }
-
-            setFormNuevaAuditoria({
+            if (panel && typeof bootstrap !== "undefined")
+              bootstrap.Offcanvas.getOrCreateInstance(panel).hide();
+            setForm({
               auditor: "",
               tipoauditoria: "GLOBAL",
               bodegaobjetivo: "TODAS",
-              observaciones: ""
+              observaciones: "",
             });
-
-            refrescarDatos("manual");
+            refresh("manual");
           })
-          .withFailureHandler((err) => {
-            console.error("❌ [AuditoriaExcedentes] Error abriendo auditoría:", err);
-            notify_(
-              err && err.message ? err.message : "No se pudo abrir la auditoría.",
-              "error",
-              4200,
-              {
-                title: "Error al abrir auditoría",
-                sound: true
-              }
-            );
-          })
+          .withFailureHandler((error) =>
+            notify_(error?.message || "No se pudo abrir la auditoría.", "error", 4200, {
+              title: "Error al abrir auditoría",
+              sound: true,
+            }),
+          )
           .AuditoriaExcedentesController_abrirAuditoria(payload);
       };
 
-      // ---------------------------------------------------------
-      // NAVEGACIÓN
-      // ---------------------------------------------------------
-      const abrirDetalleAuditoria = (item) => {
-        const folio = item && item.idauditoria ? String(item.idauditoria).trim() : "";
-
-        if (!folio) {
-          notify_(
-            "No se pudo identificar el folio de la auditoría seleccionada.",
-            "warning",
-            2600,
-            {
-              title: "Folio inválido",
-              sound: true
-            }
-          );
-          return;
-        }
-
-        window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = folio;
-
-        if (typeof window.irAVistaShell === "function") {
-          window.irAVistaShell(
-            "AuditoriaExcedentesDetalle",
-            "AuditoriaExcedentesDetalle",
-            {
-              __AUDITORIA_EXCEDENTES_DETALLE_ID__: folio
-            }
-          );
-          return;
-        }
-
-        notify_(
-          `No se pudo abrir el detalle de la auditoría ${folio}.`,
-          "error",
-          3200,
-          {
+      const navigate = (item, capture = false) => {
+        const folio = String(item?.idauditoria || "").trim();
+        if (!folio || typeof window.irAVistaShell !== "function")
+          return notify_("No se pudo abrir la auditoría.", "error", 3200, {
             title: "Navegación no disponible",
-            sound: true
-          }
+            sound: true,
+          });
+        if (capture && String(item.estatus || "").toUpperCase() !== "ABIERTA")
+          return notify_(`La auditoría ${folio} ya no está abierta.`, "warning", 2600, {
+            title: "Auditoría no disponible",
+            sound: true,
+          });
+        const globals = capture
+          ? {
+              __AUDITORIA_EXCEDENTES_CAPTURA_ID__: folio,
+              __AUDITORIA_EXCEDENTES_DETALLE_ID__: folio,
+            }
+          : { __AUDITORIA_EXCEDENTES_DETALLE_ID__: folio };
+        window.irAVistaShell(
+          capture ? "AuditoriaExcedentesCaptura" : "AuditoriaExcedentesDetalle",
+          capture ? "AuditoriaExcedentesCaptura" : "AuditoriaExcedentesDetalle",
+          globals,
         );
       };
 
-      const exportarExcelAuditorias_ = () => {
-        if (!window.ExcelExportUtils || typeof window.ExcelExportUtils.exportarAXLSX !== "function") {
-          notify_(
-            "No se detectó el helper global de exportación XLSX.",
-            "error",
-            4200,
-            {
-              title: "Exportador no disponible",
-              sound: true
-            }
+      const filtered = useMemo(() => {
+        let result = [...auditorias];
+        if (filterStatus !== "TODAS")
+          result = result.filter((x) => String(x.estatus || "").toUpperCase() === filterStatus);
+        if (filterTipo !== "TODOS")
+          result = result.filter((x) => String(x.tipoauditoria || "").toUpperCase() === filterTipo);
+        if (filterBodega !== "TODAS")
+          result = result.filter(
+            (x) => String(x.bodegaobjetivo || "").toUpperCase() === filterBodega,
           );
-          return;
-        }
-
-        if (!Array.isArray(auditoriasFiltradas) || auditoriasFiltradas.length === 0) {
-          notify_(
-            "No existen auditorías disponibles para exportación.",
-            "warning",
-            3200,
-            {
-              title: "Sin datos para exportar",
-              sound: true
-            }
+        const query = searchQuery.trim().toLowerCase();
+        if (query)
+          result = result.filter((x) =>
+            [
+              x.idauditoria,
+              x.auditor,
+              x.tipoauditoria,
+              x.bodegaobjetivo,
+              x.estatus,
+              x.observaciones,
+            ].some((v) =>
+              String(v || "")
+                .toLowerCase()
+                .includes(query),
+            ),
           );
-          return;
-        }
+        result.sort((a, b) => {
+          const left = parseDate_(a.fecha)?.getTime() || 0;
+          const right = parseDate_(b.fecha)?.getTime() || 0;
+          return sortBy === "FECHA_ASC" ? left - right : right - left;
+        });
+        return result;
+      }, [auditorias, filterStatus, filterTipo, filterBodega, searchQuery, sortBy]);
 
-        const fecha = new Date().toISOString().slice(0, 10);
-
+      const exportExcel = () => {
+        if (!window.ExcelExportUtils?.exportarAXLSX)
+          return notify_("No se detectó el exportador XLSX.", "error", 4200, {
+            title: "Exportador no disponible",
+            sound: true,
+          });
+        if (!filtered.length)
+          return notify_("No existen auditorías para exportar.", "warning", 3200, {
+            title: "Sin datos para exportar",
+            sound: true,
+          });
         window.ExcelExportUtils.exportarAXLSX({
-          fileName: `Auditorias_Excedentes_${fecha}.xlsx`,
+          fileName: `Auditorias_Excedentes_${new Date().toISOString().slice(0, 10)}.xlsx`,
           sheetName: "Auditorias",
-          rows: auditoriasFiltradas,
+          rows: filtered,
           columns: [
             { key: "idauditoria", label: "Auditoría" },
             { key: "fecha", label: "Fecha" },
-            { key: "horainicio", label: "Hora Inicio" },
-            { key: "horafin", label: "Hora Fin" },
-            { key: "tipoauditoria", label: "Tipo Auditoría" },
+            { key: "horainicio", label: "Hora inicio" },
+            { key: "horafin", label: "Hora fin" },
+            { key: "tipoauditoria", label: "Tipo de auditoría" },
             { key: "auditor", label: "Auditor" },
-            { key: "bodegaobjetivo", label: "Bodega Objetivo" },
+            { key: "bodegaobjetivo", label: "Bodega objetivo" },
             { key: "estatus", label: "Estatus" },
-            { key: "confiabilidadtotal", label: "Confiabilidad Total" },
-            { key: "ubicacionesauditadas", label: "Ubicaciones Auditadas" },
-            { key: "ubicacionescondiferencia", label: "Ubicaciones con Diferencia" },
-            { key: "idunicosesperadostotales", label: "ID Únicos Esperados" },
-            { key: "idunicoscorrectostotales", label: "ID Únicos Correctos" },
-            { key: "idunicosfaltantestotales", label: "ID Únicos Faltantes" },
-            { key: "idunicossobrantestotales", label: "ID Únicos Sobrantes" },
-            { key: "observaciones", label: "Observaciones" }
-          ]
+            { key: "observaciones", label: "Observaciones" },
+          ],
         });
-
-        notify_(
-          `Se inició la exportación de ${auditoriasFiltradas.length} auditorías.`,
-          "success",
-          2200,
-          {
-            title: "Exportación iniciada",
-            sound: true
-          }
-        );
-
-        cerrarFabMenu_();
+        notify_(`Se inició la exportación de ${filtered.length} auditorías.`, "success", 2200, {
+          title: "Exportación iniciada",
+          sound: true,
+        });
       };
-
-
-      const continuarAuditoria = (item) => {
-        const folio = item && item.idauditoria ? String(item.idauditoria).trim() : "";
-        const estatus = String(item && item.estatus ? item.estatus : "").toUpperCase();
-
-        if (!folio) {
-          notify_(
-            "No se pudo identificar el folio de la auditoría.",
-            "warning",
-            2600,
-            {
-              title: "Folio inválido",
-              sound: true
-            }
-          );
-          return;
-        }
-
-        if (estatus !== "ABIERTA") {
-          notify_(
-            `La auditoría ${folio} ya no está abierta.`,
-            "warning",
-            2600,
-            {
-              title: "Auditoría no disponible",
-              sound: true
-            }
-          );
-          return;
-        }
-
-        window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ = folio;
-        window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ = folio;
-
-        if (typeof window.irAVistaShell === "function") {
-          window.irAVistaShell(
-            "AuditoriaExcedentesCaptura",
-            "AuditoriaExcedentesCaptura",
-            {
-              __AUDITORIA_EXCEDENTES_CAPTURA_ID__: folio,
-              __AUDITORIA_EXCEDENTES_DETALLE_ID__: folio
-            }
-          );
-          return;
-        }
-
-        notify_(
-          `No se pudo abrir la captura para la auditoría ${folio}.`,
-          "error",
-          3200,
-          {
-            title: "Navegación no disponible",
-            sound: true
-          }
-        );
-      };
-
-      // ---------------------------------------------------------
-      // DERIVADOS
-      // ---------------------------------------------------------
-      const resumenGlobal = dashboard.resumenGlobal || {};
-      const destacados = dashboard.destacados || {};
-      const porBodega = Array.isArray(dashboard.porBodega) ? dashboard.porBodega : [];
-
-      const auditoriasFiltradas = useMemo(() => {
-        let salida = [...auditorias];
-
-        if (filterStatus !== "TODAS") {
-          salida = salida.filter(item => String(item.estatus || "").toUpperCase() === filterStatus);
-        }
-
-        if (filterTipo !== "TODOS") {
-          salida = salida.filter(item => String(item.tipoauditoria || "").toUpperCase() === filterTipo);
-        }
-
-        if (filterBodega !== "TODAS") {
-          salida = salida.filter(item => String(item.bodegaobjetivo || "").toUpperCase() === filterBodega);
-        }
-
-        const q = String(searchQuery || "").trim().toLowerCase();
-        if (q) {
-          salida = salida.filter(item =>
-            String(item.idauditoria || "").toLowerCase().includes(q) ||
-            String(item.auditor || "").toLowerCase().includes(q) ||
-            String(item.tipoauditoria || "").toLowerCase().includes(q) ||
-            String(item.bodegaobjetivo || "").toLowerCase().includes(q)
-          );
-        }
-
-        if (sortBy === "FECHA_ASC") {
-          salida.sort((a, b) => String(a.fecha || "").localeCompare(String(b.fecha || ""), "es", { sensitivity: "base", numeric: true }));
-        }
-
-        if (sortBy === "FECHA_DESC") {
-          salida.sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || ""), "es", { sensitivity: "base", numeric: true }));
-        }
-
-        if (sortBy === "CONFIABILIDAD_DESC") {
-          salida.sort((a, b) => Number(b.confiabilidadtotal || 0) - Number(a.confiabilidadtotal || 0));
-        }
-
-        if (sortBy === "CONFIABILIDAD_ASC") {
-          salida.sort((a, b) => Number(a.confiabilidadtotal || 0) - Number(b.confiabilidadtotal || 0));
-        }
-
-        return salida;
-      }, [auditorias, filterStatus, filterTipo, filterBodega, searchQuery, sortBy]);
-
-      const confSemanalGlobal = getConfiabilidadVisual(resumenGlobal.confiabilidadSemanalActualEjercicio);
-      const confMensualGlobal = getConfiabilidadVisual(resumenGlobal.confiabilidadMensualActualEjercicio);
-
-      const criticaSemana = destacados.bodegaMasCriticaSemana || null;
-      const mejorSemana = destacados.bodegaMejorSemana || null;
 
       return (
         <div className="space-y-4 fade-in-up relative">
-          {/* KPI */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            <KPIBlock
-              title="Auditorías abiertas"
-              value={Number(resumenGlobal.auditoriasAbiertas || 0)}
-              unit="eventos"
-              iconName="folder-open"
-              tone="red"
-              trend={{
-                text: "Operación viva",
-                className: "ae-chip ae-chip-red"
-              }}
-            />
-
-            <KPIBlock
-              title="Ubicaciones abiertas"
-              value={Number(resumenGlobal.ubicacionesAbiertas || 0)}
-              unit="ubic."
-              iconName="map"
-              tone="amber"
-              trend={{
-                text: "Pendientes por cerrar",
-                className: "ae-chip ae-chip-amber"
-              }}
-            />
-
-            <KPIBlock
-              title="Confiabilidad semanal"
-              value={Number(resumenGlobal.confiabilidadSemanalActualEjercicio || 0).toFixed(2)}
-              unit="%"
-              iconName="shield-check"
-              tone={confSemanalGlobal.tone}
-              trend={{
-                text: confSemanalGlobal.label,
-                className: confSemanalGlobal.className
-              }}
-            />
-
-            <KPIBlock
-              title="Faltantes semana actual"
-              value={Number(resumenGlobal.faltantesSemanaActual || 0)}
-              unit="ids"
-              iconName="triangle-alert"
-              tone="red"
-              trend={{
-                text: "Diferencia física",
-                className: "ae-chip ae-chip-red"
-              }}
-            />
-
-            <KPIBlock
-              title="Sobrantes semana actual"
-              value={Number(resumenGlobal.sobrantesSemanaActual || 0)}
-              unit="ids"
-              iconName="plus-circle"
-              tone="amber"
-              trend={{
-                text: "Fuera de ubicación",
-                className: "ae-chip ae-chip-amber"
-              }}
-            />
-
-            <KPIBlock
-              title="Confiabilidad mensual"
-              value={Number(resumenGlobal.confiabilidadMensualActualEjercicio || 0).toFixed(2)}
-              unit="%"
-              iconName="gauge"
-              tone={confMensualGlobal.tone}
-              trend={{
-                text: confMensualGlobal.label,
-                className: confMensualGlobal.className
-              }}
-            />
-          </div>
-
-
-          {/* Destacados compactos */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-            <div className="ae-card px-4 py-3">
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
-                    Bodega más crítica / semana
-                  </p>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="m-0 p-0 bg-transparent border-none text-[17px] font-black text-[var(--text-main)] uppercase leading-tight">
-                      {criticaSemana?.bodega || "Sin datos"}
-                    </h3>
-
-                    <span className={getConfiabilidadVisual(criticaSemana?.semanalActual?.confiabilidad).className}>
-                      {Number(criticaSemana?.semanalActual?.confiabilidad || 0).toFixed(2)}%
-                    </span>
-                  </div>
+          <section className="ae-card p-4">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    { id: "TODAS", label: "Todas" },
+                    { id: "ABIERTA", label: "Abiertas" },
+                    { id: "CERRADA", label: "Cerradas" },
+                  ].map((button) => (
+                    <button
+                      key={button.id}
+                      type="button"
+                      onClick={() => setFilterStatus(button.id)}
+                      className={`ae-filter-btn ${filterStatus === button.id ? "active-primary" : "idle"}`}
+                    >
+                      {button.label}
+                    </button>
+                  ))}
+                  <div className="hidden md:block w-px h-8 bg-slate-200 mx-1"></div>
+                  {[
+                    { id: "TODOS", label: "Todos los tipos" },
+                    { id: "GLOBAL", label: "Global" },
+                    { id: "POR_BODEGA", label: "Por bodega" },
+                  ].map((button) => (
+                    <button
+                      key={button.id}
+                      type="button"
+                      onClick={() => setFilterTipo(button.id)}
+                      className={`ae-filter-btn ${filterTipo === button.id ? "active-dark" : "idle"}`}
+                    >
+                      {button.label}
+                    </button>
+                  ))}
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-center">
-                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                      Falt.
-                    </div>
-                    <div className="text-[18px] font-black text-[var(--primary)] leading-tight">
-                      {Number(criticaSemana?.semanalActual?.faltantes || 0)}
-                    </div>
-                  </div>
-
-                  <div className="text-center">
-                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                      Sobr.
-                    </div>
-                    <div className="text-[18px] font-black text-amber-700 leading-tight">
-                      {Number(criticaSemana?.semanalActual?.sobrantes || 0)}
-                    </div>
-                  </div>
-
-                  <div className="text-center">
-                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                      Dif.
-                    </div>
-                    <div className="text-[18px] font-black text-[var(--text-main)] leading-tight">
-                      {Number(criticaSemana?.semanalActual?.ubicacionesConDiferencia || 0)}
-                    </div>
-                  </div>
+                <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                  <select
+                    className="ae-form-select !min-h-[44px] !text-[12px] !font-black !uppercase !tracking-[0.08em] !bg-white"
+                    value={filterBodega}
+                    onChange={(event) => setFilterBodega(event.target.value)}
+                    style={{ width: "210px" }}
+                    aria-label="Filtrar por bodega"
+                  >
+                    <option value="TODAS">Todas las bodegas</option>
+                    {(bootstrapData.bodegas || []).map((warehouse, index) => (
+                      <option
+                        key={`${warehouse}-${index}`}
+                        value={String(warehouse || "").toUpperCase()}
+                      >
+                        {warehouse}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="ae-form-select !min-h-[44px] !text-[12px] !font-black !uppercase !tracking-[0.08em] !bg-white"
+                    value={sortBy}
+                    onChange={(event) => setSortBy(event.target.value)}
+                    style={{ width: "190px" }}
+                    aria-label="Ordenar auditorías"
+                  >
+                    <option value="FECHA_DESC">Más recientes</option>
+                    <option value="FECHA_ASC">Más antiguas</option>
+                  </select>
+                  <div className="hidden xl:block w-px h-9 bg-slate-200 mx-1"></div>
+                  <button
+                    type="button"
+                    onClick={toggleSearch}
+                    className={`ae-toolbar-action ${isSearchExpanded ? "active-dark" : ""}`}
+                    title={isSearchExpanded ? "Cerrar búsqueda" : "Buscar auditoría"}
+                  >
+                    <LocalIcon name={isSearchExpanded ? "x" : "search"} size={17} />
+                    <span className="ae-toolbar-label">
+                      {isSearchExpanded ? "Cerrar" : "Buscar"}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => refresh("manual")}
+                    disabled={loading}
+                    className="ae-toolbar-action"
+                    title="Actualizar información"
+                  >
+                    <LocalIcon
+                      name="refresh-cw"
+                      size={17}
+                      className={loading ? "animate-spin" : ""}
+                    />
+                    <span className="ae-toolbar-label">Actualizar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openNew}
+                    className="ae-toolbar-action primary"
+                    title="Nueva auditoría"
+                  >
+                    <LocalIcon name="folder-plus" size={17} />
+                    <span className="ae-toolbar-label">Nueva</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportExcel}
+                    disabled={loading || !filtered.length}
+                    className="ae-toolbar-action success"
+                    title="Exportar auditorías a Excel"
+                  >
+                    <LocalIcon name="file-spreadsheet" size={17} />
+                    <span className="ae-toolbar-label">Excel</span>
+                  </button>
                 </div>
               </div>
-            </div>
 
-            <div className="ae-card px-4 py-3">
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
-                    Mejor bodega / semana
-                  </p>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="m-0 p-0 bg-transparent border-none text-[17px] font-black text-[var(--text-main)] uppercase leading-tight">
-                      {mejorSemana?.bodega || "Sin datos"}
-                    </h3>
-
-                    <span className={getConfiabilidadVisual(mejorSemana?.semanalActual?.confiabilidad).className}>
-                      {Number(mejorSemana?.semanalActual?.confiabilidad || 0).toFixed(2)}%
-                    </span>
-                  </div>
+              {isSearchExpanded && (
+                <div className={`ae-inline-search-wrap ${isSearchClosing ? "closing" : ""}`}>
+                  <LocalIcon name="search" size={18} />
+                  <input
+                    ref={searchRef}
+                    autoFocus
+                    type="text"
+                    placeholder="Busca por ID, auditor, tipo, bodega, estado u observaciones..."
+                    className="ae-inline-search-input"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className="ae-inline-search-clear"
+                      onClick={() => {
+                        setSearchQuery("");
+                        searchRef.current?.focus();
+                      }}
+                      title="Limpiar búsqueda"
+                    >
+                      <LocalIcon name="x" size={16} />
+                    </button>
+                  )}
                 </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-center">
-                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                      Corr.
-                    </div>
-                    <div className="text-[18px] font-black text-emerald-700 leading-tight">
-                      {Number(mejorSemana?.semanalActual?.correctos || 0)}
-                    </div>
-                  </div>
-
-                  <div className="text-center">
-                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                      Esp.
-                    </div>
-                    <div className="text-[18px] font-black text-[var(--text-main)] leading-tight">
-                      {Number(mejorSemana?.semanalActual?.esperados || 0)}
-                    </div>
-                  </div>
-
-                  <div className="text-center">
-                    <div className="text-[9px] font-black uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                      Dif.
-                    </div>
-                    <div className="text-[18px] font-black text-[var(--text-main)] leading-tight">
-                      {Number(mejorSemana?.semanalActual?.ubicacionesConDiferencia || 0)}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
-          </div>
+          </section>
 
-
-          {/* Filtros */}
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {[
-                { id: "TODAS", label: "Todas" },
-                { id: "ABIERTA", label: "Abiertas" },
-                { id: "CERRADA", label: "Cerradas" }
-              ].map(btn => (
-                <button
-                  key={btn.id}
-                  onClick={() => setFilterStatus(btn.id)}
-                  className={`ae-filter-btn ${filterStatus === btn.id ? "active-primary" : "idle"}`}
-                >
-                  {btn.label}
-                </button>
-              ))}
-
-              {[
-                { id: "TODOS", label: "Todos los tipos" },
-                { id: "GLOBAL", label: "Global" },
-                { id: "POR_BODEGA", label: "Por bodega" }
-              ].map(btn => (
-                <button
-                  key={btn.id}
-                  onClick={() => setFilterTipo(btn.id)}
-                  className={`ae-filter-btn ${filterTipo === btn.id ? "active-dark" : "idle"}`}
-                >
-                  {btn.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <select
-                className="ae-form-select !min-h-[44px] !text-[12px] !font-black !uppercase !tracking-[0.12em] !bg-white"
-                value={filterBodega}
-                onChange={(e) => setFilterBodega(e.target.value)}
-                style={{ width: "220px" }}
-              >
-                <option value="TODAS">Todas las bodegas</option>
-                {(bootstrapData.bodegas || []).map((bodega, index) => (
-                  <option key={`${bodega}-${index}`} value={String(bodega || "").toUpperCase()}>
-                    {bodega}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                className="ae-form-select !min-h-[44px] !text-[12px] !font-black !uppercase !tracking-[0.12em] !bg-white"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                style={{ width: "220px" }}
-              >
-                <option value="FECHA_DESC">Fecha descendente</option>
-                <option value="FECHA_ASC">Fecha ascendente</option>
-                <option value="CONFIABILIDAD_DESC">Confiabilidad mayor</option>
-                <option value="CONFIABILIDAD_ASC">Confiabilidad menor</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Tabla principal */}
-          <div className="ae-card overflow-hidden">
+          <section className="ae-card overflow-hidden">
             <div className="ae-table-wrap custom-scroll">
               <table className="ae-table">
                 <thead>
@@ -1592,322 +956,102 @@
                     <th>Auditor</th>
                     <th>Bodega objetivo</th>
                     <th>Estado</th>
-                    <th>Confiabilidad</th>
-                    <th>Ubicaciones</th>
-                    <th>Diferencias</th>
                     <th>Acción</th>
                   </tr>
                 </thead>
-
                 <tbody>
-                  {auditoriasFiltradas.map((item, idx) => {
-                    const conf = getConfiabilidadVisual(item.confiabilidadtotal);
-
-                    return (
-                      <tr
-                        key={item.idauditoria || idx}
-                        className={`ae-row ${activeRow === idx ? "active" : ""}`}
-                        onClick={() => setActiveRow(activeRow === idx ? null : idx)}
-                      >
-                        <td>
-                          <div className="flex flex-col">
-                            <span className="ae-folio-main">{item.idauditoria}</span>
-
-                            <span className="ae-folio-sub">
-                              {construirResumenFechaHora_(item)}
-                            </span>
-
-                            <span className="ae-folio-desc">
-                              {item.observaciones || "Sin observaciones registradas"}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td>
-                          <span className={getTipoChipClass(item.tipoauditoria)}>
-                            {item.tipoauditoria === "POR_BODEGA" ? "POR BODEGA" : "GLOBAL"}
+                  {filtered.map((item, index) => (
+                    <tr
+                      key={item.idauditoria || index}
+                      className={`ae-row ${activeRow === index ? "active" : ""}`}
+                      onClick={() => setActiveRow(activeRow === index ? null : index)}
+                    >
+                      <td>
+                        <div className="flex flex-col">
+                          <span className="ae-folio-main">{item.idauditoria || "SIN FOLIO"}</span>
+                          <span className="ae-folio-sub">{summary_(item)}</span>
+                          <span className="ae-folio-desc">
+                            {item.observaciones || "Sin observaciones registradas"}
                           </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[13px] font-black uppercase tracking-[0.10em] text-[var(--text-main)]">
-                            {item.auditor || "SIN AUDITOR"}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[13px] font-black uppercase tracking-[0.10em] text-[var(--text-main)]">
-                            {item.bodegaobjetivo || "TODAS"}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className={getStatusChipClass(item.estatus)}>
-                            {item.estatus || "SIN ESTATUS"}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className={`${conf.className} ${conf.level === "RED" ? "pulse-critical" : ""}`}>
-                            {Number(item.confiabilidadtotal || 0).toFixed(2)}% • {conf.label}
-                          </span>
-                        </td>
-
-                        <td>
-                          <div className="flex flex-col gap-1">
-                            <span className="text-[18px] font-black text-[var(--text-main)]">
-                              {Number(item.ubicacionesauditadas || 0)}
-                            </span>
-                            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                              auditadas
-                            </span>
-                          </div>
-                        </td>
-
-                        <td>
-                          <div className="flex flex-col gap-1">
-                            <span className="text-[18px] font-black text-[var(--primary)]">
-                              {Number(item.ubicacionescondiferencia || 0)}
-                            </span>
-                            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                              con diferencia
-                            </span>
-                          </div>
-                        </td>
-
-                        <td>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {String(item.estatus || "").toUpperCase() === "ABIERTA" && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  continuarAuditoria(item);
-                                }}
-                                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-[12px] font-black uppercase tracking-[0.10em] transition-all duration-200"
-                              >
-                                <LocalIcon name="play" size={14} />
-                                Continuar
-                              </button>
-                            )}
-
+                        </div>
+                      </td>
+                      <td>
+                        <span className={typeClass_(item.tipoauditoria)}>
+                          {item.tipoauditoria === "POR_BODEGA" ? "POR BODEGA" : "GLOBAL"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="text-[13px] font-black uppercase tracking-[.08em] text-[var(--text-main)]">
+                          {item.auditor || "SIN AUDITOR"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="text-[13px] font-black uppercase tracking-[.08em] text-[var(--text-main)]">
+                          {item.bodegaobjetivo || "TODAS"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={statusClass_(item.estatus)}>
+                          {item.estatus || "SIN ESTATUS"}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {String(item.estatus || "").toUpperCase() === "ABIERTA" && (
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                abrirDetalleAuditoria(item);
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                navigate(item, true);
                               }}
-                              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1c1d1f] hover:bg-black text-white text-[12px] font-black uppercase tracking-[0.10em] transition-all duration-200"
+                              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white text-[12px] font-black uppercase tracking-[.08em]"
                             >
-                              <LocalIcon name="arrow-up-right" size={14} />
-                              Ver detalle
+                              <LocalIcon name="play" size={14} />
+                              Continuar
                             </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          )}
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(item, false);
+                            }}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1c1d1f] hover:bg-black text-white text-[12px] font-black uppercase tracking-[.08em]"
+                          >
+                            <LocalIcon name="arrow-up-right" size={14} />
+                            Ver resumen
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
 
-              {auditoriasFiltradas.length === 0 && !loading && (
+              {!loading && !filtered.length && (
                 <div className="ae-empty-state">
                   <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                     <LocalIcon name="search-x" size={28} />
                   </div>
-
-                  <span className="text-[13px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                  <span className="text-[13px] font-black uppercase tracking-widest">
                     Sin auditorías coincidentes
                   </span>
-
-                  <span className="text-[11px] text-slate-400 font-semibold">
+                  <span className="text-[11px] font-semibold">
                     Ajusta la búsqueda o los filtros operativos.
                   </span>
                 </div>
               )}
-
               {loading && (
                 <div className="p-28 flex flex-col items-center justify-center gap-4">
                   <div className="w-10 h-10 border-4 border-slate-100 border-t-[var(--primary)] rounded-full animate-spin"></div>
                   <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                    Cargando auditorías de excedentes...
+                    Cargando auditorías...
                   </span>
                 </div>
               )}
             </div>
-          </div>
+          </section>
 
-          {/* Resumen por bodega */}
-          <div className="ae-card p-5">
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)] mb-1">
-                  Confiabilidad actual por bodega
-                </p>
-                <h3 className="m-0 p-0 bg-transparent border-none text-[var(--text-main)] text-[22px] font-black tracking-tight">
-                  Semana y mes actual
-                </h3>
-              </div>
-
-              <span className="ae-chip ae-chip-slate">
-                {Array.isArray(porBodega) ? porBodega.length : 0} bodegas
-              </span>
-            </div>
-
-            <div className="overflow-auto custom-scroll">
-              <table className="ae-table">
-                <thead>
-                  <tr>
-                    <th>Bodega</th>
-                    <th>Semanal</th>
-                    <th>Mensual</th>
-                    <th>Faltantes sem.</th>
-                    <th>Sobrantes sem.</th>
-                    <th>Dif. ubic sem.</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {porBodega.map((item, idx) => {
-                    const semanalVis = getConfiabilidadVisual(item?.semanalActual?.confiabilidad);
-                    const mensualVis = getConfiabilidadVisual(item?.mensualActual?.confiabilidad);
-
-                    return (
-                      <tr key={`${item.bodega}-${idx}`} className="ae-row">
-                        <td>
-                          <span className="text-[14px] font-black uppercase tracking-[0.10em] text-[var(--text-main)]">
-                            {item.bodega}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className={semanalVis.className}>
-                            {Number(item?.semanalActual?.confiabilidad || 0).toFixed(2)}%
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className={mensualVis.className}>
-                            {Number(item?.mensualActual?.confiabilidad || 0).toFixed(2)}%
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[16px] font-black text-[var(--primary)]">
-                            {Number(item?.semanalActual?.faltantes || 0)}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[16px] font-black text-amber-700">
-                            {Number(item?.semanalActual?.sobrantes || 0)}
-                          </span>
-                        </td>
-
-                        <td>
-                          <span className="text-[16px] font-black text-[var(--text-main)]">
-                            {Number(item?.semanalActual?.ubicacionesConDiferencia || 0)}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-
-              {!loading && porBodega.length === 0 && (
-                <div className="ae-empty-state !min-h-[200px]">
-                  <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                    <LocalIcon name="warehouse" size={24} />
-                  </div>
-                  <span className="text-[12px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
-                    Sin métricos por bodega
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* MENÚ FLOTANTE GLOBALIZADO */}
-          <div className="app-fab-container">
-
-            {isFabMenuMounted && isSearchExpanded && (
-              <div className={`app-fab-row ${isSearchClosing || isFabClosing ? "app-fab-slide-right" : "app-fab-slide-left"}`}>
-                <input
-                  ref={searchInputRef}
-                  autoFocus
-                  type="text"
-                  placeholder="Busca por ID, auditor, tipo o bodega..."
-                  className="app-fab-search"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            )}
-
-            {isFabMenuMounted && (
-              <div className={`app-fab-stack ${isFabClosing ? "app-fab-out" : "app-fab-in"}`}>
-
-                <button
-                  type="button"
-                  className={`app-fab-action ${isSearchExpanded ? "dark" : ""}`}
-                  title={isSearchExpanded ? "Cerrar buscador" : "Buscar auditoría"}
-                  onClick={toggleBuscador_}
-                >
-                  <LocalIcon name={isSearchExpanded ? "x" : "search"} size={24} />
-                </button>
-
-                <button
-                  type="button"
-                  className="app-fab-action"
-                  title="Actualizar tablero"
-                  onClick={() => refrescarDatos("manual")}
-                  disabled={loading}
-                >
-                  <LocalIcon
-                    name="refresh-cw"
-                    size={24}
-                    className={loading ? "text-[#d93025] animate-spin" : ""}
-                  />
-                </button>
-
-                <button
-                  type="button"
-                  className="app-fab-action primary"
-                  title="Nueva auditoría"
-                  onClick={() => {
-                    abrirPanelNuevaAuditoria();
-                    cerrarFabMenu_();
-                  }}
-                >
-                  <LocalIcon name="folder-plus" size={24} />
-                </button>
-
-                <button
-                  type="button"
-                  className="app-fab-action success"
-                  title="Exportar Excel"
-                  onClick={exportarExcelAuditorias_}
-                  disabled={loading || auditoriasFiltradas.length === 0}
-                >
-                  <LocalIcon name="file-spreadsheet" size={24} />
-                </button>
-
-              </div>
-            )}
-
-            <button
-              type="button"
-              className={`app-fab-main ${isFabMenuOpen ? "open" : ""}`}
-              title={isFabMenuOpen ? "Cerrar acciones" : "Abrir acciones"}
-              onClick={toggleFabMenu_}
-            >
-              <LocalIcon name={isFabMenuOpen ? "x" : "ellipsis-vertical"} size={26} />
-            </button>
-
-          </div>
-
-          {/* OFFCANVAS NUEVA AUDITORÍA */}
           <div
             className="offcanvas offcanvas-end ae-offcanvas"
             tabIndex="-1"
@@ -1916,18 +1060,13 @@
           >
             <div className="offcanvas-header">
               <div>
-                <h5
-                  id="panelNuevaAuditoriaExcedentesLabel"
-                  className="mb-1 fw-bold"
-                  style={{ color: "var(--text-main)" }}
-                >
+                <h5 id="panelNuevaAuditoriaExcedentesLabel" className="mb-1 fw-bold">
                   Nueva Auditoría de Excedentes
                 </h5>
                 <p className="mb-0 text-muted" style={{ fontSize: "13px" }}>
                   Configura y abre un nuevo evento de auditoría.
                 </p>
               </div>
-
               <button
                 type="button"
                 className="btn-close text-reset"
@@ -1935,7 +1074,6 @@
                 aria-label="Cerrar"
               ></button>
             </div>
-
             <div className="offcanvas-body d-flex flex-column gap-4">
               <div>
                 <label className="ae-form-label">Auditor responsable</label>
@@ -1943,31 +1081,30 @@
                   list="lista-usuarios-auditoria-excedentes"
                   className="ae-form-input"
                   placeholder="Escribe o selecciona auditor"
-                  value={formNuevaAuditoria.auditor}
-                  onChange={(e) =>
-                    setFormNuevaAuditoria(prev => ({
-                      ...prev,
-                      auditor: e.target.value.toUpperCase()
+                  value={form.auditor}
+                  onChange={(event) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      auditor: event.target.value.toUpperCase(),
                     }))
                   }
                 />
                 <datalist id="lista-usuarios-auditoria-excedentes">
-                  {(bootstrapData.usuarios || []).map((u, index) => (
-                    <option key={index} value={obtenerNombreUsuario_(u)} />
+                  {(bootstrapData.usuarios || []).map((user, index) => (
+                    <option key={index} value={userName_(user)} />
                   ))}
                 </datalist>
               </div>
-
               <div>
                 <label className="ae-form-label">Tipo de auditoría</label>
                 <select
                   className="ae-form-select"
-                  value={formNuevaAuditoria.tipoauditoria}
-                  onChange={(e) =>
-                    setFormNuevaAuditoria(prev => ({
-                      ...prev,
-                      tipoauditoria: e.target.value,
-                      bodegaobjetivo: e.target.value === "POR_BODEGA" ? "" : "TODAS"
+                  value={form.tipoauditoria}
+                  onChange={(event) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      tipoauditoria: event.target.value,
+                      bodegaobjetivo: event.target.value === "POR_BODEGA" ? "" : "TODAS",
                     }))
                   }
                 >
@@ -1975,62 +1112,53 @@
                   <option value="POR_BODEGA">POR_BODEGA</option>
                 </select>
               </div>
-
-              {String(formNuevaAuditoria.tipoauditoria || "").toUpperCase() === "POR_BODEGA" && (
+              {form.tipoauditoria === "POR_BODEGA" && (
                 <div>
                   <label className="ae-form-label">Bodega objetivo</label>
                   <select
                     className="ae-form-select"
-                    value={formNuevaAuditoria.bodegaobjetivo}
-                    onChange={(e) =>
-                      setFormNuevaAuditoria(prev => ({
-                        ...prev,
-                        bodegaobjetivo: e.target.value.toUpperCase()
+                    value={form.bodegaobjetivo}
+                    onChange={(event) =>
+                      setForm((previous) => ({
+                        ...previous,
+                        bodegaobjetivo: event.target.value.toUpperCase(),
                       }))
                     }
                   >
                     <option value="">Selecciona una bodega</option>
-                    {(bootstrapData.bodegas || []).map((bodega, index) => (
-                      <option key={`${bodega}-${index}`} value={String(bodega || "").toUpperCase()}>
-                        {bodega}
+                    {(bootstrapData.bodegas || []).map((warehouse, index) => (
+                      <option
+                        key={`${warehouse}-${index}`}
+                        value={String(warehouse || "").toUpperCase()}
+                      >
+                        {warehouse}
                       </option>
                     ))}
                   </select>
                 </div>
               )}
-
               <div>
                 <label className="ae-form-label">Observaciones</label>
                 <textarea
                   className="ae-form-textarea"
                   placeholder="Notas iniciales de la auditoría..."
-                  value={formNuevaAuditoria.observaciones}
-                  onChange={(e) =>
-                    setFormNuevaAuditoria(prev => ({
-                      ...prev,
-                      observaciones: e.target.value
-                    }))
+                  value={form.observaciones}
+                  onChange={(event) =>
+                    setForm((previous) => ({ ...previous, observaciones: event.target.value }))
                   }
                 />
               </div>
-
               <div className="ae-mini-card">
-                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--text-secondary)] mb-2">
+                <div className="text-[11px] font-black uppercase tracking-[.14em] text-[var(--text-secondary)] mb-2">
                   Alcance esperado
                 </div>
-
                 <div className="text-[13px] font-semibold text-[var(--text-main)] leading-relaxed">
-                  {String(formNuevaAuditoria.tipoauditoria || "").toUpperCase() === "POR_BODEGA"
-                    ? `La auditoría se abrirá solo para la bodega ${formNuevaAuditoria.bodegaobjetivo || "SIN DEFINIR"}.`
-                    : "La auditoría se abrirá a nivel ejercicio, considerando todas las bodegas auditables."}
+                  {form.tipoauditoria === "POR_BODEGA"
+                    ? `La auditoría se abrirá solo para la bodega ${form.bodegaobjetivo || "SIN DEFINIR"}.`
+                    : "La auditoría se abrirá considerando todas las bodegas auditables."}
                 </div>
               </div>
-
-              <button
-                type="button"
-                className="ae-btn-primary mt-auto"
-                onClick={submitNuevaAuditoria}
-              >
+              <button type="button" className="ae-btn-primary mt-auto" onClick={submitNew}>
                 Abrir auditoría
               </button>
             </div>
@@ -2039,79 +1167,25 @@
       );
     };
 
-    // =========================================================
-    // MONTAJE
-    // =========================================================
-    const targetElement = document.getElementById("render-auditoria-excedentes");
-
-    if (!targetElement) {
-      notify_(
-        "No se encontró el contenedor principal de la vista de auditorías.",
-        "error",
-        4200,
-        {
-          title: "Error de interfaz",
-          sound: true
-        }
-      );
-      console.warn("⚠️ [AuditoriaExcedentes] No se encontró #render-auditoria-excedentes");
-      return;
-    }
-
-    const yaInicializado = targetElement.dataset.aeMounted === "1";
-
+    const target = document.getElementById("render-auditoria-excedentes");
+    if (!target)
+      return notify_("No se encontró el contenedor principal.", "error", 4200, {
+        title: "Error de interfaz",
+        sound: true,
+      });
     if (window.__AUDITORIA_EXCEDENTES_ROOT__) {
       try {
         window.__AUDITORIA_EXCEDENTES_ROOT__.unmount();
-      } catch (e) {
-        console.warn("⚠️ [AuditoriaExcedentes] No se pudo desmontar root previo:", e);
-        notifyOnceShell_(
-          "auditoria-root-previo",
-          "Se liberó una instancia previa de la vista de auditorías.",
-          "warning",
-          1600,
-          {
-            title: "Reinicialización",
-            sound: false
-          },
-          10000
-        );
+      } catch (error) {
+        console.warn(error);
       }
       window.__AUDITORIA_EXCEDENTES_ROOT__ = null;
     }
-
-    try {
-      targetElement.dataset.aeMounted = "1";
-      window.__AUDITORIA_EXCEDENTES_ROOT__ = ReactDOM.createRoot(targetElement);
-      window.__AUDITORIA_EXCEDENTES_ROOT__.render(<AuditoriaExcedentesDashboard />);
-
-      if (!yaInicializado) {
-        notifyOnceShell_(
-          "auditoria-vista-montada",
-          "Vista de auditorías lista para operar.",
-          "success",
-          1500,
-          {
-            title: "Vista cargada",
-            sound: false
-          },
-          12000
-        );
-      }
-    } catch (e) {
-      console.error("❌ [AuditoriaExcedentes] Error montando root React:", e);
-      notify_(
-        "Ocurrió un error al montar la vista de auditorías.",
-        "error",
-        4200,
-        {
-          title: "Error de montaje",
-          sound: true
-        }
-      );
-    }
+    target.dataset.aeMounted = "1";
+    window.__AUDITORIA_EXCEDENTES_ROOT__ = ReactDOM.createRoot(target);
+    window.__AUDITORIA_EXCEDENTES_ROOT__.render(<Dashboard />);
   };
 
   window.initVista = window.cargar_AuditoriaExcedentes;
-  console.log("🧩 [AuditoriaExcedentes] Vista inyectable inicializada y registrada.");
+  console.log("[AuditoriaExcedentes] Vista con acciones integradas en filtros registrada.");
 </script>

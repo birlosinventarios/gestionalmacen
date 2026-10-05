@@ -1,217 +1,706 @@
 /**
  * GestorExcedentesService.gs
+ * Adaptador de EstadoActualExcedentesService para las vistas legacy.
+ *
+ * Reglas:
+ * - No recalcula el saldo.
+ * - EstadoActualExcedentesService es la fuente unica del saldo consolidado.
+ * - saldoActual debe representar:
+ *   cantidad inicial de BD-EXCEDENTES menos la suma de SURTIDO.
+ * - Los excedentes PARCIAL permanecen vigentes mientras saldoActual sea mayor a cero.
  */
-
 const GestorExcedentesService = (() => {
+  "use strict";
+
+function _perfGestorStart_(operation, metadata) {
+    const now = Date.now();
+
+    return {
+      operation: String(operation || "GESTOR_OPERATION"),
+      startedAt: now,
+      lastAt: now,
+      metadata: metadata || {},
+      marks: []
+    };
+  }
+
+  function _perfGestorMark_(trace, stage, metadata) {
+    if (!trace) return;
+
+    const now = Date.now();
+
+    trace.marks.push({
+      stage: String(stage || "MARK"),
+      segmentMs: now - trace.lastAt,
+      totalMs: now - trace.startedAt,
+      metadata: metadata || {}
+    });
+
+    trace.lastAt = now;
+  }
+
+  function _perfGestorEnd_(trace, status, metadata) {
+    if (!trace) return null;
+
+    const result = {
+      operation: trace.operation,
+      status: String(status || "ok"),
+      totalMs: Date.now() - trace.startedAt,
+      metadata: Object.assign({}, trace.metadata, metadata || {}),
+      marks: trace.marks.slice()
+    };
+
+    console.log(
+      "[APPALMACEN][GESTOR_BACKEND_PERF] " +
+      JSON.stringify(result)
+    );
+
+    return result;
+  }
 
   // =========================================================
-  // HELPERS SEGUROS
+  // HELPERS DE VISTA
   // =========================================================
-  function _toSafeStr_(value) {
-    return toStr_(value || "");
-  }
-
-  function _toSafeUpper_(value) {
-    return toStrUpper_(value || "");
-  }
-
-  function _toSafeNum_(value) {
-    return toNum_(value || 0);
-  }
 
   function _ordenarVista_(rows) {
     return [...(rows || [])].sort((a, b) => {
-      const ubicA = _toSafeUpper_(a.eserie || a.ubicacionActual) || "ZZZZZZ";
-      const ubicB = _toSafeUpper_(b.eserie || b.ubicacionActual) || "ZZZZZZ";
+      const ubicacionA =
+        toStrUpper_(a.eserie || a.ubicacionActual) ||
+        "ZZZZZZ";
 
-      const cmpUbicacion = ubicA.localeCompare(
-        ubicB,
+      const ubicacionB =
+        toStrUpper_(b.eserie || b.ubicacionActual) ||
+        "ZZZZZZ";
+
+      const comparacionUbicacion = ubicacionA.localeCompare(
+        ubicacionB,
         "es",
-        { sensitivity: "base", numeric: true }
+        {
+          sensitivity: "base",
+          numeric: true
+        }
       );
 
-      if (cmpUbicacion !== 0) return cmpUbicacion;
+      if (comparacionUbicacion !== 0) {
+        return comparacionUbicacion;
+      }
 
-      const codA = _toSafeUpper_(a.ecodigo || a.codigo);
-      const codB = _toSafeUpper_(b.ecodigo || b.codigo);
+      const codigoA = toStrUpper_(
+        a.ecodigo || a.codigo
+      );
 
-      return codA.localeCompare(
-        codB,
+      const codigoB = toStrUpper_(
+        b.ecodigo || b.codigo
+      );
+
+      const comparacionCodigo = codigoA.localeCompare(
+        codigoB,
         "es",
-        { sensitivity: "base", numeric: true }
+        {
+          sensitivity: "base",
+          numeric: true
+        }
+      );
+
+      if (comparacionCodigo !== 0) {
+        return comparacionCodigo;
+      }
+
+      return toStr_(a.eidUnico || a.idUnico).localeCompare(
+        toStr_(b.eidUnico || b.idUnico),
+        "es",
+        {
+          sensitivity: "base",
+          numeric: true
+        }
       );
     });
   }
 
   /**
-   * Adapter seguro:
-   * Convierte el shape de EstadoActualExcedentesService
-   * al shape legacy esperado por GestorExcedentes.html
+   * Convierte el modelo de EstadoActualExcedentesService
+   * al modelo legacy utilizado por GestorExcedentes.html
+   * y PrototipoTraspasosService.
    */
   function _mapEstadoToLegacyView_(item) {
+    const cantidadInicial = toNum_(
+      item.cantidadInicial != null
+        ? item.cantidadInicial
+        : item.saldoBase
+    );
+
+    const saldoActual = toNum_(item.saldoActual);
+    const totalSurtido = toNum_(item.totalSurtido);
+
     return {
       // -----------------------------------------------------
-      // SHAPE LEGACY ACTUAL
+      // SHAPE LEGACY
       // -----------------------------------------------------
-      eidUnico: _toSafeStr_(item.idUnico),
-      ecodigo: _toSafeUpper_(item.codigo),
-      edescripcion: _toSafeUpper_(item.descripcion),
-      esaldo: _toSafeNum_(item.saldoActual),
-      eserie: _toSafeUpper_(item.ubicacionActual),
-      ebodegaActual: _toSafeUpper_(item.bodegaActual),
+      eidUnico: toStr_(item.idUnico),
+      ecodigo: toStrUpper_(item.codigo),
+      edescripcion: toStrUpper_(item.descripcion),
+      esaldo: saldoActual,
+      eserie: toStrUpper_(item.ubicacionActual),
+      ebodegaActual: toStrUpper_(item.bodegaActual),
 
       // -----------------------------------------------------
-      // ENRIQUECIMIENTO
+      // IDENTIFICACION Y ESTADO
       // -----------------------------------------------------
-      idproducto: _toSafeStr_(item.idproducto),
-      estatusRegistro: _toSafeUpper_(item.estatusRegistro),
-      estatusLogico: _toSafeUpper_(item.estatusLogico),
+      idUnico: toStr_(item.idUnico),
+      idproducto: toStr_(item.idproducto),
+      estatusRegistro: toStrUpper_(item.estatusRegistro),
+      estatusLogico: toStrUpper_(item.estatusLogico),
 
-      vigente: !!item.vigente,
-      pendienteUbicacion: !!item.pendienteUbicacion,
-      conUbicacion: !!item.conUbicacion,
-      auditable: !!item.auditable,
+      vigente: item.vigente === true,
+      pendienteUbicacion: item.pendienteUbicacion === true,
+      conUbicacion: item.conUbicacion === true,
+      auditable: item.auditable === true,
 
-      saldoBase: _toSafeNum_(item.saldoBase),
-      saldoActual: _toSafeNum_(item.saldoActual),
-      ubicacionActual: _toSafeUpper_(item.ubicacionActual),
-      bodegaActual: _toSafeUpper_(item.bodegaActual),
+      // -----------------------------------------------------
+      // TRAZABILIDAD CUANTITATIVA
+      // -----------------------------------------------------
+      cantidadInicial: cantidadInicial,
+      saldoBase: cantidadInicial,
+      saldoActual: saldoActual,
+      totalSurtido: totalSurtido,
+      cantidadSurtidos: toNum_(item.cantidadSurtidos),
+      cantidadAcomodos: toNum_(item.cantidadAcomodos),
 
-      ultimoMovimientoTipo: _toSafeUpper_(item.ultimoMovimientoTipo),
-      ultimaSerieMovimiento: _toSafeUpper_(item.ultimaSerieMovimiento),
-      ultimaUbicacionEntrada: _toSafeUpper_(item.ultimaUbicacionEntrada),
-      ultimaUbicacionSalida: _toSafeUpper_(item.ultimaUbicacionSalida),
-      ultimaBodegaEntrada: _toSafeUpper_(item.ultimaBodegaEntrada),
-      ultimaBodegaSalida: _toSafeUpper_(item.ultimaBodegaSalida),
-      ultimaFechaMovimiento: _toSafeStr_(item.ultimaFechaMovimiento),
-      ultimaHoraMovimiento: _toSafeStr_(item.ultimaHoraMovimiento),
+      // -----------------------------------------------------
+      // UBICACION ACTUAL
+      // -----------------------------------------------------
+      ubicacionActual: toStrUpper_(item.ubicacionActual),
+      bodegaActual: toStrUpper_(item.bodegaActual),
 
-      fechaBase: _toSafeStr_(item.fechaBase),
-      horaBase: _toSafeStr_(item.horaBase)
+      // -----------------------------------------------------
+      // ULTIMO MOVIMIENTO
+      // -----------------------------------------------------
+      ultimoMovimientoTipo: toStrUpper_(
+        item.ultimoMovimientoTipo
+      ),
+      ultimaSerieMovimiento: toStrUpper_(
+        item.ultimaSerieMovimiento
+      ),
+      ultimaUbicacionEntrada: toStrUpper_(
+        item.ultimaUbicacionEntrada
+      ),
+      ultimaUbicacionSalida: toStrUpper_(
+        item.ultimaUbicacionSalida
+      ),
+      ultimaBodegaEntrada: toStrUpper_(
+        item.ultimaBodegaEntrada
+      ),
+      ultimaBodegaSalida: toStrUpper_(
+        item.ultimaBodegaSalida
+      ),
+      ultimaFechaMovimiento: toStr_(
+        item.ultimaFechaMovimiento
+      ),
+      ultimaHoraMovimiento: toStr_(
+        item.ultimaHoraMovimiento
+      ),
+
+      // -----------------------------------------------------
+      // ORIGEN BD-EXCEDENTES
+      // -----------------------------------------------------
+      fechaBase: toStr_(item.fechaBase),
+      horaBase: toStr_(item.horaBase)
     };
   }
 
   function _mapResumen_(resumenBase) {
-    const r = resumenBase || {};
+    const resumen = resumenBase || {};
 
-    const idsUnicosVigentes = _toSafeNum_(r.vigentes);
-    const idsUnicosConUbicacion = _toSafeNum_(r.conUbicacion);
-    const idsUnicosPendientes = _toSafeNum_(r.pendientesUbicacion);
+    const idsUnicosVigentes = toNum_(resumen.vigentes);
+    const idsUnicosConUbicacion = toNum_(
+      resumen.conUbicacion
+    );
+    const idsUnicosPendientes = toNum_(
+      resumen.pendientesUbicacion
+    );
 
     const avanceUbicacionPct = idsUnicosVigentes > 0
-      ? Math.round(((idsUnicosConUbicacion / idsUnicosVigentes) * 100 + Number.EPSILON) * 100) / 100
+      ? Math.round(
+          (
+            (
+              idsUnicosConUbicacion /
+              idsUnicosVigentes
+            ) *
+            100 +
+            Number.EPSILON
+          ) *
+          100
+        ) /
+        100
       : 0;
 
     return {
-      totalIdsRegistrados: _toSafeNum_(r.totalIdUnicos),
+      totalIdsRegistrados: toNum_(
+        resumen.totalIdUnicos
+      ),
       idsUnicosVigentes: idsUnicosVigentes,
       idsUnicosPendientes: idsUnicosPendientes,
       idsUnicosConUbicacion: idsUnicosConUbicacion,
       avanceUbicacionPct: avanceUbicacionPct,
-      stockTotalVigente: _toSafeNum_(r.stockTotalVigente),
+      stockTotalVigente: toNum_(
+        resumen.stockTotalVigente
+      ),
 
-      // compatibilidad semántica
-      foliosVigentes: _toSafeNum_(r.vigentes),
-      foliosPendientes: _toSafeNum_(r.pendientesUbicacion),
-      foliosConUbicacion: _toSafeNum_(r.conUbicacion),
+      // Compatibilidad semantica.
+      foliosVigentes: idsUnicosVigentes,
+      foliosPendientes: idsUnicosPendientes,
+      foliosConUbicacion: idsUnicosConUbicacion,
 
-      // extra
-      auditables: _toSafeNum_(r.auditables),
-      cerrados: _toSafeNum_(r.cerrados),
-      stockTotalAuditable: _toSafeNum_(r.stockTotalAuditable),
-      bodegasAuditables: Array.isArray(r.bodegasAuditables) ? [...r.bodegasAuditables] : [],
-      porBodega: Array.isArray(r.porBodega) ? [...r.porBodega] : []
+      // Resumen extendido.
+      auditables: toNum_(resumen.auditables),
+      cerrados: toNum_(resumen.cerrados),
+      stockTotalAuditable: toNum_(
+        resumen.stockTotalAuditable
+      ),
+      bodegasAuditables: Array.isArray(
+        resumen.bodegasAuditables
+      )
+        ? [...resumen.bodegasAuditables]
+        : [],
+      porBodega: Array.isArray(resumen.porBodega)
+        ? [...resumen.porBodega]
+        : []
     };
   }
+
+  // =========================================================
+  // CONSTRUCCION DE VISTA
+  // =========================================================
 
   function _construirVista_() {
-    console.log("[GestorExcedentesService] _construirVista_ :: INICIO");
-
-    const estadoCompleto = EstadoActualExcedentesService.getAll();
-    const vigentes = EstadoActualExcedentesService.getVigentes();
-    const resumenBase = EstadoActualExcedentesService.getResumen();
-
-    console.log("[GestorExcedentesService] _construirVista_ :: estadoCompleto", estadoCompleto.length);
-    console.log("[GestorExcedentesService] _construirVista_ :: vigentes", vigentes.length);
-    console.log("[GestorExcedentesService] _construirVista_ :: resumenBase", resumenBase);
-
-    const dataCompleta = _ordenarVista_(
-      (estadoCompleto || []).map(_mapEstadoToLegacyView_)
+    const trace = _perfGestorStart_(
+      "GESTOR_CONSTRUIR_VISTA"
     );
 
-    const data = _ordenarVista_(
-      (vigentes || []).map(_mapEstadoToLegacyView_)
-    );
+    try {
+      const getAllStartedAt = Date.now();
+      const estadoCompleto =
+        EstadoActualExcedentesService.getAll();
 
-    const resumen = _mapResumen_(resumenBase);
+      _perfGestorMark_(trace, "ESTADO_GET_ALL", {
+        elapsedMs: Date.now() - getAllStartedAt,
+        rows: Array.isArray(estadoCompleto)
+          ? estadoCompleto.length
+          : 0
+      });
 
-    console.log("[GestorExcedentesService] _construirVista_ :: data", data.length);
-    console.log("[GestorExcedentesService] _construirVista_ :: dataCompleta", dataCompleta.length);
-    console.log("[GestorExcedentesService] _construirVista_ :: resumen", resumen);
-    console.log("[GestorExcedentesService] _construirVista_ :: FIN");
+      const getVigentesStartedAt = Date.now();
+      const vigentes =
+        EstadoActualExcedentesService.getVigentes();
 
-    return {
-      data,
-      dataCompleta,
-      resumen
-    };
+      _perfGestorMark_(trace, "ESTADO_GET_VIGENTES", {
+        elapsedMs: Date.now() - getVigentesStartedAt,
+        rows: Array.isArray(vigentes)
+          ? vigentes.length
+          : 0
+      });
+
+      const getResumenStartedAt = Date.now();
+      const resumenBase =
+        EstadoActualExcedentesService.getResumen();
+
+      _perfGestorMark_(trace, "ESTADO_GET_RESUMEN", {
+        elapsedMs: Date.now() - getResumenStartedAt
+      });
+
+      const dataCompletaStartedAt = Date.now();
+      const dataCompleta = _ordenarVista_(
+        (estadoCompleto || []).map(
+          _mapEstadoToLegacyView_
+        )
+      );
+
+      _perfGestorMark_(trace, "MAP_SORT_DATA_COMPLETA", {
+        elapsedMs: Date.now() - dataCompletaStartedAt,
+        rows: dataCompleta.length
+      });
+
+      const dataStartedAt = Date.now();
+      const data = _ordenarVista_(
+        (vigentes || []).map(
+          _mapEstadoToLegacyView_
+        )
+      );
+
+      _perfGestorMark_(trace, "MAP_SORT_DATA", {
+        elapsedMs: Date.now() - dataStartedAt,
+        rows: data.length
+      });
+
+      const resumenStartedAt = Date.now();
+      const resumen = _mapResumen_(resumenBase);
+
+      _perfGestorMark_(trace, "MAP_RESUMEN", {
+        elapsedMs: Date.now() - resumenStartedAt
+      });
+
+      _perfGestorEnd_(trace, "ok", {
+        estadoCompleto: estadoCompleto.length,
+        vigentes: vigentes.length,
+        data: data.length,
+        dataCompleta: dataCompleta.length,
+        stockTotalVigente: resumen.stockTotalVigente
+      });
+
+      return {
+        data,
+        dataCompleta,
+        resumen
+      };
+    } catch (error) {
+      _perfGestorMark_(trace, "FAILED", {
+        message: error && error.message
+          ? error.message
+          : String(error || "")
+      });
+
+      _perfGestorEnd_(trace, "error");
+      throw error;
+    }
   }
 
+  function _construirVistaLigera_() {
+    const trace =
+      _perfGestorStart_(
+        "GESTOR_CONSTRUIR_VISTA_LIGERA"
+      );
+
+    try {
+      const vigentesStartedAt =
+        Date.now();
+
+      const vigentes =
+        EstadoActualExcedentesService
+          .getVigentes();
+
+      _perfGestorMark_(
+        trace,
+        "ESTADO_GET_VIGENTES",
+        {
+          elapsedMs:
+            Date.now() -
+            vigentesStartedAt,
+
+          rows:
+            Array.isArray(
+              vigentes
+            )
+              ? vigentes.length
+              : 0
+        }
+      );
+
+      const resumenStartedAt =
+        Date.now();
+
+      const resumenBase =
+        EstadoActualExcedentesService
+          .getResumen();
+
+      _perfGestorMark_(
+        trace,
+        "ESTADO_GET_RESUMEN",
+        {
+          elapsedMs:
+            Date.now() -
+            resumenStartedAt
+        }
+      );
+
+      const mapStartedAt =
+        Date.now();
+
+      const data =
+        (vigentes || []).map(
+          _mapEstadoToLegacyView_
+        );
+
+      _perfGestorMark_(
+        trace,
+        "MAP_DATA",
+        {
+          elapsedMs:
+            Date.now() -
+            mapStartedAt,
+
+          rows:
+            data.length
+        }
+      );
+
+      /*
+       * EstadoActualExcedentesService ya entrega los registros
+       * ordenados. getVigentes() conserva ese orden al filtrar.
+       *
+       * Por tanto, no es necesario ejecutar _ordenarVista_()
+       * nuevamente en este endpoint.
+       */
+
+      const resumenMapStartedAt =
+        Date.now();
+
+      const resumen =
+        _mapResumen_(
+          resumenBase
+        );
+
+      _perfGestorMark_(
+        trace,
+        "MAP_RESUMEN",
+        {
+          elapsedMs:
+            Date.now() -
+            resumenMapStartedAt
+        }
+      );
+
+      const result = {
+        data:
+          data,
+
+        resumen:
+          resumen
+      };
+
+      const serializeStartedAt =
+        Date.now();
+
+      let responseChars =
+        -1;
+
+      try {
+        responseChars =
+          JSON.stringify(
+            result
+          ).length;
+      } catch (
+        error
+      ) {
+        responseChars =
+          -1;
+      }
+
+      _perfGestorMark_(
+        trace,
+        "RESPONSE_READY",
+        {
+          elapsedMs:
+            Date.now() -
+            serializeStartedAt,
+
+          rows:
+            data.length,
+
+          responseChars:
+            responseChars
+        }
+      );
+
+      _perfGestorEnd_(
+        trace,
+        "ok",
+        {
+          data:
+            data.length,
+
+          responseChars:
+            responseChars,
+
+          stockTotalVigente:
+            resumen
+              .stockTotalVigente
+        }
+      );
+
+      return result;
+    } catch (
+      error
+    ) {
+      _perfGestorMark_(
+        trace,
+        "FAILED",
+        {
+          message:
+            error &&
+            error.message
+              ? error.message
+              : String(
+                  error || ""
+                )
+        }
+      );
+
+      _perfGestorEnd_(
+        trace,
+        "error"
+      );
+
+      throw error;
+    }
+  }
+
+  // =========================================================
+  // API PUBLICA
+  // =========================================================
+
   /**
-   * RAW:
-   * sin esconder excepción
+   * Version estricta. Propaga cualquier error al llamador.
+   * Debe utilizarse en procesos operativos como Traspasos.
    */
   function obtenerVistaRaw() {
     return _construirVista_();
   }
 
   /**
-   * Seguro:
-   * mantiene fallback pero ya loguea el error real
+   * Version tolerante para vistas informativas.
    */
-function obtenerVista() {
-  try {
-    const result = _construirVista_();
+  function obtenerVista() {
+    try {
+      const result =
+        _construirVistaLigera_();
 
-    console.log("[GestorExcedentesService] obtenerVista :: OK", {
-      data: result.data.length,
-      dataCompleta: result.dataCompleta.length,
-      resumen: result.resumen
-    });
+      console.log(
+        "[GestorExcedentesService] " +
+        "obtenerVista :: OK",
+        JSON.stringify({
+          data:
+            result.data.length,
 
-    return result;
+          resumen:
+            result.resumen
+        })
+      );
 
-  } catch (error) {
+      return result;
+    } catch (
+      error
+    ) {
+      console.error(
+        "[GestorExcedentesService] " +
+        "obtenerVista :: ERROR message",
+        error &&
+        error.message
+      );
 
-      console.error("❌ Error GestorExcedentesService.obtenerVista :: message", error && error.message);
-      console.error("❌ Error GestorExcedentesService.obtenerVista :: stack", error && error.stack);
-      console.error("❌ Error GestorExcedentesService.obtenerVista :: raw", error);
+      console.error(
+        "[GestorExcedentesService] " +
+        "obtenerVista :: ERROR stack",
+        error &&
+        error.stack
+      );
 
       return {
-        data: [],
-        dataCompleta: [],
-        resumen: {
-          totalIdsRegistrados: 0,
-          idsUnicosVigentes: 0,
-          idsUnicosPendientes: 0,
-          idsUnicosConUbicacion: 0,
-          stockTotalVigente: 0,
-          foliosVigentes: 0,
-          foliosPendientes: 0,
-          foliosConUbicacion: 0,
-          avanceUbicacionPct: 0,
-          auditables: 0,
-          cerrados: 0,
-          stockTotalAuditable: 0,
-          bodegasAuditables: [],
-          porBodega: []
-        }
+        data:
+          [],
+
+        resumen:
+          {
+            totalIdsRegistrados:
+              0,
+
+            idsUnicosVigentes:
+              0,
+
+            idsUnicosPendientes:
+              0,
+
+            idsUnicosConUbicacion:
+              0,
+
+            stockTotalVigente:
+              0,
+
+            foliosVigentes:
+              0,
+
+            foliosPendientes:
+              0,
+
+            foliosConUbicacion:
+              0,
+
+            avanceUbicacionPct:
+              0,
+
+            auditables:
+              0,
+
+            cerrados:
+              0,
+
+            stockTotalAuditable:
+              0,
+
+            bodegasAuditables:
+              [],
+
+            porBodega:
+              []
+          }
       };
     }
   }
 
-  function obtenerExcedentesConsolidados() {
-    return obtenerVistaRaw().data;
+  function obtenerVistaLigeraRaw() {
+    return _construirVistaLigera_();
+  }  
+
+    function _construirSoloVigentes_() {
+    const trace = _perfGestorStart_(
+      "GESTOR_CONSTRUIR_SOLO_VIGENTES"
+    );
+
+    try {
+      const getVigentesStartedAt = Date.now();
+      const vigentes =
+        EstadoActualExcedentesService.getVigentes();
+
+      _perfGestorMark_(trace, "ESTADO_GET_VIGENTES", {
+        elapsedMs: Date.now() - getVigentesStartedAt,
+        rows: Array.isArray(vigentes)
+          ? vigentes.length
+          : 0
+      });
+
+      const mapStartedAt = Date.now();
+      const data = _ordenarVista_(
+        (vigentes || []).map(
+          _mapEstadoToLegacyView_
+        )
+      );
+
+      _perfGestorMark_(trace, "MAP_SORT_DATA", {
+        elapsedMs: Date.now() - mapStartedAt,
+        rows: data.length
+      });
+
+      _perfGestorEnd_(trace, "ok", {
+        data: data.length
+      });
+
+      return data;
+    } catch (error) {
+      _perfGestorMark_(trace, "FAILED", {
+        message: error && error.message
+          ? error.message
+          : String(error || "")
+      });
+      _perfGestorEnd_(trace, "error");
+      throw error;
+    }
+  }
+
+  /**
+   * Fuente utilizada por PrototipoTraspasosService.
+   * Solo devuelve excedentes vigentes.
+   */
+ function obtenerExcedentesConsolidados() {
+    return _construirSoloVigentes_();
   }
 
   function getResumen() {
@@ -219,7 +708,9 @@ function obtenerVista() {
   }
 
   function obtenerExcedentesAuditables() {
-    return obtenerVistaRaw().data.filter(item => item.auditable === true);
+    return obtenerVistaRaw().data.filter(
+      item => item.auditable === true
+    );
   }
 
   function clearCache() {
@@ -231,16 +722,21 @@ function obtenerVista() {
       EstadoActualExcedentesService.clearCache();
     }
 
-    console.log("[CACHE] GestorExcedentesService -> EstadoActualExcedentesService limpio");
+    console.log(
+      "[CACHE] GestorExcedentesService: EstadoActualExcedentesService limpio"
+    );
+
     return true;
   }
 
-  return {
+    return {
     obtenerVista,
+    obtenerVistaLigeraRaw,
     obtenerVistaRaw,
     obtenerExcedentesConsolidados,
+    obtenerExcedentesAuditables,
     getResumen,
     clearCache
   };
-
+  
 })();
