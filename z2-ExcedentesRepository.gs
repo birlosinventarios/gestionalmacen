@@ -1,41 +1,53 @@
 /**
  * ExcedentesRepository.gs
  *
- * Repositorio de solo lectura para la hoja BD-EXCEDENTES.
+ * Repositorio de solo lectura para la hoja lógica BD-EXCEDENTES.
  *
  * Responsabilidades:
- * - Leer y normalizar los registros de excedentes.
- * - Exponer consultas por identificador, fecha, producto, código, estado y
- *   responsable de impresión.
- * - Proporcionar una lectura optimizada para la construcción del estado
- *   operativo de excedentes.
- * - Mantener una caché en memoria durante la ejecución actual.
+ * - Leer y normalizar registros físicos de excedentes.
+ * - Conservar rowNumber para operaciones que requieren la fila real.
+ * - Exponer consultas por identificador, fecha, hora, producto, código,
+ *   descripción, estado y responsable de impresión.
+ * - Proporcionar una lectura instrumentada para construir el estado operativo.
+ * - Mantener una caché local durante la ejecución actual de Apps Script.
  *
- * Consideraciones:
- * - Este Repository no registra ni modifica excedentes.
- * - RESPONSABLEIMPRESION debe ser escrito por la capa de persistencia que
- *   procesa la generación original de etiquetas.
- * - La identidad del responsable debe resolverse en el servidor y no debe
- *   confiarse a datos enviados por el navegador.
+ * Invariantes de dominio:
+ * - CANTIDAD representa la cantidad inicial histórica del excedente.
+ * - Este repositorio no inserta, actualiza ni elimina registros.
+ * - RESPONSABLEIMPRESION se lee desde el índice 8 de BD-EXCEDENTES.
+ * - La escritura de RESPONSABLEIMPRESION pertenece a la capa de persistencia
+ *   que genera originalmente la etiqueta.
+ * - La identidad y autorización del responsable se validan en el servidor.
  *
- * Dependencias esperadas:
- * - Constants.gs
- * - UtilidadesDatos.gs
- * - SHEETS.EXCEDENTES
- * - COL.EXCEDENTES
- * - getRowsByKey_()
- * - getSheetByKey_()
- * - toStrUpper_()
- * - toDate_()
- * - toTime_()
- * - toNum_()
- * - sameDate_()
- * - sameTime_()
+ * Estrategia de lectura:
+ * - getAll() y getAllRaw() utilizan una caché normalizada por ejecución.
+ * - getAllForEstado() evita esa caché para medir lectura y normalización de
+ *   forma independiente y devolver información operativa vigente.
+ * - clearCache() debe invocarse después de cambios en BD-EXCEDENTES.
+ *
+ * Dependencias:
+ * - Constants.gs y UtilidadesDatos.gs.
+ * - COL.EXCEDENTES.
+ * - getRowsByKey_() y getSheetByKey_().
+ * - toStrUpper_(), toDate_(), toTime_() y toNum_().
+ * - sameDate_() y sameTime_().
+ *
+ * API pública:
+ * - Lecturas generales: getAll(), getAllRaw(), getAllForEstado(), getUltimos().
+ * - Consultas: getPorIdUnico(), getPorFecha(), getPorHora(),
+ *   getPorIdProducto(), getPorCodigo(), getPorDescripcion(), getPorStatus() y
+ *   getPorResponsableImpresion().
+ * - Proyecciones: getIdProductos(), getCodigos(), getIdUnicos(), getStatus() y
+ *   getResponsablesImpresion().
+ * - Mantenimiento: clearCache().
  */
 const ExcedentesRepository = (() => {
   "use strict";
 
+  /** @const {string} Clave lógica de BD-EXCEDENTES. */
   const SHEET_KEY = "EXCEDENTES";
+
+  /** @const {string} Prefijo estándar para métricas del repositorio. */
   const PERF_PREFIX = "[APPALMACEN][EXCEDENTES_REPOSITORY_PERF]";
 
   /**
@@ -371,34 +383,53 @@ const ExcedentesRepository = (() => {
     return _getData_().slice(-normalizedLimit);
   }
 
+  /**
+   * Busca excedentes por identificador único normalizado.
+   * @param {*} idunico Identificador solicitado.
+   * @return {Array<Object>}
+   */
   function getPorIdUnico(idunico) {
     return _filterByText_("idunico", idunico);
   }
 
+  /**
+   * Busca excedentes cuya fecha coincide mediante sameDate_().
+   * @param {*} fechaexcedente Fecha solicitada.
+   * @return {Array<Object>}
+   */
   function getPorFecha(fechaexcedente) {
     return _getData_().filter(function(item) {
       return sameDate_(item.fechaexcedente, fechaexcedente);
     });
   }
 
+  /**
+   * Busca excedentes cuya hora coincide mediante sameTime_().
+   * @param {*} horaexcedente Hora solicitada.
+   * @return {Array<Object>}
+   */
   function getPorHora(horaexcedente) {
     return _getData_().filter(function(item) {
       return sameTime_(item.horaexcedente, horaexcedente);
     });
   }
 
+  /** Busca excedentes por IDPRODUCTO normalizado. */
   function getPorIdProducto(idproducto) {
     return _filterByText_("idproducto", idproducto);
   }
 
+  /** Busca excedentes por código normalizado. */
   function getPorCodigo(codigo) {
     return _filterByText_("codigo", codigo);
   }
 
+  /** Busca excedentes por descripción normalizada. */
   function getPorDescripcion(descripcion) {
     return _filterByText_("descripcion", descripcion);
   }
 
+  /** Busca excedentes por STATUS normalizado. */
   function getPorStatus(status) {
     return _filterByText_("status", status);
   }
@@ -413,18 +444,22 @@ const ExcedentesRepository = (() => {
     return _filterByText_("responsableImpresion", responsable);
   }
 
+  /** @return {Array<string>} IDs de producto en orden físico. */
   function getIdProductos() {
     return _getField_("idproducto");
   }
 
+  /** @return {Array<string>} Códigos normalizados en orden físico. */
   function getCodigos() {
     return _getField_("codigo");
   }
 
+  /** @return {Array<string>} Identificadores únicos en orden físico. */
   function getIdUnicos() {
     return _getField_("idunico");
   }
 
+  /** @return {Array<string>} Estados normalizados en orden físico. */
   function getStatus() {
     return _getField_("status");
   }
@@ -453,23 +488,23 @@ const ExcedentesRepository = (() => {
   }
 
   return Object.freeze({
-    getAll: getAll,
-    getAllRaw: getAllRaw,
-    getAllForEstado: getAllForEstado,
-    getUltimos: getUltimos,
-    getPorIdUnico: getPorIdUnico,
-    getPorFecha: getPorFecha,
-    getPorHora: getPorHora,
-    getPorIdProducto: getPorIdProducto,
-    getPorCodigo: getPorCodigo,
-    getPorDescripcion: getPorDescripcion,
-    getPorStatus: getPorStatus,
-    getPorResponsableImpresion: getPorResponsableImpresion,
-    getIdProductos: getIdProductos,
-    getCodigos: getCodigos,
-    getIdUnicos: getIdUnicos,
-    getStatus: getStatus,
-    getResponsablesImpresion: getResponsablesImpresion,
-    clearCache: clearCache
+    getAll,
+    getAllRaw,
+    getAllForEstado,
+    getUltimos,
+    getPorIdUnico,
+    getPorFecha,
+    getPorHora,
+    getPorIdProducto,
+    getPorCodigo,
+    getPorDescripcion,
+    getPorStatus,
+    getPorResponsableImpresion,
+    getIdProductos,
+    getCodigos,
+    getIdUnicos,
+    getStatus,
+    getResponsablesImpresion,
+    clearCache
   });
 })();

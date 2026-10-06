@@ -1,20 +1,41 @@
 /**
  * TraspasosRepository.gs
- * Lectura y actualización controlada de Bitacora-TRASPASOS.
  *
- * COMPATIBILIDAD
- * - Conserva la API pública del repositorio anterior.
- * - Conserva los nombres de propiedades consumidos por
- *   EstadoActualExcedentesService y otros módulos existentes.
- * - Agrega soporte para FECHARESPUESTA y HORARESPUESTA.
+ * Repositorio de lectura y actualización controlada para Bitacora-TRASPASOS.
  *
- * REGLAS DE ESCRITURA
- * - FOLIO y RESPONSABLE se escriben en M:N.
+ * Responsabilidades:
+ * - Leer y normalizar movimientos históricos de traspaso.
+ * - Conservar los nombres de propiedades consumidos por servicios existentes.
+ * - Exponer lecturas cacheadas y lecturas frescas para procesos críticos.
+ * - Soportar consultas por fecha, hora, tipo, ubicación, producto, folio,
+ *   responsable e IdUnico.
+ * - Escribir datos administrativos de conciliación sin modificar IdUnico.
+ * - Mantener compatibilidad con FECHARESPUESTA y HORARESPUESTA.
+ *
+ * Reglas de escritura:
+ * - FOLIO y RESPONSABLE se escriben exclusivamente en M:N.
  * - IDUNICO permanece intacto en O.
- * - FECHARESPUESTA y HORARESPUESTA se escriben en P:Q.
- * - Los métodos de escritura NO adquieren LockService.
- * - El service llamador debe proteger relectura, validación y escritura
- *   con el mismo ScriptLock.
+ * - FECHARESPUESTA y HORARESPUESTA se escriben exclusivamente en P:Q.
+ * - Los métodos de escritura no adquieren LockService.
+ * - El Service llamador debe releer, validar y escribir bajo el mismo
+ *   ScriptLock para evitar condiciones de carrera.
+ * - Una operación admite como máximo 1000 filas normalizadas.
+ *
+ * Estrategia de lectura:
+ * - Las consultas generales utilizan caché durante la ejecución actual.
+ * - Las operaciones de conciliación utilizan lecturas frescas.
+ * - Las filas conservan su número físico en la propiedad fila.
+ *
+ * Compatibilidad:
+ * - Se conserva la API pública anterior.
+ * - Se conservan las propiedades utilizadas por EstadoActualExcedentesService.
+ * - getPorIdOperacion() permanece como compatibilidad legacy. La bitácora
+ *   actual no contiene una columna IDOPERACION.
+ *
+ * Dependencias:
+ * - getSheetByKey_(), COL.TRASPASOS.
+ * - toStr_(), toStrUpper_(), toNum_(), toDate_().
+ * - formatDate_(), formatTime_(), sameDate_() y sameTime_().
  */
 const TraspasosRepository = (() => {
   "use strict";
@@ -29,10 +50,12 @@ const TraspasosRepository = (() => {
   // HELPERS INTERNOS
   // =========================================================
 
+  /** @return {GoogleAppsScript.Spreadsheet.Sheet} Hoja TRASPASOS. */
   function getSheet_() {
     return getSheetByKey_("TRASPASOS");
   }
 
+  /** Calcula el ancho requerido por el contrato completo de columnas. */
   function getLastRequiredColumn_() {
     return Math.max(
       COL.TRASPASOS.FECHA,
@@ -55,6 +78,7 @@ const TraspasosRepository = (() => {
     ) + 1;
   }
 
+  /** Valida índices y contigüidad de columnas administrativas. */
   function assertConfiguration_() {
     if (!COL || !COL.TRASPASOS) {
       throw new Error(
@@ -116,6 +140,7 @@ const TraspasosRepository = (() => {
     }
   }
 
+  /** Lee toda la fuente sin utilizar la caché local. */
   function readSourceFresh_() {
     assertConfiguration_();
 
@@ -187,7 +212,8 @@ const TraspasosRepository = (() => {
     );
   }
 
-    function pad2Fast_(
+  /** Completa valores numéricos de un dígito con cero inicial. */
+  function pad2Fast_(
     value
   ) {
     const number =
@@ -200,6 +226,7 @@ const TraspasosRepository = (() => {
       : String(number);
   }
 
+  /** Formatea fechas válidas como dd/MM/yyyy sin utilidades externas. */
   function formatDateFast_(
     value
   ) {
@@ -292,6 +319,7 @@ const TraspasosRepository = (() => {
     );
   }
 
+  /** Formatea horas válidas como HH:mm:ss. */
   function formatTimeFast_(
     value
   ) {
@@ -378,16 +406,19 @@ const TraspasosRepository = (() => {
     );
   }
 
+  /** Normaliza y formatea un valor de fecha administrativa. */
   function formatDateValue_(value) {
     const date = toDate_(value);
     return date ? formatDate_(date) : "";
   }
 
+  /** Normaliza y formatea un valor de hora administrativa. */
   function formatTimeValue_(value) {
     const time = normalizeTimeValue_(value);
     return time ? formatTime_(time) : "";
   }
 
+  /** Normaliza una fila completa conservando compatibilidad histórica. */
   function normalize_(fila, filaReal) {
     const fechaTraspasoRaw = fila[COL.TRASPASOS.FECHA];
     const horaTraspasoRaw = fila[COL.TRASPASOS.HORA];
@@ -470,6 +501,7 @@ const TraspasosRepository = (() => {
     };
   }
 
+  /** Normaliza únicamente campos requeridos por el estado operativo. */
   function normalizeForEstado_(fila, filaReal) {
     return {
       fila: filaReal,
@@ -505,7 +537,8 @@ const TraspasosRepository = (() => {
     };
   }
 
-    function normalizeForConciliacion_(
+  /** Normaliza una fila para conciliación sin crear objetos Date innecesarios. */
+  function normalizeForConciliacion_(
     fila,
     filaReal
   ) {
@@ -654,6 +687,7 @@ const TraspasosRepository = (() => {
     };
   }
 
+  /** Lee movimientos vigentes para construir el estado de excedentes. */
   function readForEstadoFresh_() {
     assertConfiguration_();
 
@@ -690,7 +724,8 @@ const TraspasosRepository = (() => {
     return result;
   }
 
-    function getAllForConciliacionFresh_() {
+  /** Lee y mide el dataset completo utilizado por conciliación. */
+  function getAllForConciliacionFresh_() {
     assertConfiguration_();
 
     const totalStartedAt =
@@ -836,6 +871,7 @@ const TraspasosRepository = (() => {
     return result;
   }
 
+  /** Determina si una fila contiene información operativa. */
   function isDataRow_(item) {
     return Boolean(
       item.codigo ||
@@ -845,6 +881,7 @@ const TraspasosRepository = (() => {
     );
   }
 
+  /** Normaliza filas y descarta registros completamente vacíos. */
   function mapRows_(rows, firstRowNumber) {
     return (rows || [])
       .map(function (row, index) {
@@ -853,6 +890,7 @@ const TraspasosRepository = (() => {
       .filter(isDataRow_);
   }
 
+  /** Obtiene movimientos normalizados desde caché o fuente física. */
   function getData_() {
     if (cache_ === null) {
       cache_ = mapRows_(
@@ -869,12 +907,14 @@ const TraspasosRepository = (() => {
     return cache_;
   }
 
+  /** Proyecta una propiedad de todos los movimientos cacheados. */
   function getField_(field) {
     return getData_().map(function (item) {
       return item[field];
     });
   }
 
+  /** Construye una marca temporal comparable de fecha y hora. */
   function timestamp_(item) {
     const fecha = item.fechatraspaso instanceof Date
       ? item.fechatraspaso.getTime()
@@ -891,6 +931,7 @@ const TraspasosRepository = (() => {
     return fecha + hora;
   }
 
+  /** Normaliza, deduplica, ordena y limita números de fila. */
   function normalizeRowNumbers_(filas) {
     const values = Array.isArray(filas) ? filas : [];
 
@@ -922,6 +963,7 @@ const TraspasosRepository = (() => {
     return unique;
   }
 
+  /** Agrupa filas consecutivas para reducir operaciones de escritura. */
   function buildContiguousBlocks_(rowNumbers) {
     const rows = normalizeRowNumbers_(rowNumbers);
     const blocks = [];
@@ -948,6 +990,7 @@ const TraspasosRepository = (() => {
     return blocks;
   }
 
+  /** Valida y normaliza folio, responsable, fecha y hora de respuesta. */
   function validateAdministrativeData_(data) {
     const payload = data || {};
     const folio = toStr_(payload.folio);
@@ -997,6 +1040,7 @@ const TraspasosRepository = (() => {
 
   /**
    * Lee toda la hoja sin utilizar cache_.
+   * @return {Array<Object>} Movimientos normalizados en orden físico.
    */
   function getAllFresh_() {
     return mapRows_(
@@ -1008,6 +1052,8 @@ const TraspasosRepository = (() => {
   /**
    * Lee filas concretas sin utilizar cache_.
    * Debe usarse dentro del mismo ScriptLock de la escritura.
+   * @param {Array<*>} filas Números de fila solicitados.
+   * @return {Array<Object>} Filas válidas en orden ascendente.
    */
   function getByFilasFresh_(filas) {
     assertConfiguration_();
@@ -1062,6 +1108,10 @@ const TraspasosRepository = (() => {
 
   /**
    * Escribe folio, responsable, fecha y hora de respuesta.
+   *
+   * @param {Array<*>} filas Filas físicas por actualizar.
+   * @param {Object} data Datos administrativos validados.
+   * @return {Object} Resumen de actualización.
    *
    * IMPORTANTE:
    * - No adquiere LockService.
@@ -1177,6 +1227,7 @@ const TraspasosRepository = (() => {
 
   return {
     // API existente.
+    /** Devuelve movimientos ordenados por código. */
     getAll: function () {
       return [...getData_()].sort(function (a, b) {
         return a.codigo.localeCompare(
@@ -1190,14 +1241,17 @@ const TraspasosRepository = (() => {
       });
     },
 
+    /** Devuelve una copia en el orden de la caché. */
     getAllRaw: function () {
       return [...getData_()];
     },
 
+    /** Devuelve una lectura fresca optimizada para estado operativo. */
     getAllForEstado: function () {
       return readForEstadoFresh_();
     },
 
+    /** Ordena cronológicamente y desempata por fila física. */
     getAllByFechaHora: function () {
       return [...getData_()].sort(function (a, b) {
         return (
@@ -1207,6 +1261,7 @@ const TraspasosRepository = (() => {
       });
     },
 
+    /** Devuelve los últimos registros físicos hasta el límite indicado. */
     getUltimos: function (limit) {
       const safeLimit = Math.max(
         0,
@@ -1413,6 +1468,7 @@ const TraspasosRepository = (() => {
     },
 
     // API nueva para Conciliación de saldo.
+    /** Devuelve toda la hoja sin utilizar la caché. */
     getAllFresh: function () {
       return getAllFresh_();
     },
@@ -1422,14 +1478,17 @@ const TraspasosRepository = (() => {
         return getAllForConciliacionFresh_();
     },
 
+    /** Devuelve filas específicas sin utilizar la caché. */
     getByFilasFresh: function (filas) {
       return getByFilasFresh_(filas);
     },
 
+    /** Escribe conciliación; el Service debe sostener el ScriptLock. */
     updateConciliacionByFilas: function (filas, data) {
       return updateConciliacionByFilas_(filas, data);
     },
 
+    /** Invalida la caché local del repositorio. */
     clearCache: function () {
       cache_ = null;
       console.log("[CACHE] Traspasos limpios");
