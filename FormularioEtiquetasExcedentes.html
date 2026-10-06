@@ -178,6 +178,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
+      "responsable ."
       "codigo id"
       "producto cajas"
       "producto cantidad"
@@ -185,6 +186,14 @@
     column-gap: 44px;
     row-gap: 22px;
     align-items: start;
+  }
+
+  /**
+   * El responsable se ubica exclusivamente en la columna izquierda,
+   * inmediatamente antes del campo Código.
+   */
+  #render-etiquetas-excedentes .ex-grid-responsable {
+    grid-area: responsable;
   }
 
   #render-etiquetas-excedentes .ex-grid-codigo {
@@ -355,6 +364,31 @@
     text-overflow: ellipsis;
   }
 
+  /**
+   * Responsable asociado a la generación de la etiqueta.
+   * Se presenta debajo del folio sin agregar otra columna a la tabla.
+   */
+  #render-etiquetas-excedentes .ex-print-owner {
+    display: block;
+    max-width: 260px;
+    margin: 7px auto 0;
+    overflow: hidden;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1.3;
+    letter-spacing: 0.08em;
+    text-align: center;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  #render-etiquetas-excedentes .ex-print-owner::before {
+    content: "RESPONSABLE: ";
+    color: #94a3b8;
+  }
+
   #render-etiquetas-excedentes .ex-delete-btn {
     width: 42px;
     height: 42px;
@@ -462,10 +496,12 @@
       const [procesando, setProcesando] = useState(false);
       const [cargando, setCargando] = useState(true);
 
+      const [usuarios, setUsuarios] = useState([]);
       const [mapaCatalogo, setMapaCatalogo] = useState({});
       const [codigos, setCodigos] = useState([]);
 
       const [form, setForm] = useState({
+        responsableImpresion: "",
         codigo: "",
         descripcion: "",
         id: "",
@@ -480,6 +516,41 @@
       const notifyOnce_ = createNotifyOnce_(localNotifyRef);
 
       const normalizarTexto = (valor) => String(valor || "").trim().toUpperCase();
+
+      /**
+       * Normaliza la lista de usuarios con el mismo contrato operativo usado
+       * por PrototipoTraspasos. No se aplica ningún filtro por rol.
+       *
+       * @param {Array<Object|string>} lista Fuente de usuarios.
+       * @return {Array<{nombre:string}>}
+       */
+      const normalizarUsuarios = (lista = []) => {
+        const usuariosUnicos = new Map();
+
+        (Array.isArray(lista) ? lista : []).forEach((usuario) => {
+          const nombre = normalizarTexto(
+            typeof usuario === "string"
+              ? usuario
+              : usuario?.nombre || usuario?.NOMBRE || ""
+          );
+
+          if (nombre && !usuariosUnicos.has(nombre)) {
+            usuariosUnicos.set(nombre, { nombre });
+          }
+        });
+
+        return Array.from(usuariosUnicos.values()).sort((a, b) =>
+          a.nombre.localeCompare(b.nombre, "es-MX", {
+            sensitivity: "base",
+            numeric: true
+          })
+        );
+      };
+
+      const usuariosDisponibles = useMemo(
+        () => normalizarUsuarios(usuarios),
+        [usuarios]
+      );
 
       const enfocarCodigo = () => {
         setTimeout(() => {
@@ -512,6 +583,11 @@
       const leerCacheExcedentes = () => {
         const cache = window.DATA_ALMACEN_CACHE || {};
         return {
+          usuarios: Array.isArray(cache.usuarios)
+            ? cache.usuarios
+            : (Array.isArray(window.usuariosGlobal)
+                ? window.usuariosGlobal
+                : []),
           mapaCatalogo: cache.mapaCatalogo || cache.mapaProductos || {},
           codigos: cache.codigos || []
         };
@@ -519,6 +595,10 @@
 
       const guardarBootstrapEnCache = (bootstrap) => {
         window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+
+        if (bootstrap.usuarios) {
+          window.DATA_ALMACEN_CACHE.usuarios = bootstrap.usuarios;
+        }
 
         if (bootstrap.codigos) {
           window.DATA_ALMACEN_CACHE.codigos = bootstrap.codigos;
@@ -582,6 +662,7 @@
               Array.isArray(cache.codigos) &&
               cache.codigos.length > 0
             ) {
+              setUsuarios(normalizarUsuarios(cache.usuarios));
               setMapaCatalogo(cache.mapaCatalogo);
               setCodigos(cache.codigos.map(x => normalizarTexto(x)));
               setCargando(false);
@@ -598,11 +679,19 @@
               .withSuccessHandler((data) => {
                 const mapa = data?.mapaCatalogo || {};
                 const listaCodigos = (data?.codigos || []).map(x => normalizarTexto(x));
+                const usuariosRecibidos = normalizarUsuarios(
+                  data?.usuarios ||
+                  window.DATA_ALMACEN_CACHE?.usuarios ||
+                  window.usuariosGlobal ||
+                  []
+                );
 
+                setUsuarios(usuariosRecibidos);
                 setMapaCatalogo(mapa);
                 setCodigos(listaCodigos);
 
                 guardarBootstrapEnCache({
+                  usuarios: usuariosRecibidos,
                   mapaCatalogo: mapa,
                   codigos: listaCodigos
                 });
@@ -877,9 +966,28 @@
           e.preventDefault();
         }
 
+        const responsableImpresion = normalizarTexto(
+          form.responsableImpresion
+        );
         const codigo = normalizarTexto(form.codigo);
         const cantidad = Number(form.cantidad || 0);
         const numCajas = parseInt(form.cajas, 10) || 1;
+        const responsableValido = usuariosDisponibles.some(
+          (usuario) => normalizarTexto(usuario.nombre) === responsableImpresion
+        );
+
+        if (!responsableValido) {
+          notify_(
+            "Selecciona un responsable de impresión válido para continuar.",
+            "error",
+            3200,
+            {
+              title: "Responsable requerido",
+              sound: true
+            }
+          );
+          return;
+        }
 
         if (!codigo) {
           notify_(
@@ -956,6 +1064,7 @@
 
           nuevasEtiquetas.push({
             tipo: TIPO_ETIQUETA_FIJO,
+            responsableImpresion: responsableImpresion,
             codigo,
             descripcion: form.descripcion,
             cantidad: cantidad,
@@ -1240,6 +1349,46 @@
 
                 <div className="ex-form-grid">
 
+                  {/* Responsable de impresión, columna izquierda */}
+                  <div className="ex-grid-responsable ex-field-block">
+                    <label className="ex-label ml-1">
+                      Responsable de impresión
+                    </label>
+
+                    <div className="relative">
+                      <input
+                        list="lista-usuarios-excedentes"
+                        disabled={cargando || procesando}
+                        className={`w-full border rounded-xl px-4 ex-input ex-form-input-unificado uppercase outline-none transition-all ${
+                          cargando || procesando
+                            ? "bg-gray-200 cursor-not-allowed text-gray-500 border-gray-300"
+                            : "bg-gray-50 border-[#dadce0] focus:border-[#d93025] focus:bg-white"
+                        }`}
+                        placeholder={
+                          cargando
+                            ? "Cargando responsables..."
+                            : "Escribe o selecciona un responsable"
+                        }
+                        value={form.responsableImpresion}
+                        onChange={(event) => {
+                          setForm((prev) => ({
+                            ...prev,
+                            responsableImpresion: event.target.value.toUpperCase()
+                          }));
+                        }}
+                      />
+
+                      <datalist id="lista-usuarios-excedentes">
+                        {usuariosDisponibles.map((usuario, index) => (
+                          <option
+                            key={`${index}-${usuario.nombre}`}
+                            value={usuario.nombre}
+                          />
+                        ))}
+                      </datalist>
+                    </div>
+                  </div>
+
                   <div className="ex-grid-codigo ex-field-block">
                     <label className="ex-label ml-1">
                       Código
@@ -1518,6 +1667,13 @@
                         <td className="text-center">
                           <span className="ex-folio-pill" title={item.idUnico}>
                             {item.idUnico}
+                          </span>
+
+                          <span
+                            className="ex-print-owner"
+                            title={item.responsableImpresion || "SIN RESPONSABLE"}
+                          >
+                            {item.responsableImpresion || "SIN RESPONSABLE"}
                           </span>
                         </td>
 
