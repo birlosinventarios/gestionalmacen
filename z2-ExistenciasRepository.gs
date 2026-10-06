@@ -1,19 +1,51 @@
 /**
  * ExistenciasRepository.gs
- * Lectura y actualizacion controlada de la hoja EXISTENCIAS.
  *
- * Reglas relevantes para traspasos:
- * - aplicarMovimientosTraspaso no adquiere un LockService adicional.
- * - El servicio llamador debe proteger la operacion completa.
- * - La idempotencia utiliza idOperacion para permitir varios SURTIDO
- *   legitimos sobre el mismo IdUnico.
- * - La existencia de Almacen Birlos se guarda unicamente en
+ * Repositorio de lectura y actualización controlada de la hoja EXISTENCIAS.
+ * También administra la bitácora técnica de idempotencia almacenada en
+ * SINCRONIZACION_EXISTENCIAS.
+ *
+ * Responsabilidades:
+ * - Normalizar y cachear el inventario disponible por producto.
+ * - Consultar productos por identificador, código, descripción y saldo.
+ * - Resolver bodegas contra la configuración EXISTENCIAS_BODEGAS.
+ * - Aplicar traspasos entre columnas de inventario sin adquirir un candado
+ *   adicional cuando el Service ya protege la operación completa.
+ * - Evitar aplicaciones duplicadas mediante una clave basada en idOperacion.
+ * - Registrar movimientos confirmados en SINCRONIZACION_EXISTENCIAS.
+ * - Permitir actualizaciones directas y controladas de ALMACENBIRLOS.
+ *
+ * Reglas invariantes:
+ * - aplicarMovimientosTraspaso() no adquiere LockService.
+ * - El servicio llamador debe proteger la transacción completa.
+ * - La idempotencia incluye idOperacion para permitir múltiples SURTIDO
+ *   legítimos sobre el mismo IdUnico.
+ * - La existencia de Almacén Birlos se escribe únicamente en
  *   COL.EXISTENCIAS.ALMACENBIRLOS.
+ * - aplicarMovimientosTraspaso() no ejecuta SpreadsheetApp.flush().
+ * - updateBirlosById() y updateBirlosBatch() sí administran su propio candado.
+ *
+ * Dependencias principales:
+ * - getSheetByKey_(), getRowsByKey_().
+ * - toNum_(), toStr_(), toStrUpper_().
+ * - COL.EXISTENCIAS y COL.SINCRONIZACION_EXISTENCIAS.
+ * - EXISTENCIAS_BODEGAS.
+ * - LockService y SpreadsheetApp.
+ *
+ * API pública:
+ * - Consultas: getAll(), getAllRaw(), getPorIdProducto(),
+ *   getOnePorIdProducto(), getPorCodigo(), getPorDescripcion().
+ * - Saldos: getExistenciasBirlos(), getExcedentesBodega(),
+ *   getExcedentesCasaBlanca() y sus variantes negativas.
+ * - Escritura: updateBirlosById(), updateBirlosBatch(),
+ *   aplicarMovimientosTraspaso().
+ * - Mantenimiento: clearCache().
  */
 const ExistenciasRepository = (() => {
   "use strict";
 
-    function _perfExistenciasStart_(
+  /** Inicia una traza de rendimiento para una operación de existencias. */
+  function _perfExistenciasStart_(
     operation,
     metadata
   ) {
@@ -35,6 +67,7 @@ const ExistenciasRepository = (() => {
     };
   }
 
+  /** Registra una etapa con duración parcial y acumulada. */
   function _perfExistenciasMark_(
     trace,
     stage,
@@ -64,6 +97,7 @@ const ExistenciasRepository = (() => {
     trace.lastAt = now;
   }
 
+  /** Finaliza, registra y devuelve la traza de rendimiento. */
   function _perfExistenciasEnd_(
     trace,
     status,
@@ -100,25 +134,32 @@ const ExistenciasRepository = (() => {
     return result;
   }
 
+  /** @const {number} Fila física que contiene los encabezados. */
   const HEADER_ROW_ = 1;
+
+  /** @const {number} Primera fila física con información operativa. */
   const FIRST_DATA_ROW_ = HEADER_ROW_ + 1;
 
+  /** @type {Array<Object>|null} Caché normalizada de EXISTENCIAS. */
   let cache_ = null;
 
   // =========================================================
   // ACCESO Y NORMALIZACION
   // =========================================================
 
-    function getSheet_() {
+  /** @return {GoogleAppsScript.Spreadsheet.Sheet} Hoja EXISTENCIAS. */
+  function getSheet_() {
     return getSheetByKey_(
       "EXISTENCIAS"
     );
   }
 
+  /** @return {Array<Array<*>>} Filas de la fuente EXISTENCIAS. */
   function readSource_() {
     return getRowsByKey_("EXISTENCIAS");
   }
 
+  /** Convierte una fila física al contrato normalizado del repositorio. */
   function normalize_(row) {
     return {
       idproducto: toNum_(
@@ -142,6 +183,7 @@ const ExistenciasRepository = (() => {
     };
   }
 
+  /** Obtiene la colección normalizada desde caché o desde la hoja. */
   function getData_() {
     if (cache_ === null) {
       cache_ = readSource_()
@@ -156,11 +198,13 @@ const ExistenciasRepository = (() => {
     return cache_;
   }
 
+  /** Invalida la caché interna del repositorio. */
   function clearCache_() {
     cache_ = null;
     console.log("[CACHE] Existencias limpiadas");
   }
 
+  /** Normaliza códigos eliminando acentos y espacios redundantes. */
   function normalizeCode_(value) {
     return String(value || "")
       .normalize("NFD")
@@ -170,6 +214,7 @@ const ExistenciasRepository = (() => {
       .toUpperCase();
   }
 
+  /** Normaliza nombres de bodega para comparaciones confiables. */
   function normalizeWarehouse_(value) {
     return String(value || "")
       .normalize("NFD")
@@ -179,6 +224,7 @@ const ExistenciasRepository = (() => {
       .toUpperCase();
   }
 
+  /** Valida un IDPRODUCTO entero positivo. */
   function validateId_(idproducto) {
     const id = Number(idproducto);
 
@@ -191,6 +237,7 @@ const ExistenciasRepository = (() => {
     return id;
   }
 
+  /** Valida que una existencia sea numérica y finita. */
   function validateExistence_(existencia) {
     const value = Number(existencia);
 
@@ -203,10 +250,12 @@ const ExistenciasRepository = (() => {
     return value;
   }
 
+  /** Convierte un índice de columna base cero al índice base uno de Sheets. */
   function sheetColumn_(zeroBasedColumn) {
     return zeroBasedColumn + 1;
   }
 
+  /** Resuelve una bodega contra EXISTENCIAS_BODEGAS. */
   function resolveWarehouse_(warehouseName) {
     const normalized = normalizeWarehouse_(warehouseName);
 
@@ -241,6 +290,7 @@ const ExistenciasRepository = (() => {
   // BUSQUEDA DE FILAS
   // =========================================================
 
+  /** Localiza una fila única de EXISTENCIAS por IDPRODUCTO. */
   function findRowById_(sheet, idproducto) {
     const id = validateId_(idproducto);
     const lastRow = sheet.getLastRow();
@@ -298,6 +348,7 @@ const ExistenciasRepository = (() => {
     return matches[0];
   }
 
+  /** Valida y localiza una fila dentro de una matriz ya cargada. */
   function findExistenceRow_(values, idproducto, codigo) {
     const id = Number(idproducto);
     const code = toStrUpper_(codigo || "");
@@ -361,6 +412,7 @@ const ExistenciasRepository = (() => {
   // IDEMPOTENCIA DE MOVIMIENTOS
   // =========================================================
 
+  /** Construye la clave de idempotencia de un movimiento. */
   function buildMovementKey_(movement) {
     const idOperacion = toStr_(
       movement.idOperacion || ""
@@ -410,6 +462,7 @@ const ExistenciasRepository = (() => {
     ].join("|");
   }
 
+  /** Carga las claves ya aplicadas desde SINCRONIZACION_EXISTENCIAS. */
   function getAppliedMovementKeys_(
     trace
   ) {
@@ -494,6 +547,7 @@ const ExistenciasRepository = (() => {
     return result;
   }
 
+  /** Valida movimientos, omite duplicados y prepara cambios físicos. */
   function prepareTransferChanges_(movements, values, trace) {
     if (!Array.isArray(movements)) {
       throw new Error(
@@ -592,6 +646,7 @@ const ExistenciasRepository = (() => {
   // APLICACION DE TRASPASOS
   // =========================================================
 
+  /** Calcula y escribe las celdas afectadas por traspasos válidos. */
   function applyTransferChanges_(
     movements,
     trace
@@ -789,6 +844,7 @@ const ExistenciasRepository = (() => {
     return prepared;
   }
 
+  /** Registra por lote las claves confirmadas para idempotencia futura. */
   function registerAppliedChanges_(
     changes,
     trace
@@ -889,6 +945,7 @@ const ExistenciasRepository = (() => {
     );
   }
 
+  /** Coordina aplicación, registro idempotente, métricas y respuesta. */
   function applyTransferMovements_(
     movements
   ) {
@@ -1063,6 +1120,7 @@ const ExistenciasRepository = (() => {
   // ACTUALIZACION DIRECTA DE ALMACEN BIRLOS
   // =========================================================
 
+  /** Actualiza ALMACENBIRLOS para un producto previamente validado. */
   function updateBirlosById_(
     idproducto,
     existencia,
@@ -1121,6 +1179,7 @@ const ExistenciasRepository = (() => {
     return result;
   }
 
+  /** Actualiza un lote de existencias Birlos bajo un único candado. */
   function updateBirlosBatch_(items) {
     if (!Array.isArray(items)) {
       throw new Error(
@@ -1187,6 +1246,7 @@ const ExistenciasRepository = (() => {
     }
   }
 
+  /** Proyecta un campo de la colección normalizada. */
   function getField_(field) {
     return getData_().map(item => item[field]);
   }
@@ -1196,6 +1256,7 @@ const ExistenciasRepository = (() => {
   // =========================================================
 
   return {
+    /** Devuelve todas las existencias ordenadas por código. */
     getAll: function () {
       return [...getData_()].sort((a, b) =>
         a.codigo.localeCompare(
@@ -1209,10 +1270,12 @@ const ExistenciasRepository = (() => {
       );
     },
 
+    /** Devuelve una copia superficial sin orden adicional. */
     getAllRaw: function () {
       return [...getData_()];
     },
 
+    /** Busca todos los registros de un IDPRODUCTO. */
     getPorIdProducto: function (idproducto) {
       const filter = toNum_(idproducto || 0);
 
@@ -1221,6 +1284,7 @@ const ExistenciasRepository = (() => {
       );
     },
 
+    /** Devuelve un registro único, null o error por duplicidad. */
     getOnePorIdProducto: function (idproducto) {
       const results = getData_().filter(
         item => item.idproducto === toNum_(idproducto || 0)
@@ -1239,6 +1303,7 @@ const ExistenciasRepository = (() => {
       return results[0];
     },
 
+    /** Busca registros por código normalizado. */
     getPorCodigo: function (codigo) {
       const filter = toStrUpper_(codigo || "");
 
@@ -1247,6 +1312,7 @@ const ExistenciasRepository = (() => {
       );
     },
 
+    /** Busca registros por descripción normalizada. */
     getPorDescripcion: function (descripcion) {
       const filter = toStrUpper_(descripcion || "");
 
@@ -1291,6 +1357,7 @@ const ExistenciasRepository = (() => {
       );
     },
 
+    /** Actualiza una existencia Birlos bajo ScriptLock. */
     updateBirlosById: function (
       idproducto,
       existencia,
@@ -1317,6 +1384,8 @@ const ExistenciasRepository = (() => {
     },
 
     /**
+     * Aplica movimientos idempotentes de traspaso.
+     *
      * No adquiere un candado adicional.
      * Se invoca desde PrototipoTraspasosService, que ya protege
      * la operacion completa con ScriptLock.
@@ -1325,10 +1394,12 @@ const ExistenciasRepository = (() => {
       return applyTransferMovements_(movimientos);
     },
 
+    /** Procesa actualizaciones Birlos por lote. */
     updateBirlosBatch: function (items) {
       return updateBirlosBatch_(items);
     },
 
+    /** Invalida la caché pública del repositorio. */
     clearCache: function () {
       clearCache_();
 
@@ -1340,6 +1411,11 @@ const ExistenciasRepository = (() => {
   };
 })();
 
+/**
+ * Prueba manual de actualización directa. No forma parte de la API productiva.
+ *
+ * @return {void}
+ */
 function testActualizarExistenciaBirlos() {
   const resultado = ExistenciasRepository.updateBirlosById(
     5723,
