@@ -1,13 +1,40 @@
 /**
  * PrototipoTraspasosService.gs
- * Servicio de dominio para la vista PrototipoTraspasos.
  *
- * Reglas:
- * - BD-EXCEDENTES.CANTIDAD es la cantidad inicial y no se modifica.
- * - El saldo se calcula desde Bitacora-TRASPASOS.
- * - Solo existen los movimientos ACOMODO y SURTIDO.
- * - Un surtido parcial conserva el mismo IdUnico y deja STATUS PARCIAL.
- * - La etiqueta muestra el saldo posterior.
+ * Servicio de dominio responsable de consultar, validar y aplicar movimientos
+ * de acomodo y surtido sobre excedentes.
+ *
+ * Reglas invariantes:
+ * - BD-EXCEDENTES.CANTIDAD representa la cantidad inicial histórica y nunca se
+ *   modifica durante un traspaso.
+ * - El saldo vigente se obtiene a partir de Bitacora-TRASPASOS.
+ * - Los únicos tipos admitidos son ACOMODO y SURTIDO.
+ * - Un surtido parcial conserva el mismo IdUnico y establece STATUS PARCIAL.
+ * - La etiqueta de remanente muestra el saldo posterior confirmado.
+ * - La idempotencia de inventario depende de idOperacion.
+ * - STATUS solo se actualiza para operaciones realmente aplicadas.
+ *
+ * Secuencia crítica de persistencia:
+ * 1. Adquirir el candado global de inventario.
+ * 2. Invalidar cachés de lectura y reconstruir el estado vigente.
+ * 3. Validar y mapear todos los movimientos.
+ * 4. Aplicar movimientos idempotentes en existencias.
+ * 5. Registrar únicamente movimientos aplicados en Bitacora-TRASPASOS.
+ * 6. Actualizar exclusivamente STATUS en BD-EXCEDENTES.
+ * 7. Ejecutar SpreadsheetApp.flush() antes de liberar el candado.
+ * 8. Preparar impresión y limpiar cachés fuera de la sección protegida.
+ *
+ * Dependencias principales:
+ * - UsuariosRepository, UbicacionesExcedentesRepository y CatalogoRepository.
+ * - ExcedentesRepository, TraspasosRepository y ExistenciasRepository.
+ * - GestorExcedentesService y APPALMACENCache.
+ * - LockService, SpreadsheetApp, HtmlService y Utilities.
+ * - Helpers globales de normalización y acceso a hojas.
+ *
+ * API pública:
+ * - getBootstrap()
+ * - obtenerEstadoFolios(forceRefresh)
+ * - procesarMovimientosFinal(cola)
  */
 const PrototipoTraspasosService = (() => {
   const DOMAIN = Object.freeze({
@@ -22,152 +49,163 @@ const PrototipoTraspasosService = (() => {
     STATUS_PARCIAL: "PARCIAL"
   });
 
-function _perfMovimientoStart_(
-  operation,
-  metadata
-) {
-  const now = Date.now();
+  /** Inicia una traza detallada del procesamiento de movimientos. */
+  function _perfMovimientoStart_(
+    operation,
+    metadata
+  ) {
+    const now = Date.now();
 
-  return {
-    operation: String(
-      operation ||
-      "TRASPASOS_MOVIMIENTO"
-    ),
-
-    startedAt: now,
-    lastAt: now,
-
-    metadata:
-      metadata &&
-      typeof metadata === "object"
-        ? metadata
-        : {},
-
-    marks: []
-  };
-}
-
-function _perfMovimientoMark_(
-  trace,
-  stage,
-  metadata
-) {
-  if (!trace) {
-    return;
-  }
-
-  const now = Date.now();
-
-  trace.marks.push({
-    stage: String(
-      stage || "MARK"
-    ),
-
-    segmentMs:
-      now -
-      trace.lastAt,
-
-    totalMs:
-      now -
-      trace.startedAt,
-
-    metadata:
-      metadata &&
-      typeof metadata === "object"
-        ? metadata
-        : {}
-  });
-
-  trace.lastAt = now;
-}
-
-function _perfMovimientoEnd_(
-  trace,
-  status,
-  metadata
-) {
-  if (!trace) {
-    return null;
-  }
-
-  const result = {
-    operation:
-      trace.operation,
-
-    status:
-      String(
-        status || "ok"
-      ),
-
-    totalMs:
-      Date.now() -
-      trace.startedAt,
-
-    metadata:
-      Object.assign(
-        {},
-        trace.metadata,
-        metadata || {}
-      ),
-
-    marks:
-      trace.marks.slice()
-  };
-
-  console.log(
-    "[APPALMACEN]" +
-    "[MOVIMIENTO_BACKEND_PERF] " +
-    JSON.stringify(result)
-  );
-
-  return result;
-}
-
-function _perfBackendStart_(operation, metadata) {
     return {
-      operation: String(operation || "BACKEND_OPERATION"),
-      startedAt: Date.now(),
-      lastAt: Date.now(),
-      metadata: metadata || {},
+      operation: String(
+        operation ||
+        "TRASPASOS_MOVIMIENTO"
+      ),
+
+      startedAt: now,
+      lastAt: now,
+
+      metadata:
+        metadata &&
+        typeof metadata === "object"
+          ? metadata
+          : {},
+
       marks: []
     };
   }
 
-  function _perfBackendMark_(trace, stage, metadata) {
-    if (!trace) return;
+  /** Registra una etapa y sus tiempos acumulado y parcial. */
+  function _perfMovimientoMark_(
+    trace,
+    stage,
+    metadata
+  ) {
+    if (!trace) {
+      return;
+    }
 
     const now = Date.now();
+
     trace.marks.push({
-      stage: String(stage || "MARK"),
-      segmentMs: now - trace.lastAt,
-      totalMs: now - trace.startedAt,
-      metadata: metadata || {}
+      stage: String(
+        stage || "MARK"
+      ),
+
+      segmentMs:
+        now -
+        trace.lastAt,
+
+      totalMs:
+        now -
+        trace.startedAt,
+
+      metadata:
+        metadata &&
+        typeof metadata === "object"
+          ? metadata
+          : {}
     });
+
     trace.lastAt = now;
   }
 
-  function _perfBackendEnd_(trace, status, metadata) {
-    if (!trace) return;
+  /** Finaliza, registra y devuelve la traza de movimientos. */
+  function _perfMovimientoEnd_(
+    trace,
+    status,
+    metadata
+  ) {
+    if (!trace) {
+      return null;
+    }
 
     const result = {
-      operation: trace.operation,
-      status: String(status || "ok"),
-      totalMs: Date.now() - trace.startedAt,
-      metadata: Object.assign({}, trace.metadata, metadata || {}),
-      marks: trace.marks
+      operation:
+        trace.operation,
+
+      status:
+        String(
+          status || "ok"
+        ),
+
+      totalMs:
+        Date.now() -
+        trace.startedAt,
+
+      metadata:
+        Object.assign(
+          {},
+          trace.metadata,
+          metadata || {}
+        ),
+
+      marks:
+        trace.marks.slice()
     };
 
     console.log(
-      "[APPALMACEN][BACKEND_PERF] " + JSON.stringify(result)
+      "[APPALMACEN]" +
+      "[MOVIMIENTO_BACKEND_PERF] " +
+      JSON.stringify(result)
     );
 
     return result;
   }
 
+  /** Inicia una traza general de operación backend. */
+  function _perfBackendStart_(operation, metadata) {
+      return {
+        operation: String(operation || "BACKEND_OPERATION"),
+        startedAt: Date.now(),
+        lastAt: Date.now(),
+        metadata: metadata || {},
+        marks: []
+      };
+    }
+
+    /** Agrega una marca temporal a una traza backend. */
+  function _perfBackendMark_(trace, stage, metadata) {
+      if (!trace) return;
+
+      const now = Date.now();
+      trace.marks.push({
+        stage: String(stage || "MARK"),
+        segmentMs: now - trace.lastAt,
+        totalMs: now - trace.startedAt,
+        metadata: metadata || {}
+      });
+      trace.lastAt = now;
+    }
+
+    /** Finaliza y registra una traza backend. */
+  function _perfBackendEnd_(trace, status, metadata) {
+      if (!trace) return;
+
+      const result = {
+        operation: trace.operation,
+        status: String(status || "ok"),
+        totalMs: Date.now() - trace.startedAt,
+        metadata: Object.assign({}, trace.metadata, metadata || {}),
+        marks: trace.marks
+      };
+
+      console.log(
+        "[APPALMACEN][BACKEND_PERF] " + JSON.stringify(result)
+      );
+
+      return result;
+    }
+
   // =========================================================
   // HELPERS GENERALES
   // =========================================================
 
+  /**
+   * Construye fecha y hora usando la zona horaria de la hoja.
+   * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} ss Archivo fuente.
+   * @return {{fecha:string,hora:string,ahora:Date}}
+   */
   function _obtenerContextoTemporal_(ss) {
     const zonaHoraria = ss.getSpreadsheetTimeZone();
     const ahora = new Date();
@@ -179,6 +217,7 @@ function _perfBackendStart_(operation, metadata) {
     };
   }
 
+  /** @return {Array<Object>} Usuarios normalizados y ordenados por nombre. */
   function _buildUsuarios_() {
     return UsuariosRepository.getAll()
       .map(usuario => ({
@@ -189,12 +228,14 @@ function _perfBackendStart_(operation, metadata) {
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }
 
+  /** @return {Set<string>} Índice de solicitantes válidos. */
   function _buildSolicitantesSet_() {
     return new Set(
       _buildUsuarios_().map(usuario => usuario.nombre)
     );
   }
 
+  /** @return {Array<string>} Bodegas únicas y ordenadas. */
   function _buildBodegas_() {
     const datos = UbicacionesExcedentesRepository.getBodegas()
       .map(value => toStrUpper_(value))
@@ -203,6 +244,7 @@ function _perfBackendStart_(operation, metadata) {
     return [...new Set(datos)].sort();
   }
 
+  /** @return {Array<{bodega:string,ubi:string}>} Mapa normalizado. */
   function _buildMapaUbicacionesExcedentes_() {
     return UbicacionesExcedentesRepository.getAll()
       .map(item => ({
@@ -212,6 +254,7 @@ function _perfBackendStart_(operation, metadata) {
       .filter(item => item.bodega && item.ubi);
   }
 
+  /** @return {Object<string,Object>} Catálogo indexado por código. */
   function _buildMapaCatalogo_() {
     const source =
       typeof CatalogoRepository
@@ -258,6 +301,11 @@ function _perfBackendStart_(operation, metadata) {
     );
   }
 
+  /**
+   * Infiere la bodega asociada al prefijo de una ubicación.
+   * @param {*} ubicacion Ubicación operativa.
+   * @return {string}
+   */
   function _inferirBodegaPorUbicacion_(ubicacion) {
     const value = toStrUpper_(ubicacion);
 
@@ -277,6 +325,7 @@ function _perfBackendStart_(operation, metadata) {
     return DOMAIN.BODEGA_PRINCIPAL;
   }
 
+  /** Valida y normaliza el tipo de movimiento. */
   function _validarTipo_(tipo) {
     const value = toStrUpper_(tipo);
 
@@ -290,6 +339,7 @@ function _perfBackendStart_(operation, metadata) {
     return value;
   }
 
+  /** Valida al solicitante contra el índice autorizado. */
   function _validarSolicitante_(solicitante, solicitantesSet) {
     const value = toStrUpper_(solicitante);
 
@@ -304,6 +354,7 @@ function _perfBackendStart_(operation, metadata) {
     return value;
   }
 
+  /** Valida una cantidad positiva y su límite superior opcional. */
   function _validarCantidad_(cantidad, maxPermitido, etiqueta = "cantidad") {
     const value = toNum_(cantidad);
 
@@ -323,6 +374,7 @@ function _perfBackendStart_(operation, metadata) {
     return value;
   }
 
+  /** Busca directamente una fila física por IdUnico. */
   function _obtenerFilaExcedentePorIdUnico_(idUnico) {
     const sheet = getSheetByKey_("EXCEDENTES");
     const values = sheet.getDataRange().getValues();
@@ -347,6 +399,10 @@ function _perfBackendStart_(operation, metadata) {
     return null;
   }
 
+  /**
+   * Construye un índice IdUnico -> fila física y reporta duplicados.
+   * @return {Map<string,Object>}
+   */
   function _buildIndiceFilasExcedentes_() {
     const source =
       typeof ExcedentesRepository
@@ -443,6 +499,7 @@ function _perfBackendStart_(operation, metadata) {
   // DATASETS POR TIPO
   // =========================================================
 
+  /** Obtiene folios disponibles para acomodo y registra rendimiento. */
   function _obtenerFoliosParaAcomodo_(
     parentTrace
   ) {
@@ -504,6 +561,7 @@ function _perfBackendStart_(operation, metadata) {
     return result;
   }
 
+  /** Obtiene folios con saldo y ubicación para surtido. */
   function _obtenerFoliosParaSurtido_(parentTrace) {
     const startedAt = Date.now();
     const source = GestorExcedentesService.obtenerExcedentesConsolidados();
@@ -544,20 +602,21 @@ function _perfBackendStart_(operation, metadata) {
     return result;
   }
 
+  /** Consolida los datasets de acomodo y surtido. */
   function _obtenerEstadoFolios_(parentTrace) {
-  const acomodo =
+    const acomodo =
     _obtenerFoliosParaAcomodo_(
       parentTrace
     );
 
-  const surtido =
-    _obtenerFoliosParaSurtido_(
+    const surtido =
+      _obtenerFoliosParaSurtido_(
       parentTrace
     );
 
-  _perfBackendMark_(
-    parentTrace,
-    "STATE_BUILT",
+    _perfBackendMark_(
+      parentTrace,
+      "STATE_BUILT",
     {
       acomodo:
         acomodo.length,
@@ -567,14 +626,15 @@ function _perfBackendStart_(operation, metadata) {
     }
   );
 
-  return {
-    acomodo,
-    surtido
-  };
-}
+    return {
+      acomodo,
+      surtido
+    };
+  }
 
   
 
+  /** Valida que un folio pertenezca al dataset del tipo solicitado. */
   function _validarFolioPorTipo_(
     idUnico,
     tipo,
@@ -621,6 +681,7 @@ function _perfBackendStart_(operation, metadata) {
     );
   }
 
+  /** Construye el contrato inicial requerido por la vista. */
   function _buildBootstrap() {
     const usuarios = _buildUsuarios_();
     const bodegas = _buildBodegas_();
@@ -643,6 +704,9 @@ function _perfBackendStart_(operation, metadata) {
   // PERSISTENCIA
   // =========================================================
 
+  /**
+   * Actualiza exclusivamente STATUS. CANTIDAD permanece histórica.
+   */
   function _actualizarExcedenteExistente_(rowNumber, payload) {
     const sheet = getSheetByKey_("EXCEDENTES");
 
@@ -668,6 +732,7 @@ function _perfBackendStart_(operation, metadata) {
     }
   }
 
+  /** Registra en lote los movimientos aplicados en TRASPASOS. */
   function _appendTraspasoRows_(movimientos, config) {
     if (!Array.isArray(movimientos) || movimientos.length === 0) {
       return;
@@ -706,11 +771,13 @@ function _perfBackendStart_(operation, metadata) {
       .setValues(rows);
   }
 
+  /** Elimina scripts del HTML destinado al canal ONLINE. */
   function _prepararHtmlOnline_(html) {
     return String(html || "")
       .replace(/<script[\s\S]*?<\/script>/gi, "");
   }
 
+  /** Genera HTML de etiquetas para saldos parciales confirmados. */
   function _crearHtmlRemanentes_(
     remanentes,
     config,
@@ -760,6 +827,7 @@ function _perfBackendStart_(operation, metadata) {
     return template.evaluate().getContent();
   }
 
+  /** Valida y adapta movimientos al contrato de ExistenciasRepository. */
   function _buildMovimientosExistencias_(
     movimientosTraspaso,
     mapaCatalogo
@@ -862,11 +930,19 @@ function _perfBackendStart_(operation, metadata) {
   // API
   // =========================================================
 
+  /**
+   * Devuelve el bootstrap de la vista.
+   * @return {Object}
+   */
   function getBootstrap() {
     return _buildBootstrap();
   }
 
-    function _limpiarCachesOperacionales_() {
+    /**
+   * Invalida cachés operativas usando el mecanismo más completo disponible.
+   * @return {*} Resultado del limpiador global o true en el fallback.
+   */
+  function _limpiarCachesOperacionales_() {
     if (
       typeof clearTraspasosCaches_ ===
         "function"
@@ -932,6 +1008,11 @@ function _perfBackendStart_(operation, metadata) {
     return true;
   }
 
+  /**
+   * Obtiene el estado de folios con caché y trazabilidad de rendimiento.
+   * @param {*} forceRefresh Solo true booleano fuerza reconstrucción.
+   * @return {{acomodo:Array<Object>,surtido:Array<Object>}}
+   */
   function obtenerEstadoFolios(
     forceRefresh
   ) {
@@ -1072,6 +1153,16 @@ function _perfBackendStart_(operation, metadata) {
     }
   }
 
+  /**
+   * Valida y aplica la cola final bajo candado global de inventario.
+   *
+   * La operación es idempotente por idOperacion. Solo los cambios confirmados
+   * en existencias generan bitácora, actualización de STATUS y remanentes.
+   *
+   * @param {Array<Object>} cola Movimientos enviados por la vista.
+   * @return {Object} Resultado operativo y payload opcional de impresión.
+   * @throws {Error} Cuando falla validación, bloqueo o persistencia.
+   */
   function procesarMovimientosFinal(cola) {
     if (!Array.isArray(cola) || cola.length === 0) {
       throw new Error("La cola de movimientos está vacía.");
@@ -1081,8 +1172,7 @@ function _perfBackendStart_(operation, metadata) {
       throw new Error("La cola contiene elementos inválidos.");
     }
 
-    const perfMovimiento =
-    _perfMovimientoStart_(
+    const perfMovimiento = _perfMovimientoStart_(
       "TRASPASOS_PROCESAR_MOVIMIENTOS",
       {
         totalMovimientos:
@@ -1862,9 +1952,9 @@ function _perfBackendStart_(operation, metadata) {
         }
       : null;
 
-      _perfMovimientoMark_(
-        perfMovimiento,
-        "PRINT_PAYLOAD_READY",
+    _perfMovimientoMark_(
+      perfMovimiento,
+      "PRINT_PAYLOAD_READY",
         {
           remanentes:
             remanentesGenerados.length,
@@ -1884,7 +1974,7 @@ function _perfBackendStart_(operation, metadata) {
         }
       );
 
-        _perfMovimientoEnd_(
+    _perfMovimientoEnd_(
       perfMovimiento,
       "ok",
       {

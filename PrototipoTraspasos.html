@@ -1,8 +1,57 @@
 <script>
-  /** PrototipoTraspasos.html */
+  /**
+   * PrototipoTraspasos.html
+   *
+   * Vista operativa para ejecutar movimientos de acomodo y surtido de
+   * excedentes dentro de APPALMACEN.
+   *
+   * Responsabilidades principales:
+   * - Cargar usuarios, bodegas, ubicaciones y estados de folios.
+   * - Mantener sincronizados los folios disponibles para acomodo y surtido.
+   * - Validar capturas, cantidades, destinos y duplicados antes de agregarlos
+   *   a la fila de movimientos.
+   * - Enviar movimientos al backend mediante APPALMACEN_ACTIONS.
+   * - Gestionar la impresión LOCAL u ONLINE de etiquetas de saldo parcial.
+   * - Preservar cachés operativas y actualizar el estado visible de los folios.
+   *
+   * Dependencias globales:
+   * - React y ReactDOM.
+   * - google.script.run.
+   * - window.APPALMACEN_ACTIONS.
+   * - window.ImpresionModoUtilidades.
+   * - window.DATA_ALMACEN_CACHE.
+   * - window.APPALMACEN_PREFETCHES.
+   * - window.notificar o window.lanzarNotificacion.
+   * - window.registrarError_, cuando esté disponible.
+   * - window.lucide, para renderizar iconos.
+   *
+   * Contratos públicos preservados:
+   * - window.cargar_PrototipoTraspasos().
+   * - window.initVista.
+   * - PrototipoTraspasosController_getBootstrap().
+   * - PrototipoTraspasosController_obtenerEstadoFolios().
+   * - PrototipoTraspasosController_procesarMovimientosFinal().
+   *
+   * Nota de mantenimiento:
+   * La documentación añadida no altera elementos renderizados, estilos
+   * efectivos, estados, efectos, payloads, tiempos, validaciones ni endpoints.
+   */
 </script>
 
 <style>
+  /* ========================================================================
+   * ARQUITECTURA VISUAL
+   * ========================================================================
+   * Todos los selectores funcionales permanecen encapsulados bajo
+   * #render-prototipo-traspasos para evitar colisiones con otras vistas.
+   *
+   * La interfaz conserva dos zonas:
+   * - Panel izquierdo: captura y validación del movimiento.
+   * - Panel derecho: fila de movimientos y desplazamiento independiente.
+   *
+   * No modificar dimensiones, overflow o alturas sin validar la integración
+   * con el contenedor padre del Shell de APPALMACEN.
+   * ====================================================================== */
   #render-prototipo-traspasos {
     --local-primary: #d93025;
     --local-primary-dark: #a50e0e;
@@ -499,9 +548,19 @@
   window.cargar_PrototipoTraspasos = () => {
     const { useState, useEffect, useMemo, useRef } = React;
 
-    // =============================
-    // HELPERS DE NOTIFICACIÓN
-    // =============================
+    // =====================================================================
+    // NOTIFICACIONES Y TELEMETRÍA
+    // =====================================================================
+
+    /**
+     * Publica una notificación usando la implementación disponible en el Shell.
+     *
+     * @param {string} mensaje Texto visible para el usuario.
+     * @param {string} [tipo="info"] Nivel visual de la notificación.
+     * @param {number} [timer=2500] Duración, en milisegundos.
+     * @param {Object} [options={}] Configuración adicional del notificador.
+     * @return {void}
+     */
     const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
       if (typeof fn === "function") {
@@ -509,6 +568,12 @@
       }
     };
 
+    /**
+     * Crea un notificador con control de frecuencia por clave.
+     *
+     * @param {{current:Object<string,number>}} ref Registro mutable de tiempos.
+     * @return {Function} Función de notificación con cooldown.
+     */
     const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
       const now = Date.now();
       const last = ref.current[key] || 0;
@@ -520,6 +585,12 @@
     const shellNotifyStateRef = { current: {} };
     const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
 
+    /**
+     * Ejecuta una operación mediante el coordinador global de acciones.
+     *
+     * @param {Object} config Contrato de ejecución para APPALMACEN_ACTIONS.
+     * @return {Promise<*>} Resultado de la operación coordinada.
+     */
     const actionRun_ = (config) => {
       if (!window.APPALMACEN_ACTIONS || typeof window.APPALMACEN_ACTIONS.run !== "function") {
         return Promise.reject(
@@ -530,6 +601,14 @@
       return window.APPALMACEN_ACTIONS.run(config);
     };
 
+    /**
+     * Registra un error de vista con formato uniforme y metadatos operativos.
+     *
+     * @param {string} event Identificador estable del evento.
+     * @param {*} error Error original o valor convertible a Error.
+     * @param {Object} [metadata={}] Contexto adicional no sensible.
+     * @return {void}
+     */
     const reportViewError_ = (event, error, metadata = {}) => {
       const normalizedError = error instanceof Error
         ? error
@@ -560,9 +639,16 @@
       });
     };
 
-    // =============================
-    // ICONO LOCAL
-    // =============================
+    // =====================================================================
+    // COMPONENTES AUXILIARES
+    // =====================================================================
+
+    /**
+     * Renderiza un icono Lucide dentro de un contenedor React aislado.
+     *
+     * @param {{name:string,size?:number,className?:string}} props Propiedades.
+     * @return {React.ReactElement}
+     */
     const LocalIcon = ({ name, size = 18, className = "" }) => {
       const iconRef = useRef(null);
 
@@ -582,9 +668,15 @@
       return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
     };
 
-    // ==============================
+    // =====================================================================
     // COMPONENTE PRINCIPAL
-    // ==============================
+    // =====================================================================
+
+    /**
+     * Administra el ciclo de vida completo de la vista de traspasos.
+     *
+     * @return {React.ReactElement}
+     */
     const VistaPrototipo = () => {
       const [cola, setCola] = useState([]);
       const [procesando, setProcesando] = useState(false);
@@ -644,8 +736,19 @@
       // ---------------------------------------------------------
       // HELPERS
       // ---------------------------------------------------------
+      /**
+       * Normaliza valores de captura para comparaciones consistentes.
+       *
+       * @param {*} valor Valor de entrada.
+       * @return {string} Texto recortado y convertido a mayúsculas.
+       */
       const normalizarTexto = (valor) => String(valor || "").trim().toUpperCase();
 
+      /**
+       * Genera el identificador idempotente de una operación de movimiento.
+       *
+       * @return {string}
+       */
       const generarIdOperacion_ = () => {
         if (
           window.crypto &&
@@ -662,6 +765,12 @@
         ].join("-");
       };
 
+      /**
+       * Normaliza el contrato de folios recibido desde caché o backend.
+       *
+       * @param {Array<Object>} [lista=[]] Folios de origen.
+       * @return {Array<Object>} Copia normalizada de los folios.
+       */
       const normalizarFolios = (lista = []) => {
         return lista.map(item => ({
           ...item,
@@ -674,6 +783,12 @@
         }));
       };
 
+      /**
+       * Normaliza bodegas y ubicaciones para búsquedas exactas.
+       *
+       * @param {Array<Object>} [lista=[]] Mapa recibido.
+       * @return {Array<{bodega:string,ubi:string}>}
+       */
       const normalizarMapaUbicaciones = (lista = []) => {
         return lista.map(item => ({
           bodega: String(item.bodega || "").trim().toUpperCase(),
@@ -681,6 +796,12 @@
         }));
       };
 
+      /**
+       * Persiste en memoria del Shell los datos reutilizables del bootstrap.
+       *
+       * @param {Object} bootstrap Datos iniciales de la vista.
+       * @return {void}
+       */
       const guardarBootstrapEnCache = (bootstrap) => {
         window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
         window.DATA_ALMACEN_CACHE.prototipoTraspasosBootstrap = bootstrap;
@@ -696,6 +817,11 @@
         }
       };
 
+      /**
+       * Recupera el bootstrap más completo disponible en memoria local.
+       *
+       * @return {Object|null}
+       */
       const leerBootstrapDesdeCache = () => {
         const cache = window.DATA_ALMACEN_CACHE || {};
 
@@ -725,6 +851,11 @@
         return null;
       };
 
+      /**
+       * Aplica folios precargados y libera el bloqueo visual de sincronización.
+       *
+       * @return {boolean} true cuando existe información local utilizable.
+       */
       const aplicarFoliosDesdeCacheLocal_ = () => {
         const cache = leerBootstrapDesdeCache();
 
@@ -752,6 +883,18 @@
         return false;
       };
 
+      /**
+       * Sincroniza el estado operativo de folios de acomodo y surtido.
+       *
+       * Evita solicitudes concurrentes, actualiza las cachés compartidas y
+       * diferencia notificaciones manuales, silenciosas y automáticas.
+       *
+       * @param {Function|null} onDone Callback opcional de finalización.
+       * @param {string} [contexto="refresh"] Contexto de la sincronización.
+       * @param {boolean} [forceRefresh=false] Solicita actualización forzada.
+       * @param {Object} [options={}] Opciones de bloqueo visual.
+       * @return {Promise<*>}
+       */
       const refrescarEstadoFolios = (
         onDone,
         contexto = "refresh",
@@ -1040,6 +1183,12 @@
         )].sort((a, b) => a.localeCompare(b, 'es', { numeric: true, sensitivity: 'base' }));
       }, [form.bodega, mapaUbicacionesExcedentes]);
 
+      /**
+       * Determina si un folio ya participa en la fila de movimientos actual.
+       *
+       * @param {*} idUnico Identificador por validar.
+       * @return {boolean}
+       */
       const existeIdUnicoEnCola = (idUnico) => {
         const idNormalizado = normalizarTexto(idUnico);
         if (!idNormalizado) return false;
@@ -1459,6 +1608,12 @@
       // ---------------------------------------------------------
       // CAMBIO DE CANTIDAD
       // ---------------------------------------------------------
+      /**
+       * Actualiza la cantidad respetando las reglas de acomodo y surtido.
+       *
+       * @param {*} valor Cantidad capturada.
+       * @return {void}
+       */
       const handleCantidadChange = (valor) => {
         if (form.tipo === 'Acomodo' && form.idSeleccionado) {
           return;
@@ -1486,6 +1641,12 @@
       // ---------------------------------------------------------
       // CAMBIO DE INPUT QR / FOLIO
       // ---------------------------------------------------------
+      /**
+       * Procesa cambios en el campo de escaneo y vincula el folio encontrado.
+       *
+       * @param {Event} e Evento de entrada.
+       * @return {void}
+       */
       const handleInputChange = (e) => {
         const val = e.target.value.toUpperCase().trim();
 
@@ -1566,6 +1727,12 @@
       // ---------------------------------------------------------
       // AGREGAR A COLA
       // ---------------------------------------------------------
+      /**
+       * Valida y agrega un movimiento a la fila local.
+       *
+       * @param {Event|Object} e Evento de formulario o contrato compatible.
+       * @return {void}
+       */
       const handleAdd = (e) => {
         if (e && typeof e.preventDefault === 'function') {
           e.preventDefault();
@@ -1758,6 +1925,12 @@
       // ENVÍO AL BACKEND
       // ---------------------------------------------------------
       
+      /**
+       * Envía la fila al backend y, cuando corresponde, imprime etiquetas de
+       * remanente manteniendo protección contra envíos concurrentes.
+       *
+       * @return {void}
+       */
       const enviarASheets = () => {
         if (envioEnCursoRef.current || cola.length === 0) return;
 
