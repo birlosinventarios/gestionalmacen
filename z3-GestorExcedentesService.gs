@@ -1,18 +1,52 @@
 /**
  * GestorExcedentesService.gs
- * Adaptador de EstadoActualExcedentesService para las vistas legacy.
  *
- * Reglas:
- * - No recalcula el saldo.
- * - EstadoActualExcedentesService es la fuente unica del saldo consolidado.
- * - saldoActual debe representar:
- *   cantidad inicial de BD-EXCEDENTES menos la suma de SURTIDO.
- * - Los excedentes PARCIAL permanecen vigentes mientras saldoActual sea mayor a cero.
+ * Adaptador de compatibilidad entre EstadoActualExcedentesService y las vistas
+ * legacy que consumen el contrato histórico de GestorExcedentesService.
+ *
+ * Responsabilidades:
+ * - Delegar el cálculo del estado y del saldo consolidado al servicio canónico.
+ * - Adaptar registros canónicos al shape legacy sin recalcular cantidades.
+ * - Construir vistas completas, ligeras y estrictas según el consumidor.
+ * - Conservar orden, nombres de propiedades y resúmenes esperados por vistas
+ *   existentes y por PrototipoTraspasosService.
+ * - Propagar o tolerar errores según el endpoint utilizado.
+ * - Exponer métricas de rendimiento para lectura, mapeo y serialización.
+ *
+ * Reglas invariantes:
+ * - Este adaptador no recalcula el saldo.
+ * - EstadoActualExcedentesService es la única fuente del saldo consolidado.
+ * - saldoActual representa CANTIDAD inicial menos la suma de SURTIDO.
+ * - Los excedentes PARCIAL continúan vigentes mientras saldoActual sea mayor
+ *   que cero.
+ * - obtenerExcedentesConsolidados() devuelve únicamente excedentes vigentes.
+ * - Los campos legacy eidUnico, ecodigo, edescripcion, esaldo, eserie y
+ *   ebodegaActual deben conservarse.
+ *
+ * Política de errores:
+ * - obtenerVistaRaw(), obtenerVistaLigeraRaw(), getResumen(),
+ *   obtenerExcedentesConsolidados() y obtenerExcedentesAuditables() propagan
+ *   errores operativos.
+ * - obtenerVista() es tolerante y devuelve una estructura vacía compatible.
+ *
+ * Dependencias:
+ * - EstadoActualExcedentesService.
+ * - toStr_(), toStrUpper_() y toNum_().
+ *
+ * API pública:
+ * - obtenerVista()
+ * - obtenerVistaLigeraRaw()
+ * - obtenerVistaRaw()
+ * - obtenerExcedentesConsolidados()
+ * - obtenerExcedentesAuditables()
+ * - getResumen()
+ * - clearCache()
  */
 const GestorExcedentesService = (() => {
   "use strict";
 
-function _perfGestorStart_(operation, metadata) {
+  /** Inicia una traza de rendimiento para una operación del adaptador. */
+  function _perfGestorStart_(operation, metadata) {
     const now = Date.now();
 
     return {
@@ -24,6 +58,7 @@ function _perfGestorStart_(operation, metadata) {
     };
   }
 
+  /** Registra una etapa con tiempos parcial y acumulado. */
   function _perfGestorMark_(trace, stage, metadata) {
     if (!trace) return;
 
@@ -39,6 +74,7 @@ function _perfGestorStart_(operation, metadata) {
     trace.lastAt = now;
   }
 
+  /** Finaliza, registra y devuelve la traza de rendimiento. */
   function _perfGestorEnd_(trace, status, metadata) {
     if (!trace) return null;
 
@@ -62,6 +98,11 @@ function _perfGestorStart_(operation, metadata) {
   // HELPERS DE VISTA
   // =========================================================
 
+  /**
+   * Ordena por ubicación, código e IdUnico usando comparación natural.
+   * @param {Array<Object>} rows Registros legacy.
+   * @return {Array<Object>} Copia ordenada.
+   */
   function _ordenarVista_(rows) {
     return [...(rows || [])].sort((a, b) => {
       const ubicacionA =
@@ -118,9 +159,9 @@ function _perfGestorStart_(operation, metadata) {
   }
 
   /**
-   * Convierte el modelo de EstadoActualExcedentesService
-   * al modelo legacy utilizado por GestorExcedentes.html
-   * y PrototipoTraspasosService.
+   * Adapta un registro canónico al contrato legacy sin recalcular el saldo.
+   * @param {Object} item Registro de EstadoActualExcedentesService.
+   * @return {Object} Registro compatible con vistas legacy.
    */
   function _mapEstadoToLegacyView_(item) {
     const cantidadInicial = toNum_(
@@ -208,6 +249,11 @@ function _perfGestorStart_(operation, metadata) {
     };
   }
 
+  /**
+   * Adapta el resumen canónico y calcula únicamente métricas de presentación.
+   * @param {Object} resumenBase Resumen del servicio canónico.
+   * @return {Object} Resumen compatible con consumidores legacy.
+   */
   function _mapResumen_(resumenBase) {
     const resumen = resumenBase || {};
 
@@ -272,6 +318,10 @@ function _perfGestorStart_(operation, metadata) {
   // CONSTRUCCION DE VISTA
   // =========================================================
 
+  /**
+   * Construye la vista completa con universo, vigentes y resumen.
+   * @return {{data:Array<Object>,dataCompleta:Array<Object>,resumen:Object}}
+   */
   function _construirVista_() {
     const trace = _perfGestorStart_(
       "GESTOR_CONSTRUIR_VISTA"
@@ -364,6 +414,10 @@ function _perfGestorStart_(operation, metadata) {
     }
   }
 
+  /**
+   * Construye una respuesta ligera de vigentes y resumen sin reordenar.
+   * @return {{data:Array<Object>,resumen:Object}}
+   */
   function _construirVistaLigera_() {
     const trace =
       _perfGestorStart_(
@@ -549,15 +603,16 @@ function _perfGestorStart_(operation, metadata) {
   // =========================================================
 
   /**
-   * Version estricta. Propaga cualquier error al llamador.
-   * Debe utilizarse en procesos operativos como Traspasos.
+   * Devuelve la vista completa y propaga cualquier error operativo.
+   * @return {Object}
    */
   function obtenerVistaRaw() {
     return _construirVista_();
   }
 
   /**
-   * Version tolerante para vistas informativas.
+   * Devuelve una vista ligera tolerante para pantallas informativas.
+   * @return {{data:Array<Object>,resumen:Object}}
    */
   function obtenerVista() {
     try {
@@ -646,11 +701,16 @@ function _perfGestorStart_(operation, metadata) {
     }
   }
 
+  /** Devuelve la vista ligera y propaga errores al consumidor. */
   function obtenerVistaLigeraRaw() {
     return _construirVistaLigera_();
   }  
 
-    function _construirSoloVigentes_() {
+  /**
+   * Adapta y ordena únicamente excedentes vigentes.
+   * @return {Array<Object>} Registros legacy vigentes.
+   */
+  function _construirSoloVigentes_() {
     const trace = _perfGestorStart_(
       "GESTOR_CONSTRUIR_SOLO_VIGENTES"
     );
@@ -696,23 +756,29 @@ function _perfGestorStart_(operation, metadata) {
   }
 
   /**
-   * Fuente utilizada por PrototipoTraspasosService.
-   * Solo devuelve excedentes vigentes.
+   * Fuente operativa utilizada por PrototipoTraspasosService.
+   * @return {Array<Object>} Excedentes vigentes con saldo consolidado.
    */
- function obtenerExcedentesConsolidados() {
+  function obtenerExcedentesConsolidados() {
     return _construirSoloVigentes_();
   }
 
+  /** @return {Object} Resumen estricto de la vista completa. */
   function getResumen() {
     return obtenerVistaRaw().resumen;
   }
 
+  /** @return {Array<Object>} Excedentes marcados como auditables. */
   function obtenerExcedentesAuditables() {
     return obtenerVistaRaw().data.filter(
       item => item.auditable === true
     );
   }
 
+  /**
+   * Invalida la caché del servicio canónico cuando está disponible.
+   * @return {boolean}
+   */
   function clearCache() {
     if (
       typeof EstadoActualExcedentesService !== "undefined" &&
@@ -729,7 +795,7 @@ function _perfGestorStart_(operation, metadata) {
     return true;
   }
 
-    return {
+  return Object.freeze({
     obtenerVista,
     obtenerVistaLigeraRaw,
     obtenerVistaRaw,
@@ -737,6 +803,5 @@ function _perfGestorStart_(operation, metadata) {
     obtenerExcedentesAuditables,
     getResumen,
     clearCache
-  };
-  
+  });
 })();
