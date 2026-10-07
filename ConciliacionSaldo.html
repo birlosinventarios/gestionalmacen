@@ -1,8 +1,50 @@
 <script>
-  /** ConciliacionSaldo.html */
+  /**
+   * ConciliacionSaldo.html
+   *
+   * Vista administrativa para conciliar movimientos físicos de traspaso con
+   * el folio aplicado en el sistema administrativo.
+   *
+   * Responsabilidades:
+   * - Consultar movimientos pendientes agrupados por serie y momento operativo.
+   * - Presentar rutas, cantidades, productos e inconsistencias de cada movimiento.
+   * - Filtrar grupos por texto, estado y tipo de movimiento.
+   * - Validar folio administrativo y responsable antes del registro.
+   * - Registrar la conciliación de todas las filas pendientes de un grupo.
+   * - Retirar visualmente los grupos conciliados y actualizar el resumen local.
+   * - Medir tiempos de carga, respuesta, renderizado y registro.
+   * - Administrar el montaje y desmontaje de su raíz React.
+   *
+   * Dependencias globales:
+   * - React y ReactDOM.
+   * - Lucide.
+   * - google.script.run.
+   * - window.notificar o window.lanzarNotificacion.
+   *
+   * Controladores consumidos:
+   * - ConciliacionSaldoController_obtenerBootstrap().
+   * - ConciliacionSaldoController_registrarConciliacion(payload).
+   *
+   * Contratos globales expuestos:
+   * - window.cargar_ConciliacionSaldo().
+   * - window.initVista.
+   * - window.__CONCILIACION_SALDO_ROOT__.
+   *
+   * Invariantes operativos:
+   * - El folio administrativo acepta únicamente caracteres numéricos.
+   * - El responsable debe existir en el catálogo recibido por el bootstrap.
+   * - Solo los grupos marcados como conciliables pueden registrarse.
+   * - Una tarjeta impide solicitudes concurrentes mediante savingRef.
+   * - La vista ignora respuestas obsoletas mediante secuencias incrementales.
+   * - El servidor conserva la autoridad final sobre validación y persistencia.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
 </script>
 
 <style>
+  /* =========================================================
+     TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #render-conciliacion-saldo {
     --cs-primary: var(--primary, #d93025);
     --cs-primary-dark: var(--primary-dark, #a50e0e);
@@ -179,11 +221,26 @@
   window.cargar_ConciliacionSaldo = () => {
     const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
+    /**
+     * Inicia una traza de rendimiento del cliente.
+     *
+     * @param {string} operation Nombre estable de la operación.
+     * @param {Object=} metadata Contexto inicial.
+     * @return {Object} Traza mutable.
+     */
     const csPerfStart_ = (operation, metadata = {}) => {
       const now = performance.now();
       return { operation: String(operation || "CONCILIACION_OPERATION"), startedAt: now, lastAt: now, metadata: metadata && typeof metadata === "object" ? metadata : {}, marks: [], ended: false };
     };
 
+    /**
+     * Agrega una marca temporal a una traza activa.
+     *
+     * @param {Object} trace Traza iniciada previamente.
+     * @param {string} stage Etapa registrada.
+     * @param {Object=} metadata Contexto de la etapa.
+     * @return {void}
+     */
     const csPerfMark_ = (trace, stage, metadata = {}) => {
       if (!trace || trace.ended === true) return;
       const now = performance.now();
@@ -191,6 +248,14 @@
       trace.lastAt = now;
     };
 
+    /**
+     * Finaliza y publica una traza de rendimiento.
+     *
+     * @param {Object} trace Traza activa.
+     * @param {string=} status Estado final.
+     * @param {Object=} metadata Contexto final.
+     * @return {Object|null} Resultado consolidado o null si ya terminó.
+     */
     const csPerfEnd_ = (trace, status = "ok", metadata = {}) => {
       if (!trace || trace.ended === true) return null;
       trace.ended = true;
@@ -201,10 +266,25 @@
       return result;
     };
 
+    /**
+     * Ejecuta un callback después de dos ciclos de pintura del navegador.
+     *
+     * @param {Function} callback Acción diferida.
+     * @return {void}
+     */
     const csAfterPaint_ = callback => {
       window.requestAnimationFrame(() => window.requestAnimationFrame(callback));
     };
 
+    /**
+     * Emite una notificación mediante la infraestructura global del shell.
+     *
+     * @param {string} message Mensaje visible.
+     * @param {string=} type Tipo de notificación.
+     * @param {number=} timer Duración en milisegundos.
+     * @param {Object=} options Opciones complementarias.
+     * @return {void}
+     */
     const notify_ = (message, type = "info", timer = 2600, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
       if (typeof fn === "function") fn(message, type, timer, options);
@@ -215,6 +295,12 @@
     const num_ = value => Number.isFinite(Number(value)) ? Number(value) : 0;
     const formatNumber_ = value => num_(value).toLocaleString("es-MX", { maximumFractionDigits: 2 });
 
+    /**
+     * Renderiza un icono Lucide aislado dentro de la vista.
+     *
+     * @param {{name:string,size:number=,className:string=}} props Propiedades visuales.
+     * @return {React.ReactElement}
+     */
     function Icon({ name, size = 17, className = "" }) {
       const ref = useRef(null);
       useEffect(() => {
@@ -231,10 +317,17 @@
       return <span ref={ref} className="inline-flex items-center justify-center" />;
     }
 
+    /** Renderiza una métrica compacta del encabezado. */
     function Metric({ label, value, tone = "" }) {
       return <div className={`cs-metric ${tone}`}><div className="cs-metric-value">{formatNumber_(value)}</div><div className="cs-metric-label">{label}</div></div>;
     }
 
+    /**
+     * Renderiza un movimiento y sus validaciones administrativas.
+     *
+     * @param {{movement:Object}} props Movimiento normalizado.
+     * @return {React.ReactElement}
+     */
     function MovementRow({ movement }) {
       const validation = movement.validacionadministrativa || {};
       const valid = validation.valido === true;
@@ -254,6 +347,12 @@
       );
     }
 
+    /**
+     * Tarjeta autónoma para validar y registrar la conciliación de un grupo.
+     *
+     * @param {Object} props Propiedades del grupo y catálogo de responsables.
+     * @return {React.ReactElement}
+     */
     function ConciliationCard({ group, index, responsibles, onRegistered }) {
       const [folio, setFolio] = useState("");
       const [responsible, setResponsible] = useState("");
@@ -272,6 +371,11 @@
       const canRegister = group.conciliable === true && folioValid && responsibleValid && !saving && !exiting;
       const cardTone = group.conciliable ? "is-valid" : group.inconsistentes > 0 ? "is-invalid" : "is-warning";
 
+      /**
+       * Valida la captura y registra la conciliación del grupo actual.
+       *
+       * @return {void}
+       */
       const register_ = () => {
         if (savingRef.current) {
           console.log("[APPALMACEN][PERF][CONCILIACION_REGISTRAR_SKIPPED]", { clavegrupo: group.clavegrupo, reason: "REQUEST_ALREADY_IN_FLIGHT" });
@@ -347,6 +451,11 @@
       );
     }
 
+    /**
+     * Componente principal de conciliación de saldo.
+     *
+     * @return {React.ReactElement}
+     */
     function View() {
       const [loading, setLoading] = useState(true);
       const [refreshing, setRefreshing] = useState(false);
@@ -364,6 +473,12 @@
 
       useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
+      /**
+       * Aplica al estado React un bootstrap normalizado.
+       *
+       * @param {*} response Respuesta del servidor.
+       * @return {void}
+       */
       const applyResponse_ = useCallback(response => {
         if (!mountedRef.current) return;
         const safe = response || {};
@@ -373,6 +488,13 @@
         setGeneratedAt(safe.generadoEn || {});
       }, []);
 
+      /**
+       * Carga el bootstrap y descarta respuestas anteriores a la última aplicada.
+       *
+       * @param {boolean=} silent Indica una actualización no bloqueante.
+       * @param {string=} source Origen de la solicitud.
+       * @return {void}
+       */
       const load_ = useCallback((silent = false, source = "unknown") => {
         if (requestBusyRef.current) {
           console.log("[APPALMACEN][PERF][CONCILIACION_CARGAR_SKIPPED]", { source, reason: "REQUEST_ALREADY_IN_FLIGHT" });
@@ -426,13 +548,14 @@
 
       useEffect(() => {
         const onFocus = () => load_(true, "focus");
-        const onVisibilityChange = () => { 
+        const onVisibilityChange = () => {
           if (document.visibilityState === "visible") load_(true, "visibilitychange"); };
         window.addEventListener("focus", onFocus);
         document.addEventListener("visibilitychange", onVisibilityChange);
         return () => { window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVisibilityChange); };
       }, [load_]);
 
+      /** Colección derivada tras aplicar búsqueda y filtros operativos. */
       const visibleGroups = useMemo(() => {
         const startedAt = performance.now();
         const q = upper_(query);
@@ -447,6 +570,12 @@
         return result;
       }, [groups, query, stateFilter, typeFilter]);
 
+      /**
+       * Retira un grupo conciliado y ajusta las métricas locales.
+       *
+       * @param {string} groupKey Clave del grupo registrado.
+       * @return {void}
+       */
       const onRegistered_ = useCallback(groupKey => {
         setGroups(previous => {
           const removed = previous.find(group => group.clavegrupo === groupKey);
