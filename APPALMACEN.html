@@ -1,3 +1,50 @@
+<!--
+  APPALMACEN.html
+
+  Shell principal de la aplicación de gestión de almacén.
+
+  Responsabilidades:
+  - Cargar dependencias, recursos compartidos y configuración generada por el servidor.
+  - Montar la aplicación React y el componente de navegación lateral configurado.
+  - Administrar el bootstrap general y los catálogos globales disponibles para las vistas.
+  - Cargar vistas HTML dinámicas, ejecutar sus scripts embebidos y controlar su ciclo de vida.
+  - Centralizar notificaciones, modales, telemetría, manejo de errores y medición de rendimiento.
+  - Exponer el envoltorio APPALMACEN_ACTIONS para operaciones basadas en google.script.run.
+  - Administrar los controles globales de impresión LOCAL y ONLINE.
+
+  Contratos globales expuestos:
+  - window.DATA_ALMACEN_CACHE
+  - window.usuariosGlobal
+  - window.bodegasGlobal
+  - window.mapaUbicacionesGlobal
+  - window.catalogoGlobal
+  - window.APPALMACEN_PERF
+  - window.APPALMACEN_ACTIONS
+  - window.notificar / window.lanzarNotificacion
+  - window.modalSistema / window.confirmarSistema
+  - window.irAVistaShell
+  - window.initVista, asignado por cada vista dinámica
+
+  Dependencias principales:
+  - Google Apps Script HTML Service y google.script.run.
+  - React y ReactDOM.
+  - Babel para vistas JSX cargadas dinámicamente.
+  - Lucide para iconografía.
+  - SweetAlert2 para notificaciones y modales.
+  - Fito_Library, FitoComponents e ImpresionModoUtilidades.
+
+  Invariantes de mantenimiento:
+  - Las respuestas de navegaciones anteriores deben ignorarse mediante requestSequence.
+  - Antes de montar una vista nueva deben desmontarse sus React roots y temporizadores conocidos.
+  - Los errores de caché, telemetría o diagnóstico no deben sustituir el error operativo original.
+  - Los scripts externos y los módulos embebidos en vistas dinámicas no se ejecutan nuevamente.
+  - La configuración servidor-cliente debe existir antes de montar la aplicación React.
+
+  Nota:
+  Este archivo combina plantilla HTML de Apps Script, CSS y JavaScript del navegador.
+  Los scriptlets de impresión de Apps Script pertenecen al renderizado del servidor y no deben
+  convertirse en cadenas ni escaparse durante tareas automáticas de formato.
+-->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -27,7 +74,7 @@
     window.APPALMACEN_BRAND = <?!= APPALMACEN_BRAND_JSON ?>;
     window.APPALMACEN_COMPONENTS = <?!= APPALMACEN_COMPONENTS_JSON ?>;
     window.APPALMACEN_TESTING = <?!= APPALMACEN_TESTING_JSON ?>;
-    
+
   </script>
 
   <style>
@@ -447,7 +494,12 @@
       warnings: window.APPALMACEN_TESTING?.DEBUG_WARNINGS === true
     });
 
-    /** Normaliza errores para logs y respuestas visuales. */
+    /**
+     * Normaliza cualquier error recibido por el shell a un contrato serializable.
+     *
+     * @param {*} error Error, cadena o valor recibido.
+     * @return {{name:string,message:string,stack:string}} Error normalizado.
+     */
     function normalizarError_(error) {
       if (!error) return { name: "", message: "", stack: "" };
       if (typeof error === "string") {
@@ -461,6 +513,15 @@
       };
     }
 
+    /**
+     * Registra un error estructurado del cliente.
+     *
+     * @param {string} layer Capa lógica que genera el evento.
+     * @param {string} event Identificador estable del evento.
+     * @param {*} error Error original.
+     * @param {Object|null} metadata Contexto adicional no sensible.
+     * @return {void}
+     */
     function registrarError_(layer, event, error, metadata) {
       console.error(`[APPALMACEN][${layer}][${event}]`, {
         error: normalizarError_(error),
@@ -468,6 +529,15 @@
       });
     }
 
+    /**
+     * Registra una advertencia únicamente cuando el diagnóstico está habilitado.
+     *
+     * @param {string} layer Capa lógica.
+     * @param {string} event Identificador del evento.
+     * @param {*} error Error o advertencia original.
+     * @param {Object|null} metadata Contexto de diagnóstico.
+     * @return {void}
+     */
     function registrarAdvertencia_(layer, event, error, metadata) {
       if (!APPALMACEN_DEBUG.warnings) return;
       console.warn(`[APPALMACEN][${layer}][${event}]`, {
@@ -476,6 +546,14 @@
       });
     }
 
+    /**
+     * Registra información de depuración cuando APPALMACEN_TESTING.DEBUG está activo.
+     *
+     * @param {string} layer Capa lógica.
+     * @param {string} event Identificador del evento.
+     * @param {Object|null} metadata Contexto de depuración.
+     * @return {void}
+     */
     function registrarDebug_(layer, event, metadata) {
       if (!APPALMACEN_DEBUG.enabled) return;
       console.debug(`[APPALMACEN][${layer}][${event}]`, metadata || null);
@@ -898,6 +976,12 @@
       });
     }
 
+    /**
+     * Escapa texto antes de insertarlo en contenido HTML controlado por el shell.
+     *
+     * @param {*} value Valor de entrada.
+     * @return {string} Texto seguro para interpolación HTML.
+     */
     function escapeHtml_(value) {
       return String(value == null ? "" : value)
         .replace(/&/g, "&amp;")
@@ -1124,6 +1208,12 @@
       })
     });
 
+    /**
+     * Obtiene los metadatos de una vista o construye una configuración de respaldo.
+     *
+     * @param {*} viewId Identificador solicitado.
+     * @return {Object} Metadatos normalizados de navegación, encabezado e impresión.
+     */
     function obtenerMetaVista_(viewId) {
       const id = String(viewId || "").trim();
       if (id && VIEW_META[id]) return VIEW_META[id];
@@ -1231,6 +1321,11 @@
       "__FORMULARIO_ETIQUETAS_IDENTIFICADORAS_ROOT__"
     ]);
 
+    /**
+     * Desmonta las raíces React conocidas de las vistas dinámicas.
+     *
+     * @return {void}
+     */
     function limpiarReactRootsVistas_() {
       VIEW_ROOT_KEYS.forEach(rootKey => {
         try {
@@ -1247,6 +1342,11 @@
       });
     }
 
+    /**
+     * Libera recursos globales de la vista anterior antes de una navegación.
+     *
+     * @return {void}
+     */
     function limpiarRecursosDeVistaAnterior() {
       limpiarReactRootsVistas_();
       window.initVista = null;
@@ -1260,6 +1360,16 @@
       window.lanzarNotificacion = window.notificar;
     }
 
+    /**
+     * Ejecuta secuencialmente los scripts embebidos en una vista recién cargada.
+     *
+     * Los scripts JSX se transpilan con Babel. Los recursos externos, módulos y
+     * bloques declarativos se omiten para evitar ejecuciones duplicadas.
+     *
+     * @param {HTMLElement} container Contenedor de la vista.
+     * @param {string|null} traceId Identificador de rendimiento asociado.
+     * @return {Promise<Object>} Estadísticas de descubrimiento y ejecución.
+     */
     async function ejecutarScriptsDeVista(container, traceId) {
       const scripts = Array.from(container.querySelectorAll("script"));
       const stats = {
@@ -1341,6 +1451,12 @@
       return stats;
     }
 
+    /**
+     * Construye el documento mínimo utilizado para validar un canal de impresión.
+     *
+     * @param {string} mode Canal LOCAL u ONLINE.
+     * @return {string} Documento HTML completo.
+     */
     function construirHtmlPruebaImpresion_(mode) {
       const finalMode = mode === "ONLINE" ? "ONLINE" : "LOCAL";
       return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Prueba ${finalMode}</title><style>@page{size:100mm 150mm;margin:0}body{font-family:Arial;margin:0}.etiqueta{width:100mm;height:150mm;padding:8mm;box-sizing:border-box}.titulo{text-align:center;font-size:18px;font-weight:900}.modo{text-align:center;border:2px solid #000;padding:8px;margin-top:12px}</style></head><body><div class="etiqueta"><div class="titulo">BIRLOS Y TORNILLOS</div><div class="modo">PRUEBA DE IMPRESIÓN ${finalMode}</div><p>${escapeHtml_(new Date().toLocaleString("es-MX"))}</p></div></body></html>`;
@@ -1349,6 +1465,13 @@
     /* ======================================================
        Aplicación principal
        ====================================================== */
+    /**
+     * Componente raíz del shell APPALMACEN.
+     *
+     * Coordina bootstrap, navegación, ciclo de vida de vistas y controles de impresión.
+     *
+     * @return {React.ReactElement}
+     */
     const App = () => {
       const [activeTool, setActiveTool] = useState("PrototipoTraspasos");
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -1897,6 +2020,11 @@
     let APPALMACEN_STARTED = false;
     let APPALMACEN_LOADER_HIDDEN = false;
 
+    /**
+     * Ejecuta una sola vez la transición visual entre el preloader y la aplicación.
+     *
+     * @return {void}
+     */
     function ocultarLoaderAppalmacen_() {
       if (APPALMACEN_LOADER_HIDDEN) return;
       APPALMACEN_LOADER_HIDDEN = true;
@@ -1914,6 +2042,13 @@
       }, 820);
     }
 
+    /**
+     * Crea la raíz React principal y solicita el primer render del shell.
+     *
+     * La bandera APPALMACEN_STARTED evita montajes duplicados.
+     *
+     * @return {void}
+     */
     function iniciarAPPALMACEN() {
       if (APPALMACEN_STARTED) return;
       APPALMACEN_STARTED = true;
