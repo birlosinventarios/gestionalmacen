@@ -64,17 +64,41 @@
     color: var(--cs-ink);
   }
 
-  #render-conciliacion-saldo * { box-sizing: border-box; }
-
-  @keyframes csSpin { to { transform: rotate(360deg); } }
-  @keyframes csPulse { 50% { opacity: .52; transform: scale(.82); } }
-  @keyframes csCardEnter {
-    from { opacity: 0; transform: translateX(-54px); }
-    to { opacity: 1; transform: translateX(0); }
+  #render-conciliacion-saldo * { 
+    box-sizing: border-box; 
   }
+
+  @keyframes csSpin { to { 
+    transform: rotate(360deg); 
+    } 
+  }
+
+  @keyframes csPulse { 50% { 
+    opacity: .52; 
+    transform: scale(.82); 
+    } 
+  }
+
+  @keyframes csCardEnter {
+    from { 
+      opacity: 0; 
+      transform: translateX(-54px); 
+      }
+    to { 
+      opacity: 1; 
+      transform: translateX(0); 
+      }
+  }
+  
   @keyframes csCardExit {
-    from { opacity: 1; transform: translateX(0) scale(1); }
-    to { opacity: 0; transform: translateX(110px) scale(.985); }
+    from { 
+      opacity: 1; 
+      transform: translateX(0) scale(1); 
+      }
+    to { 
+      opacity: 0; 
+      transform: translateX(110px) scale(.985); 
+      }
   }
 
   #render-conciliacion-saldo .cs-card-enter { 
@@ -106,19 +130,49 @@
     box-shadow: 0 24px 60px rgba(15,23,42,.11),0 6px 18px rgba(15,23,42,.05); 
   }
 
-  #render-conciliacion-saldo .cs-header { flex: 0 0 auto; min-height: 116px; position: relative; padding: 18px 18px 18px 22px; display: grid; grid-template-columns: minmax(280px,.95fr) minmax(420px,1.45fr) minmax(142px,auto); align-items: center; gap: 18px; overflow: hidden; color: #fff; background: radial-gradient(circle at top right,rgba(217,48,37,.35),transparent 38%),linear-gradient(135deg,#1c1d1f 0%,#25272b 55%,#17181a 100%); 
+  #render-conciliacion-saldo .cs-header { 
+    flex: 0 0 auto; 
+    min-height: 116px; 
+    position: relative; 
+    padding: 18px 18px 18px 22px; display: grid; 
+    grid-template-columns: minmax(280px,.95fr) minmax(420px,1.45fr) minmax(142px,auto); 
+    align-items: center; 
+    gap: 18px; 
+    overflow: hidden; 
+    color: #fff; 
+    background: radial-gradient(circle at top right,rgba(217,48,37,.35),transparent 38%),linear-gradient(135deg,#1c1d1f 0%,#25272b 55%,#17181a 100%); 
   }
 
-  #render-conciliacion-saldo .cs-header::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 7px; background: var(--cs-primary); 
+  #render-conciliacion-saldo .cs-header::before { 
+    content: ""; 
+    position: absolute; 
+    inset: 0 auto 0 0; 
+    width: 7px; 
+    background: var(--cs-primary); 
   }
 
-  #render-conciliacion-saldo .cs-header > * { position: relative; z-index: 2; 
+  #render-conciliacion-saldo .cs-header > * { 
+    position: relative; 
+    z-index: 2; 
   }
 
-  #render-conciliacion-saldo .cs-identity { min-width: 0; display: grid; grid-template-columns: 48px minmax(0,1fr); align-items: center; gap: 13px; 
+  #render-conciliacion-saldo .cs-identity { 
+    min-width: 0; 
+    display: grid; 
+    grid-template-columns: 48px minmax(0,1fr); 
+    align-items: center; 
+    gap: 13px; 
   }
 
-  #render-conciliacion-saldo .cs-header-icon { width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.16); border-radius: 15px; background: rgba(255,255,255,.1); 
+  #render-conciliacion-saldo .cs-header-icon { 
+    width: 48px; 
+    height: 48px; 
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center; 
+    border: 1px solid rgba(255,255,255,.16); 
+    border-radius: 15px; 
+    background: rgba(255,255,255,.1); 
   }
 
   #render-conciliacion-saldo .cs-eyebrow { 
