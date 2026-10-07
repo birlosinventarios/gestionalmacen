@@ -1,8 +1,40 @@
-<script>/** EtiquetaIdentificadoraImpresa.html */</script>
+<script>
+  /**
+   * EtiquetaIdentificadoraImpresa.html
+   *
+   * Plantilla para imprimir etiquetas identificadoras de excedentes.
+   *
+   * Responsabilidades:
+   * - Renderizar una página física de 150 × 100 mm por cada elemento del lote.
+   * - Mostrar código, descripción, fecha y un QR asociado al identificador.
+   * - Generar el QR mediante un proveedor principal y un proveedor alternativo.
+   * - Esperar documento, fuentes, imágenes, QR y ciclos de pintura antes de
+   *   declarar que la salida está lista para impresión.
+   * - Exponer window.__APP_PRINT_READY para los canales LOCAL y ONLINE.
+   *
+   * Datos esperados desde HtmlService:
+   * - lote: arreglo de elementos con codigo, descripcion e id.
+   * - fechaHora: fecha y hora visibles en la cabecera.
+   * - modoImpresion: canal LOCAL u ONLINE.
+   *
+   * Dependencias externas:
+   * - QuickChart como proveedor QR principal.
+   * - QRServer como proveedor QR alternativo.
+   * - Recurso gráfico remoto utilizado como marca de agua y centro del QR.
+   *
+   * Invariantes:
+   * - Cada elemento del lote genera exactamente una página de 150 × 100 mm.
+   * - El nivel de corrección del código QR permanece en H.
+   * - Los fallos de recursos remotos no deben bloquear indefinidamente la impresión.
+   * - Los scriptlets reales no deben reproducirse como ejemplos dentro de comentarios.
+   */
+</script>
 
 <?
+  /** URL del logotipo utilizado como marca de agua y centro del QR. */
   var LOGO_QR_URL = 'https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png';
 
+  /** Configuración del proveedor QR principal. */
   var QR_CONFIG = {
     size: 800,
     margin: 3,
@@ -16,6 +48,11 @@
     centerImageSizeRatio: 0.28
   };
 
+  /**
+   * Construye la URL del QR principal.
+   * @param {*} texto Contenido por codificar.
+   * @return {string} URL de QuickChart.
+   */
   function construirQr_(texto) {
     var params = [
       'text=' + encodeURIComponent(String(texto || '')),
@@ -35,6 +72,11 @@
     return 'https://quickchart.io/qr?' + params.join('&');
   }
 
+  /**
+   * Construye la URL del QR alternativo.
+   * @param {*} texto Contenido por codificar.
+   * @return {string} URL de QRServer.
+   */
   function construirQrFallback_(texto) {
     return 'https://api.qrserver.com/v1/create-qr-code/?'
       + 'size=800x800'
@@ -45,11 +87,14 @@
       + '&bgcolor=FFFFFF';
   }
 
+  /** Canal de impresión solicitado por el consumidor. */
   var MODO_IMPRESION = (typeof modoImpresion !== "undefined" && modoImpresion)
     ? String(modoImpresion).toUpperCase()
     : "LOCAL";
 
+  /** Indicador derivado para integraciones de impresión ONLINE. */
   var ES_ONLINE = MODO_IMPRESION === "ONLINE";
+  /** Dos imágenes por etiqueta: marca de agua y código QR. */
   var TOTAL_IMAGENES_ESPERADAS = (lote && lote.length) ? lote.length * 2 : 0;
 
 ?>
@@ -60,6 +105,9 @@
   <base target="_top">
 
 <style>
+  /* =========================================================
+     1. DIMENSIONES FÍSICAS Y NORMALIZACIÓN DE IMPRESIÓN
+     ========================================================= */
   :root {
     --ancho-papel: 150mm;
     --alto-papel: 100mm;
@@ -90,6 +138,9 @@
     print-color-adjust: exact;
   }
 
+  /* =========================================================
+     2. CONTENEDOR DEL LOTE Y PÁGINA INDIVIDUAL
+     ========================================================= */
   .contenedor-pagina {
     width: 150mm;
     height: auto;
@@ -149,6 +200,9 @@
     break-inside: avoid;
   }
 
+  /* =========================================================
+     3. IDENTIDAD VISUAL Y CABECERA
+     ========================================================= */
   .marca-agua {
     position: absolute;
     top: 50%;
@@ -182,6 +236,9 @@
     text-align: right;
   }
 
+  /* =========================================================
+     4. INFORMACIÓN DEL PRODUCTO Y CÓDIGO QR
+     ========================================================= */
   .cuerpo {
     display: flex;
     flex: 1;
@@ -222,6 +279,9 @@
     display: block;
   }
 
+  /* =========================================================
+     5. PREVISUALIZACIÓN EN PANTALLA
+     ========================================================= */
   @media screen {
     html,
     body {
@@ -256,6 +316,9 @@
     }
   }
 
+  /* =========================================================
+     6. SALIDA FÍSICA DE IMPRESIÓN
+     ========================================================= */
   @media print {
     html,
     body {
@@ -362,7 +425,8 @@
       <div class="qr-container">
         <img
           src="<?= construirQr_(item.id) ?>"
-         error="this.onerror=null; this.src='<?= construirQrFallback_(item.id) ?>'; registrarImagenLista();"
+          onload="registrarImagenLista()"
+          onerror="this.onerror=null; this.src='<?= construirQrFallback_(item.id) ?>'; registrarImagenLista();"
           alt="QR <?= item.id ?>"
         >
       </div>
@@ -383,6 +447,7 @@
     var imagenesCargadas = 0;
     var totalImagenesEsperadas = (Number("<?= lote.length ?>") || 0) * 2;
 
+    /** Registra de forma diagnóstica la carga o fallo de una imagen. */
     window.registrarImagenLista = function () {
       imagenesCargadas++;
 
@@ -394,12 +459,18 @@
       );
     };
 
+    /**
+     * Crea una pausa asíncrona no bloqueante.
+     * @param {number} ms Duración en milisegundos.
+     * @return {Promise<void>}
+     */
     function esperar(ms) {
       return new Promise(function (resolve) {
         setTimeout(resolve, ms);
       });
     }
 
+    /** Espera el evento load con un límite defensivo. */
     function esperarLoadDocumento() {
       if (document.readyState === "complete") {
         return Promise.resolve();
@@ -411,6 +482,7 @@
       });
     }
 
+    /** Espera la disponibilidad de fuentes con un límite de tiempo. */
     function esperarFuentes() {
       try {
         if (document.fonts && document.fonts.ready) {
@@ -426,6 +498,11 @@
       return Promise.resolve();
     }
 
+    /**
+     * Espera la carga y decodificación de una imagen sin bloquear indefinidamente.
+     * @param {HTMLImageElement} img Imagen por observar.
+     * @return {Promise<void>}
+     */
     function esperarImagen(img) {
       return new Promise(function (resolve) {
         if (img.complete && img.naturalWidth > 0) {
@@ -456,6 +533,7 @@
       });
     }
 
+    /** Espera todas las imágenes declaradas en el documento. */
     function esperarImagenes() {
       var imagenes = Array.from(document.images || []);
 
@@ -466,6 +544,7 @@
       return Promise.all(imagenes.map(esperarImagen));
     }
 
+    /** Comprueba que los QR tengan contenido y dimensiones visibles. */
     function esperarQRVisual() {
       var intentos = 0;
       var maxIntentos = 45;
@@ -500,6 +579,7 @@
       });
     }
 
+    /** Espera varios ciclos de pintura antes de habilitar la impresión. */
     function esperarFrames(cantidad) {
       cantidad = cantidad || 4;
 
@@ -521,6 +601,10 @@
       });
     }
 
+    /**
+     * Promesa pública resuelta cuando el documento está visualmente listo.
+     * @type {Promise<boolean>}
+     */
     window.__APP_PRINT_READY = (async function () {
       await esperarLoadDocumento();
       await esperarFuentes();

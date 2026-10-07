@@ -1,10 +1,43 @@
 <script>
-  /** EtiquetaExcedentesImpresa.html */
+  /**
+   * EtiquetaExcedentesImpresa.html
+   *
+   * Plantilla de impresión para etiquetas de saldo de excedentes.
+   *
+   * Responsabilidades:
+   * - Normalizar el lote recibido desde el servicio de traspasos.
+   * - Generar un código QR principal y proporcionar un proveedor alternativo.
+   * - Renderizar una página física de 150 × 100 mm por cada excedente válido.
+   * - Mostrar código, descripción, saldo vigente, ubicación e identificador único.
+   * - Esperar documento, fuentes, imágenes, QR y ciclos de pintura antes de
+   *   declarar que la salida está lista para impresión.
+   * - Exponer window.__APP_PRINT_READY para los canales LOCAL y ONLINE.
+   *
+   * Datos esperados desde HtmlService:
+   * - lote: arreglo de etiquetas normalizadas o normalizables.
+   * - fechaHora: fecha y hora visibles en la etiqueta.
+   * - modoImpresion: canal LOCAL u ONLINE.
+   *
+   * Dependencias externas:
+   * - QuickChart como proveedor QR principal.
+   * - QRServer como proveedor de respaldo.
+   * - Recurso gráfico remoto utilizado como marca de agua y centro del QR.
+   *
+   * Invariantes:
+   * - Solo se imprimen elementos con IdUnico y saldo mayor que cero.
+   * - Cada etiqueta ocupa exactamente una página de 150 × 100 mm.
+   * - El nivel de corrección QR permanece en H.
+   * - La ausencia de una imagen no bloquea indefinidamente el proceso.
+   * - Los scriptlets reales de Apps Script no deben escribirse como ejemplos
+   *   adicionales dentro de comentarios HTML o JavaScript.
+   */
 </script>
 
 <?
+  /** URL del logotipo utilizado en la marca de agua y el centro del QR. */
   var LOGO_QR_URL = "https://lirp.cdn-website.com/32df9ef3/dms3rep/multi/opt/logo_408868407-1920w.png";
 
+  /** Configuración inmutable por convención del proveedor QR principal. */
   var QR_CONFIG = {
     size: 800,
     margin: 3,
@@ -18,6 +51,12 @@
     centerImageSizeRatio: 0.24
   };
 
+  /**
+   * Construye la URL del código QR principal.
+   *
+   * @param {*} texto Contenido que se codificará.
+   * @return {string} URL de QuickChart.
+   */
   function construirQr_(texto) {
     var params = [
       "text=" + encodeURIComponent(String(texto || "")),
@@ -37,6 +76,12 @@
     return "https://quickchart.io/qr?" + params.join("&");
   }
 
+  /**
+   * Construye la URL QR alternativa utilizada si falla el proveedor principal.
+   *
+   * @param {*} texto Contenido que se codificará.
+   * @return {string} URL de QRServer.
+   */
   function construirQrFallback_(texto) {
     return "https://api.qrserver.com/v1/create-qr-code/?" +
       "size=800x800" +
@@ -47,6 +92,15 @@
       "&bgcolor=FFFFFF";
   }
 
+  /**
+   * Normaliza un elemento del lote al contrato de impresión.
+   *
+   * El saldo actual tiene prioridad sobre cantidad para que los surtidos
+   * parciales impriman el remanente vigente.
+   *
+   * @param {Object} item Elemento recibido desde el servicio.
+   * @return {Object} Etiqueta normalizada.
+   */
   function normalizarItemEtiqueta_(item) {
     var safe = item || {};
     var saldo = safe.saldoActual != null
@@ -65,17 +119,20 @@
     };
   }
 
+  /** Lote filtrado de etiquetas imprimibles. */
   var LOTE_ETIQUETAS = Array.isArray(lote)
     ? lote.map(normalizarItemEtiqueta_).filter(function(item) {
         return item.idUnico && item.cantidad > 0;
       })
     : [];
 
+  /** Canal solicitado por el consumidor de la plantilla. */
   var MODO_IMPRESION =
     typeof modoImpresion !== "undefined" && modoImpresion
       ? String(modoImpresion).toUpperCase()
       : "LOCAL";
 
+  /** Dos imágenes por etiqueta: marca de agua y código QR. */
   var TOTAL_IMAGENES_ESPERADAS = LOTE_ETIQUETAS.length * 2;
 ?>
 
@@ -87,6 +144,9 @@
   <title>Etiqueta de saldo de excedente</title>
 
   <style>
+    /* =========================================================
+       1. DIMENSIONES FÍSICAS Y NORMALIZACIÓN DE IMPRESIÓN
+       ========================================================= */
     :root {
       --ancho-papel: 150mm;
       --alto-papel: 100mm;
@@ -117,6 +177,9 @@
       print-color-adjust: exact;
     }
 
+    /* =========================================================
+       2. CONTENEDOR DEL LOTE Y PÁGINA INDIVIDUAL
+       ========================================================= */
     .contenedor-impresion {
       width: 150mm;
       height: auto;
@@ -159,6 +222,9 @@
       background: white;
     }
 
+    /* =========================================================
+       3. IDENTIDAD VISUAL Y CAPAS DE CONTENIDO
+       ========================================================= */
     .marca-agua {
       position: absolute;
       top: 50%;
@@ -214,6 +280,9 @@
       letter-spacing: 0.08em;
     }
 
+    /* =========================================================
+       4. INFORMACIÓN DEL EXCEDENTE Y SALDO VIGENTE
+       ========================================================= */
     .cuerpo {
       display: flex;
       flex: 1;
@@ -270,6 +339,9 @@
       text-transform: uppercase;
     }
 
+    /* =========================================================
+       5. CÓDIGO QR E IDENTIFICADOR ÚNICO
+       ========================================================= */
     .qr-seccion {
       width: 40%;
       display: flex;
@@ -313,6 +385,9 @@
       overflow-wrap: anywhere;
     }
 
+    /* =========================================================
+       6. PREVISUALIZACIÓN EN PANTALLA
+       ========================================================= */
     @media screen {
       html,
       body {
@@ -337,6 +412,9 @@
       }
     }
 
+    /* =========================================================
+       7. SALIDA FÍSICA DE IMPRESIÓN
+       ========================================================= */
     @media print {
       html,
       body,
@@ -417,6 +495,11 @@
       const totalImagenesEsperadas =
         <?= TOTAL_IMAGENES_ESPERADAS ?>;
 
+      /**
+       * Registra de forma diagnóstica la carga o fallo de una imagen declarada.
+       *
+       * @return {void}
+       */
       window.registrarCarga = function () {
         imagenesCargadas++;
         console.log(
@@ -427,12 +510,23 @@
         );
       };
 
+      /**
+       * Crea una pausa asíncrona no bloqueante.
+       *
+       * @param {number} ms Duración en milisegundos.
+       * @return {Promise<void>}
+       */
       function esperar(ms) {
         return new Promise(function (resolve) {
           setTimeout(resolve, ms);
         });
       }
 
+      /**
+       * Espera el evento load con un límite defensivo de 3.5 segundos.
+       *
+       * @return {Promise<void>}
+       */
       function esperarLoadDocumento() {
         if (document.readyState === "complete") {
           return Promise.resolve();
@@ -444,6 +538,11 @@
         });
       }
 
+      /**
+       * Espera la resolución de las fuentes con un límite de 3 segundos.
+       *
+       * @return {Promise<void>}
+       */
       function esperarFuentes() {
         try {
           if (document.fonts && document.fonts.ready) {
@@ -462,6 +561,13 @@
         return Promise.resolve();
       }
 
+      /**
+       * Espera la carga y decodificación de una imagen sin bloquear la impresión
+       * cuando el recurso remoto falla.
+       *
+       * @param {HTMLImageElement} img Imagen por observar.
+       * @return {Promise<void>}
+       */
       function esperarImagen(img) {
         return new Promise(function (resolve) {
           if (img.complete && img.naturalWidth > 0) {
@@ -495,6 +601,7 @@
         });
       }
 
+      /** Espera todas las imágenes existentes en el documento. */
       function esperarImagenes() {
         const imagenes = Array.from(document.images || []);
 
@@ -505,6 +612,11 @@
         return Promise.all(imagenes.map(esperarImagen));
       }
 
+      /**
+       * Comprueba que los QR tengan contenido y dimensiones visibles.
+       *
+       * @return {Promise<void>}
+       */
       function esperarQRVisual() {
         let intentos = 0;
         const maxIntentos = 45;
@@ -540,6 +652,12 @@
         });
       }
 
+      /**
+       * Espera varios ciclos de requestAnimationFrame antes de imprimir.
+       *
+       * @param {number=} cantidad Número de cuadros; cuatro por defecto.
+       * @return {Promise<void>}
+       */
       function esperarFrames(cantidad) {
         const total = cantidad || 4;
 
@@ -561,6 +679,11 @@
         });
       }
 
+      /**
+       * Promesa pública resuelta cuando el documento está visualmente listo.
+       *
+       * @type {Promise<boolean>}
+       */
       window.__APP_PRINT_READY = (async function () {
         await esperarLoadDocumento();
         await esperarFuentes();
