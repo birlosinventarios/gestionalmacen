@@ -1,4 +1,39 @@
-          :root {
+/**
+ * Estilos_Globales.html
+ *
+ * Hoja de estilos compartida para las vistas de APPALMACEN.
+ *
+ * Responsabilidades:
+ * - Definir los tokens visuales globales de color, superficie, texto, borde y sombra.
+ * - Establecer estilos base para contenedores, formularios, botones y listas.
+ * - Mantener componentes históricos utilizados por traspasos, etiquetas e historial.
+ * - Proporcionar el sistema global de botones flotantes con prefijo app-fab.
+ * - Conservar compatibilidad visual con controles anteriores como
+ *   .btn-filtros-flotante, #btnRegistrarTodo y #btnImprimirTodo.
+ * - Adaptar los componentes compartidos a pantallas pequeñas.
+ *
+ * Dependencias visuales:
+ * - Fuentes Google Sans, Roboto y JetBrains Mono cuando estén disponibles.
+ * - Material Icons para selectores que utilizan la clase .material-icons.
+ * - Variables CSS definidas en :root dentro de este mismo archivo.
+ *
+ * Convenciones de mantenimiento:
+ * - Los tokens globales deben consumirse mediante var(--token) siempre que sea posible.
+ * - Los componentes nuevos deben usar una clase con prefijo propio para reducir colisiones.
+ * - No deben renombrarse selectores existentes sin revisar todas las vistas consumidoras.
+ * - Las reglas de compatibilidad histórica se conservan aunque parezcan redundantes.
+ * - El orden de las reglas forma parte de la cascada y no debe modificarse sin pruebas visuales.
+ * - Los cambios responsive deben validarse al menos en 350 px, 500 px y 640 px.
+ *
+ * Alcance:
+ * Este archivo contiene únicamente CSS. No debe incluir etiquetas style, scriptlets
+ * de Apps Script ni lógica JavaScript.
+ */
+
+/* =========================================================
+   1. TOKENS DE DISEÑO Y NORMALIZACIÓN GLOBAL
+   ========================================================= */
+:root {
             --primary: #d93025;
             --primary-dark: #a50e0e;
             --primary-light: rgba(217, 48, 37, 0.20);
@@ -24,6 +59,10 @@
             color: var(--text-main);
           }
 
+
+/* =========================================================
+   2. CONTENEDORES, ENCABEZADOS Y MARCA
+   ========================================================= */
           .container {
             background: white;
             padding: 20px;
@@ -94,6 +133,10 @@
             padding-left: 12px;
           }
 
+
+/* =========================================================
+   3. CAMPOS, ETIQUETAS Y CONTROLES DE FORMULARIO
+   ========================================================= */
           .campo {
             position: relative;
             margin-bottom: 22px;
@@ -204,6 +247,10 @@
             }
           }
 
+
+/* =========================================================
+   4. BOTONES DE ACCIÓN Y MANTENIMIENTO
+   ========================================================= */
           .btn-registrar-ajustado {
             width: 100%;
             min-width: 60px;
@@ -222,7 +269,7 @@
             font-weight: 500;
             transition: all 0.3s ease;
             white-space: nowrap;
-           
+
           }
 
           .btn-registrar-ajustado:hover {
@@ -250,7 +297,7 @@
             font-weight: 500;
             transition: all 0.3s ease;
             white-space: nowrap;
-           
+
           }
 
           .btn-anadir-ajustado:hover {
@@ -276,9 +323,9 @@
 
           .btn-borrar {
             position: absolute;
-            right: 15px;     
-            top: 50%;           
-            transform: translateY(-50%); 
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
             background-color: #fce8e6;
             color: var(--primary);
             border: 1px solid #fad2cf;
@@ -295,8 +342,8 @@
 
           .btn-borrar:hover {
             background-color: var(--primary);
-            color: white;                  
-            box-shadow: var(--shadow-red);   
+            color: white;
+            box-shadow: var(--shadow-red);
             transform: translateY(-50%) scale(1.1);
           }
 
@@ -304,6 +351,10 @@
             font-size: 20px;
           }
 
+          /**
+           * Control flotante heredado. Se conserva porque varias vistas lo
+           * referencian directamente fuera del sistema app-fab.
+           */
           .btn-filtros-flotante {
             position: fixed;
             right: 30px;
@@ -328,6 +379,10 @@
             background-color: var(--primary);
           }
 
+
+/* =========================================================
+   5. FILAS, TARJETAS Y COLAS OPERATIVAS
+   ========================================================= */
           .fila-traspasos-item-etiqueta {
             display: flex;
             flex-wrap: nowrap;
@@ -392,15 +447,15 @@
           }
 
           .fila-col-info {
-              flex: 1; 
+              flex: 1;
               border-left: 1px solid var(--border-color);
               padding: 0 15px;
           }
 
           .fila-col-cantidad {
               text-align: center;
-              min-width: 80px; 
-              flex-shrink: 0; 
+              min-width: 80px;
+              flex-shrink: 0;
               border-left: 1px solid var(--border-color);
               padding-left: 10px;
               padding-right: 10px;
@@ -421,7 +476,7 @@
               letter-spacing: 0.5px;
           }
 
-          
+
 
           .fila-col-info-codigo-txt {
               font-size: 15px;
@@ -452,7 +507,7 @@
               font-weight: 600;
           }
 
-          
+
 
           .fila-col-cantidad .num {
               display: block;
@@ -477,7 +532,7 @@
           }
 
           .badge {
-            background-color: var(--primary); 
+            background-color: var(--primary);
             color: white;
             padding: 2px 10px;
             border-radius: 20px;
@@ -497,17 +552,17 @@
 
           .fila-etiqueta-item-etiqueta {
             list-style: none;
-            margin-bottom: 12px; 
+            margin-bottom: 12px;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
           }
 
           .fila-etiqueta-item-etiqueta:hover {
-            transform: translateY(-2px);  
+            transform: translateY(-2px);
             cursor: pointer;
           }
 
           .fila-etiqueta-item-etiqueta:hover {
-            border-color: var(--primary);  
+            border-color: var(--primary);
             box-shadow: var(--shadow-soft), var(--shadow-red);
             background-color: #fff;
           }
@@ -524,15 +579,15 @@
 
           .fila-etiqueta-excedentes-item-etiqueta {
             list-style: none;
-            margin-bottom: 12px;  
+            margin-bottom: 12px;
             transition: transform 0.2s ease, box-shadow 0.2s ease;
           }
 
           .fila-etiqueta-excedentes-item-etiqueta:hover .ft-card-traspaso {
-            border-color: var(--primary); 
+            border-color: var(--primary);
             box-shadow: var(--shadow-soft), var(--shadow-red);
             background-color: #fff;
-            transform: translateY(-2px); 
+            transform: translateY(-2px);
             cursor: pointer;
           }
 
@@ -560,6 +615,10 @@
             gap: 5px;
           }
 
+
+/* =========================================================
+   6. DETALLE DE TRASPASOS Y DISTRIBUCIÓN DE INFORMACIÓN
+   ========================================================= */
           .columnatiposerie{
             display:flex;
             flex-direction:column;
@@ -657,11 +716,11 @@
             -webkit-line-clamp: 5 !important;
             -webkit-box-orient: vertical !important;
             line-clamp: 5;
-            white-space: normal !important; 
+            white-space: normal !important;
             word-break: break-word !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
-            font-size: 14px !important; 
+            font-size: 14px !important;
             color: var(--text-secondary);
             margin-top: 3px;
             text-transform: uppercase;
@@ -670,7 +729,7 @@
             min-width: 100% !important;
             max-width: 100% !important;
             line-height: 1 !important;
-            height: 100%; 
+            height: 100%;
           }
 
            .cuadrodatostraspaso {
@@ -736,11 +795,11 @@
             flex-direction:column;
             gap:8px;
             flex: 2;
-            border-left: 4px solid var(--border-color); 
-            border-right: 4px solid var(--border-color);  
+            border-left: 4px solid var(--border-color);
+            border-right: 4px solid var(--border-color);
             padding-left: 15px;
             width: 10px;
-          }  
+          }
 
           .titulofecharesponsablefolio{
             font-size:20px;
@@ -758,7 +817,7 @@
 
           .separador-bodega {
             background: var(--secondary-light);
-            color: var(--secondary);  
+            color: var(--secondary);
             padding: 10px 15px;
             margin: 25px 0 12px 0;
             border-radius: 6px;
@@ -775,7 +834,7 @@
             font-size: 18px;
           }
 
-          
+
 
           .card-pendiente {
             background: white;
@@ -816,6 +875,10 @@
             box-shadow: var(--shadow-soft);
           }
 
+
+/* =========================================================
+   7. MENSAJERÍA Y ACCIONES FIJAS HISTÓRICAS
+   ========================================================= */
           #snackbar {
             visibility: hidden;
             min-width: 300px;
@@ -850,6 +913,7 @@
             border-bottom: 4px solid #1e8e3e;
           }
 
+          /** Acción fija histórica para registrar todos los elementos. */
           #btnRegistrarTodo {
             position: fixed;
             bottom: 30px;
@@ -863,7 +927,7 @@
             color: white;
             border: none;
             cursor: pointer;
-            z-index: 9999;      
+            z-index: 9999;
             display: none;
             opacity: 0.1;
             filter: grayscale(50%);
@@ -884,6 +948,7 @@
             transform: translateX(-50%) scale(1.05);
           }
 
+          /** Acción fija histórica para imprimir el lote completo. */
           #btnImprimirTodo {
             position: fixed;
             bottom: 30px;
@@ -946,7 +1011,7 @@
           @keyframes aparecerFlotando {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
-          }  
+          }
 
           @media (min-width: 1024px) {
             .item-etiqueta:hover {
@@ -960,6 +1025,10 @@
             font-size: 1.2rem;
           }
 
+
+/* =========================================================
+   8. PANELES LATERALES, FILTROS E HISTORIAL
+   ========================================================= */
           .offcanvas {
             width: 400px !important;
             background-color: var(--bg-color);
@@ -1029,7 +1098,7 @@
               gap: 12px;
               justify-content: center;
               align-items: center;
-              width: 60px; 
+              width: 60px;
               transition: all 0.3s ease;
           }
 
@@ -1037,7 +1106,7 @@
           .btn-icono-historial {
               width: 38px;
               height: 38px;
-              border-radius: 10px; 
+              border-radius: 10px;
               border: 1px solid transparent;
               display: flex;
               align-items: center;
@@ -1098,6 +1167,11 @@
               transform: scale(0.95);
           }
 
+
+/* =========================================================
+   9. SISTEMA GLOBAL DE BOTONES FLOTANTES
+   Prefijo público: app-fab
+   ========================================================= */
           /* =========================================================
           SISTEMA GLOBAL DE BOTONES FLOTANTES / FAB
           Prefijo: app-fab
@@ -1418,6 +1492,10 @@
             }
           }
 
+
+/* =========================================================
+   10. COMPATIBILIDAD CON CONTROLES FLOTANTES ANTERIORES
+   ========================================================= */
           /* =========================================================
             COMPATIBILIDAD CON BOTÓN VIEJO DE FILTROS
             Mantiene .btn-filtros-flotante con estética nueva
@@ -1457,6 +1535,10 @@
             font-size: 28px;
           }
 
+
+/* =========================================================
+   11. ADAPTACIONES RESPONSIVE DEL SISTEMA FAB
+   ========================================================= */
           /* =========================================================
             RESPONSIVE
             ========================================================= */
@@ -1507,6 +1589,10 @@
               border-radius: 1rem;
             }
           }
+
+/* =========================================================
+   12. ANIMACIONES DE ENTRADA Y SALIDA DEL SISTEMA FAB
+   ========================================================= */
 /* =========================================================
    ANIMACIONES FAB ENTRADA / SALIDA
 ========================================================= */
