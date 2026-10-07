@@ -1,8 +1,53 @@
 <script>
-  /** FormularioDetallesProducto.html */
+  /**
+   * FormularioDetallesProducto.html
+   *
+   * Vista de captura, consulta y actualización de especificaciones físicas de
+   * productos existentes en CATALOGO.
+   *
+   * Responsabilidades:
+   * - Cargar el catálogo y los detalles técnicos registrados.
+   * - Identificar productos pendientes de documentación.
+   * - Resolver productos por código desde memoria o mediante el Controller.
+   * - Capturar tipo de hilo, medidas, peso y configuración de roscado.
+   * - Calcular automáticamente largo total y ancho total.
+   * - Validar la consistencia de las medidas antes del guardado.
+   * - Crear o actualizar el detalle técnico de un producto.
+   * - Mostrar el detalle registrado del producto seleccionado.
+   * - Administrar el montaje y desmontaje de la raíz React de la vista.
+   *
+   * Dependencias globales:
+   * - React y ReactDOM.
+   * - Lucide.
+   * - google.script.run.
+   * - window.DATA_ALMACEN_CACHE.
+   * - window.notificar o window.lanzarNotificacion.
+   *
+   * Controladores consumidos:
+   * - DetallesProductoController_getBootstrap().
+   * - DetallesProductoController_buscarProductoPorCodigo(codigo).
+   * - DetallesProductoController_guardarDetalle(payload).
+   *
+   * Contratos globales expuestos:
+   * - window.cargar_FormularioDetallesProducto().
+   * - window.initVista.
+   * - window.__FORMULARIO_DETALLES_PRODUCTO_ROOT__.
+   *
+   * Invariantes operativos:
+   * - El producto debe existir en CATALOGO antes de registrar su detalle.
+   * - TIPO HILO solo admite METRICO o STANDARD.
+   * - ROSCADO solo admite COMPLETO o PARCIAL.
+   * - Si el roscado es COMPLETO, LARGOROSCADO debe igualar LARGOCUERPO.
+   * - Si el roscado es PARCIAL, LARGOROSCADO debe ser menor que LARGOCUERPO.
+   * - El servidor conserva la autoridad final sobre validación y persistencia.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
 </script>
 
 <style>
+  /* =========================================================
+     1. TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #render-detalles-producto {
     --dp-primary: #d93025;
     --dp-primary-dark: #a50e0e;
@@ -68,6 +113,9 @@
     }
   }
 
+  /* =========================================================
+     2. ESTRUCTURA, PANELES Y CONTROL DE DESBORDAMIENTO
+     ========================================================= */
   #render-detalles-producto .dp-app-shell {
     position: absolute;
     inset: 0;
@@ -144,6 +192,9 @@
     overscroll-behavior: contain;
   }
 
+  /* =========================================================
+     3. FORMULARIO, CAMPOS Y DISTRIBUCIÓN DE CAPTURA
+     ========================================================= */
   #render-detalles-producto .dp-label {
     font-size: 13px;
     font-weight: 900;
@@ -224,6 +275,9 @@
     min-width: 0;
   }
 
+  /* =========================================================
+     4. TARJETAS DE PRODUCTO Y RESUMEN AUTOMÁTICO
+     ========================================================= */
   #render-detalles-producto .dp-product-card {
     padding: 14px;
     border-radius: 1rem;
@@ -277,6 +331,9 @@
     min-height: 64px;
   }
 
+  /* =========================================================
+     5. TABLA, INDICADORES Y ACCIONES DE DETALLE
+     ========================================================= */
   #render-detalles-producto .dp-results-table {
     width: 100%;
     min-width: 1180px;
@@ -426,6 +483,9 @@
     transform: translateY(-1px) scale(1.03);
   }
 
+  /* =========================================================
+     6. ESTADOS VACÍOS Y MENSAJES DE CONTEXTO
+     ========================================================= */
   #render-detalles-producto .dp-empty-state {
     height: 100%;
     min-height: 320px;
@@ -461,6 +521,14 @@
   window.cargar_FormularioDetallesProducto = () => {
     const { useState, useEffect, useMemo, useRef } = React;
 
+    /**
+     * Emite una notificación mediante la infraestructura global del shell.
+     * @param {string} mensaje Mensaje visible.
+     * @param {string=} tipo Tipo de notificación.
+     * @param {number=} timer Duración en milisegundos.
+     * @param {Object=} options Opciones complementarias.
+     * @return {void}
+     */
     const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
       if (typeof fn === "function") {
@@ -468,6 +536,11 @@
       }
     };
 
+    /**
+     * Crea un emisor de notificaciones con enfriamiento por clave.
+     * @param {Object} ref Referencia mutable con marcas temporales.
+     * @return {Function} Función de notificación controlada.
+     */
     const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
       const now = Date.now();
       const last = ref.current[key] || 0;
@@ -479,6 +552,7 @@
     const shellNotifyStateRef = { current: {} };
     const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
 
+    /** Renderiza un icono Lucide aislado dentro de la vista. */
     const LocalIcon = ({ name, size = 18, className = "" }) => {
       const iconRef = useRef(null);
 
@@ -498,6 +572,10 @@
       return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
     };
 
+    /**
+     * Componente principal de captura y consulta de detalles de producto.
+     * @return {React.ReactElement}
+     */
     const VistaDetallesProducto = () => {
       const [cargando, setCargando] = useState(true);
       const [guardando, setGuardando] = useState(false);
@@ -512,13 +590,16 @@
       const localNotifyRef = useRef({});
       const notifyOnce_ = createNotifyOnce_(localNotifyRef);
 
+      /** Normaliza textos de dominio en mayúsculas y sin espacios externos. */
       const normalizarTexto = (valor) => String(valor || "").trim().toUpperCase();
 
+      /** Convierte un valor a número y utiliza cero cuando no es válido. */
       const toNumberSafe = (valor) => {
         const n = Number(valor);
         return isNaN(n) ? 0 : n;
       };
 
+      /** Redondea cálculos derivados a cuatro decimales. */
       const round4 = (valor) => {
         const n = Number(valor || 0);
         return Number(n.toFixed(4));
@@ -541,6 +622,11 @@
 
       const [form, setForm] = useState(formInicial);
 
+      /**
+       * Sanitiza una entrada decimal admitiendo coma o punto como separador.
+       * @param {*} valor Valor capturado.
+       * @return {string} Representación decimal limpia.
+       */
       const limpiarNumeroDecimal = (valor) => {
         let v = String(valor ?? "");
 
@@ -556,6 +642,12 @@
         return v;
       };
 
+      /**
+       * Actualiza un campo del formulario y aplica sus reglas dependientes.
+       * @param {string} campo Campo de dominio.
+       * @param {*} valor Valor capturado.
+       * @return {void}
+       */
       const actualizarCampo = (campo, valor) => {
         if (campo === "tipoHilo") {
           setForm(prev => ({
@@ -660,6 +752,7 @@
         console.warn("Campo no reconocido:", campo);
       };
 
+      /** Posiciona el foco en el selector de código después del render. */
       const enfocarCodigo = () => {
         setTimeout(() => {
           codigoInputRef.current?.focus();
@@ -667,6 +760,7 @@
         }, 0);
       };
 
+      /** Restablece el formulario a su estado inicial. */
       const limpiarForm = () => {
         setForm(formInicial);
         enfocarCodigo();
@@ -693,7 +787,7 @@
           pendientes: registrosPendientes
         };
       }, [catalogo, detalles, registrosPendientes]);
-      
+
       const codigosPendientes = useMemo(() => {
         return codigos.filter(codigo => {
           const codigoNormalizado = normalizarTexto(codigo);
@@ -721,6 +815,12 @@
       const tieneCodigoSeleccionado = !!codigoSeleccionado;
       const tieneDetalleSeleccionado = !!detalleSeleccionado;
 
+      /**
+       * Hidrata el formulario con un producto y su detalle opcional.
+       * @param {Object} producto Producto de CATALOGO.
+       * @param {Object|null=} detalle Detalle técnico existente.
+       * @return {void}
+       */
       const aplicarProducto = (producto, detalle = null) => {
         if (!producto) return;
 
@@ -741,6 +841,11 @@
         }));
       };
 
+      /**
+       * Aplica el bootstrap a los estados y a la caché local compartida.
+       * @param {Object} data Respuesta del Controller.
+       * @return {void}
+       */
       const hidratarBootstrap = (data) => {
         const listaCatalogo = data?.catalogo || [];
         const listaDetalles = data?.detalles || [];
@@ -857,6 +962,7 @@
         };
       }, []);
 
+      /** Procesa cambios del selector de código y utiliza mapas en memoria. */
       const handleCodigoChange = (e) => {
         const codigo = normalizarTexto(e.target.value);
         const producto = mapaCatalogo[codigo];
@@ -878,6 +984,11 @@
         }
       };
 
+      /**
+       * Resuelve un producto desde caché o mediante consulta al servidor.
+       * @param {*} codigoParam Código capturado.
+       * @return {void}
+       */
       const resolverCodigo = (codigoParam) => {
         const codigo = normalizarTexto(codigoParam);
 
@@ -968,6 +1079,10 @@
           .DetallesProductoController_buscarProductoPorCodigo(codigo);
       };
 
+      /**
+       * Valida las reglas de dominio antes del guardado.
+       * @return {string} Mensaje de error o cadena vacía.
+       */
       const validarForm = () => {
         if (!form.id || !form.codigo || !form.descripcion) {
           return "Selecciona un producto válido desde CATALOGO.";
@@ -1018,6 +1133,10 @@
         return "";
       };
 
+      /**
+       * Construye el payload y crea o actualiza el detalle técnico.
+       * @return {void}
+       */
       const guardarDetalle = () => {
         const error = validarForm();
 
@@ -1097,7 +1216,7 @@
               }
             );
 
-            
+
             aplicarProducto(
               {
                 ID: detalle.ID,
@@ -1125,6 +1244,11 @@
           .DetallesProductoController_guardarDetalle(payload);
       };
 
+      /**
+       * Carga un detalle existente en el formulario para edición.
+       * @param {Object} detalle Registro seleccionado.
+       * @return {void}
+       */
       const cargarDetalleEnFormulario = (detalle) => {
         if (!detalle) return;
 
