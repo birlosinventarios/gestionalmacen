@@ -1,8 +1,39 @@
 <script>
-  /** FormularioEtiquetasExcedentes.html */
+  /**
+   * FormularioEtiquetasExcedentes.html
+   *
+   * Vista para crear, administrar e imprimir etiquetas de excedentes.
+   *
+   * Responsabilidades:
+   * - Cargar catálogo, folios existentes y responsables de impresión.
+   * - Resolver productos por código desde memoria o mediante el Controller.
+   * - Validar responsable, producto, cantidad y número de cajas.
+   * - Generar una etiqueta por cada caja y mantener una cola editable.
+   * - Asociar y mostrar el responsable de impresión de cada etiqueta.
+   * - Persistir el lote y coordinar la impresión LOCAL u ONLINE.
+   * - Administrar el ciclo de vida de la raíz React.
+   *
+   * Dependencias: React, ReactDOM, Lucide, google.script.run,
+   * DATA_ALMACEN_CACHE, ImpresionModoUtilidades y notificaciones globales.
+   *
+   * Controladores:
+   * - FormularioEtiquetasExcedentesController_getBootstrap().
+   * - FormularioEtiquetasExcedentesController_buscarProductoPorCodigo(codigo).
+   * - FormularioEtiquetasExcedentesController_procesarLote(cola).
+   *
+   * Invariantes:
+   * - El responsable debe pertenecer al catálogo recibido.
+   * - Cada elemento de la cola conserva responsableImpresion.
+   * - La impresión LOCAL requiere una ventana abierta por acción del usuario.
+   * - El servidor conserva la autoridad final sobre validación y persistencia.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
 </script>
 
 <style>
+  /* =========================================================
+     TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #render-etiquetas-excedentes {
     --ex-primary: #d93025;
     --ex-primary-dark: #a50e0e;
@@ -454,6 +485,7 @@
     const ALTO_FIJO = 8;
     const ANCHO_FIJO = 12.5;
 
+    /** Emite una notificación mediante la infraestructura global del shell. */
     const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
       if (typeof fn === "function") {
@@ -461,6 +493,7 @@
       }
     };
 
+    /** Crea un emisor de notificaciones con enfriamiento por clave. */
     const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
       const now = Date.now();
       const last = ref.current[key] || 0;
@@ -472,6 +505,7 @@
     const shellNotifyStateRef = { current: {} };
     const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
 
+    /** Renderiza un icono Lucide aislado dentro de la vista. */
     const LocalIcon = ({ name, size = 18, className = "" }) => {
       const iconRef = useRef(null);
 
@@ -491,6 +525,7 @@
       return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
     };
 
+    /** Componente principal de captura, cola e impresión de etiquetas. */
     const VistaEtiquetasExcedentes = () => {
       const [cola, setCola] = useState([]);
       const [procesando, setProcesando] = useState(false);
@@ -515,6 +550,7 @@
       const localNotifyRef = useRef({});
       const notifyOnce_ = createNotifyOnce_(localNotifyRef);
 
+      /** Normaliza textos de dominio en mayúsculas. */
       const normalizarTexto = (valor) => String(valor || "").trim().toUpperCase();
 
       /**
@@ -552,6 +588,7 @@
         [usuarios]
       );
 
+      /** Posiciona el foco en el campo de código después del render. */
       const enfocarCodigo = () => {
         setTimeout(() => {
           codigoInputRef.current?.focus();
@@ -559,6 +596,7 @@
         }, 0);
       };
 
+      /** Posiciona el foco en la cantidad para captura continua. */
       const enfocarCantidad = () => {
         setTimeout(() => {
           cantidadInputRef.current?.focus();
@@ -566,6 +604,7 @@
         }, 0);
       };
 
+      /** Limpia el producto actual conservando los datos reutilizables. */
       const limpiarCamposProducto = () => {
         setForm(prev => ({
           ...prev,
@@ -580,6 +619,7 @@
         enfocarCodigo();
       };
 
+      /** Recupera el bootstrap almacenado en la caché compartida del shell. */
       const leerCacheExcedentes = () => {
         const cache = window.DATA_ALMACEN_CACHE || {};
         return {
@@ -648,6 +688,7 @@
 
 
       useEffect(() => {
+        /** Carga catálogos, folios y responsables iniciales. */
         const cargarBootstrap = () => {
           try {
             notify_("Inicializando vista de etiquetas de excedentes...", "info", 1600, {
@@ -769,6 +810,7 @@
         };
       }, []);
 
+      /** Resuelve un producto desde memoria o desde el servidor. */
       const resolverCodigo = (codigoParam) => {
         const codigo = normalizarTexto(codigoParam);
 
@@ -946,6 +988,7 @@
         }));
       };
 
+      /** Genera la marca temporal empleada al construir folios de sesión. */
       const generarMarcaTiempo = () => {
         const ahora = new Date();
         const pad = (n) => String(n).padStart(2, "0");
@@ -961,6 +1004,7 @@
         );
       };
 
+      /** Valida el formulario y agrega las etiquetas solicitadas a la cola. */
       const handleAdd = (e) => {
         if (e && typeof e.preventDefault === "function") {
           e.preventDefault();
@@ -1093,6 +1137,7 @@
         limpiarCamposProducto();
       };
 
+      /** Persiste la cola y coordina la impresión en el modo seleccionado. */
       const generar = () => {
         if (cola.length === 0) {
           notify_(
@@ -1315,7 +1360,7 @@
               );
             }
           })
-          
+
           .withFailureHandler((err) => {
             if (ventanaLocal && !ventanaLocal.closed) {
               ventanaLocal.close();
