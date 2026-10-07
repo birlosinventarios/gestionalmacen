@@ -1,8 +1,52 @@
 /**
  * AuditoriaExcedentesLiveCache.gs
+ *
+ * Canal de estado operativo en memoria para auditorías de excedentes.
+ *
+ * Responsabilidades:
+ * - Mantener un pulso agregado por auditoría y ubicación en CacheService.
+ * - Registrar aperturas, escaneos y cierres de ubicación.
+ * - Calcular avance, pendientes, ritmo y estimaciones operativas.
+ * - Aplicar idempotencia ligera mediante huellas de eventos recientes.
+ * - Proteger las mutaciones del estado con ScriptLock.
+ * - Reconciliar ubicaciones cacheadas contra una colección autoritativa.
+ * - Exponer una lectura compacta para vistas de seguimiento en vivo.
+ *
+ * Fuente de verdad:
+ * - Esta caché no sustituye las hojas ni los repositorios persistentes.
+ * - La ausencia, expiración o corrupción del estado debe resolverse mediante
+ *   una reconstrucción desde la fuente persistente por parte del consumidor.
+ *
+ * Dependencias globales:
+ * - CacheService.
+ * - LockService.
+ * - Session.
+ * - Utilities.
+ *
+ * Invariantes:
+ * - El esquema público permanece identificado como AEC_LIVE_V3.
+ * - Cada operación requiere un identificador de auditoría normalizado.
+ * - Las claves internas utilizan tokens saneados y longitud limitada.
+ * - Las escrituras mayores al límite seguro se rechazan explícitamente.
+ * - Los eventos recientes se limitan para evitar crecimiento indefinido.
+ * - Las mutaciones se ejecutan dentro de un único ScriptLock.
+ *
+ * API pública:
+ * - abrirUbicacion(data).
+ * - registrarEscaneos(data).
+ * - cerrarUbicacion(data).
+ * - getPulso(idauditoria).
+ * - reconciliarUbicaciones(idauditoria, ubicacionesValidas).
+ * - clear(idauditoria).
+ * - debugGetRaw(idauditoria).
  */
 
 const AuditoriaExcedentesLiveCache = (() => {
+  /**
+   * Configuración inmutable del canal de caché en vivo.
+   *
+   * @type {Readonly<Object>}
+   */
   const CFG = Object.freeze({
     PREFIX: "AEC_LIVE_V3_",
     TTL_SECONDS: 21600, // 6 horas, máximo útil en CacheService
@@ -53,6 +97,13 @@ const AuditoriaExcedentesLiveCache = (() => {
    * Token seguro para llaves internas.
    * Evita caracteres raros y reduce riesgo de llaves conflictivas.
    */
+  /**
+   * Convierte un valor en un token seguro para claves y particiones internas.
+   *
+   * @param {*} value Valor de entrada.
+   * @return {string} Token en mayúsculas, saneado y limitado.
+   * @private
+   */
   function _safeToken_(value) {
     const raw = _toUpper_(value)
       .replace(/[^A-Z0-9_\-./ ]/g, "")
@@ -74,6 +125,14 @@ const AuditoriaExcedentesLiveCache = (() => {
     return _safeToken_(bodega);
   }
 
+  /**
+   * Construye la clave física de CacheService para una auditoría.
+   *
+   * @param {*} idauditoria Identificador de auditoría.
+   * @return {string} Clave completa de caché.
+   * @throws {Error} Si el identificador es inválido.
+   * @private
+   */
   function _key_(idauditoria) {
     const id = _safeId_(idauditoria);
     if (!id) {
@@ -129,6 +188,15 @@ const AuditoriaExcedentesLiveCache = (() => {
     return _round2_((n / d) * 100);
   }
 
+  /**
+   * Calcula una huella determinista para eventos idempotentes.
+   *
+   * Utiliza SHA-256 y conserva un algoritmo de respaldo si Utilities falla.
+   *
+   * @param {*} text Contenido por resumir.
+   * @return {string} Huella hexadecimal o numérica de respaldo.
+   * @private
+   */
   function _hash_(text) {
     const raw = _toStr_(text);
 
@@ -159,6 +227,13 @@ const AuditoriaExcedentesLiveCache = (() => {
   // =========================================================
   // ESTRUCTURA
   // =========================================================
+  /**
+   * Crea el estado inicial de una auditoría sin actividad viva.
+   *
+   * @param {*} idauditoria Identificador de auditoría.
+   * @return {Object} Estado compatible con AEC_LIVE_V3.
+   * @private
+   */
   function _emptyState_(idauditoria) {
     return {
       ok: true,
@@ -177,6 +252,14 @@ const AuditoriaExcedentesLiveCache = (() => {
     };
   }
 
+  /**
+   * Repara defensivamente un estado leído desde CacheService.
+   *
+   * @param {*} state Estado deserializado.
+   * @param {*} idauditoria Identificador esperado.
+   * @return {Object} Estado normalizado.
+   * @private
+   */
   function _normalizarState_(state, idauditoria) {
     if (!state || typeof state !== "object") {
       return _emptyState_(idauditoria);
@@ -198,6 +281,16 @@ const AuditoriaExcedentesLiveCache = (() => {
     return state;
   }
 
+  /**
+   * Lee y deserializa el estado crudo de una auditoría.
+   *
+   * Los sobres corruptos se ignoran para permitir reconstrucción desde la
+   * fuente persistente.
+   *
+   * @param {*} idauditoria Identificador de auditoría.
+   * @return {Object|null} Estado normalizado o null.
+   * @private
+   */
   function _getRaw_(idauditoria) {
     const cache = CacheService.getScriptCache();
     const raw = cache.get(_key_(idauditoria));
@@ -212,6 +305,15 @@ const AuditoriaExcedentesLiveCache = (() => {
     }
   }
 
+  /**
+   * Versiona, serializa y almacena el estado de una auditoría.
+   *
+   * @param {*} idauditoria Identificador de auditoría.
+   * @param {Object} state Estado por persistir en caché.
+   * @return {Object} Estado almacenado con versión incrementada.
+   * @throws {Error} Si el documento serializado excede el límite seguro.
+   * @private
+   */
   function _putRaw_(idauditoria, state) {
     const cache = CacheService.getScriptCache();
     const safe = _normalizarState_(state, idauditoria);
@@ -236,6 +338,13 @@ const AuditoriaExcedentesLiveCache = (() => {
     return _getRaw_(idauditoria) || _emptyState_(idauditoria);
   }
 
+  /**
+   * Ejecuta una mutación protegida por ScriptLock.
+   *
+   * @param {Function} fn Operación crítica.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _withLock_(fn) {
     const lock = LockService.getScriptLock();
     let locked = false;
@@ -254,6 +363,14 @@ const AuditoriaExcedentesLiveCache = (() => {
   // =========================================================
   // EVENTOS / IDEMPOTENCIA
   // =========================================================
+  /**
+   * Construye la huella idempotente de un evento operativo.
+   *
+   * @param {string} tipo Tipo de evento.
+   * @param {Object} data Datos relevantes del evento.
+   * @return {string} Huella del evento.
+   * @private
+   */
   function _buildEventoKey_(tipo, data) {
     const rows = Array.isArray(data && data.rows) ? data.rows : [];
 
@@ -306,6 +423,14 @@ const AuditoriaExcedentesLiveCache = (() => {
   // =========================================================
   // UBICACIONES
   // =========================================================
+  /**
+   * Crea el agregado operativo inicial de una ubicación.
+   *
+   * @param {Object} state Estado de auditoría.
+   * @param {Object} data Datos de ubicación.
+   * @return {Object} Agregado de ubicación.
+   * @private
+   */
   function _newUbicacion_(state, data) {
     const ubi = _safeUbicacion_(data.ubicacion);
 
@@ -375,6 +500,13 @@ const AuditoriaExcedentesLiveCache = (() => {
     return item;
   }
 
+  /**
+   * Recalcula métricas derivadas, diferencias, velocidad y estado de ritmo.
+   *
+   * @param {Object} u Agregado mutable de ubicación.
+   * @return {Object} Mismo agregado con métricas actualizadas.
+   * @private
+   */
   function _recalcularUbicacion_(u) {
     u.esperados = _clampNonNegative_(u.esperados);
     u.escaneados = _clampNonNegative_(u.escaneados);
@@ -463,15 +595,9 @@ const AuditoriaExcedentesLiveCache = (() => {
   /**
    * Marca una ubicación como abierta en el canal vivo.
    *
-   * data:
-   * {
-   *   idauditoria,
-   *   ubicacion,
-   *   bodega,
-   *   secuenciaubicacion,
-   *   horainicioubicacion,
-   *   esperados
-   * }
+   * @param {Object} data Datos de auditoría, ubicación y contexto temporal.
+   * @return {Object} Estado actualizado de la auditoría.
+   * @throws {Error} Si falta el identificador de auditoría o la ubicación.
    */
   function abrirUbicacion(data) {
     data = data || {};
@@ -516,6 +642,13 @@ const AuditoriaExcedentesLiveCache = (() => {
    *     { escorrecto, esfaltante, essobrante, idunico }
    *   ]
    * }
+   */
+  /**
+   * Incorpora escaneos clasificados al agregado de una ubicación.
+   *
+   * @param {Object} data Contexto y arreglo rows de escaneos.
+   * @return {Object} Estado actualizado de la auditoría.
+   * @throws {Error} Si falta el identificador de auditoría o la ubicación.
    */
   function registrarEscaneos(data) {
     data = data || {};
@@ -584,6 +717,13 @@ const AuditoriaExcedentesLiveCache = (() => {
    *   faltantesInsertados
    * }
    */
+  /**
+   * Marca una ubicación como cerrada y consolida sus métricas finales.
+   *
+   * @param {Object} data Datos de cierre y faltantes insertados.
+   * @return {Object} Estado actualizado de la auditoría.
+   * @throws {Error} Si falta el identificador de auditoría o la ubicación.
+   */
   function cerrarUbicacion(data) {
     data = data || {};
     const id = _safeId_(data.idauditoria);
@@ -624,6 +764,12 @@ const AuditoriaExcedentesLiveCache = (() => {
   /**
    * Lee el pulso vivo agregado.
    * Si no existe cache, regresa null para permitir fallback a Sheets.
+   */
+  /**
+   * Construye el pulso vivo agregado de una auditoría.
+   *
+   * @param {*} idauditoria Identificador de auditoría.
+   * @return {Object|null} Pulso operativo o null cuando no existe caché.
    */
   function getPulso(idauditoria) {
     const id = _safeId_(idauditoria);
@@ -666,7 +812,7 @@ const AuditoriaExcedentesLiveCache = (() => {
 
     const pendientesVivos = ubicacionesEnVivo.reduce(function(acc, u) {
       return acc + _toNum_(u.pendientes);
-    }, 0);    
+    }, 0);
 
     return {
       ok: true,
@@ -707,7 +853,15 @@ const AuditoriaExcedentesLiveCache = (() => {
     };
   }
 
-    function reconciliarUbicaciones(
+  /**
+   * Elimina del canal vivo las ubicaciones que ya no existen en la colección
+   * autoritativa proporcionada por el consumidor.
+   *
+   * @param {*} idauditoria Identificador de auditoría.
+   * @param {Array<Object|string>} ubicacionesValidas Colección autoritativa.
+   * @return {Object} Resultado de la reconciliación.
+   */
+  function reconciliarUbicaciones(
       idauditoria,
       ubicacionesValidas
     ) {
@@ -782,11 +936,17 @@ const AuditoriaExcedentesLiveCache = (() => {
           ubicacionesValidas: validas.size
         };
       });
-    }  
+    }
 
   /**
    * Elimina el cache vivo de una auditoría.
    * Útil al cerrar auditoría o para debug.
+   */
+  /**
+   * Elimina el estado vivo de una auditoría.
+   *
+   * @param {*} idauditoria Identificador de auditoría.
+   * @return {boolean} true si se solicitó la eliminación; false si el ID es inválido.
    */
   function clear(idauditoria) {
     const id = _safeId_(idauditoria);
@@ -798,6 +958,12 @@ const AuditoriaExcedentesLiveCache = (() => {
 
   /**
    * Devuelve el estado crudo para debug controlado.
+   */
+  /**
+   * Devuelve el estado crudo para diagnóstico controlado.
+   *
+   * @param {*} idauditoria Identificador de auditoría.
+   * @return {Object|null}
    */
   function debugGetRaw(idauditoria) {
     return _getRaw_(idauditoria);

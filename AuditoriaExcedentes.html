@@ -1,8 +1,51 @@
 <script>
-  /** AuditoriaExcedentes.html */
+  /**
+   * AuditoriaExcedentes.html
+   *
+   * Vista principal para consultar, filtrar, exportar y abrir eventos de
+   * auditoría de excedentes.
+   *
+   * Responsabilidades:
+   * - Obtener el catálogo inicial de usuarios y bodegas.
+   * - Consultar periódicamente las auditorías registradas.
+   * - Aplicar filtros por estado, tipo, bodega, búsqueda y fecha.
+   * - Crear auditorías GLOBAL o POR_BODEGA.
+   * - Navegar hacia captura o detalle mediante el shell APPALMACEN.
+   * - Exportar el conjunto filtrado a un archivo XLSX.
+   * - Administrar el montaje y desmontaje de su raíz React.
+   *
+   * Dependencias globales:
+   * - React y ReactDOM.
+   * - FitoComponents.Icon.LocalIcon o FitoComponents.LocalIcon.
+   * - google.script.run.
+   * - Bootstrap Offcanvas.
+   * - ExcelExportUtils.exportarAXLSX().
+   * - window.notificar o window.lanzarNotificacion.
+   * - window.irAVistaShell().
+   *
+   * Controladores consumidos:
+   * - AuditoriaExcedentesController_obtenerBootstrap().
+   * - AuditoriaExcedentesController_listarAuditorias(filtros).
+   * - AuditoriaExcedentesController_abrirAuditoria(payload).
+   *
+   * Contratos globales expuestos:
+   * - window.cargar_AuditoriaExcedentes().
+   * - window.initVista.
+   * - window.__AUDITORIA_EXCEDENTES_ROOT__.
+   *
+   * Consideraciones de mantenimiento:
+   * - La secuencia de solicitud evita aplicar respuestas obsoletas.
+   * - El watchdog libera la interfaz si la carga excede 25 segundos.
+   * - La actualización automática ocurre cada 30 segundos.
+   * - Antes de montar la vista se desmonta cualquier raíz React previa.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
 </script>
 
 <style>
+  /* =========================================================
+     TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #render-auditoria-excedentes {
     --ae-critical: var(--primary, #d93025);
     --ae-critical-dark: var(--primary-dark, #a50e0e);
@@ -469,11 +512,26 @@
     const LocalIcon = window.FitoComponents?.Icon?.LocalIcon || window.FitoComponents?.LocalIcon;
     if (!LocalIcon) throw new Error("No se encontró FitoComponents.Icon.LocalIcon.");
 
+    /**
+     * Emite una notificación mediante la infraestructura global del shell.
+     *
+     * @param {string} message Mensaje visible para el usuario.
+     * @param {string=} type Tipo de notificación.
+     * @param {number=} timer Duración en milisegundos.
+     * @param {Object=} options Opciones complementarias.
+     * @return {void}
+     */
     const notify_ = (message, type = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
       if (typeof fn === "function") fn(message, type, timer, options);
     };
 
+    /**
+     * Convierte fechas Date, dd/MM/yyyy o formatos reconocidos por el navegador.
+     *
+     * @param {*} value Valor recibido.
+     * @return {Date|null} Fecha válida o null.
+     */
     const parseDate_ = (value) => {
       if (!value) return null;
       if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
@@ -487,6 +545,12 @@
       return Number.isNaN(date.getTime()) ? null : date;
     };
 
+    /**
+     * Convierte horas Date, HH:mm o HH:mm:ss a una instancia Date auxiliar.
+     *
+     * @param {*} value Valor recibido.
+     * @return {Date|null} Hora válida o null.
+     */
     const parseTime_ = (value) => {
       if (!value) return null;
       if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
@@ -499,6 +563,12 @@
       return Number.isNaN(date.getTime()) ? null : date;
     };
 
+    /**
+     * Presenta una fecha con configuración regional de México.
+     *
+     * @param {*} value Fecha recibida.
+     * @return {string}
+     */
     const formatDate_ = (value) => {
       const date = parseDate_(value);
       return date
@@ -506,6 +576,12 @@
         : "Sin fecha";
     };
 
+    /**
+     * Presenta una hora en formato de 24 horas.
+     *
+     * @param {*} value Hora recibida.
+     * @return {string}
+     */
     const formatTime_ = (value) => {
       const date = parseTime_(value);
       return date
@@ -523,11 +599,22 @@
       String(type || "").toUpperCase() === "POR_BODEGA"
         ? "ae-chip ae-chip-amber"
         : "ae-chip ae-chip-slate";
+    /**
+     * Obtiene el nombre visible de un usuario admitiendo contratos históricos.
+     *
+     * @param {Object|string} user Usuario recibido desde bootstrap.
+     * @return {string} Nombre normalizado en mayúsculas.
+     */
     const userName_ = (user) =>
       typeof user === "string"
         ? user.toUpperCase()
         : String(user?.nombre || user?.name || user?.usuario || "").toUpperCase();
 
+    /**
+     * Componente principal de la vista de auditorías.
+     *
+     * @return {React.ReactElement}
+     */
     const Dashboard = () => {
       const [bootstrapData, setBootstrapData] = useState({ usuarios: [], bodegas: [] });
       const [auditorias, setAuditorias] = useState([]);
@@ -550,6 +637,12 @@
       const inFlightRef = useRef(false);
       const sequenceRef = useRef(0);
 
+      /**
+       * Actualiza bootstrap y auditorías mediante solicitudes secuenciales.
+       *
+       * @param {"init"|"manual"|"auto"} context Origen de la actualización.
+       * @return {void}
+       */
       const refresh = useCallback((context = "init") => {
         if (inFlightRef.current) return;
         if (typeof google === "undefined" || !google.script?.run) {
@@ -628,12 +721,14 @@
         return () => clearInterval(timer);
       }, [refresh]);
 
+      /** Abre el buscador y posiciona el foco en su campo. */
       const openSearch = () => {
         setIsSearchClosing(false);
         setIsSearchExpanded(true);
         setTimeout(() => searchRef.current?.focus(), 80);
       };
 
+      /** Cierra el buscador respetando la animación de salida. */
       const closeSearch = () => {
         setIsSearchClosing(true);
         setTimeout(() => {
@@ -645,6 +740,7 @@
 
       const toggleSearch = () => (isSearchExpanded ? closeSearch() : openSearch());
 
+      /** Abre el panel lateral para crear una auditoría. */
       const openNew = () => {
         const panel = document.getElementById("panelNuevaAuditoriaExcedentes");
         if (!panel || typeof bootstrap === "undefined" || !bootstrap.Offcanvas) {
@@ -657,6 +753,11 @@
         bootstrap.Offcanvas.getOrCreateInstance(panel).show();
       };
 
+      /**
+       * Valida el formulario y solicita la creación de una nueva auditoría.
+       *
+       * @return {void}
+       */
       const submitNew = () => {
         const type = String(form.tipoauditoria || "GLOBAL").toUpperCase();
         const payload = {
@@ -711,6 +812,13 @@
           .AuditoriaExcedentesController_abrirAuditoria(payload);
       };
 
+      /**
+       * Navega al detalle o a la captura de una auditoría.
+       *
+       * @param {Object} item Auditoría seleccionada.
+       * @param {boolean=} capture true para captura; false para detalle.
+       * @return {void}
+       */
       const navigate = (item, capture = false) => {
         const folio = String(item?.idauditoria || "").trim();
         if (!folio || typeof window.irAVistaShell !== "function")
@@ -736,6 +844,9 @@
         );
       };
 
+      /**
+       * Colección derivada tras aplicar filtros, búsqueda y orden cronológico.
+       */
       const filtered = useMemo(() => {
         let result = [...auditorias];
         if (filterStatus !== "TODAS")
@@ -770,6 +881,11 @@
         return result;
       }, [auditorias, filterStatus, filterTipo, filterBodega, searchQuery, sortBy]);
 
+      /**
+       * Exporta a XLSX la colección actualmente visible.
+       *
+       * @return {void}
+       */
       const exportExcel = () => {
         if (!window.ExcelExportUtils?.exportarAXLSX)
           return notify_("No se detectó el exportador XLSX.", "error", 4200, {

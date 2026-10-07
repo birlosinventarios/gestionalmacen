@@ -1,8 +1,51 @@
 <script>
-  /** AuditoriaExcedentesDetalle.html */
+  /**
+   * AuditoriaExcedentesDetalle.html
+   *
+   * Vista de seguimiento operativo y consulta detallada de una auditoría de
+   * excedentes, incluyendo avance por ubicación e incidencias detectadas.
+   *
+   * Responsabilidades:
+   * - Recuperar el detalle completo de una auditoría.
+   * - Actualizar métricas mediante pulsos incrementales de corta duración.
+   * - Ejecutar recargas completas periódicas para reconciliar el estado visible.
+   * - Mostrar avance, ritmo, diferencias y estimaciones por ubicación.
+   * - Consultar el detalle de identificadores dentro de una ubicación.
+   * - Navegar hacia la captura cuando la auditoría permanece abierta.
+   * - Administrar el montaje y desmontaje de su raíz React.
+   *
+   * Dependencias globales:
+   * - React y ReactDOM.
+   * - Lucide.
+   * - google.script.run.
+   * - window.notificar o window.lanzarNotificacion.
+   * - window.irAVistaShell().
+   *
+   * Controladores consumidos:
+   * - AuditoriaExcedentesController_listarAuditorias(filtros).
+   * - AuditoriaExcedentesController_obtenerDetalleAuditoriaEnVivo(idAuditoria).
+   * - AuditoriaExcedentesController_obtenerPulsoAuditoriaEnVivo(idAuditoria).
+   * - AuditoriaExcedentesController_obtenerDetalleUbicacion(idAuditoria, ubicacion).
+   *
+   * Contratos globales expuestos:
+   * - window.cargar_AuditoriaExcedentesDetalle().
+   * - window.initVista.
+   * - window.__AUDITORIA_EXCEDENTES_DETALLE_ROOT__.
+   *
+   * Invariantes operativos:
+   * - El pulso incremental conserva ubicaciones previamente conocidas.
+   * - La carga completa es autoritativa y reemplaza la colección de ubicaciones.
+   * - El pulso se ejecuta cada 2 segundos cuando el drawer está cerrado.
+   * - La carga completa automática se ejecuta cada 60 segundos.
+   * - Al volver el documento a primer plano se solicita una recarga completa.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
 </script>
 
 <style>
+  /* =========================================================
+     TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #render-auditoria-excedentes-detalle {
     --c: var(--primary, #d93025);
     --cd: var(--primary-dark, #a50e0e);
@@ -1076,6 +1119,15 @@
 <script type="text/babel">
   window.cargar_AuditoriaExcedentesDetalle = () => {
     const { useState, useEffect, useMemo, useCallback, useRef } = React;
+    /**
+     * Emite una notificación mediante la infraestructura global del shell.
+     *
+     * @param {string} m Mensaje visible.
+     * @param {string=} t Tipo de notificación.
+     * @param {number=} timer Duración en milisegundos.
+     * @param {Object=} o Opciones complementarias.
+     * @return {void}
+     */
     const notify = (m, t = "info", timer = 2500, o = {}) => {
       const f = window.notificar || window.lanzarNotificacion;
       if (typeof f === "function") f(m, t, timer, o);
@@ -1104,6 +1156,12 @@
       return /^\d{1,2}:\d{2}/.test(s) ? s.slice(0, 5) : "--";
     };
 
+    /**
+     * Renderiza un icono Lucide aislado dentro de la vista.
+     *
+     * @param {{name:string,size:number=,className:string=}} props Propiedades visuales.
+     * @return {React.ReactElement}
+     */
     function Icon({ name, size = 17, className = "" }) {
       const r = useRef(null);
       useEffect(() => {
@@ -1122,6 +1180,15 @@
       );
     }
 
+    /**
+     * Normaliza la respuesta del detalle de una ubicación y calcula un resumen
+     * defensivo cuando el backend no incluye todas las métricas.
+     *
+     * @param {*} response Respuesta del servidor.
+     * @param {string} fallback Ubicación solicitada.
+     * @param {string} auditId Identificador de auditoría.
+     * @return {Object} Contrato normalizado para el drawer.
+     */
     const normalizeLocation = (response, fallback, auditId) => {
       const safe = response || {};
       const rows = Array.isArray(safe)
@@ -1161,6 +1228,7 @@
       };
     };
 
+    /** Renderiza una métrica compacta del encabezado principal. */
     function Metric({ label, value, ok, bad }) {
       return (
         <div className={`metric ${ok ? "ok" : ""} ${bad ? "bad" : ""}`}>
@@ -1169,6 +1237,7 @@
         </div>
       );
     }
+    /** Renderiza una métrica del panel de detalle de ubicación. */
     function DrawerMetric({ label, value, tone }) {
       return (
         <div className={`aed-drawer-metric tone-${tone}`}>
@@ -1178,6 +1247,12 @@
       );
     }
 
+    /**
+     * Renderiza una fila de seguimiento por ubicación.
+     *
+     * @param {{item:Object,onOpen:Function}} props Datos y acción de apertura.
+     * @return {React.ReactElement}
+     */
     function LocationRow({ item, onOpen }) {
       const progress = Math.max(0, Math.min(100, num(item.avancePct)));
       const status = item.cerrada
@@ -1261,6 +1336,12 @@
       );
     }
 
+    /**
+     * Panel lateral con los identificadores auditados de una ubicación.
+     *
+     * @param {Object} props Propiedades del panel.
+     * @return {React.ReactElement}
+     */
     function LocationDetailDrawer({ data, loading, close, audit, auditId }) {
       const [query, setQuery] = useState("");
       const [filter, setFilter] = useState("TODOS");
@@ -1525,6 +1606,11 @@
       );
     }
 
+    /**
+     * Componente principal del detalle de auditoría.
+     *
+     * @return {React.ReactElement}
+     */
     function App() {
       const [id, setId] = useState(
         window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ || "",
@@ -1544,6 +1630,14 @@
         [],
       );
 
+      /**
+       * Combina una respuesta incremental o autoritativa con el estado visible.
+       *
+       * @param {Object|null} previous Estado anterior.
+       * @param {Object|null} incoming Respuesta recibida.
+       * @param {{replaceLocations:boolean=}=} options Estrategia de ubicaciones.
+       * @return {Object} Estado consolidado.
+       */
       const merge = useCallback(
         (previous, incoming, options = {}) => {
           const prior = previous || {};
@@ -1642,6 +1736,13 @@
         []
       );
 
+      /**
+       * Ejecuta una carga completa y autoritativa de la auditoría.
+       *
+       * @param {string} auditId Identificador de auditoría.
+       * @param {boolean=} silent Omite indicadores y avisos no críticos.
+       * @return {void}
+       */
       const load = useCallback(
         (auditId, silent = false) => {
           const currentId = str(auditId);
@@ -1777,6 +1878,12 @@
         [merge]
       );
 
+      /**
+       * Solicita un pulso incremental de bajo costo para actualizar ubicaciones.
+       *
+       * @param {string} auditId Identificador de auditoría.
+       * @return {void}
+       */
       const pulse = useCallback(
         (auditId) => {
           if (!auditId || pulseBusy.current) return;
@@ -1867,6 +1974,7 @@
           ? data.ubicacionesEnVivo
           : [];
 
+      /** Resumen consolidado de métricas generales de la auditoría. */
       const summary = useMemo(() => {
         const sum = (k) => locations.reduce((a, x) => a + num(x[k]), 0),
           esperados = num(r.idunicosesperadostotales) || sum("esperados"),
@@ -1913,6 +2021,12 @@
         setModalLoading(false);
       }, []);
 
+      /**
+       * Abre el drawer y solicita el detalle de una ubicación.
+       *
+       * @param {*} ubicacion Ubicación seleccionada.
+       * @return {void}
+       */
       const openDetail = (ubicacion) => {
         const location = up(ubicacion);
         if (!id || !location) return;

@@ -1,8 +1,53 @@
 <script>
-  /** AuditoriaExcedentesCaptura.html */
+  /**
+   * AuditoriaExcedentesCaptura.html
+   *
+   * Vista operativa para capturar una auditoría física de excedentes mediante
+   * escaneo continuo de ubicaciones e identificadores únicos.
+   *
+   * Responsabilidades:
+   * - Recuperar la auditoría abierta y su paquete de captura.
+   * - Abrir y cerrar ubicaciones de auditoría.
+   * - Capturar identificadores mediante lector de códigos o teclado.
+   * - Clasificar resultados preliminares como CORRECTO, SOBRANTE o DUPLICADO.
+   * - Sincronizar escaneos en lotes y aplicar la clasificación definitiva del servidor.
+   * - Mantener métricas de esperados, correctos, faltantes y sobrantes.
+   * - Cerrar ubicaciones y la auditoría respetando las sincronizaciones pendientes.
+   * - Administrar el montaje y desmontaje de su raíz React.
+   *
+   * Dependencias globales:
+   * - React y ReactDOM.
+   * - Lucide.
+   * - google.script.run.
+   * - window.notificar o window.lanzarNotificacion.
+   *
+   * Controladores consumidos:
+   * - AuditoriaExcedentesCapturaController_obtenerBootstrapCaptura().
+   * - AuditoriaExcedentesCapturaController_obtenerPaqueteCaptura(idAuditoria).
+   * - AuditoriaExcedentesCapturaController_abrirUbicacionPorEscaneo(payload).
+   * - AuditoriaExcedentesCapturaController_registrarEscaneosLote(payload).
+   * - AuditoriaExcedentesCapturaController_cerrarUbicacion(payload).
+   * - AuditoriaExcedentesCapturaController_cerrarAuditoria(payload).
+   *
+   * Contratos globales expuestos:
+   * - window.cargar_AuditoriaExcedentesCaptura().
+   * - window.initVista.
+   * - window.__AUDITORIA_EXCEDENTES_CAPTURA_ROOT__.
+   *
+   * Invariantes operativos:
+   * - La clasificación del navegador es preliminar; el servidor es la autoridad final.
+   * - Una ubicación debe estar abierta para admitir escaneos.
+   * - Antes de cerrar una ubicación o auditoría deben sincronizarse todos los pendientes.
+   * - La cola local utiliza lotes pequeños para reducir latencia sin saturar el servidor.
+   * - Los controladores deben validar permisos, auditoría, ubicación, formato e idempotencia.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
 </script>
 
 <style>
+  /* =========================================================
+     TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #render-auditoria-excedentes-captura {
     --aec-critical: var(--primary, #d93025);
     --aec-critical-dark: var(--primary-dark, #a50e0e);
@@ -370,7 +415,7 @@
     text-overflow: clip;
     white-space: nowrap;
   }
-  
+
   #render-auditoria-excedentes-captura .aec-table th:nth-child(2),
   #render-auditoria-excedentes-captura .aec-table td:nth-child(2) { width: 150px; }
   #render-auditoria-excedentes-captura .aec-table th:nth-child(3),
@@ -449,8 +494,20 @@
 <script type="text/babel">
 window.cargar_AuditoriaExcedentesCaptura = () => {
     const { useState, useEffect, useCallback, useRef } = React;
+    /** Cantidad de escaneos que provoca una sincronización inmediata. */
     const FLUSH_CADA = 2;
+
+    /** Tiempo máximo de espera antes de sincronizar un lote parcial. */
     const FLUSH_MS = 350;
+    /**
+     * Emite una notificación mediante la infraestructura global del shell.
+     *
+     * @param {string} m Mensaje visible.
+     * @param {string=} t Tipo de notificación.
+     * @param {number=} timer Duración en milisegundos.
+     * @param {Object=} o Opciones complementarias.
+     * @return {void}
+     */
     const notify_ = (m, t = "info", timer = 2200, o = {}) => { const f = window.notificar || window.lanzarNotificacion; if (typeof f === "function")
         f(m, t, timer, o); };
     const toStr_ = v => String(v == null ? "" : v).trim();
@@ -463,8 +520,19 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
         return { chip: "aec-chip aec-chip-green", row: "row-correcto", text: "Correcto" }; if (e === "FALTANTE")
         return { chip: "aec-chip aec-chip-amber", row: "row-faltante", text: "Faltante" }; if (e === "SOBRANTE")
         return { chip: "aec-chip aec-chip-red", row: "row-sobrante", text: "Sobrante" }; return { chip: "aec-chip aec-chip-slate", row: "", text: "Pendiente" }; };
+    /**
+     * Renderiza un icono Lucide aislado dentro de la vista.
+     *
+     * @param {{name:string,size:number=}} props Propiedades del icono.
+     * @return {React.ReactElement}
+     */
     const LocalIcon = ({ name, size = 18 }) => { const r = useRef(null); useEffect(() => { if (!window.lucide || !r.current)
         return; r.current.innerHTML = ""; const i = document.createElement("i"); i.setAttribute("data-lucide", String(name || "").toLowerCase()); i.style.width = `${size}px`; i.style.height = `${size}px`; r.current.appendChild(i); window.lucide.createIcons(); }, [name, size]); return <span ref={r} className="inline-flex items-center justify-center"/>; };
+    /**
+     * Componente principal de captura operativa.
+     *
+     * @return {React.ReactElement}
+     */
     const View = () => {
         const [loading, setLoading] = useState(true), [syncing, setSyncing] = useState(false);
         const [auditId, setAuditId] = useState(window.__AUDITORIA_EXCEDENTES_CAPTURA_ID__ || window.__AUDITORIA_EXCEDENTES_DETALLE_ID__ || "");
@@ -472,7 +540,11 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
         const [locationInput, setLocationInput] = useState("");
         const [locationState, setLocationState] = useState({ ubicacion: "", bodega: "", abierta: false, detalle: [], resumen: { esperados: 0, escaneados: 0, correctos: 0, faltantes: 0, sobrantes: 0 } });
         const [lastResult, setLastResult] = useState(null), [highlightId, setHighlightId] = useState(""), [busyLocation, setBusyLocation] = useState(false), [busyCloseLocation, setBusyCloseLocation] = useState(false), [busyCloseAudit, setBusyCloseAudit] = useState(false), [locationCloseNotes, setLocationCloseNotes] = useState(""), [panelCaptura, setPanelCaptura] = useState(""), [pendingCount, setPendingCount] = useState(0);
-        
+
+        /**
+         * Estado mutable de alto tráfico que evita renderizados por cada pulsación
+         * del escáner y conserva la cola pendiente de sincronización.
+         */
         const cacheRef = useRef({ expectedById: {}, expectedByLocation: {}, scannedById: {}, pendingSync: [], syncing: false, flushTimer: null });
         const locationRef = useRef(null);
         const closeNotesRef = useRef(null);
@@ -495,14 +567,21 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
         catch (e) {
             ref.current?.focus();
         } }, delay);
-        
-        const resumenRows_ = rows => ({ 
-          esperados: rows.filter(x => toUpper_(x.estado) !== "SOBRANTE").length, 
-          escaneados: rows.filter(x => ["CORRECTO", "SOBRANTE"].includes(toUpper_(x.estado))).length, 
-          correctos: rows.filter(x => toUpper_(x.estado) === "CORRECTO").length, 
-          faltantes: rows.filter(x => toUpper_(x.estado) === "FALTANTE").length, 
+
+        const resumenRows_ = rows => ({
+          esperados: rows.filter(x => toUpper_(x.estado) !== "SOBRANTE").length,
+          escaneados: rows.filter(x => ["CORRECTO", "SOBRANTE"].includes(toUpper_(x.estado))).length,
+          correctos: rows.filter(x => toUpper_(x.estado) === "CORRECTO").length,
+          faltantes: rows.filter(x => toUpper_(x.estado) === "FALTANTE").length,
           sobrantes: rows.filter(x => toUpper_(x.estado) === "SOBRANTE").length });
-        
+
+        /**
+         * Reconstruye las filas visibles de una ubicación combinando esperados y
+         * escaneos confirmados o pendientes.
+         *
+         * @param {*} ubicacionParam Ubicación activa.
+         * @return {Array<Object>} Filas ordenadas por IdUnico.
+         */
         const buildRows_ = useCallback((ubicacionParam) => {
           const ubicacion = toUpper_(ubicacionParam);
 
@@ -597,9 +676,15 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
             )
           );
         }, []);
-        
+
         const setLocationRows_ = useCallback((ubi, bodega, abierta) => { const rows = buildRows_(ubi); setLocationState({ ubicacion: toUpper_(ubi), bodega: toUpper_(bodega), abierta: !!abierta, detalle: rows, resumen: resumenRows_(rows) }); }, [buildRows_]);
-        
+
+        /**
+         * Carga el paquete completo de captura de una auditoría.
+         *
+         * @param {string} id Identificador de auditoría.
+         * @return {void}
+         */
         const cargarPaquete_ = useCallback(id => { if (!id)
             return; setLoading(true); google.script.run.withSuccessHandler(resp => { const s = resp || {}; cacheRef.current.expectedByLocation = s.esperadosPorUbicacion || {}; cacheRef.current.expectedById = s.esperadoIndex || {}; cacheRef.current.scannedById = s.escaneadosPrevios || {}; cacheRef.current.pendingSync = []; setPendingCount(0); setAuditHeader(s.auditoria || null); setAuditResumen({ ...s.auditoria, ...s.resumen }); const abierta = (s.ubicaciones || []).find(u => u.abierta); if (abierta) {
             setLocationInput(toUpper_(abierta.ubicacion));
@@ -610,6 +695,11 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
             focus_(locationRef);
         } setLoading(false); }).withFailureHandler(e => { setLoading(false); notify_(e?.message || "No se pudo cargar la auditoría.", "error", 4200); }).AuditoriaExcedentesCapturaController_obtenerPaqueteCaptura(id); }, [setLocationRows_]);
 
+        /**
+         * Valida y abre una ubicación mediante el identificador capturado.
+         *
+         * @return {void}
+         */
         const abrirUbicacion_ = useCallback(() => {
           const idAuditoriaActual = toStr_(
             auditIdRef.current
@@ -753,7 +843,14 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
         else
             setLoading(false); }).withFailureHandler(e => { setLoading(false); notify_(e?.message || "No se pudo cargar captura.", "error"); }).AuditoriaExcedentesCapturaController_obtenerBootstrapCaptura(); return () => { if (cacheRef.current.flushTimer)
             clearTimeout(cacheRef.current.flushTimer); }; }, []);
-        
+
+        /**
+         * Sincroniza hasta 50 escaneos pendientes y aplica la clasificación
+         * definitiva devuelta por el servidor.
+         *
+         * @param {Function=} cb Callback de finalización con resultado booleano.
+         * @return {void}
+         */
         const flush_ = useCallback((cb) => {
           const c = cacheRef.current;
 
@@ -890,6 +987,11 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
             });
         }, [buildRows_]);
 
+        /**
+         * Ejecuta una sincronización inmediata o programa el vaciado diferido.
+         *
+         * @return {void}
+         */
         const programarFlush_ = useCallback(() => {
           const cache = cacheRef.current;
           const totalPendientes =
@@ -921,6 +1023,14 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
           }, FLUSH_MS);
         }, [flush_]);
 
+        /**
+         * Clasifica localmente un IdUnico y lo incorpora a la cola pendiente.
+         *
+         * La clasificación es preliminar y puede ser corregida por el servidor.
+         *
+         * @param {*} valorCapturado Identificador obtenido del escáner.
+         * @return {void}
+         */
         const procesarIdLocal_ = useCallback((valorCapturado) => {
           const id = toUpper_(valorCapturado);
           const estadoUbicacion = locationStateRef.current;
@@ -1058,6 +1168,11 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
           };
         }, [procesarIdLocal_]);
 
+        /**
+         * Sincroniza pendientes y solicita el cierre de la ubicación activa.
+         *
+         * @return {void}
+         */
         const cerrarUbicacion_ = () => {
           const ubicacion =
             toUpper_(locationStateRef.current.ubicacion);
@@ -1174,30 +1289,35 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
           });
         };
 
+        /**
+         * Sincroniza pendientes y solicita el cierre definitivo de la auditoría.
+         *
+         * @return {void}
+         */
         const cerrarAuditoria_ = () => { const idAuditoriaActual = toStr_(auditIdRef.current);
 
         if (!idAuditoriaActual)
             return; setBusyCloseAudit(true); flush_(ok => { if (!ok) {
             setBusyCloseAudit(false);
             return;
-        } google.script.run.withSuccessHandler(() => { 
-        setBusyCloseAudit(false); 
+        } google.script.run.withSuccessHandler(() => {
+        setBusyCloseAudit(false);
         notify_( `Auditoría ${idAuditoriaActual} cerrada.`, "success" );
-          setAuditId(""); 
-          setAuditHeader(null); 
-          setAuditResumen({}); 
-          setLocationState({ ubicacion: "", bodega: "", abierta: false, detalle: [], resumen: { esperados: 0, escaneados: 0, correctos: 0, faltantes: 0, sobrantes:  0 
-          } 
-          }); 
+          setAuditId("");
+          setAuditHeader(null);
+          setAuditResumen({});
+          setLocationState({ ubicacion: "", bodega: "", abierta: false, detalle: [], resumen: { esperados: 0, escaneados: 0, correctos: 0, faltantes: 0, sobrantes:  0
+          }
+          });
           })
         .withFailureHandler(e => { setBusyCloseAudit(false); notify_(e?.message || "No se pudo cerrar la auditoría.", "error"
-          ); 
+          );
         })
         .AuditoriaExcedentesCapturaController_cerrarAuditoria({
           idauditoria: idAuditoriaActual,
           observaciones: ""
-        }); 
-        }); 
+        });
+        });
         };
 
         const rows = Array.isArray(locationState.detalle) ? locationState.detalle : [];
@@ -1373,7 +1493,7 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
     </span>
   </div>
 </div>
-      
+
       <div className="aec-content"><div className="aec-table-wrap custom-scroll"><table className="aec-table"><thead><tr><th>IdUnico</th><th>Código</th><th>Descripción</th><th>Estado</th><th>Hora</th><th>Observaciones</th></tr></thead><tbody>{rows.map((row, idx) => { const v = estadoVisual_(row.estado), high = toUpper_(row.idunico) === highlightId; return <tr key={`${row.idunico}-${idx}`} className={`aec-row ${v.row} ${high ? "row-highlight flash-row" : ""}`}><td><span className="aec-id">{row.idunico || "—"}</span></td><td><span className="aec-code">{row.codigo || "—"}</span></td><td>{row.descripcion || "Sin descripción"}</td><td><span className={v.chip}>{v.text}</span></td><td className="aec-code">{fmtTime_(row.hora)}</td><td>{row.observaciones || "—"}</td></tr>; })}</tbody></table>{!rows.length && <div className="aec-empty"><LocalIcon name="scan-line" size={30}/><b>{locationState.abierta ? "SIN REGISTROS EN ESTA UBICACIÓN" : "SIN UBICACIÓN CARGADA"}</b></div>}</div></div>
     </section>
     <div className="fab-captura-contextual">
@@ -1383,7 +1503,7 @@ window.cargar_AuditoriaExcedentesCaptura = () => {
           event.stopPropagation();
           abrirUbicacion_();
         }
-      }} 
+      }}
       placeholder="Escanea ubicación"/><button className="aec-btn primary w-full mt-3" onClick={abrirUbicacion_} disabled={busyLocation}>{busyLocation ? "Abriendo..." : "Procesar ubicación"}</button></div>}
       {panelCaptura === "CERRAR_UBICACION" && <div className="aec-floating-panel animate-fab-in"><div className="flex justify-between items-start mb-4"><div><div className="aec-eyebrow !text-slate-500">Paso 3</div><h3 className="text-xl font-black">Cierre de ubicación</h3><div className="aec-id">{locationState.ubicacion}</div></div><button className="aec-btn soft" onClick={() => setPanelCaptura("")}>Cancelar</button></div><textarea ref={closeNotesRef} className="aec-textarea" value={locationCloseNotes} onChange={e => setLocationCloseNotes(e.target.value)} placeholder="Observaciones de cierre..."/><button className="aec-btn danger w-full mt-3" onClick={cerrarUbicacion_} disabled={busyCloseLocation}>{busyCloseLocation ? "Cerrando..." : "Confirmar cierre"}</button></div>}
       <button className={`aec-btn ${locationState.abierta ? "danger" : "primary"}`} onClick={() => { if (locationState.abierta) {
