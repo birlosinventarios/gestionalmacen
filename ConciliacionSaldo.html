@@ -2,18 +2,18 @@
   /**
    * ConciliacionSaldo.html
    *
-   * Vista administrativa para conciliar movimientos físicos de traspaso con
-   * el folio aplicado en el sistema administrativo.
+   * Vista administrativa para vincular movimientos físicos de traspaso con
+   * el folio registrado en el sistema administrativo.
    *
    * Responsabilidades:
-   * - Consultar movimientos pendientes agrupados por serie y momento operativo.
-   * - Presentar rutas, cantidades, productos e inconsistencias de cada movimiento.
-   * - Filtrar grupos por texto, estado y tipo de movimiento.
-   * - Validar folio administrativo y responsable antes del registro.
-   * - Registrar la conciliación de todas las filas pendientes de un grupo.
-   * - Retirar visualmente los grupos conciliados y actualizar el resumen local.
-   * - Medir tiempos de carga, respuesta, renderizado y registro.
-   * - Administrar el montaje y desmontaje de su raíz React.
+   * - Consultar grupos de movimientos pendientes de conciliación.
+   * - Mostrar productos, rutas, cantidades e inconsistencias administrativas.
+   * - Filtrar grupos por búsqueda, estado y tipo de movimiento.
+   * - Validar el folio y el responsable antes de enviar una conciliación.
+   * - Registrar todas las filas pendientes que pertenecen a un mismo grupo.
+   * - Actualizar el resumen local y retirar visualmente los grupos atendidos.
+   * - Medir carga, respuesta del servidor, renderizado y registro.
+   * - Administrar el ciclo de vida de la raíz React de la vista.
    *
    * Dependencias globales:
    * - React y ReactDOM.
@@ -31,11 +31,11 @@
    * - window.__CONCILIACION_SALDO_ROOT__.
    *
    * Invariantes operativos:
-   * - El folio administrativo acepta únicamente caracteres numéricos.
+   * - El folio se normaliza a caracteres numéricos y un máximo de 80 dígitos.
    * - El responsable debe existir en el catálogo recibido por el bootstrap.
-   * - Solo los grupos marcados como conciliables pueden registrarse.
-   * - Una tarjeta impide solicitudes concurrentes mediante savingRef.
-   * - La vista ignora respuestas obsoletas mediante secuencias incrementales.
+   * - Solo los grupos conciliables pueden enviarse al servidor.
+   * - savingRef impide solicitudes concurrentes dentro de una misma tarjeta.
+   * - Las respuestas obsoletas se descartan mediante secuencias incrementales.
    * - El servidor conserva la autoridad final sobre validación y persistencia.
    * - Este archivo no contiene scriptlets de plantilla de Apps Script.
    */
@@ -77,139 +77,913 @@
     to { opacity: 0; transform: translateX(110px) scale(.985); }
   }
 
-  #render-conciliacion-saldo .cs-card-enter { animation: csCardEnter .38s cubic-bezier(.22,1,.36,1) both; }
-  #render-conciliacion-saldo .cs-card-exit { animation: csCardExit .34s cubic-bezier(.4,0,1,1) both; pointer-events: none; }
-  #render-conciliacion-saldo .cs-page { height: 100%; min-height: 0; padding: 16px 24px 24px; overflow: hidden; background: radial-gradient(circle at top right,rgba(217,48,37,.055),transparent 34%),var(--cs-bg); }
-  #render-conciliacion-saldo .cs-workspace { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: #fff; border: 1px solid var(--cs-border); border-radius: 22px; box-shadow: 0 24px 60px rgba(15,23,42,.11),0 6px 18px rgba(15,23,42,.05); }
-  #render-conciliacion-saldo .cs-header { flex: 0 0 auto; min-height: 116px; position: relative; padding: 18px 18px 18px 22px; display: grid; grid-template-columns: minmax(280px,.95fr) minmax(420px,1.45fr) minmax(142px,auto); align-items: center; gap: 18px; overflow: hidden; color: #fff; background: radial-gradient(circle at top right,rgba(217,48,37,.35),transparent 38%),linear-gradient(135deg,#1c1d1f 0%,#25272b 55%,#17181a 100%); }
-  #render-conciliacion-saldo .cs-header::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 7px; background: var(--cs-primary); }
-  #render-conciliacion-saldo .cs-header > * { position: relative; z-index: 2; }
-  #render-conciliacion-saldo .cs-identity { min-width: 0; display: grid; grid-template-columns: 48px minmax(0,1fr); align-items: center; gap: 13px; }
-  #render-conciliacion-saldo .cs-header-icon { width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.16); border-radius: 15px; background: rgba(255,255,255,.1); }
-  #render-conciliacion-saldo .cs-eyebrow { margin: 0 0 5px; color: rgba(255,255,255,.65); font-size: 11px; font-weight: 950; letter-spacing: .17em; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-title { margin: 0; color: #fff; font: 950 25px/1.15 "JetBrains Mono",monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #render-conciliacion-saldo .cs-subtitle { margin: 8px 0 0; color: rgba(255,255,255,.74); font-size: 11px; font-weight: 800; letter-spacing: .06em; line-height: 1.45; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-metrics { min-width: 0; display: grid; grid-template-columns: repeat(4,minmax(94px,1fr)); overflow: hidden; background: rgba(255,255,255,.96); border: 1px solid rgba(255,255,255,.21); border-radius: 15px; box-shadow: 0 12px 30px rgba(0,0,0,.13); }
-  #render-conciliacion-saldo .cs-metric { min-width: 0; min-height: 67px; padding: 12px 11px 10px; position: relative; display: flex; flex-direction: column; justify-content: center; gap: 6px; color: var(--cs-ink); border-right: 1px solid var(--cs-border); }
-  #render-conciliacion-saldo .cs-metric:last-child { border-right: 0; }
-  #render-conciliacion-saldo .cs-metric::before { content: ""; position: absolute; top: 0; left: 10px; right: 10px; height: 4px; border-radius: 0 0 999px 999px; background: var(--cs-ink); }
-  #render-conciliacion-saldo .cs-metric.green::before { background: var(--cs-success); }
-  #render-conciliacion-saldo .cs-metric.amber::before { background: var(--cs-warning); }
-  #render-conciliacion-saldo .cs-metric.red::before { background: var(--cs-primary); }
-  #render-conciliacion-saldo .cs-metric-value { font-size: 24px; font-weight: 950; line-height: 1; }
-  #render-conciliacion-saldo .cs-metric-label { color: var(--cs-muted); font-size: 10px; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-header-actions { min-width: 142px; display: flex; flex-direction: column; gap: 8px; }
-  #render-conciliacion-saldo .cs-button { min-height: 44px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; border-radius: 13px; font-size: 11px; font-weight: 950; letter-spacing: .06em; line-height: 1; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: transform .16s ease,background-color .16s ease,box-shadow .16s ease; }
-  #render-conciliacion-saldo .cs-button:hover:not(:disabled) { transform: translateY(-1px); }
-  #render-conciliacion-saldo .cs-button:disabled { opacity: .48; cursor: not-allowed; pointer-events: none; }
-  #render-conciliacion-saldo .cs-button.header { color: #fff; border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.09); }
-  #render-conciliacion-saldo .cs-button.primary { color: #fff; border-color: var(--cs-primary); background: var(--cs-primary); box-shadow: 0 8px 20px rgba(217,48,37,.22); }
-  #render-conciliacion-saldo .cs-button.primary:hover:not(:disabled) { background: var(--cs-primary-dark); }
-  #render-conciliacion-saldo .cs-input,#render-conciliacion-saldo .cs-select { width: 100%; min-height: 46px; padding: 0 13px; outline: none; border: 1px solid var(--cs-border); border-radius: 12px; background: #fff; color: var(--cs-ink); font-size: 14px; font-weight: 850; letter-spacing: .02em; }
-  #render-conciliacion-saldo .cs-input:focus,#render-conciliacion-saldo .cs-select:focus { border-color: var(--cs-primary); box-shadow: 0 0 0 4px rgba(217,48,37,.1); }
-  #render-conciliacion-saldo .cs-field-label { display: block; margin: 0 0 8px 2px; color: var(--cs-muted); font-size: 11px; font-weight: 950; letter-spacing: .13em; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-chip { min-height: 30px; padding: 0 11px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid transparent; border-radius: 999px; font-size: 10px; font-weight: 950; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
-  #render-conciliacion-saldo .cs-chip.green { color: var(--cs-success-dark); background: rgba(30,142,62,.1); border-color: rgba(30,142,62,.22); }
-  #render-conciliacion-saldo .cs-chip.amber { color: var(--cs-warning-dark); background: rgba(217,119,6,.1); border-color: rgba(217,119,6,.22); }
-  #render-conciliacion-saldo .cs-chip.red { color: var(--cs-primary-dark); background: rgba(217,48,37,.1); border-color: rgba(217,48,37,.22); }
-  #render-conciliacion-saldo .cs-chip.slate { color: var(--cs-ink); background: rgba(28,29,31,.07); border-color: rgba(28,29,31,.12); }
-  #render-conciliacion-saldo .cs-toolbar { flex: 0 0 auto; min-height: 64px; padding: 9px 14px 9px 18px; position: relative; display: grid; grid-template-columns: minmax(245px,.78fr) minmax(540px,1.6fr) auto; align-items: center; gap: 12px; background: linear-gradient(135deg,#fff 0%,#f8f9fa 100%); border-bottom: 1px solid var(--cs-border); }
-  #render-conciliacion-saldo .cs-toolbar::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--cs-primary); }
-  #render-conciliacion-saldo .cs-toolbar-main,#render-conciliacion-saldo .cs-toolbar-filters,#render-conciliacion-saldo .cs-toolbar-context { position: relative; z-index: 2; display: flex; align-items: center; gap: 8px; min-width: 0; }
-  #render-conciliacion-saldo .cs-toolbar-filters { display: grid; grid-template-columns: minmax(180px,1fr) 160px 150px; }
-  #render-conciliacion-saldo .cs-toolbar-filters .cs-input,#render-conciliacion-saldo .cs-toolbar-filters .cs-select { min-height: 38px; height: 38px; padding: 0 11px; border-radius: 10px; font-size: 12px; }
-  #render-conciliacion-saldo .cs-toolbar-context { justify-content: flex-end; }
-  #render-conciliacion-saldo .cs-toolbar-icon { width: 34px; height: 34px; flex: 0 0 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; color: #fff; background: var(--cs-ink); }
-  #render-conciliacion-saldo .cs-toolbar-title { color: var(--cs-primary); font-size: 10px; font-weight: 950; letter-spacing: .16em; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-toolbar-subtitle { color: var(--cs-ink); font-size: 13px; font-weight: 950; letter-spacing: .08em; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-live,#render-conciliacion-saldo .cs-result-count { min-height: 34px; padding: 0 10px; display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--cs-border); border-radius: 9px; background: #fff; font-size: 10px; font-weight: 950; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
-  #render-conciliacion-saldo .cs-live { color: var(--cs-success-dark); background: rgba(30,142,62,.08); border-color: rgba(30,142,62,.22); }
-  #render-conciliacion-saldo .cs-result-count { color: var(--cs-muted); }
-  #render-conciliacion-saldo .cs-live-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: csPulse 1.8s ease-in-out infinite; }
-  #render-conciliacion-saldo .cs-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px; background: linear-gradient(180deg,#fff 0%,#fcfcfd 100%); }
-  #render-conciliacion-saldo .cs-card-list { display: grid; gap: 16px; }
-  #render-conciliacion-saldo .cs-card { position: relative; overflow: hidden; border: 1px solid var(--cs-border); border-radius: 18px; background: #fff; box-shadow: 0 8px 22px rgba(15,23,42,.07); }
-  #render-conciliacion-saldo .cs-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--cs-primary); }
-  #render-conciliacion-saldo .cs-card.is-valid::before { background: var(--cs-success); }
-  #render-conciliacion-saldo .cs-card.is-warning::before { background: var(--cs-warning); }
-  #render-conciliacion-saldo .cs-card.is-invalid::before { background: var(--cs-primary); }
-  #render-conciliacion-saldo .cs-card-header { padding: 15px 16px 14px 20px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px; align-items: center; background: linear-gradient(135deg,#fff 0%,#fafafa 100%); border-bottom: 1px solid #eef1f4; }
-  #render-conciliacion-saldo .cs-card-identity { min-width: 0; display: flex; flex-direction: column; }
-  #render-conciliacion-saldo .cs-card-primary-row { min-width: 0; display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
-  #render-conciliacion-saldo .cs-series-block { min-width: 132px; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center; gap: 4px; border: 1px solid rgba(28,29,31,.14); border-radius: 12px; background: #fff; }
-  #render-conciliacion-saldo .cs-series-label { color: var(--cs-muted); font-size: 9px; font-weight: 950; letter-spacing: .12em; line-height: 1; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-series { margin: 0; color: var(--cs-ink); font: 950 24px/1.05 "JetBrains Mono",monospace; }
-  #render-conciliacion-saldo .cs-temporal-block { min-width: 250px; overflow: hidden; display: grid; grid-template-rows: auto auto; border: 1px solid var(--cs-border); border-radius: 12px; background: #fff; }
-  #render-conciliacion-saldo .cs-temporal-datetime { padding: 9px 12px 8px; display: flex; align-items: center; gap: 8px; color: var(--cs-ink); font-size: 11px; font-weight: 950; letter-spacing: .07em; line-height: 1.25; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-temporal-separator { color: #b4b8bf; }
-  #render-conciliacion-saldo .cs-temporal-pending { padding: 7px 12px; display: flex; align-items: center; gap: 7px; color: var(--cs-warning-dark); background: rgba(217,119,6,.075); border-top: 1px solid rgba(217,119,6,.18); font-size: 10px; font-weight: 950; letter-spacing: .07em; line-height: 1.25; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-card-stats { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
-  #render-conciliacion-saldo .cs-card-body { display: grid; grid-template-columns: minmax(0,2.35fr) minmax(190px,.42fr); min-height: 0; }
-  #render-conciliacion-saldo .cs-movements { min-width: 0; padding: 14px 16px 16px 20px; border-right: 1px solid #eef1f4; }
-  #render-conciliacion-saldo .cs-movement-list { display: grid; gap: 9px; }
-  #render-conciliacion-saldo .cs-movement { display: grid; grid-template-columns: 106px minmax(155px,.82fr) minmax(210px,1.18fr) minmax(155px,1fr) 38px minmax(155px,1fr) 108px; grid-template-areas: "type product description warehouse-out arrow warehouse-in quantity" "errors errors errors errors errors errors errors"; gap: 10px; align-items: stretch; padding: 11px; border: 1px solid #e8eaed; border-radius: 13px; background: #fcfcfd; }
-  #render-conciliacion-saldo .cs-movement.invalid { border-color: rgba(217,48,37,.28); background: rgba(217,48,37,.035); }
-  #render-conciliacion-saldo .cs-movement-type { grid-area: type; min-width: 0; min-height: 76px; padding: 11px 12px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--cs-border); border-radius: 11px; font-size: 14px; font-weight: 950; letter-spacing: .06em; line-height: 1.3; text-align: center; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-movement-type.acomodo { color: var(--cs-success-dark); border-color: rgba(30,142,62,.24); background: rgba(30,142,62,.05); }
-  #render-conciliacion-saldo .cs-movement-type.surtido { color: var(--cs-primary-dark); border-color: rgba(217,48,37,.24); background: rgba(217,48,37,.05); }
-  #render-conciliacion-saldo .cs-movement-product { grid-area: product; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
-  #render-conciliacion-saldo .cs-movement-description { grid-area: description; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
-  #render-conciliacion-saldo .cs-sku { color: var(--cs-ink); font: 950 18px/1.3 "JetBrains Mono",monospace; }
-  #render-conciliacion-saldo .cs-idunico { margin-top: 5px; color: #7d8490; font: 850 13px/1.4 "JetBrains Mono",monospace; overflow-wrap: anywhere; }
-  #render-conciliacion-saldo .cs-description { margin-top: 5px; color: var(--cs-muted); font-size: 14px; font-weight: 800; line-height: 1.48; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-route-point { min-width: 0; min-height: 76px; padding: 11px 12px; display: flex; flex-direction: column; justify-content: center; gap: 6px; border: 1px solid var(--cs-border); border-radius: 11px; background: #fff; }
-  #render-conciliacion-saldo .cs-warehouse-out { grid-area: warehouse-out; border-color: rgba(217,48,37,.24); background: rgba(217,48,37,.05); }
-  #render-conciliacion-saldo .cs-warehouse-in { grid-area: warehouse-in; border-color: rgba(30,142,62,.24); background: rgba(30,142,62,.05); }
-  #render-conciliacion-saldo .cs-route-label { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 950; letter-spacing: .055em; line-height: 1.25; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-warehouse-out .cs-route-label { color: var(--cs-primary-dark); }
-  #render-conciliacion-saldo .cs-warehouse-in .cs-route-label { color: var(--cs-success-dark); }
-  #render-conciliacion-saldo .cs-warehouse { min-width: 0; color: var(--cs-ink); font-size: 14px; font-weight: 950; line-height: 1.42; text-align: left; text-transform: uppercase; overflow-wrap: anywhere; }
-  #render-conciliacion-saldo .cs-route-arrow { grid-area: arrow; width: 38px; min-width: 38px; display: flex; align-items: center; justify-content: center; color: var(--cs-muted); }
-  #render-conciliacion-saldo .cs-quantity-block { grid-area: quantity; min-width: 0; min-height: 76px; padding: 10px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 1px solid rgba(217,119,6,.22); border-radius: 11px; background: rgba(217,119,6,.055); }
-  #render-conciliacion-saldo .cs-quantity-label,#render-conciliacion-saldo .cs-quantity-unit { color: var(--cs-muted); font-size: 12px; font-weight: 950; letter-spacing: .055em; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-quantity-label { color: var(--cs-warning-dark); }
-  #render-conciliacion-saldo .cs-quantity { color: var(--cs-ink); font: 950 25px/1.05 "JetBrains Mono",monospace; text-align: center; }
-  #render-conciliacion-saldo .cs-error-list { grid-area: errors; margin: 0; padding: 8px 10px; border-radius: 9px; color: #991b1b; background: #fff1f2; font-size: 10px; font-weight: 850; line-height: 1.5; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-capture { padding: 14px; display: flex; flex-direction: column; justify-content: flex-start; gap: 12px; background: #f8f9fa; }
-  #render-conciliacion-saldo .cs-capture .cs-input { min-height: 42px; padding: 0 10px; font-size: 13px; }
-  #render-conciliacion-saldo .cs-capture .cs-field-label { font-size: 10px; letter-spacing: .09em; }
-  #render-conciliacion-saldo .cs-capture .cs-button { width: 100%; padding: 0 10px; font-size: 10px; white-space: normal; text-align: center; }
-  #render-conciliacion-saldo .cs-card-message { min-height: 34px; padding: 9px 10px; border-radius: 10px; font-size: 10px; font-weight: 850; line-height: 1.5; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-card-message.error { color: #991b1b; background: #fff1f2; border: 1px solid #fecaca; }
-  #render-conciliacion-saldo .cs-state { min-height: 320px; padding: 34px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #9aa0a6; text-align: center; }
-  #render-conciliacion-saldo .cs-state-title { color: var(--cs-ink); font-size: 15px; font-weight: 950; letter-spacing: .12em; text-transform: uppercase; }
-  #render-conciliacion-saldo .cs-state-text { max-width: 520px; font-size: 13px; line-height: 1.5; }
-  #render-conciliacion-saldo .cs-spinner { width: 38px; height: 38px; border: 4px solid #eef1f4; border-top-color: var(--cs-primary); border-radius: 50%; animation: csSpin .8s linear infinite; }
+  #render-conciliacion-saldo .cs-card-enter { 
+    animation: csCardEnter .38s cubic-bezier(.22,1,.36,1) both; 
+  }
+
+  #render-conciliacion-saldo .cs-card-exit { 
+    animation: csCardExit .34s cubic-bezier(.4,0,1,1) both; 
+    pointer-events: none; 
+  }
+
+  #render-conciliacion-saldo .cs-page { 
+    height: 100%; 
+    min-height: 0; 
+    padding: 16px 24px 24px; 
+    overflow: hidden; 
+    background: radial-gradient(circle at top right,rgba(217,48,37,.055),transparent 34%),var(--cs-bg); 
+  }
+  
+  #render-conciliacion-saldo .cs-workspace { 
+    height: 100%; 
+    min-height: 0; 
+    display: flex; 
+    flex-direction: column; 
+    overflow: hidden; 
+    background: #fff; 
+    border: 1px solid var(--cs-border); 
+    border-radius: 22px; 
+    box-shadow: 0 24px 60px rgba(15,23,42,.11),0 6px 18px rgba(15,23,42,.05); 
+  }
+
+  #render-conciliacion-saldo .cs-header { flex: 0 0 auto; min-height: 116px; position: relative; padding: 18px 18px 18px 22px; display: grid; grid-template-columns: minmax(280px,.95fr) minmax(420px,1.45fr) minmax(142px,auto); align-items: center; gap: 18px; overflow: hidden; color: #fff; background: radial-gradient(circle at top right,rgba(217,48,37,.35),transparent 38%),linear-gradient(135deg,#1c1d1f 0%,#25272b 55%,#17181a 100%); 
+  }
+
+  #render-conciliacion-saldo .cs-header::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 7px; background: var(--cs-primary); 
+  }
+
+  #render-conciliacion-saldo .cs-header > * { position: relative; z-index: 2; 
+  }
+
+  #render-conciliacion-saldo .cs-identity { min-width: 0; display: grid; grid-template-columns: 48px minmax(0,1fr); align-items: center; gap: 13px; 
+  }
+
+  #render-conciliacion-saldo .cs-header-icon { width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.16); border-radius: 15px; background: rgba(255,255,255,.1); 
+  }
+
+  #render-conciliacion-saldo .cs-eyebrow { 
+    margin: 0 0 5px; 
+    color: rgba(255,255,255,.65); 
+    font-size: 11px; 
+    font-weight: 950; 
+    letter-spacing: .17em; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-title { 
+    margin: 0; 
+    color: #fff; 
+    font: 950 25px/1.15 "JetBrains Mono",monospace; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+  }
+
+  #render-conciliacion-saldo .cs-subtitle { 
+    margin: 8px 0 0; 
+    color: rgba(255,255,255,.74); 
+    font-size: 11px; 
+    font-weight: 800; 
+    letter-spacing: .06em; 
+    line-height: 1.45; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-metrics { 
+    min-width: 0; 
+    display: grid; 
+    grid-template-columns: repeat(4,minmax(94px,1fr)); 
+    overflow: hidden; 
+    background: rgba(255,255,255,.96); 
+    border: 1px solid rgba(255,255,255,.21); 
+    border-radius: 15px; 
+    box-shadow: 0 12px 30px rgba(0,0,0,.13); 
+  }
+
+  #render-conciliacion-saldo .cs-metric { 
+    min-width: 0; 
+    min-height: 67px; 
+    padding: 12px 11px 10px; 
+    position: relative; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+    gap: 6px; 
+    color: var(--cs-ink); 
+    border-right: 1px solid var(--cs-border); 
+  }
+
+  #render-conciliacion-saldo .cs-metric:last-child { 
+    border-right: 0; 
+  }
+
+  #render-conciliacion-saldo .cs-metric::before { 
+    content: ""; 
+    position: absolute; 
+    top: 0; 
+    left: 10px; 
+    right: 10px; 
+    height: 4px; 
+    border-radius: 0 0 999px 999px; 
+    background: var(--cs-ink); 
+  }
+
+  #render-conciliacion-saldo .cs-metric.green::before { 
+    background: var(--cs-success); 
+  }
+
+  #render-conciliacion-saldo .cs-metric.amber::before { 
+    background: var(--cs-warning); 
+  }
+
+  #render-conciliacion-saldo .cs-metric.red::before { 
+    background: var(--cs-primary); 
+  }
+
+  #render-conciliacion-saldo .cs-metric-value { 
+    font-size: 24px; 
+    font-weight: 950; 
+    line-height: 1; 
+  }
+  #render-conciliacion-saldo .cs-metric-label { 
+    color: var(--cs-muted); 
+    font-size: 10px; 
+    font-weight: 950; 
+    letter-spacing: .1em; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-header-actions { 
+    min-width: 142px; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 8px; 
+  }
+
+  #render-conciliacion-saldo .cs-button { 
+    min-height: 44px; 
+    padding: 0 14px; 
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center; 
+    gap: 8px; border: 1px solid transparent; 
+    border-radius: 13px; 
+    font-size: 11px; 
+    font-weight: 950; 
+    letter-spacing: .06em; 
+    line-height: 1; 
+    text-transform: uppercase; 
+    white-space: nowrap; 
+    cursor: pointer; 
+    transition: transform .16s ease,background-color .16s ease,box-shadow .16s ease; 
+  }
+
+  #render-conciliacion-saldo .cs-button:hover:not(:disabled) { 
+    transform: translateY(-1px); 
+  }
+
+  #render-conciliacion-saldo .cs-button:disabled { 
+    opacity: .48; 
+    cursor: not-allowed; 
+    pointer-events: none; 
+  }
+
+  #render-conciliacion-saldo .cs-button.header { 
+    color: #fff; 
+    border-color: rgba(255,255,255,.16); 
+    background: rgba(255,255,255,.09); 
+  }
+
+  #render-conciliacion-saldo .cs-button.primary { 
+    color: #fff; 
+    border-color: var(--cs-primary); 
+    background: var(--cs-primary); 
+    box-shadow: 0 8px 20px rgba(217,48,37,.22); 
+  }
+
+  #render-conciliacion-saldo .cs-button.primary:hover:not(:disabled) { 
+    background: var(--cs-primary-dark); 
+  }
+
+  #render-conciliacion-saldo .cs-input,#render-conciliacion-saldo .cs-select { 
+    width: 100%; 
+    min-height: 46px; 
+    padding: 0 13px; 
+    outline: none; 
+    border: 1px solid var(--cs-border); 
+    border-radius: 12px; 
+    background: #fff; 
+    color: var(--cs-ink); 
+    font-size: 14px; 
+    font-weight: 850; 
+    letter-spacing: .02em; 
+  }
+
+  #render-conciliacion-saldo .cs-input:focus,#render-conciliacion-saldo .cs-select:focus { 
+    border-color: var(--cs-primary); 
+    box-shadow: 0 0 0 4px rgba(217,48,37,.1); 
+  }
+
+  #render-conciliacion-saldo .cs-field-label { 
+    display: block; 
+    margin: 0 0 8px 2px; 
+    color: var(--cs-muted); 
+    font-size: 11px; 
+    font-weight: 950; 
+    letter-spacing: .13em; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-chip { 
+    min-height: 30px; 
+    padding: 0 11px; 
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center; 
+    gap: 6px; 
+    border: 1px solid transparent; 
+    border-radius: 999px; 
+    font-size: 10px; 
+    font-weight: 950; 
+    letter-spacing: .07em; 
+    text-transform: uppercase; 
+    white-space: nowrap; 
+  }
+
+  #render-conciliacion-saldo .cs-chip.green { 
+    color: var(--cs-success-dark); 
+    background: rgba(30,142,62,.1); 
+    border-color: rgba(30,142,62,.22); 
+  }
+
+  #render-conciliacion-saldo .cs-chip.amber { 
+    color: var(--cs-warning-dark); 
+    background: rgba(217,119,6,.1); 
+    border-color: rgba(217,119,6,.22); 
+  }
+
+  #render-conciliacion-saldo .cs-chip.red { 
+    color: var(--cs-primary-dark); 
+    background: rgba(217,48,37,.1); 
+    border-color: rgba(217,48,37,.22); 
+  }
+
+  #render-conciliacion-saldo .cs-chip.slate { 
+    color: var(--cs-ink); 
+    background: rgba(28,29,31,.07); 
+    border-color: rgba(28,29,31,.12); 
+  }
+
+  #render-conciliacion-saldo .cs-toolbar { 
+    flex: 0 0 auto; 
+    min-height: 64px; 
+    padding: 9px 14px 9px 18px; 
+    position: relative; 
+    display: grid; 
+    grid-template-columns: minmax(245px,.78fr) minmax(540px,1.6fr) auto; 
+    align-items: center; 
+    gap: 12px; 
+    background: linear-gradient(135deg,#fff 0%,#f8f9fa 100%); 
+    border-bottom: 1px solid var(--cs-border); 
+  }
+
+  #render-conciliacion-saldo .cs-toolbar::before { 
+    content: ""; 
+    position: absolute; 
+    inset: 0 auto 0 0; 
+    width: 5px; 
+    background: var(--cs-primary); 
+  }
+
+  #render-conciliacion-saldo .cs-toolbar-main,#render-conciliacion-saldo .cs-toolbar-filters,#render-conciliacion-saldo .cs-toolbar-context { 
+    position: relative; 
+    z-index: 2; 
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+    min-width: 0; 
+  }
+
+  #render-conciliacion-saldo .cs-toolbar-filters { 
+    display: grid; 
+    grid-template-columns: minmax(180px,1fr) 160px 150px; 
+  }
+
+  #render-conciliacion-saldo .cs-toolbar-filters .cs-input,#render-conciliacion-saldo .cs-toolbar-filters .cs-select { 
+    min-height: 38px; 
+    height: 38px; 
+    padding: 0 11px; 
+    border-radius: 10px; 
+    font-size: 12px; 
+  }
+
+  #render-conciliacion-saldo .cs-toolbar-context { 
+    justify-content: flex-end; 
+  }
+
+  #render-conciliacion-saldo .cs-toolbar-icon { 
+    width: 34px; 
+    height: 34px; 
+    flex: 0 0 34px; 
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center; 
+    border-radius: 10px; 
+    color: #fff; 
+    background: var(--cs-ink); 
+  }
+
+  #render-conciliacion-saldo .cs-toolbar-title { 
+    color: var(--cs-primary); 
+    font-size: 10px; 
+    font-weight: 950; 
+    letter-spacing: .16em; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-toolbar-subtitle { 
+    color: var(--cs-ink); 
+    font-size: 13px; 
+    font-weight: 950; 
+    letter-spacing: .08em; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-live,#render-conciliacion-saldo .cs-result-count { 
+    min-height: 34px; 
+    padding: 0 10px; 
+    display: inline-flex; 
+    align-items: center; 
+    gap: 7px; 
+    border: 1px solid var(--cs-border); 
+    border-radius: 9px; 
+    background: #fff; 
+    font-size: 10px; 
+    font-weight: 950; 
+    letter-spacing: .06em; 
+    text-transform: uppercase; 
+    white-space: nowrap; 
+  }
+
+  #render-conciliacion-saldo .cs-live { 
+    color: var(--cs-success-dark); 
+    background: rgba(30,142,62,.08); 
+    border-color: rgba(30,142,62,.22); 
+  }
+
+  #render-conciliacion-saldo .cs-result-count { 
+    color: var(--cs-muted); 
+  }
+
+  #render-conciliacion-saldo .cs-live-dot { 
+    width: 7px; 
+    height: 7px; 
+    border-radius: 50%; 
+    background: currentColor; 
+    animation: csPulse 1.8s ease-in-out infinite; 
+  }
+
+  #render-conciliacion-saldo .cs-content { 
+    flex: 1 1 auto; 
+    min-height: 0; 
+    overflow-y: auto; 
+    overflow-x: hidden; 
+    padding: 16px; 
+    background: linear-gradient(180deg,#fff 0%,#fcfcfd 100%); 
+  }
+
+  #render-conciliacion-saldo .cs-card-list { 
+    display: grid; 
+    gap: 16px; 
+  }
+
+  #render-conciliacion-saldo .cs-card { 
+    position: relative; 
+    overflow: hidden; 
+    border: 1px solid var(--cs-border); 
+    border-radius: 18px; 
+    background: #fff; 
+    box-shadow: 0 8px 22px rgba(15,23,42,.07); 
+  }
+
+  #render-conciliacion-saldo .cs-card::before { 
+    content: ""; 
+    position: absolute; 
+    inset: 0 auto 0 0; 
+    width: 5px; 
+    background: var(--cs-primary); 
+  }
+
+  #render-conciliacion-saldo .cs-card.is-valid::before { 
+    background: var(--cs-success); 
+  }
+
+  #render-conciliacion-saldo .cs-card.is-warning::before { 
+    background: var(--cs-warning); }
+
+  #render-conciliacion-saldo .cs-card.is-invalid::before { 
+    background: var(--cs-primary); }
+
+  #render-conciliacion-saldo .cs-card-header { 
+    padding: 15px 16px 14px 20px; 
+    display: grid; 
+    grid-template-columns: minmax(0,1fr) auto; 
+    gap: 14px; 
+    align-items: center; 
+    background: linear-gradient(135deg,#fff 0%,#fafafa 100%); 
+    border-bottom: 1px solid #eef1f4; 
+  }
+  
+  #render-conciliacion-saldo .cs-card-identity {
+    min-width: 0; 
+    display: flex; 
+    flex-direction: column; 
+  }
+
+  #render-conciliacion-saldo .cs-card-primary-row { 
+    min-width: 0; 
+    display: flex; 
+    align-items: stretch; 
+    gap: 12px; 
+    flex-wrap: wrap; 
+  }
+
+  #render-conciliacion-saldo .cs-series-block { 
+    min-width: 132px; 
+    padding: 10px 14px; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+    gap: 4px; border: 1px solid rgba(28,29,31,.14); 
+    border-radius: 12px; 
+    background: #fff; 
+  }
+
+  #render-conciliacion-saldo .cs-series-label { 
+    color: var(--cs-muted); 
+    font-size: 9px; 
+    font-weight: 950; 
+    letter-spacing: .12em; 
+    line-height: 1; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-series { 
+    margin: 0; 
+    color: var(--cs-ink); 
+    font: 950 24px/1.05 "JetBrains Mono",monospace; 
+  }
+
+  #render-conciliacion-saldo .cs-temporal-block { 
+    min-width: 250px; 
+    overflow: hidden; 
+    display: grid; 
+    grid-template-rows: auto auto; 
+    border: 1px solid var(--cs-border); 
+    border-radius: 12px; 
+    background: #fff; 
+  }
+
+  #render-conciliacion-saldo .cs-temporal-datetime { 
+    padding: 9px 12px 8px; 
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+    color: var(--cs-ink); 
+    font-size: 11px; 
+    font-weight: 950; 
+    letter-spacing: .07em; 
+    line-height: 1.25; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-temporal-separator { 
+    color: #b4b8bf; 
+  }
+
+  #render-conciliacion-saldo .cs-temporal-pending { 
+    padding: 7px 12px; 
+    display: flex; 
+    align-items: center; 
+    gap: 7px; color: var(--cs-warning-dark); 
+    background: rgba(217,119,6,.075); 
+    border-top: 1px solid rgba(217,119,6,.18); 
+    font-size: 10px; 
+    font-weight: 950; 
+    letter-spacing: .07em; 
+    line-height: 1.25; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-card-stats { 
+    display: flex; 
+    align-items: center; 
+    justify-content: flex-end; 
+    gap: 8px; 
+    flex-wrap: wrap; 
+  }
+
+  #render-conciliacion-saldo .cs-card-body { 
+    display: grid; 
+    grid-template-columns: minmax(0,2.35fr) minmax(190px,.42fr); 
+    min-height: 0; 
+  }
+
+  #render-conciliacion-saldo .cs-movements { 
+    min-width: 0; 
+    padding: 14px 16px 16px 20px; 
+    border-right: 1px solid #eef1f4; 
+  }
+
+  #render-conciliacion-saldo .cs-movement-list { 
+    display: grid; 
+    gap: 9px; 
+  }
+
+  #render-conciliacion-saldo .cs-movement { 
+    display: grid; 
+    grid-template-columns: 106px minmax(155px,.82fr) minmax(210px,1.18fr) minmax(155px,1fr) 38px minmax(155px,1fr) 108px; 
+    grid-template-areas: "type product description warehouse-out arrow warehouse-in quantity" "errors errors errors errors errors errors errors"; 
+    gap: 10px; 
+    align-items: stretch; 
+    padding: 11px; 
+    border: 1px solid #e8eaed; 
+    border-radius: 13px; 
+    background: #fcfcfd; 
+  }
+
+  #render-conciliacion-saldo .cs-movement.invalid { 
+    border-color: rgba(217,48,37,.28); 
+    background: rgba(217,48,37,.035); 
+  }
+
+  #render-conciliacion-saldo .cs-movement-type { 
+    grid-area: type; 
+    min-width: 0; 
+    min-height: 76px; 
+    padding: 11px 12px; 
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center; 
+    border: 1px solid var(--cs-border); 
+    border-radius: 11px; 
+    font-size: 14px; 
+    font-weight: 950; 
+    letter-spacing: .06em; 
+    line-height: 1.3; 
+    text-align: center; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-movement-type.acomodo { 
+    color: var(--cs-success-dark); 
+    border-color: rgba(30,142,62,.24); 
+    background: rgba(30,142,62,.05); 
+  }
+
+  #render-conciliacion-saldo .cs-movement-type.surtido { 
+    color: var(--cs-primary-dark); 
+    border-color: rgba(217,48,37,.24); 
+    background: rgba(217,48,37,.05); 
+  }
+
+  #render-conciliacion-saldo .cs-movement-product { 
+    grid-area: product; 
+    min-width: 0; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+  }
+
+  #render-conciliacion-saldo .cs-movement-description { 
+    grid-area: description; 
+    min-width: 0; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+  }
+
+  #render-conciliacion-saldo .cs-sku { 
+    color: var(--cs-ink); 
+    font: 950 18px/1.3 "JetBrains Mono",monospace; 
+  }
+
+  #render-conciliacion-saldo .cs-idunico { 
+    margin-top: 5px; 
+    color: #7d8490; 
+    font: 850 13px/1.4 "JetBrains Mono",monospace; 
+    overflow-wrap: anywhere; }
+
+  #render-conciliacion-saldo .cs-description { 
+    margin-top: 5px; 
+    color: var(--cs-muted); 
+    font-size: 14px; 
+    font-weight: 800; 
+    line-height: 1.48; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-route-point { 
+    min-width: 0; 
+    min-height: 76px; 
+    padding: 11px 12px; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+    gap: 6px; 
+    border: 1px solid var(--cs-border); 
+    border-radius: 11px; 
+    background: #fff; 
+  }
+
+  #render-conciliacion-saldo .cs-warehouse-out { 
+    grid-area: warehouse-out; 
+    border-color: rgba(217,48,37,.24); 
+    background: rgba(217,48,37,.05); 
+  }
+
+  #render-conciliacion-saldo .cs-warehouse-in { 
+    grid-area: warehouse-in; 
+    border-color: rgba(30,142,62,.24); 
+    background: rgba(30,142,62,.05); 
+  }
+
+  #render-conciliacion-saldo .cs-route-label { 
+    display: flex; 
+    align-items: center; 
+    gap: 5px; 
+    font-size: 12px; 
+    font-weight: 950; 
+    letter-spacing: .055em; 
+    line-height: 1.25; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-warehouse-out .cs-route-label { 
+    color: var(--cs-primary-dark); 
+  }
+
+  #render-conciliacion-saldo .cs-warehouse-in .cs-route-label { 
+    color: var(--cs-success-dark); 
+  }
+
+  #render-conciliacion-saldo .cs-warehouse { 
+    min-width: 0; 
+    color: var(--cs-ink); 
+    font-size: 14px; 
+    font-weight: 950; 
+    line-height: 1.42; 
+    text-align: left; 
+    text-transform: uppercase; 
+    overflow-wrap: anywhere; 
+  }
+
+  #render-conciliacion-saldo .cs-route-arrow { 
+    grid-area: arrow; 
+    width: 38px; 
+    min-width: 38px; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    color: var(--cs-muted); 
+  }
+
+  #render-conciliacion-saldo .cs-quantity-block { 
+    grid-area: quantity; 
+    min-width: 0; 
+    min-height: 76px; 
+    padding: 10px 8px; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center; 
+    gap: 4px; border: 1px solid rgba(217,119,6,.22); 
+    border-radius: 11px; 
+    background: rgba(217,119,6,.055); 
+  }
+
+  #render-conciliacion-saldo .cs-quantity-label,#render-conciliacion-saldo .cs-quantity-unit { 
+    color: var(--cs-muted); 
+    font-size: 12px; 
+    font-weight: 950; 
+    letter-spacing: .055em; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-quantity-label { 
+    color: var(--cs-warning-dark); 
+  }
+
+  #render-conciliacion-saldo .cs-quantity { 
+    color: var(--cs-ink); 
+    font: 950 25px/1.05 "JetBrains Mono",monospace; 
+    text-align: center; 
+  }
+
+  #render-conciliacion-saldo .cs-error-list { 
+    grid-area: errors; 
+    margin: 0; 
+    padding: 8px 10px; 
+    border-radius: 9px; 
+    color: #991b1b; 
+    background: #fff1f2; 
+    font-size: 10px; 
+    font-weight: 850; 
+    line-height: 1.5; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-capture { 
+    padding: 14px; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: flex-start; 
+    gap: 12px; 
+    background: #f8f9fa; 
+  }
+
+  #render-conciliacion-saldo .cs-capture .cs-input { 
+    min-height: 42px; 
+    padding: 0 10px; 
+    font-size: 13px; 
+  }
+
+  #render-conciliacion-saldo .cs-capture .cs-field-label { 
+    font-size: 10px; 
+    letter-spacing: .09em; 
+  }
+
+  #render-conciliacion-saldo .cs-capture .cs-button { 
+    width: 100%; 
+    padding: 0 10px; 
+    font-size: 10px; 
+    white-space: normal; 
+    text-align: center; 
+  }
+
+  #render-conciliacion-saldo .cs-card-message { 
+    min-height: 34px; 
+    padding: 9px 10px; 
+    border-radius: 10px; 
+    font-size: 10px; 
+    font-weight: 850; 
+    line-height: 1.5; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-card-message.error { 
+    color: #991b1b; 
+    background: #fff1f2; 
+    border: 1px solid #fecaca; 
+  }
+
+  #render-conciliacion-saldo .cs-state { 
+    min-height: 320px; 
+    padding: 34px; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center; 
+    gap: 12px; 
+    color: #9aa0a6; 
+    text-align: center; 
+  }
+
+  #render-conciliacion-saldo .cs-state-title { 
+    color: var(--cs-ink); 
+    font-size: 15px; 
+    font-weight: 950; 
+    letter-spacing: .12em; 
+    text-transform: uppercase; 
+  }
+
+  #render-conciliacion-saldo .cs-state-text { 
+    max-width: 520px; 
+    font-size: 13px; 
+    line-height: 1.5; 
+  }
+
+  #render-conciliacion-saldo .cs-spinner { 
+    width: 38px; 
+    height: 38px; 
+    border: 4px solid #eef1f4; 
+    border-top-color: var(--cs-primary); 
+    border-radius: 50%; animation: csSpin .8s linear infinite; 
+  }
 
   @media (max-width: 1220px) {
-    #render-conciliacion-saldo .cs-header { grid-template-columns: minmax(270px,1fr) auto; }
-    #render-conciliacion-saldo .cs-metrics { grid-column: 1/-1; grid-row: 2; }
-    #render-conciliacion-saldo .cs-header-actions { grid-column: 2; grid-row: 1; }
-    #render-conciliacion-saldo .cs-card-body { grid-template-columns: 1fr; }
-    #render-conciliacion-saldo .cs-movements { border-right: 0; border-bottom: 1px solid #eef1f4; }
+    #render-conciliacion-saldo .cs-header { 
+      grid-template-columns: minmax(270px,1fr) auto; 
+    }
+
+    #render-conciliacion-saldo .cs-metrics { 
+      grid-column: 1/-1; 
+      grid-row: 2; 
+    }
+
+    #render-conciliacion-saldo .cs-header-actions { 
+      grid-column: 2; 
+      grid-row: 1; 
+    }
+
+    #render-conciliacion-saldo .cs-card-body { 
+      grid-template-columns: 1fr; 
+    }
+
+    #render-conciliacion-saldo .cs-movements { 
+      border-right: 0; 
+      border-bottom: 1px solid #eef1f4; 
+    }
   }
   @media (max-width: 1180px) {
-    #render-conciliacion-saldo .cs-toolbar { grid-template-columns: 1fr; }
-    #render-conciliacion-saldo .cs-toolbar-filters { grid-template-columns: minmax(180px,1fr) 150px 140px; }
-    #render-conciliacion-saldo .cs-movement { grid-template-columns: 90px minmax(0,1fr) 96px; grid-template-areas: "type product quantity" "description description description" "warehouse-out arrow warehouse-in" "errors errors errors"; }
-    #render-conciliacion-saldo .cs-route-arrow { width: 34px; min-width: 34px; min-height: 64px; }
+    #render-conciliacion-saldo .cs-toolbar { 
+      grid-template-columns: 1fr; 
+    }
+
+    #render-conciliacion-saldo .cs-toolbar-filters { 
+      grid-template-columns: minmax(180px,1fr) 150px 140px; 
+    }
+
+    #render-conciliacion-saldo .cs-movement { 
+      grid-template-columns: 90px minmax(0,1fr) 96px; 
+      grid-template-areas: "type product quantity" "description description description" "warehouse-out arrow warehouse-in" "errors errors errors"; 
+    }
+
+    #render-conciliacion-saldo .cs-route-arrow { 
+      width: 34px; 
+      min-width: 34px; 
+      min-height: 64px; 
+    }
   }
-  @media (max-width: 720px) {
-    #render-conciliacion-saldo .cs-page { padding: 8px; }
-    #render-conciliacion-saldo .cs-header { display: flex; flex-direction: column; align-items: stretch; padding: 16px; }
-    #render-conciliacion-saldo .cs-metrics { grid-template-columns: repeat(2,1fr); }
-    #render-conciliacion-saldo .cs-toolbar { grid-template-columns: 1fr; padding: 10px 12px 10px 16px; }
-    #render-conciliacion-saldo .cs-toolbar-filters { grid-template-columns: 1fr; }
-    #render-conciliacion-saldo .cs-toolbar-context { justify-content: flex-start; overflow-x: auto; }
-    #render-conciliacion-saldo .cs-card-header { grid-template-columns: 1fr; }
-    #render-conciliacion-saldo .cs-card-primary-row { display: grid; grid-template-columns: 1fr; }
-    #render-conciliacion-saldo .cs-series-block,#render-conciliacion-saldo .cs-temporal-block { width: 100%; min-width: 0; }
-    #render-conciliacion-saldo .cs-card-stats { justify-content: flex-start; }
-    #render-conciliacion-saldo .cs-movement { grid-template-columns: 1fr; grid-template-areas: "type" "product" "description" "warehouse-out" "arrow" "warehouse-in" "quantity" "errors"; }
-    #render-conciliacion-saldo .cs-movement-type { width: 100%; }
-    #render-conciliacion-saldo .cs-route-arrow { width: 100%; min-width: 0; min-height: 28px; transform: rotate(90deg); }
-    #render-conciliacion-saldo .cs-quantity-block { min-height: 74px; }
+  @media (max-width: 720px) { 
+    #render-conciliacion-saldo .cs-page { 
+      padding: 8px; 
+    }
+
+    #render-conciliacion-saldo .cs-header { 
+      display: flex; 
+      flex-direction: column; 
+      align-items: stretch; 
+      padding: 16px; 
+    }
+
+    #render-conciliacion-saldo .cs-metrics { 
+      grid-template-columns: repeat(2,1fr); 
+    }
+
+    #render-conciliacion-saldo .cs-toolbar { 
+      grid-template-columns: 1fr; 
+      padding: 10px 12px 10px 16px; 
+    }
+
+    #render-conciliacion-saldo .cs-toolbar-filters { 
+      grid-template-columns: 1fr; 
+    }
+
+    #render-conciliacion-saldo .cs-toolbar-context { 
+      justify-content: flex-start; 
+      overflow-x: auto; 
+    }
+
+    #render-conciliacion-saldo .cs-card-header { 
+      grid-template-columns: 1fr; 
+    }
+
+    #render-conciliacion-saldo .cs-card-primary-row { 
+      display: grid; 
+      grid-template-columns: 1fr; 
+    }
+
+    #render-conciliacion-saldo .cs-series-block,#render-conciliacion-saldo .cs-temporal-block { 
+      width: 100%; 
+      min-width: 0; 
+    }
+
+    #render-conciliacion-saldo .cs-card-stats { 
+      justify-content: flex-start; 
+    }
+
+    #render-conciliacion-saldo .cs-movement { 
+      grid-template-columns: 1fr; 
+      grid-template-areas: "type" "product" "description" "warehouse-out" "arrow" "warehouse-in" "quantity" "errors"; 
+    }
+
+    #render-conciliacion-saldo .cs-movement-type { 
+      width: 100%; 
+    }
+
+    #render-conciliacion-saldo .cs-route-arrow { 
+      width: 100%; 
+      min-width: 0; 
+      min-height: 28px; 
+      transform: rotate(90deg); 
+    }
+    
+    #render-conciliacion-saldo .cs-quantity-block { 
+      min-height: 74px; 
+    }
   }
+  
   @media (prefers-reduced-motion: reduce) {
     #render-conciliacion-saldo .cs-card-enter,#render-conciliacion-saldo .cs-card-exit,#render-conciliacion-saldo .cs-live-dot { animation: none !important; }
   }
@@ -223,7 +997,6 @@
 
     /**
      * Inicia una traza de rendimiento del cliente.
-     *
      * @param {string} operation Nombre estable de la operación.
      * @param {Object=} metadata Contexto inicial.
      * @return {Object} Traza mutable.
@@ -235,7 +1008,6 @@
 
     /**
      * Agrega una marca temporal a una traza activa.
-     *
      * @param {Object} trace Traza iniciada previamente.
      * @param {string} stage Etapa registrada.
      * @param {Object=} metadata Contexto de la etapa.
@@ -250,11 +1022,10 @@
 
     /**
      * Finaliza y publica una traza de rendimiento.
-     *
      * @param {Object} trace Traza activa.
      * @param {string=} status Estado final.
      * @param {Object=} metadata Contexto final.
-     * @return {Object|null} Resultado consolidado o null si ya terminó.
+     * @return {Object|null} Resultado consolidado o null.
      */
     const csPerfEnd_ = (trace, status = "ok", metadata = {}) => {
       if (!trace || trace.ended === true) return null;
@@ -266,23 +1037,17 @@
       return result;
     };
 
-    /**
-     * Ejecuta un callback después de dos ciclos de pintura del navegador.
-     *
-     * @param {Function} callback Acción diferida.
-     * @return {void}
-     */
+    /** Ejecuta una acción después de dos ciclos de pintura. */
     const csAfterPaint_ = callback => {
       window.requestAnimationFrame(() => window.requestAnimationFrame(callback));
     };
 
     /**
      * Emite una notificación mediante la infraestructura global del shell.
-     *
      * @param {string} message Mensaje visible.
      * @param {string=} type Tipo de notificación.
      * @param {number=} timer Duración en milisegundos.
-     * @param {Object=} options Opciones complementarias.
+     * @param {Object=} options Opciones adicionales.
      * @return {void}
      */
     const notify_ = (message, type = "info", timer = 2600, options = {}) => {
@@ -295,12 +1060,7 @@
     const num_ = value => Number.isFinite(Number(value)) ? Number(value) : 0;
     const formatNumber_ = value => num_(value).toLocaleString("es-MX", { maximumFractionDigits: 2 });
 
-    /**
-     * Renderiza un icono Lucide aislado dentro de la vista.
-     *
-     * @param {{name:string,size:number=,className:string=}} props Propiedades visuales.
-     * @return {React.ReactElement}
-     */
+    /** Renderiza un icono Lucide aislado dentro de la vista. */
     function Icon({ name, size = 17, className = "" }) {
       const ref = useRef(null);
       useEffect(() => {
@@ -324,7 +1084,6 @@
 
     /**
      * Renderiza un movimiento y sus validaciones administrativas.
-     *
      * @param {{movement:Object}} props Movimiento normalizado.
      * @return {React.ReactElement}
      */
@@ -349,7 +1108,6 @@
 
     /**
      * Tarjeta autónoma para validar y registrar la conciliación de un grupo.
-     *
      * @param {Object} props Propiedades del grupo y catálogo de responsables.
      * @return {React.ReactElement}
      */
@@ -371,11 +1129,7 @@
       const canRegister = group.conciliable === true && folioValid && responsibleValid && !saving && !exiting;
       const cardTone = group.conciliable ? "is-valid" : group.inconsistentes > 0 ? "is-invalid" : "is-warning";
 
-      /**
-       * Valida la captura y registra la conciliación del grupo actual.
-       *
-       * @return {void}
-       */
+      /** Valida la captura y registra la conciliación del grupo actual. */
       const register_ = () => {
         if (savingRef.current) {
           console.log("[APPALMACEN][PERF][CONCILIACION_REGISTRAR_SKIPPED]", { clavegrupo: group.clavegrupo, reason: "REQUEST_ALREADY_IN_FLIGHT" });
@@ -451,11 +1205,7 @@
       );
     }
 
-    /**
-     * Componente principal de conciliación de saldo.
-     *
-     * @return {React.ReactElement}
-     */
+    /** Componente principal de conciliación de saldo. */
     function View() {
       const [loading, setLoading] = useState(true);
       const [refreshing, setRefreshing] = useState(false);
@@ -473,12 +1223,7 @@
 
       useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
-      /**
-       * Aplica al estado React un bootstrap normalizado.
-       *
-       * @param {*} response Respuesta del servidor.
-       * @return {void}
-       */
+      /** Aplica al estado React un bootstrap normalizado. */
       const applyResponse_ = useCallback(response => {
         if (!mountedRef.current) return;
         const safe = response || {};
@@ -490,7 +1235,6 @@
 
       /**
        * Carga el bootstrap y descarta respuestas anteriores a la última aplicada.
-       *
        * @param {boolean=} silent Indica una actualización no bloqueante.
        * @param {string=} source Origen de la solicitud.
        * @return {void}
@@ -570,12 +1314,7 @@
         return result;
       }, [groups, query, stateFilter, typeFilter]);
 
-      /**
-       * Retira un grupo conciliado y ajusta las métricas locales.
-       *
-       * @param {string} groupKey Clave del grupo registrado.
-       * @return {void}
-       */
+      /** Retira un grupo conciliado y ajusta las métricas locales. */
       const onRegistered_ = useCallback(groupKey => {
         setGroups(previous => {
           const removed = previous.find(group => group.clavegrupo === groupKey);
