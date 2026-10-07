@@ -1,13 +1,49 @@
 /**
  * EstadoActualExcedentesService.gs
  *
- * Fuente unica del estado operativo de cada IdUnico.
- * BD-EXCEDENTES.CANTIDAD permanece como cantidad inicial.
- * saldoActual = cantidadInicial - suma absoluta de movimientos SURTIDO.
+ * Servicio canónico para calcular el estado operativo vigente de cada IdUnico.
+ * Integra la cantidad inicial registrada en BD-EXCEDENTES con el historial de
+ * Bitacora-TRASPASOS y entrega un modelo consolidado para auditoría, vistas y
+ * procesos de traspaso.
+ *
+ * Responsabilidades:
+ * - Seleccionar el registro base más reciente de cada IdUnico.
+ * - Consolidar movimientos de acomodo y surtido por identificador.
+ * - Determinar el último movimiento usando fecha, hora y fila física.
+ * - Calcular saldo, ubicación, bodega, vigencia y estado lógico.
+ * - Construir consultas operativas, filtros de auditoría y resúmenes.
+ * - Mantener una caché local durante la ejecución actual.
+ * - Exponer trazas de rendimiento de las etapas de consolidación.
+ *
+ * Reglas invariantes:
+ * - BD-EXCEDENTES.CANTIDAD permanece como cantidad inicial histórica.
+ * - saldoActual = cantidadInicial - suma absoluta de movimientos SURTIDO.
+ * - El saldo nunca se devuelve por debajo de cero.
+ * - ACOMODO no reduce el saldo; únicamente participa en ubicación y trazabilidad.
+ * - Un excedente es vigente cuando existe en BD, su STATUS es válido y su saldo
+ *   es mayor que cero.
+ * - Un excedente es auditable cuando está vigente y tiene ubicación física.
+ * - El servicio devuelve copias defensivas para proteger la caché interna.
+ *
+ * Dependencias:
+ * - ExcedentesRepository y TraspasosRepository.
+ * - toStr_(), toStrUpper_(), toNum_(), round2_() y compareEs_().
+ *
+ * API pública:
+ * - getAll()
+ * - getVigentes()
+ * - getAuditables(config)
+ * - getPorIdUnico(idUnico)
+ * - getUnoPorIdUnico(idUnico)
+ * - getPorUbicacion(ubicacion)
+ * - getPorBodega(bodega)
+ * - getResumen()
+ * - clearCache()
  */
 const EstadoActualExcedentesService = (() => {
   "use strict";
 
+  /** Inicia una traza de rendimiento de consolidación. */
   function _perfEstadoStart_(operation, metadata) {
     const now = Date.now();
     return {
@@ -19,6 +55,7 @@ const EstadoActualExcedentesService = (() => {
     };
   }
 
+  /** Registra una etapa con tiempos parcial y acumulado. */
   function _perfEstadoMark_(trace, stage, metadata) {
     if (!trace) return;
     const now = Date.now();
@@ -31,6 +68,7 @@ const EstadoActualExcedentesService = (() => {
     trace.lastAt = now;
   }
 
+  /** Finaliza, registra y devuelve la traza de rendimiento. */
   function _perfEstadoEnd_(trace, status, metadata) {
     if (!trace) return null;
     const result = {
@@ -46,6 +84,7 @@ const EstadoActualExcedentesService = (() => {
     return result;
   }
 
+  /** Constantes inmutables y clasificaciones del dominio. */
   const DOMAIN = Object.freeze({
     TIPO_AUDITORIA: Object.freeze({
       GLOBAL: "GLOBAL",
@@ -81,22 +120,27 @@ const EstadoActualExcedentesService = (() => {
     ])
   });
 
+  /** Normaliza de forma segura un valor textual. */
   function _toSafeStr_(value) {
     return toStr_(value || "");
   }
 
+  /** Normaliza de forma segura un texto en mayúsculas. */
   function _toSafeUpper_(value) {
     return toStrUpper_(value || "");
   }
 
+  /** Normaliza de forma segura un valor numérico. */
   function _toSafeNum_(value) {
     return toNum_(value || 0);
   }
 
+  /** Genera una copia defensiva serializable. */
   function _clone_(obj) {
     return JSON.parse(JSON.stringify(obj));
   }
 
+  /** Construye una marca comparable desde fecha y hora del excedente. */
   function _timestampFromExcedente_(row) {
     const fecha = row.fechaexcedente instanceof Date
       ? row.fechaexcedente.getTime()
@@ -114,6 +158,7 @@ const EstadoActualExcedentesService = (() => {
     return fecha + horaMs;
   }
 
+  /** Formatea una fecha válida como dd/MM/yyyy. */
   function _formatDateFast_(value) {
     if (!(value instanceof Date) || isNaN(value.getTime())) return "";
     const day = String(value.getDate()).padStart(2, "0");
@@ -121,6 +166,7 @@ const EstadoActualExcedentesService = (() => {
     return day + "/" + month + "/" + value.getFullYear();
   }
 
+  /** Formatea una hora válida como HH:mm:ss. */
   function _formatTimeFast_(value) {
     if (!(value instanceof Date) || isNaN(value.getTime())) return "";
     return [
@@ -130,6 +176,7 @@ const EstadoActualExcedentesService = (() => {
     ].join(":");
   }
 
+  /** Construye una marca comparable de un movimiento. */
   function _timestampFromMovimiento_(movimiento) {
     const fecha = movimiento.fechatraspaso instanceof Date
       ? movimiento.fechatraspaso.getTime()
@@ -147,6 +194,7 @@ const EstadoActualExcedentesService = (() => {
     return fecha + horaMs;
   }
 
+  /** Determina si un valor corresponde a una ubicación física conocida. */
   function _esUbicacionFisica_(valor) {
     const value = _toSafeUpper_(valor);
 
@@ -169,6 +217,7 @@ const EstadoActualExcedentesService = (() => {
     );
   }
 
+  /** Infiere el nombre de bodega a partir del prefijo de ubicación. */
   function _obtenerNombreBodegaPorSerie_(
     serie,
     fallback = DOMAIN.BODEGA_FALLBACK
@@ -199,6 +248,7 @@ const EstadoActualExcedentesService = (() => {
     return _toSafeUpper_(fallback) || DOMAIN.BODEGA_FALLBACK;
   }
 
+  /** Normaliza configuraciones globales o por bodega para auditoría. */
   function _normalizarConfigAuditoria_(config) {
     if (typeof config === "string") {
       const bodega = _toSafeUpper_(config);
@@ -246,6 +296,7 @@ const EstadoActualExcedentesService = (() => {
     };
   }
 
+  /** Determina si STATUS permite que el registro participe operativamente. */
   function _esStatusBDValido_(status) {
     const value = _toSafeUpper_(status);
 
@@ -256,6 +307,7 @@ const EstadoActualExcedentesService = (() => {
     return DOMAIN.STATUS_BD_VALIDOS.includes(value);
   }
 
+  /** Selecciona el registro base más reciente de cada IdUnico. */
   function _indexarExcedentesPorIdUnico_() {
     const rows =
           typeof ExcedentesRepository.getAllForEstado === "function"
@@ -293,6 +345,7 @@ const EstadoActualExcedentesService = (() => {
     }, {});
   }
 
+  /** Obtiene movimientos optimizados para construir el estado. */
   function _obtenerMovimientos_() {
     if (
       typeof TraspasosRepository.getAllForEstado === "function"
@@ -307,6 +360,7 @@ const EstadoActualExcedentesService = (() => {
     ).filter(item => _toSafeStr_(item.idunico));
   }
 
+  /** Indexa el último movimiento por fecha, hora y fila física. */
   function _indexarUltimoMovimientoPorIdUnico_(
     movimientos
   ) {
@@ -423,6 +477,7 @@ const EstadoActualExcedentesService = (() => {
     );
   }
 
+  /** Acumula cantidades y conteos de ACOMODO y SURTIDO por IdUnico. */
   function _indexarResumenMovimientosPorIdUnico_(movimientos) {
     return (movimientos || []).reduce((acc, movimiento) => {
       const id =
@@ -466,6 +521,7 @@ const EstadoActualExcedentesService = (() => {
     }, {});
   }
 
+  /** Calcula el saldo vigente sin permitir resultados negativos. */
   function _resolverSaldoActual_(base, resumenMovimientos) {
     const cantidadInicial = Math.abs(
       _toSafeNum_(base ? base.cantidadInicial : 0)
@@ -485,6 +541,7 @@ const EstadoActualExcedentesService = (() => {
     );
   }
 
+  /** Resuelve la ubicación vigente a partir del último movimiento. */
   function _resolverUbicacionActualDesdeTraspasos_(
     ultimoMovimiento,
     saldoActual
@@ -528,6 +585,7 @@ const EstadoActualExcedentesService = (() => {
     return "";
   }
 
+  /** Resuelve la bodega actual desde ubicación o datos del movimiento. */
   function _resolverBodegaActual_(ubicacionActual, ultimoMovimiento) {
     const ubicacion = _toSafeUpper_(ubicacionActual);
 
@@ -560,6 +618,7 @@ const EstadoActualExcedentesService = (() => {
     return DOMAIN.BODEGA_FALLBACK;
   }
 
+  /** Clasifica el estado lógico consolidado de un excedente. */
   function _resolverEstatusLogico_(
     base,
     ultimoMovimiento,
@@ -589,6 +648,7 @@ const EstadoActualExcedentesService = (() => {
     return DOMAIN.ESTATUS_LOGICOS.PENDIENTE_UBICACION;
   }
 
+  /** Construye, clasifica y ordena el universo consolidado. */
   function _construirEstado_(trace) {
     const baseStartedAt = Date.now();
     const mapaBase = _indexarExcedentesPorIdUnico_();
@@ -736,8 +796,10 @@ const EstadoActualExcedentesService = (() => {
     return estado;
   }
 
+  /** @type {Array<Object>|null} Caché consolidada de la ejecución actual. */
   let cacheEstado_ = null;
 
+  /** Obtiene la consolidación desde memoria o la construye. */
   function _getEstado_(trace) {
     if (cacheEstado_ === null) {
       const buildStartedAt = Date.now();
@@ -755,10 +817,12 @@ const EstadoActualExcedentesService = (() => {
     return cacheEstado_;
   }
 
+  /** @return {Array<Object>} Copia completa del estado consolidado. */
   function getAll() {
     return _clone_(_getEstado_());
   }
 
+  /** @return {Array<Object>} Excedentes vigentes con saldo positivo. */
   function getVigentes() {
     const trace =
       _perfEstadoStart_(
@@ -850,6 +914,7 @@ const EstadoActualExcedentesService = (() => {
     }
   }
 
+  /** Filtra excedentes auditables globalmente o por bodega. */
   function getAuditables(config) {
     const cfg = _normalizarConfigAuditoria_(config);
     let output = _getEstado_().filter(item => item.auditable);
@@ -869,6 +934,7 @@ const EstadoActualExcedentesService = (() => {
     return _clone_(output);
   }
 
+  /** Busca coincidencias por IdUnico normalizado. */
   function getPorIdUnico(idUnico) {
     const id =
       _toSafeUpper_(
@@ -890,10 +956,12 @@ const EstadoActualExcedentesService = (() => {
   }
 
 
+  /** Devuelve la primera coincidencia de IdUnico o null. */
   function getUnoPorIdUnico(idUnico) {
     return getPorIdUnico(idUnico)[0] || null;
   }
 
+  /** Busca excedentes por ubicación física actual. */
   function getPorUbicacion(ubicacion) {
     const value = _toSafeUpper_(ubicacion);
 
@@ -905,6 +973,7 @@ const EstadoActualExcedentesService = (() => {
     );
   }
 
+  /** Busca por bodega; TODAS o vacío devuelve el universo completo. */
   function getPorBodega(bodega) {
     const value = _toSafeUpper_(bodega);
 
@@ -919,6 +988,7 @@ const EstadoActualExcedentesService = (() => {
     );
   }
 
+  /** Construye métricas globales y agrupadas por bodega. */
   function getResumen() {
     const all = _getEstado_();
     const vigentes = all.filter(item => item.vigente);
@@ -993,6 +1063,7 @@ const EstadoActualExcedentesService = (() => {
     };
   }
 
+  /** Invalida la consolidación local para forzar su reconstrucción. */
   function clearCache() {
     cacheEstado_ = null;
     console.log(
@@ -1001,7 +1072,7 @@ const EstadoActualExcedentesService = (() => {
     return true;
   }
 
-  return {
+  return Object.freeze({
     getAll,
     getVigentes,
     getAuditables,
@@ -1011,5 +1082,5 @@ const EstadoActualExcedentesService = (() => {
     getPorBodega,
     getResumen,
     clearCache
-  };
+  });
 })();
