@@ -1,8 +1,52 @@
 <script>
-  /** FormularioEtiquetasExcedentesReimpresion.html */
+  /**
+   * FormularioEtiquetasExcedentesReimpresion.html
+   *
+   * Vista operativa para localizar excedentes existentes y preparar la
+   * reimpresión de sus etiquetas vigentes.
+   *
+   * Responsabilidades:
+   * - Cargar los catálogos de identificadores, códigos y ubicaciones.
+   * - Sincronizar periódicamente la base vigente de excedentes.
+   * - Filtrar registros por IdUnico, código y ubicación actual.
+   * - Resolver automáticamente una selección exacta o inequívoca.
+   * - Mantener una cola sin identificadores duplicados.
+   * - Generar el lote de reimpresión sin modificar inventario ni estados.
+   * - Coordinar la impresión mediante los modos LOCAL u ONLINE.
+   * - Administrar el montaje y desmontaje de la raíz React.
+   *
+   * Dependencias globales:
+   * - React y ReactDOM.
+   * - Lucide.
+   * - google.script.run.
+   * - window.DATA_ALMACEN_CACHE.
+   * - window.ImpresionModoUtilidades.
+   * - window.notificar o window.lanzarNotificacion.
+   *
+   * Controladores consumidos:
+   * - FormularioEtiquetasExcedentesReimpresionController_getBootstrap().
+   * - FormularioEtiquetasExcedentesReimpresionController_obtenerBase().
+   * - FormularioEtiquetasExcedentesReimpresionController_procesarReimpresion(lote).
+   *
+   * Contratos globales expuestos:
+   * - window.cargar_FormularioEtiquetasExcedentesReimpresion().
+   * - window.initVista.
+   * - window.__FORMULARIO_EXCEDENTES_REIMPRESION_ROOT__.
+   *
+   * Invariantes operativos:
+   * - La reimpresión no crea nuevos excedentes ni modifica cantidades.
+   * - Un IdUnico solo puede aparecer una vez dentro de la cola actual.
+   * - La base se sincroniza automáticamente cada tres segundos.
+   * - La impresión LOCAL requiere una ventana abierta por acción del usuario.
+   * - El servidor conserva la autoridad final sobre el lote imprimible.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
 </script>
 
 <style>
+  /* =========================================================
+     1. TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #render-excedentes-reimpresion {
     --er-primary: #d93025;
     --er-primary-dark: #a50e0e;
@@ -66,6 +110,9 @@
     }
   }
 
+  /* =========================================================
+     2. ESTRUCTURA, PANELES Y CONTROL DE DESBORDAMIENTO
+     ========================================================= */
   #render-excedentes-reimpresion .er-app-shell {
     position: absolute;
     inset: 0;
@@ -131,6 +178,9 @@
     border-radius: 10px;
   }
 
+  /* =========================================================
+     3. FILTROS, FORMULARIO Y CONTROLES DE BÚSQUEDA
+     ========================================================= */
   #render-excedentes-reimpresion .er-label {
     font-size: 13px;
     font-weight: 900;
@@ -214,6 +264,9 @@
     min-width: 0;
   }
 
+  /* =========================================================
+     4. TARJETA DEL EXCEDENTE SELECCIONADO
+     ========================================================= */
   #render-excedentes-reimpresion .er-id-card {
     padding: 14px;
     border-radius: 1rem;
@@ -243,6 +296,9 @@
     min-height: 64px;
   }
 
+  /* =========================================================
+     5. TABLA, INDICADORES Y ACCIONES DE LA COLA
+     ========================================================= */
   #render-excedentes-reimpresion .er-results-table {
     width: 100%;
     min-width: 920px;
@@ -389,6 +445,9 @@
     transform: translateY(0) scale(0.98);
   }
 
+  /* =========================================================
+     6. ESTADOS VACÍOS Y MENSAJES DE CONTEXTO
+     ========================================================= */
   #render-excedentes-reimpresion .er-empty-state {
     height: 100%;
     min-height: 320px;
@@ -424,6 +483,14 @@
   window.cargar_FormularioEtiquetasExcedentesReimpresion = () => {
     const { useState, useEffect, useMemo, useRef } = React;
 
+    /**
+     * Emite una notificación mediante la infraestructura global del shell.
+     * @param {string} mensaje Mensaje visible.
+     * @param {string=} tipo Tipo de notificación.
+     * @param {number=} timer Duración en milisegundos.
+     * @param {Object=} options Opciones complementarias.
+     * @return {void}
+     */
     const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
       if (typeof fn === "function") {
@@ -431,6 +498,7 @@
       }
     };
 
+    /** Crea un emisor de notificaciones con enfriamiento por clave. */
     const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
       const now = Date.now();
       const last = ref.current[key] || 0;
@@ -442,6 +510,7 @@
     const shellNotifyStateRef = { current: {} };
     const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
 
+    /** Renderiza un icono Lucide aislado dentro de la vista. */
     const LocalIcon = ({ name, size = 18, className = "" }) => {
       const iconRef = useRef(null);
 
@@ -461,6 +530,10 @@
       return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
     };
 
+    /**
+     * Componente principal para búsqueda, cola y reimpresión de etiquetas.
+     * @return {React.ReactElement}
+     */
     const VistaExcedentesReimpresion = () => {
       const [baseDatos, setBaseDatos] = useState([]);
       const [baseHash, setBaseHash] = useState("");
@@ -486,8 +559,10 @@
       const notifyOnce_ = createNotifyOnce_(localNotifyRef);
       const idInputRef = useRef(null);
 
+      /** Normaliza textos de dominio en mayúsculas y sin espacios externos. */
       const normalizarTexto = (valor) => String(valor || "").trim().toUpperCase();
 
+      /** Posiciona el foco en el campo IdUnico después del render. */
       const enfocarId = () => {
         setTimeout(() => {
           idInputRef.current?.focus();
@@ -495,6 +570,7 @@
         }, 0);
       };
 
+      /** Restablece filtros y selección, conservando la cola actual. */
       const limpiarBusqueda = () => {
         setFiltros({
           id: "",
@@ -505,6 +581,11 @@
         enfocarId();
       };
 
+      /**
+       * Aplica catálogos iniciales y actualiza la caché compartida del shell.
+       * @param {Object} data Respuesta del Controller.
+       * @return {void}
+       */
       const hidratarBootstrap = (data) => {
         const nuevoBootstrap = {
           ids: data?.ids || [],
@@ -518,6 +599,11 @@
         window.DATA_ALMACEN_CACHE.reimpresionExcedentesBootstrap = nuevoBootstrap;
       };
 
+      /**
+       * Normaliza un excedente al contrato interno de reimpresión.
+       * @param {Object} item Registro recibido.
+       * @return {Object} Registro normalizado.
+       */
       const normalizarBaseItem = (item) => {
         const ubicacionActual = normalizarTexto(
           item?.ESTADOACTUALEXCEDENTES ||
@@ -544,6 +630,11 @@
 
 
 
+      /**
+       * Actualiza la base vigente y evita renders cuando el hash no cambia.
+       * @param {"auto"|"init"|string=} contexto Origen de la sincronización.
+       * @return {void}
+       */
       const sincronizarBase = (contexto = "auto") => {
         if (contexto !== "auto") {
           notify_("Sincronizando base de reimpresión...", "info", 1400, {
@@ -870,6 +961,12 @@
         return [...new Set(origen.map(item => item.UBICACION).filter(Boolean))].sort();
       }, [filtrados, baseDatos]);
 
+      /**
+       * Actualiza un filtro normalizado sin modificar los demás criterios.
+       * @param {string} campo Filtro objetivo.
+       * @param {*} valor Valor capturado.
+       * @return {void}
+       */
       const handleFiltroChange = (campo, valor) => {
         const valorNormalizado = normalizarTexto(valor);
 
@@ -909,6 +1006,10 @@
         };
       }, []);
 
+      /**
+       * Valida la selección y agrega un excedente no duplicado a la cola.
+       * @return {void}
+       */
       const agregarALista = () => {
         if (!seleccionado || !seleccionado.IDUNICO) {
           notify_(
@@ -957,7 +1058,11 @@
         });
       };
 
-      
+
+      /**
+       * Construye el lote y coordina la reimpresión LOCAL u ONLINE.
+       * @return {void}
+       */
       const generarReimpresion = () => {
         if (cola.length === 0) {
           notify_(
