@@ -800,8 +800,10 @@
 <script type="text/babel">
   window.cargar_VerificacionEntrada = () => {
     const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
     /** Número máximo de cajas enviadas por solicitud al servidor. */
     const BATCH_SIZE = 4;
+    
     /**
      * Emite una notificación mediante la infraestructura global del shell.
      * @param {string} m Mensaje visible.
@@ -814,10 +816,12 @@
       const f = window.notificar || window.lanzarNotificacion;
       if (typeof f === "function") f(m, t, d, o);
     };
+
     const str_ = (v) => String(v == null ? "" : v).trim(),
       upper_ = (v) => str_(v).toUpperCase(),
       num_ = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0),
       fmt_ = (v) => num_(v).toLocaleString("es-MX", { maximumFractionDigits: 2 });
+
     /** Registro ligero de rendimiento para eventos de escaneo. */
     const perf_ = {
       items: new Map(),
@@ -838,6 +842,7 @@
         });
       },
     };
+
     /**
      * Renderiza un icono Lucide aislado dentro de la vista.
      * @param {Object} props Propiedades visuales.
@@ -859,6 +864,7 @@
       return <span ref={ref} />;
     }
     const MemoIcon = React.memo(Icon);
+
     /** Renderiza una métrica compacta de la sesión. */
     function Metric({ label, value, tone = "" }) {
       return (
@@ -868,6 +874,7 @@
         </div>
       );
     }
+
     /**
      * Resuelve el contrato visual de un estado de sesión o SKU.
      * @param {*} s Estado recibido.
@@ -905,14 +912,17 @@
       );
       return a ? a.value : "";
     }
+
     /** Obtiene el primer elemento XML cuyo localName coincide. */
     function first_(r, n) {
       return Array.from(r.getElementsByTagName("*")).find((x) => x.localName === n) || null;
     }
+
     /** Obtiene todos los elementos XML cuyo localName coincide. */
     function all_(r, n) {
       return Array.from(r.getElementsByTagName("*")).filter((x) => x.localName === n);
     }
+
     /**
      * Valida y analiza localmente un CFDI XML.
      * @param {File} file Archivo seleccionado.
@@ -955,6 +965,7 @@
         })),
       };
     }
+
     /**
      * Convierte google.script.run en una Promise.
      * @param {string} m Nombre del método remoto.
@@ -967,6 +978,7 @@
         a === undefined ? r[m]() : r[m](a);
       });
     }
+
     /**
      * Interpreta la primera lectura según la configuración del proveedor.
      * @param {*} v Lectura capturada.
@@ -988,6 +1000,7 @@
         unidadLeida: upper_(p.unidadLectura),
       };
     }
+
     /**
      * Valida la segunda lectura de una secuencia de etiquetado.
      * @param {*} v Lectura capturada.
@@ -1002,6 +1015,7 @@
         throw new Error("La segunda lectura no cumple el formato configurado.");
       return raw;
     }
+
     /** Fila memoizada con avance y diferencias de un concepto. */
     const DetailRow = React.memo(function DetailRow({ item, highlighted }) {
       const state = statusVisual_(item.estadoSku),
@@ -1047,6 +1061,7 @@
         </tr>
       );
     });
+
     /**
      * Componente principal de la verificación de entrada.
      * @return {React.ReactElement}
@@ -1112,6 +1127,7 @@
         });
         return { byLabel, byXml, byInternal, byId };
       }, [bootstrap?.equivalencias, detail]);
+
       /** Resuelve una etiqueta contra equivalencias e índices locales. */
       const resolveFast_ = useCallback(
         (code) => {
@@ -1153,6 +1169,7 @@
           .catch((e) => notify_(e?.message || "No se pudo iniciar.", "error", 4800))
           .finally(() => setLoading(false));
       }, []);
+
       /**
        * Reinicia la secuencia del escáner y opcionalmente conserva el mensaje.
        * @param {boolean=} message Indica si debe notificarse el reinicio.
@@ -1190,6 +1207,7 @@
           document.removeEventListener("click", f);
         };
       }, [sessionCapturable, scanPhase]);
+
       /** Analiza el XML y obtiene el perfil del proveedor. */
       const processFile_ = async (file) => {
         if (!file || busy) return;
@@ -1210,6 +1228,7 @@
           setBusy(false);
         }
       };
+
       /** Crea una sesión de recepción a partir del CFDI analizado. */
       const createSession_ = async () => {
         if (!parsed || busy) return;
@@ -1234,6 +1253,7 @@
           setBusy(false);
         }
       };
+
       /** Actualiza la sesión cuando no existen operaciones pendientes. */
       const refresh_ = async () => {
         if (!session?.idSesion || busy || queueBusy || scanQueue.length) return;
@@ -1250,6 +1270,7 @@
           setBusy(false);
         }
       };
+
       /** Genera la huella y agrega una caja validada a la cola local. */
       const enqueue_ = useCallback(
         async (primary, secondary, row, scanId) => {
@@ -1292,6 +1313,7 @@
         },
         [session],
       );
+
       /** Procesa la lectura primaria o secundaria del escáner. */
       const processScan_ = useCallback(
         async (raw, scanId) => {
@@ -1421,6 +1443,7 @@
           })
           .finally(() => mountedRef.current && setQueueBusy(false));
       }, [scanQueue, queueBusy, session?.idSesion]);
+
       /** Pausa o reanuda la sesión activa. */
       const pause_ = async () => {
         if (!session || busy || queueBusy || scanQueue.length) return;
@@ -1448,6 +1471,7 @@
           setBusy(false);
         }
       };
+
       /** Cierra la recepción y consolida su resultado final. */
       const close_ = async () => {
         if (!session || busy || queueBusy || scanQueue.length) return;
@@ -1774,6 +1798,7 @@
         </div>
       );
     }
+    
     const target = document.getElementById("render-verificacion-entrada");
     if (!target) {
       notify_("No se encontró el contenedor.", "error");
