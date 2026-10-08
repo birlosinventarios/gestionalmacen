@@ -1,18 +1,59 @@
 /**
- * CONSTANTS.gs
- * Configuración central de archivos fuente, hojas, columnas y tema visual APPALMACEN.
+ * 
+ * z1-Constants.gs
+ * 
+ * @fileoverview Configuración central e inmutable de APPALMACEN.
  *
- * El ID de un Spreadsheet es la sección situada después de /d/ y antes de /edit.
+ * Este módulo concentra los contratos compartidos por la aplicación: archivos de
+ * Google Sheets, hojas físicas, índices de columnas, reglas del dominio de
+ * Verificación de entrada, perfiles de proveedores, encabezados, límites,
+ * presentación visual, navegación y almacenes.
+ *
+ * PRINCIPIOS DE MANTENIMIENTO
+ * 1. Mantener este archivo libre de lógica de negocio y efectos secundarios.
+ * 2. Agregar nuevas propiedades sin renombrar claves existentes consumidas por
+ *    otros módulos, salvo que exista un plan explícito de migración.
+ * 3. Actualizar conjuntamente COL, HEADERS y la hoja física cuando cambie un
+ *    esquema tabular.
+ * 4. Tratar los identificadores y las URL como configuración operativa, no como
+ *    secretos. Las credenciales nunca deben almacenarse en el código fuente.
+ * 5. Conservar Object.freeze en objetos y arreglos para detectar mutaciones
+ *    accidentales durante la ejecución.
+ *
+ * CONVENCIONES
+ * - Índices de columnas: base cero (A = 0, B = 1, etc.).
+ * - Claves de configuración: UPPER_SNAKE_CASE.
+ * - Propiedades que forman parte de contratos de interfaz: se preserva su estilo
+ *   actual para mantener compatibilidad con los consumidores existentes.
+ * - Un ID de Spreadsheet corresponde al segmento entre `/d/` y `/edit` en su URL.
+ *
+ * @author Sigifredo de la Cruz Ramos
+ * @version VE-2026-09-23-01
  */
 
-/** IDs de archivos fuente. */
+/**
+ * Identificadores de los libros de Google Sheets utilizados por la aplicación.
+ *
+ * Las claves se referencian desde SHEETS.file. Cambiar una clave requiere revisar
+ * todos los consumidores; cambiar únicamente el ID permite sustituir el libro sin
+ * modificar el resto del código.
+ *
+ * @readonly
+ * @enum {string}
+ */
 const FILES = Object.freeze({
   GESTION1: "1xPMnPg_-m7yQQoMq6ku1iwyXRlZC-RjypGpC_2gv4xE",
   GESTION2: "1hXRyADfhVn_teWydRvCisNBEQnqh6U-9wue9A5_zpeo",
   PEDIDOS: "1PJh2JaMH2FVDNOzZ7vTcKlFSJ48R5rYGjsF_HyjMWO0"
 });
 
-/** Nombres físicos de las hojas por archivo. */
+/**
+ * Registro de hojas físicas y del libro que las contiene.
+ *
+ * @typedef {{file: string, name: string}} SheetDescriptor
+ * @readonly
+ * @type {Object<string, SheetDescriptor>}
+ */
 const SHEETS = Object.freeze({
   CATALOGO: Object.freeze({ file: "GESTION1", name: "CATALOGO" }),
   ETIQUETAS: Object.freeze({ file: "GESTION1", name: "ETIQUETAS" }),
@@ -37,7 +78,16 @@ const SHEETS = Object.freeze({
   VERIFICACION_ENTRADA_EQUIVALENCIAS: Object.freeze({ file: "GESTION2", name: "VE_EQUIVALENCIAS" })
 });
 
-/** Índices de columnas. A = 0, B = 1, etc. */
+/**
+ * Índices base cero de las columnas físicas.
+ *
+ * IMPORTANTE: estos valores constituyen un contrato con las hojas de cálculo.
+ * Ante una inserción, eliminación o reordenamiento de columnas debe actualizarse
+ * la sección correspondiente y validarse contra sus encabezados declarados.
+ *
+ * @readonly
+ * @type {Object<string, Object<string, number>>}
+ */
 const COL = Object.freeze({
   CATALOGO: Object.freeze({ IDPRODUCTO: 0, CODIGO: 1, DESCRIPCION: 2, STATUS: 3 }),
 
@@ -124,7 +174,15 @@ const COL = Object.freeze({
   })
 });
 
-/** Configuración de dominio de Verificación de entrada. */
+/**
+ * Reglas, estados, catálogos cerrados, límites y umbrales del dominio de
+ * Verificación de entrada.
+ *
+ * Los valores de estados y eventos se persisten en hojas; por ello no deben
+ * renombrarse sin una migración de datos y compatibilidad hacia atrás.
+ *
+ * @readonly
+ */
 const VERIFICACION_ENTRADA = Object.freeze({
   VERSION: "VE-2026-09-23-01",
   ESTRATEGIAS_ETIQUETA: Object.freeze({
@@ -179,7 +237,16 @@ const VERIFICACION_ENTRADA = Object.freeze({
   })
 });
 
-/** Perfiles por RFC normalizado. */
+/**
+ * Perfiles de lectura de etiquetas indexados por RFC normalizado.
+ *
+ * Cada perfil define la estrategia y las validaciones necesarias para interpretar
+ * las lecturas del proveedor. Los patrones se almacenan como cadenas para que el
+ * componente consumidor pueda construir RegExp de forma controlada.
+ *
+ * @readonly
+ * @type {Object<string, Object>}
+ */
 const VERIFICACION_ENTRADA_PROVEEDORES = Object.freeze({
   "MAX110907KV1": Object.freeze({
     idProveedor: "10811",
@@ -228,7 +295,15 @@ const VERIFICACION_ENTRADA_PROVEEDORES = Object.freeze({
   })
 });
 
-/** Contratos de encabezados físicos de las hojas transaccionales VE_*. */
+/**
+ * Contratos de encabezados para las hojas transaccionales VE_*.
+ *
+ * El orden es significativo y debe coincidir exactamente con COL. Estas listas se
+ * usan como fuente única para validar estructura y calcular anchos esperados.
+ *
+ * @readonly
+ * @type {Object<string, ReadonlyArray<string>>}
+ */
 const VERIFICACION_ENTRADA_HEADERS = Object.freeze({
   SESIONES: Object.freeze([
     "IDSESION", "HASHXML", "UUIDCFDI", "RFCEMISOR", "NOMBREEMISOR", "SERIE",
@@ -275,7 +350,13 @@ const VERIFICACION_ENTRADA_HEADERS = Object.freeze({
   ])
 });
 
-/** Contrato separado de la hoja fuente no transaccional. */
+/**
+ * Encabezados de la fuente no transaccional del catálogo de proveedores.
+ * Se mantiene separado para distinguir datos maestros de registros operativos.
+ *
+ * @readonly
+ * @type {ReadonlyArray<string>}
+ */
 const VERIFICACION_ENTRADA_CATALOGO_PROVEEDORES_HEADERS = Object.freeze([
   "ID_FILA", "ID_PRECIO_COMPRA", "ID_PRODUCTO", "CODIGO_PRODUCTO",
   "NOMBRE_PRODUCTO", "STATUS_PRODUCTO", "ID_PROVEEDOR", "CODIGO_PROVEEDOR",
@@ -284,19 +365,36 @@ const VERIFICACION_ENTRADA_CATALOGO_PROVEEDORES_HEADERS = Object.freeze([
   "TIMESTAMP"
 ]);
 
+/** Ancho derivado del contrato del catálogo de proveedores. */
 const VERIFICACION_ENTRADA_CATALOGO_PROVEEDORES_WIDTH =
   VERIFICACION_ENTRADA_CATALOGO_PROVEEDORES_HEADERS.length;
 
-/** Anchos de las cinco hojas transaccionales. */
+/**
+ * Anchos esperados de las hojas transaccionales.
+ *
+ * Se derivan de los contratos de encabezados para evitar números mágicos y reducir
+ * el riesgo de inconsistencias al agregar o retirar columnas.
+ *
+ * @readonly
+ * @enum {number}
+ */
 const VERIFICACION_ENTRADA_EXPECTED_WIDTHS = Object.freeze({
-  VERIFICACION_ENTRADA_SESIONES: 35,
-  VERIFICACION_ENTRADA_DETALLE: 29,
-  VERIFICACION_ENTRADA_CAJAS: 26,
-  VERIFICACION_ENTRADA_EVENTOS: 19,
-  VERIFICACION_ENTRADA_EQUIVALENCIAS: 23
+  VERIFICACION_ENTRADA_SESIONES:
+    VERIFICACION_ENTRADA_HEADERS.SESIONES.length,
+  VERIFICACION_ENTRADA_DETALLE:
+    VERIFICACION_ENTRADA_HEADERS.DETALLE.length,
+  VERIFICACION_ENTRADA_CAJAS:
+    VERIFICACION_ENTRADA_HEADERS.CAJAS.length,
+  VERIFICACION_ENTRADA_EVENTOS:
+    VERIFICACION_ENTRADA_HEADERS.EVENTOS.length,
+  VERIFICACION_ENTRADA_EQUIVALENCIAS:
+    VERIFICACION_ENTRADA_HEADERS.EQUIVALENCIAS.length
 });
 
-/** Configuración general de APPALMACEN. */
+/**
+ * Configuración general de identidad, composición, pruebas, carga, temas y rutas
+ * de APPALMACEN. Las clases CSS forman parte del contrato con la interfaz cliente.
+ */
 const APPALMACEN_BRAND = Object.freeze({
   APP_NAME: "Gestión de Almacén",
   APP_SUBTITLE: "Birlos y Tornillos",
@@ -334,6 +432,7 @@ const APPALMACEN_SIDEBAR_THEMES = Object.freeze({
   })
 });
 
+/** Alias de compatibilidad para consumidores del tema oscuro del sidebar. */
 const APPALMACEN_SIDEBAR_DARK = APPALMACEN_SIDEBAR_THEMES.dark;
 
 const APPALMACEN_COMPONENTS = Object.freeze({
@@ -401,6 +500,7 @@ const APPALMACEN_THEME = Object.freeze({
   })
 });
 
+/** Clave del tema visual activo por defecto. */
 const APPALMACEN_THEME_ACTIVE = "white";
 
 const APPALMACEN_ROUTING = Object.freeze({
@@ -422,6 +522,12 @@ const APPALMACEN_ROUTING = Object.freeze({
   })
 });
 
+/**
+ * Mapeo de grupos de bodegas hacia las columnas consolidadas de EXISTENCIAS.
+ * `nombres` contiene las variantes físicas aceptadas por la normalización.
+ *
+ * @readonly
+ */
 const EXISTENCIAS_BODEGAS = Object.freeze({
   ALMACEN_BIRLOS: Object.freeze({
     key: "ALMACENBIRLOS", column: COL.EXISTENCIAS.ALMACENBIRLOS,
@@ -440,6 +546,12 @@ const EXISTENCIAS_BODEGAS = Object.freeze({
   })
 });
 
+/**
+ * Punto de entrada publicado de la aplicación web.
+ * La URL identifica un despliegue, pero no sustituye controles de autorización.
+ *
+ * @readonly
+ */
 const APPALMACEN_WEBAPP = Object.freeze({
   URL: "https://script.google.com/macros/s/AKfycbyu75nLi2e1gREn7Atp3qb6UPyIEn4ioXQkawl7slQxtHrz-UNW1tJBFakA6HdpLeY0dw/exec"
 });
