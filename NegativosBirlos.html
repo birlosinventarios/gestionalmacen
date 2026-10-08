@@ -1,6 +1,52 @@
-<script>/** NegativosBirlos.html */</script>
+<script>
+  /**
+   * NegativosBirlos.html
+   *
+   * Vista operativa para analizar existencias negativas de Almacén Birlos y
+   * determinar su cobertura mediante excedentes disponibles.
+   *
+   * Responsabilidades:
+   * - Consultar negativos y ubicaciones de surtido desde el Controller.
+   * - Consolidar cada SKU con su ubicación y segmento de bodega.
+   * - Alternar el balance entre EXISTENCIAS e IDUNICO.
+   * - Calcular déficit, excedente disponible y viabilidad de cobertura.
+   * - Clasificar registros en cobertura completa, parcial o sin excedente.
+   * - Filtrar y ordenar el conjunto visible.
+   * - Mostrar detalle de excedentes, incluyendo desglose por IdUnico.
+   * - Exportar reportes generales, por ubicación de surtido o por código.
+   * - Administrar el montaje y desmontaje de su raíz React.
+   *
+   * Dependencias globales:
+   * - React y ReactDOM.
+   * - FitoComponents para iconos y bloques KPI.
+   * - google.script.run.
+   * - SweetAlert2 mediante Swal.
+   * - window.XLSXExportUtilidades.
+   * - window.notificar o window.lanzarNotificacion.
+   *
+   * Controller consumido:
+   * - NegativosBirlosController_getVista().
+   *
+   * Contratos globales expuestos:
+   * - window.cargar_NegativosBirlos().
+   * - window.initVista.
+   * - window.__NEGATIVOS_BIRLOS_ROOT__.
+   *
+   * Invariantes operativos:
+   * - El déficit se obtiene como valor absoluto de almacenbirlos.
+   * - El balance activo solo admite EXISTENCIAS o IDUNICO.
+   * - Un traspaso es viable cuando el excedente total cubre el déficit.
+   * - La bodega operativa se deriva de la ubicación de surtido.
+   * - Las colecciones filtradas no modifican la respuesta original.
+   * - El servidor conserva la autoridad final sobre la información operativa.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
+</script>
 
 <style>
+  /* =========================================================
+     1. TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #render-negativos-birlos {
     --local-primary: #d93025;
     --local-primary-dark: #a50e0e;
@@ -14,7 +60,9 @@
     font-family: 'JetBrains Mono', monospace;
   }
 
-  /* Scrollbar premium encapsulado para la vista de negativos */
+  /* =========================================================
+     2. SCROLL ENCAPSULADO Y COMPATIBILIDAD DE NAVEGADORES
+     ========================================================= */
   #render-negativos-birlos .custom-scroll::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -43,7 +91,9 @@
     display: none;
   }
 
-  /* Animaciones aisladas por prefijo para evitar colisiones globales */
+  /* =========================================================
+     3. ANIMACIONES Y ESTADOS DE ÉNFASIS
+     ========================================================= */
   @keyframes nbSubtleRedPulse {
     0% { box-shadow: 0 0 0 0px rgba(217, 48, 37, 0.25); }
     70% { box-shadow: 0 0 0 8px rgba(217, 48, 37, 0); }
@@ -69,6 +119,9 @@
     animation: nbFadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
+  /* =========================================================
+     4. PANEL SUPERIOR, FILTROS Y MENÚS OPERATIVOS
+     ========================================================= */
   #render-negativos-birlos .nb-top-panel {
     position: relative;
     z-index: 40;
@@ -131,6 +184,14 @@
     // =========================================================
     // HELPERS DE NOTIFICACIÓN
     // =========================================================
+    /**
+     * Emite una notificación mediante la infraestructura global del shell.
+     * @param {string} mensaje Mensaje visible.
+     * @param {string=} tipo Tipo de notificación.
+     * @param {number=} timer Duración en milisegundos.
+     * @param {Object=} options Opciones complementarias.
+     * @return {void}
+     */
     const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
       if (typeof fn === "function") {
@@ -138,6 +199,7 @@
       }
     };
 
+    /** Crea un emisor de notificaciones con enfriamiento por clave. */
     const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
       const now = Date.now();
       const last = ref.current[key] || 0;
@@ -157,6 +219,10 @@
       window.FitoComponents?.KPI?.Block ||
       window.FitoComponents?.KPIBlock;
 
+    /**
+     * Componente principal del análisis de negativos de Almacén Birlos.
+     * @return {React.ReactElement}
+     */
     const NegativosBirlosDashboard = () => {
       const [negativos, setNegativos] = useState([]);
       const [ubicacionesSurtido, setUbicacionesSurtido] = useState([]);
@@ -177,6 +243,11 @@
       const manualRefreshCountRef = useRef(0);
       const exportMenuRef = useRef(null);
 
+      /**
+       * Consulta negativos y ubicaciones de surtido desde el Controller.
+       * @param {"init"|"manual"|string=} contexto Origen de la solicitud.
+       * @return {void}
+       */
       const fetchDatabase = useCallback((contexto = "init") => {
         const USAR_MOCK = false;
         setLoading(true);
@@ -365,6 +436,11 @@
         };
       }, [exportMenuOpen]);
 
+      /**
+       * Deriva la clave de bodega a partir de una ubicación de surtido.
+       * @param {*} ubicacion Ubicación normalizada o libre.
+       * @return {string} Clave operativa de bodega.
+       */
       const getBodegaKey = (ubicacion) => {
         const raw = String(ubicacion || "").toUpperCase().trim();
 
@@ -378,6 +454,7 @@
         return "OTRO";
       };
 
+      /** Resuelve la etiqueta visible de una clave de bodega. */
       const getBodegaLabel = (key) => {
         const map = {
           TODAS: "Todas",
@@ -392,6 +469,7 @@
         return map[key] || "Todas";
       };
 
+      /** Abre un menú de ordenamiento o segmentación. */
       const openHoverMenu = (menuName) => {
         if (closeMenuTimeout.current) {
           clearTimeout(closeMenuTimeout.current);
@@ -400,6 +478,7 @@
         setHoverMenu(menuName);
       };
 
+      /** Programa el cierre diferido del menú activo. */
       const closeHoverMenuWithDelay = () => {
         if (closeMenuTimeout.current) {
           clearTimeout(closeMenuTimeout.current);
@@ -410,6 +489,7 @@
         }, 180);
       };
 
+      /** Cancela el cierre diferido del menú activo. */
       const cancelCloseHoverMenu = () => {
         if (closeMenuTimeout.current) {
           clearTimeout(closeMenuTimeout.current);
@@ -679,6 +759,7 @@
         exportCodigoFiltro
       ]);
 
+      /** Escapa datos antes de interpolarlos en contenido HTML del modal. */
       const escapeHtml_ = (value) => {
         return String(value ?? "")
           .replace(/&/g, "&amp;")
@@ -688,6 +769,7 @@
           .replace(/'/g, "&#039;");
       };
 
+      /** Compara textos con orden numérico y configuración regional española. */
       const compareEsLocal_ = (a, b) => {
         return String(a || "").localeCompare(String(b || ""), "es", {
           sensitivity: "base",
@@ -695,6 +777,11 @@
         });
       };
 
+      /**
+       * Construye el desglose de excedentes IdUnico agrupado por bodega.
+       * @param {Object} item Registro seleccionado.
+       * @return {string} HTML seguro para SweetAlert2.
+       */
       const buildDetalleIdUnicoHtml_ = (item) => {
         const detalles = Array.isArray(item.detalleIdUnicoExcedentes)
           ? [...item.detalleIdUnicoExcedentes]
@@ -927,6 +1014,11 @@
         }).join("");
       };
 
+      /**
+       * Abre el detalle de cobertura según el balance activo.
+       * @param {Object} item Registro seleccionado.
+       * @return {void}
+       */
       const getInfoExcedentes = (item) => {
         const esIdUnico = item.modoBalanceActivo === "IDUNICO";
 
@@ -1008,6 +1100,12 @@
         });
       };
 
+      /**
+       * Valida y ejecuta una exportación de negativos.
+       * @param {Array<Object>} dataExportar Registros incluidos.
+       * @param {string} criterio Descripción del criterio aplicado.
+       * @return {Object} Resultado del exportador XLSX.
+       */
       const ejecutarExportacionNegativos_ = (
         dataExportar,
         criterio
@@ -1037,6 +1135,7 @@
         });
       };
 
+      /** Exporta todos los negativos consolidados. */
       const handleExportarTodosNegativos = () => {
         try {
           setExportMenuOpen(false);
@@ -1077,6 +1176,7 @@
         }
       };
 
+      /** Exporta negativos por ubicación de surtido. */
       const handleExportarPorBodegaSurtido = (
         bodegaKey,
         bodegaLabel
@@ -1127,6 +1227,7 @@
         }
       };
 
+      /** Exporta negativos correspondientes a un código exacto. */
       const handleExportarPorCodigoNegativo = (
         codigo
       ) => {

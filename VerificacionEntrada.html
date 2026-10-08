@@ -1,7 +1,57 @@
 <script>
-  /** VerificacionEntrada.html - Recepción continua contra CFDI. */
+  /**
+   * VerificacionEntrada.html
+   *
+   * Vista operativa para verificar de forma continua una recepción física
+   * contra los conceptos declarados en un CFDI.
+   *
+   * Responsabilidades:
+   * - Analizar localmente el XML y rechazar documentos inseguros o inválidos.
+   * - Identificar proveedor, UUID, conceptos y cantidades esperadas.
+   * - Crear una sesión de verificación mediante el Controller.
+   * - Capturar etiquetas con una o dos lecturas según el perfil del proveedor.
+   * - Resolver equivalencias en memoria y validar productos contra la sesión.
+   * - Evitar duplicados mediante huellas SHA-256.
+   * - Enviar cajas al servidor en lotes pequeños.
+   * - Mostrar avance, faltantes, sobrantes y estado por SKU.
+   * - Pausar, reanudar, actualizar y cerrar la recepción.
+   * - Administrar el montaje y desmontaje de la raíz React.
+   *
+   * Dependencias globales:
+   * - React y ReactDOM.
+   * - Lucide.
+   * - Web Crypto API y TextEncoder.
+   * - DOMParser.
+   * - google.script.run.
+   * - window.notificar o window.lanzarNotificacion.
+   *
+   * Controladores consumidos:
+   * - VerificacionEntradaController_obtenerBootstrap(rfcEmisor).
+   * - VerificacionEntradaController_crearSesion(payload).
+   * - VerificacionEntradaController_obtenerSesionLigera(idSesion).
+   * - VerificacionEntradaController_registrarCajas(payload).
+   * - VerificacionEntradaController_pausarSesion(idSesion).
+   * - VerificacionEntradaController_reanudarSesion(idSesion).
+   * - VerificacionEntradaController_cerrarSesion(payload).
+   *
+   * Contratos globales expuestos:
+   * - window.cargar_VerificacionEntrada().
+   * - window.initVista.
+   * - window.__VERIFICACION_ENTRADA_ROOT__.
+   *
+   * Invariantes operativos:
+   * - El XML debe ser válido, menor o igual a 2 MB y no contener DOCTYPE o ENTITY.
+   * - La cola envía como máximo cuatro cajas por lote.
+   * - Una caja pendiente o procesada no puede reutilizar la misma huella.
+   * - El servidor conserva la autoridad final sobre sesión, equivalencias,
+   *   cantidades, unidades, duplicados e idempotencia.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
 </script>
 <style>
+  /* =========================================================
+     1. TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #render-verificacion-entrada {
     --ve-primary: var(--primary, #d93025);
     --ve-primary-dark: var(--primary-dark, #a50e0e);
@@ -40,6 +90,9 @@
     background: #b8bcc3;
     border-radius: 99px;
   }
+  /* =========================================================
+     2. SCROLL, ANIMACIONES Y TRANSICIONES
+     ========================================================= */
   @keyframes veSpin {
     to {
       transform: rotate(360deg);
@@ -78,6 +131,9 @@
   .ve-flash td {
     animation: veFlash 0.85s ease-in-out 2;
   }
+  /* =========================================================
+     3. ESTRUCTURA GENERAL, CABECERA Y MÉTRICAS
+     ========================================================= */
   .ve-page {
     height: 100%;
     padding: 16px 24px 24px;
@@ -310,6 +366,9 @@
     color: #fff;
     border-color: rgba(255, 255, 255, 0.18);
   }
+  /* =========================================================
+     4. BARRA OPERATIVA Y ESTADO EN VIVO
+     ========================================================= */
   .ve-toolbar {
     flex: 0 0 auto;
     min-height: 70px;
@@ -383,6 +442,9 @@
     background: currentColor;
     animation: vePulse 1.8s infinite;
   }
+  /* =========================================================
+     5. TABLA DE CONCILIACIÓN Y PROGRESO POR SKU
+     ========================================================= */
   .ve-content {
     flex: 1;
     min-height: 0;
@@ -479,6 +541,9 @@
     border-radius: 50%;
     animation: veSpin 0.8s linear infinite;
   }
+  /* =========================================================
+     6. CARGA DE CFDI Y PREVISUALIZACIÓN DEL DOCUMENTO
+     ========================================================= */
   .ve-upload-stage {
     height: 100%;
     overflow: auto;
@@ -572,6 +637,9 @@
     white-space: nowrap;
     font-weight: 900;
   }
+  /* =========================================================
+     7. CAPTURA DE ESCÁNER Y BARRA DE VALIDACIÓN
+     ========================================================= */
   .ve-scanner-capture {
     position: fixed;
     left: -10000px;
@@ -638,6 +706,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* =========================================================
+     8. CIERRE DE RECEPCIÓN Y DIÁLOGOS
+     ========================================================= */
   .ve-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -681,6 +752,9 @@
   .mt-2 {
     margin-top: 8px;
   }
+  /* =========================================================
+     9. ADAPTACIONES RESPONSIVE Y ACCESIBILIDAD
+     ========================================================= */
   @media (max-width: 1180px) {
     .ve-header {
       grid-template-columns: minmax(290px, 1fr) auto;
@@ -726,7 +800,16 @@
 <script type="text/babel">
   window.cargar_VerificacionEntrada = () => {
     const { useState, useEffect, useMemo, useCallback, useRef } = React;
+    /** Número máximo de cajas enviadas por solicitud al servidor. */
     const BATCH_SIZE = 4;
+    /**
+     * Emite una notificación mediante la infraestructura global del shell.
+     * @param {string} m Mensaje visible.
+     * @param {string=} t Tipo de notificación.
+     * @param {number=} d Duración en milisegundos.
+     * @param {Object=} o Opciones complementarias.
+     * @return {void}
+     */
     const notify_ = (m, t = "info", d = 2800, o = {}) => {
       const f = window.notificar || window.lanzarNotificacion;
       if (typeof f === "function") f(m, t, d, o);
@@ -735,6 +818,7 @@
       upper_ = (v) => str_(v).toUpperCase(),
       num_ = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0),
       fmt_ = (v) => num_(v).toLocaleString("es-MX", { maximumFractionDigits: 2 });
+    /** Registro ligero de rendimiento para eventos de escaneo. */
     const perf_ = {
       items: new Map(),
       start(name, meta = {}) {
@@ -754,6 +838,11 @@
         });
       },
     };
+    /**
+     * Renderiza un icono Lucide aislado dentro de la vista.
+     * @param {Object} props Propiedades visuales.
+     * @return {React.ReactElement}
+     */
     function Icon({ name, size = 18, className = "" }) {
       const ref = useRef(null);
       useEffect(() => {
@@ -770,6 +859,7 @@
       return <span ref={ref} />;
     }
     const MemoIcon = React.memo(Icon);
+    /** Renderiza una métrica compacta de la sesión. */
     function Metric({ label, value, tone = "" }) {
       return (
         <div className={`ve-metric ${tone}`}>
@@ -778,6 +868,11 @@
         </div>
       );
     }
+    /**
+     * Resuelve el contrato visual de un estado de sesión o SKU.
+     * @param {*} s Estado recibido.
+     * @return {{chip:string,text:string}}
+     */
     const statusVisual_ = (s) => {
       const v = upper_(s);
       if (["COMPLETO", "COMPLETA", "CERRADA_COMPLETA"].includes(v))
@@ -788,6 +883,11 @@
         return { chip: "ve-chip red", text: v };
       return { chip: "ve-chip slate", text: v || "SIN ESTADO" };
     };
+    /**
+     * Calcula una huella SHA-256 hexadecimal mediante Web Crypto API.
+     * @param {string} text Contenido por resumir.
+     * @return {Promise<string>} Huella hexadecimal en mayúsculas.
+     */
     async function sha256_(text) {
       const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
       return Array.from(new Uint8Array(b))
@@ -795,6 +895,7 @@
         .join("")
         .toUpperCase();
     }
+    /** Lee un atributo XML tolerando namespaces. */
     function attr_(n, k) {
       if (!n) return "";
       const d = n.getAttribute(k);
@@ -804,12 +905,20 @@
       );
       return a ? a.value : "";
     }
+    /** Obtiene el primer elemento XML cuyo localName coincide. */
     function first_(r, n) {
       return Array.from(r.getElementsByTagName("*")).find((x) => x.localName === n) || null;
     }
+    /** Obtiene todos los elementos XML cuyo localName coincide. */
     function all_(r, n) {
       return Array.from(r.getElementsByTagName("*")).filter((x) => x.localName === n);
     }
+    /**
+     * Valida y analiza localmente un CFDI XML.
+     * @param {File} file Archivo seleccionado.
+     * @return {Promise<Object>} Documento y conceptos normalizados.
+     * @throws {Error} Si el archivo es inválido, inseguro o excede 2 MB.
+     */
     async function parseCfdiFile_(file) {
       if (!/\.xml$/i.test(file.name)) throw new Error("Selecciona un archivo XML.");
       if (file.size > 2097152) throw new Error("El XML excede 2 MB.");
@@ -846,12 +955,24 @@
         })),
       };
     }
+    /**
+     * Convierte google.script.run en una Promise.
+     * @param {string} m Nombre del método remoto.
+     * @param {*=} a Argumento opcional.
+     * @return {Promise<*>}
+     */
     function serverCall_(m, a) {
       return new Promise((ok, no) => {
         const r = google.script.run.withSuccessHandler(ok).withFailureHandler(no);
         a === undefined ? r[m]() : r[m](a);
       });
     }
+    /**
+     * Interpreta la primera lectura según la configuración del proveedor.
+     * @param {*} v Lectura capturada.
+     * @param {Object} c Configuración de etiquetado.
+     * @return {Object} Código, cantidad, unidad y lectura original.
+     */
     function parsePrimary_(v, c) {
       const p = c?.primeraLectura || {},
         raw = str_(v),
@@ -867,6 +988,12 @@
         unidadLeida: upper_(p.unidadLectura),
       };
     }
+    /**
+     * Valida la segunda lectura de una secuencia de etiquetado.
+     * @param {*} v Lectura capturada.
+     * @param {Object} c Configuración de etiquetado.
+     * @return {string} Lectura secundaria normalizada.
+     */
     function parseSecondary_(v, c) {
       const s = c?.segundaLectura || {},
         raw = str_(v);
@@ -875,6 +1002,7 @@
         throw new Error("La segunda lectura no cumple el formato configurado.");
       return raw;
     }
+    /** Fila memoizada con avance y diferencias de un concepto. */
     const DetailRow = React.memo(function DetailRow({ item, highlighted }) {
       const state = statusVisual_(item.estadoSku),
         progress =
@@ -919,6 +1047,10 @@
         </tr>
       );
     });
+    /**
+     * Componente principal de la verificación de entrada.
+     * @return {React.ReactElement}
+     */
     function View() {
       const [loading, setLoading] = useState(true),
         [busy, setBusy] = useState(false),
@@ -980,6 +1112,7 @@
         });
         return { byLabel, byXml, byInternal, byId };
       }, [bootstrap?.equivalencias, detail]);
+      /** Resuelve una etiqueta contra equivalencias e índices locales. */
       const resolveFast_ = useCallback(
         (code) => {
           const key = upper_(code),
@@ -1020,6 +1153,12 @@
           .catch((e) => notify_(e?.message || "No se pudo iniciar.", "error", 4800))
           .finally(() => setLoading(false));
       }, []);
+      /**
+       * Reinicia la secuencia del escáner y opcionalmente conserva el mensaje.
+       * @param {boolean=} message Indica si debe notificarse el reinicio.
+       * @param {boolean=} preserve Conserva el estado visual de validación.
+       * @return {void}
+       */
       const reset_ = useCallback((message = false, preserve = false) => {
         if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
         scanTimeoutRef.current = null;
@@ -1051,6 +1190,7 @@
           document.removeEventListener("click", f);
         };
       }, [sessionCapturable, scanPhase]);
+      /** Analiza el XML y obtiene el perfil del proveedor. */
       const processFile_ = async (file) => {
         if (!file || busy) return;
         setBusy(true);
@@ -1070,6 +1210,7 @@
           setBusy(false);
         }
       };
+      /** Crea una sesión de recepción a partir del CFDI analizado. */
       const createSession_ = async () => {
         if (!parsed || busy) return;
         setBusy(true);
@@ -1093,6 +1234,7 @@
           setBusy(false);
         }
       };
+      /** Actualiza la sesión cuando no existen operaciones pendientes. */
       const refresh_ = async () => {
         if (!session?.idSesion || busy || queueBusy || scanQueue.length) return;
         setBusy(true);
@@ -1108,6 +1250,7 @@
           setBusy(false);
         }
       };
+      /** Genera la huella y agrega una caja validada a la cola local. */
       const enqueue_ = useCallback(
         async (primary, secondary, row, scanId) => {
           const fingerprint = await sha256_(
@@ -1149,6 +1292,7 @@
         },
         [session],
       );
+      /** Procesa la lectura primaria o secundaria del escáner. */
       const processScan_ = useCallback(
         async (raw, scanId) => {
           if (!sessionCapturable) return;
@@ -1277,6 +1421,7 @@
           })
           .finally(() => mountedRef.current && setQueueBusy(false));
       }, [scanQueue, queueBusy, session?.idSesion]);
+      /** Pausa o reanuda la sesión activa. */
       const pause_ = async () => {
         if (!session || busy || queueBusy || scanQueue.length) return;
         const paused = upper_(session.estadoSesion) === "PAUSADA";
@@ -1303,6 +1448,7 @@
           setBusy(false);
         }
       };
+      /** Cierra la recepción y consolida su resultado final. */
       const close_ = async () => {
         if (!session || busy || queueBusy || scanQueue.length) return;
         setBusy(true);

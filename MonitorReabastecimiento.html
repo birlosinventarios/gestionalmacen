@@ -1,6 +1,53 @@
-<script>/** MonitorReabastecimiento.html */</script>
+<script>
+  /**
+   * MonitorReabastecimiento.html
+   *
+   * Vista operativa para supervisar necesidades de reabastecimiento por SKU,
+   * ubicación, existencia disponible y respaldo de excedentes.
+   *
+   * Responsabilidades:
+   * - Consultar la vista consolidada desde el Controller.
+   * - Clasificar registros mediante semáforo y acción operativa.
+   * - Alternar el balance entre EXISTENCIAS e IDUNICO.
+   * - Calcular métricas y prioridades con el balance activo.
+   * - Filtrar por texto, estado y segmento de bodega.
+   * - Ordenar y paginar el conjunto visible.
+   * - Exportar el resultado filtrado a XLSX.
+   * - Mostrar un detalle operativo con disponibilidad por IdUnico.
+   * - Administrar acciones responsive mediante el sistema FAB global.
+   * - Administrar el montaje y desmontaje de su raíz React.
+   *
+   * Dependencias globales:
+   * - React y ReactDOM.
+   * - FitoComponents para iconos y componentes KPI.
+   * - google.script.run.
+   * - SweetAlert2 mediante Swal.
+   * - window.ExcelExportUtils.
+   * - window.notificar o window.lanzarNotificacion.
+   *
+   * Controller consumido:
+   * - MonitorReabastecimientoController_getVista().
+   *
+   * Contratos globales expuestos:
+   * - window.cargar_MonitorReabastecimiento().
+   * - window.initVista.
+   * - window.__MONITOR_REABASTECIMIENTO_ROOT__.
+   *
+   * Invariantes operativos:
+   * - La paginación conserva un máximo de 100 registros por página.
+   * - El balance activo solo admite EXISTENCIAS o IDUNICO.
+   * - Las acciones operativas se recalculan con el excedente activo.
+   * - Los datos filtrados no modifican la respuesta original del servidor.
+   * - La exportación utiliza el conjunto filtrado y ordenado visible.
+   * - El servidor conserva la autoridad final sobre la información operativa.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
+</script>
 
 <style>
+  /* =========================================================
+     1. TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #render-monitor-reabastecimiento {
     --local-primary: #d93025;
     --local-primary-dark: #a50e0e;
@@ -45,6 +92,9 @@
     display: none;
   }
 
+  /* =========================================================
+     2. SCROLL, ANIMACIONES Y TRANSICIONES
+     ========================================================= */
   @keyframes mrFadeInUp {
     from {
       opacity: 0;
@@ -60,6 +110,9 @@
     animation: mrFadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
+  /* =========================================================
+     3. MENÚ FAB Y SELECTOR DE BALANCE
+     ========================================================= */
   #render-monitor-reabastecimiento .mr-fab-mode-panel {
     min-width: 220px;
     background: #ffffff;
@@ -116,6 +169,9 @@
     color: #ffffff;
   }
 
+  /* =========================================================
+     4. FILTROS, MENÚS Y CONTROLES OPERATIVOS
+     ========================================================= */
   #render-monitor-reabastecimiento .mr-filter-button {
     min-height: 42px;
     padding: 0.625rem 1rem;
@@ -204,11 +260,20 @@
       );
     }
 
+    /** Cantidad máxima de registros mostrados por página. */
     const PAGE_SIZE = 100;
 
     // =========================================================
     // HELPERS DE NOTIFICACIÓN
     // =========================================================
+    /**
+     * Emite una notificación mediante la infraestructura global del shell.
+     * @param {string} mensaje Mensaje visible.
+     * @param {string=} tipo Tipo de notificación.
+     * @param {number=} timer Duración en milisegundos.
+     * @param {Object=} options Opciones complementarias.
+     * @return {void}
+     */
     const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
       if (typeof fn === "function") {
@@ -216,6 +281,7 @@
       }
     };
 
+    /** Crea un emisor de notificaciones con enfriamiento por clave. */
     const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
       const now = Date.now();
       const last = ref.current[key] || 0;
@@ -227,6 +293,11 @@
     const shellNotifyStateRef = { current: {} };
     const notifyOnceShell_ = createNotifyOnce_(shellNotifyStateRef);
 
+    /**
+     * Renderiza el distintivo visual correspondiente al semáforo operativo.
+     * @param {{status:string}} props Estado del semáforo.
+     * @return {React.ReactElement}
+     */
     const StatusBadge = ({ status }) => {
       const map = {
         VERDE: {
@@ -261,6 +332,11 @@
       );
     };
 
+    /**
+     * Renderiza el distintivo asociado a la acción operativa calculada.
+     * @param {{action:string}} props Acción operativa.
+     * @return {React.ReactElement}
+     */
     const ActionBadge = ({ action }) => {
       const map = {
         'SIN ACCION': 'bg-emerald-50 text-emerald-700 border border-emerald-200',
@@ -278,6 +354,10 @@
       );
     };
 
+    /**
+     * Componente principal del monitor de reabastecimiento.
+     * @return {React.ReactElement}
+     */
     const MonitorReabastecimientoDashboard = () => {
       const [registros, setRegistros] = useState([]);
       const [resumen, setResumen] = useState({});
@@ -306,12 +386,14 @@
       const syncNotifyStateRef = useRef({});
       const notifyOnce_ = createNotifyOnce_(syncNotifyStateRef);
 
+      /** Monta y abre el menú de acciones flotantes. */
       const abrirFabMenu_ = () => {
         setIsFabMenuMounted(true);
         setIsFabClosing(false);
         setIsFabMenuOpen(true);
       };
 
+      /** Cierra el menú FAB respetando la animación de salida. */
       const cerrarFabMenu_ = () => {
         setIsFabClosing(true);
         setIsSearchClosing(true);
@@ -326,6 +408,7 @@
         }, 190);
       };
 
+      /** Alterna el estado visible del menú FAB. */
       const toggleFabMenu_ = () => {
         if (isFabMenuOpen) {
           cerrarFabMenu_();
@@ -334,12 +417,14 @@
         }
       };
 
+      /** Expande el buscador responsive y posiciona el foco. */
       const abrirBuscador_ = () => {
         setIsSearchClosing(false);
         setIsSearchExpanded(true);
         setTimeout(() => searchInputRef.current?.focus(), 120);
       };
 
+      /** Cierra el buscador responsive y limpia su consulta. */
       const cerrarBuscador_ = () => {
         setIsSearchClosing(true);
 
@@ -374,6 +459,11 @@
         };
       }, [isFabMenuOpen]);
 
+      /**
+       * Consulta la vista operativa y normaliza la respuesta del Controller.
+       * @param {"init"|"manual"|string=} contexto Origen de la solicitud.
+       * @return {void}
+       */
       const fetchDatabase = useCallback((contexto = "init") => {
         const USAR_MOCK = false;
         setLoading(true);
@@ -537,7 +627,7 @@
       useEffect(() => {
         fetchDatabase("init");
       }, [fetchDatabase]);
-      
+
       useEffect(() => {
         setCurrentPage(1);
         setActiveRow(null);
@@ -708,6 +798,7 @@
         };
       }, [registrosConBalanceActivo]);
 
+      /** Resuelve la etiqueta visible de un segmento de bodega. */
       const getBodegaLabel = (key) => {
         const map = {
           TODAS: "Todas",
@@ -751,7 +842,7 @@
           if (filterBodega !== "TODAS" && bodegaKey !== filterBodega) {
             return false;
           }
-          
+
           if (filterStatus === "ALL") {
             return true;
           }
@@ -884,6 +975,10 @@
         return recordsFinal.slice(start, end);
       }, [recordsFinal, currentPage]);
 
+      /**
+       * Exporta el conjunto filtrado y ordenado actualmente visible.
+       * @return {void}
+       */
       const exportarExcelCompleto = () => {
         if (!window.ExcelExportUtils || typeof window.ExcelExportUtils.exportarAXLSX !== "function") {
           notify_(
@@ -964,6 +1059,7 @@
         cerrarFabMenu_();
       };
 
+      /** Escapa datos antes de interpolarlos en el modal de detalle. */
       const escapeHtml_ = (value) => {
         return String(value ?? "")
           .replace(/&/g, "&amp;")
@@ -973,6 +1069,7 @@
           .replace(/'/g, "&#039;");
       };
 
+      /** Compara textos con orden numérico y configuración regional española. */
       const compareEsLocal_ = (a, b) => {
         return String(a || "").localeCompare(String(b || ""), "es", {
           sensitivity: "base",
@@ -980,6 +1077,11 @@
         });
       };
 
+      /**
+       * Construye el detalle HTML agrupado por bodega para los excedentes IdUnico.
+       * @param {Object} item Registro seleccionado.
+       * @return {string} HTML seguro para SweetAlert2.
+       */
       const buildDetalleIdUnicoHtml_ = (item) => {
         const detalles = Array.isArray(item.detalleIdUnicoExcedentes)
           ? [...item.detalleIdUnicoExcedentes]
@@ -1239,6 +1341,11 @@
         `;
       };
 
+      /**
+       * Abre el resumen operativo y el detalle de excedentes del SKU.
+       * @param {Object} item Registro seleccionado.
+       * @return {void}
+       */
       const openDetalle = (item) => {
         const esIdUnico = item.modoBalanceActivo === "IDUNICO";
 
@@ -1489,7 +1596,7 @@
 
       return (
         <div className="h-full w-full min-h-0 relative">
-          
+
           {isFabMenuMounted && ReactDOM.createPortal(
             <div
               className={`fixed inset-0 bg-slate-950/35 backdrop-blur-[1px] transition-opacity duration-200 ${
@@ -1905,7 +2012,7 @@
             </div>
           </div>
 
-          
+
           <div className="flex-1 min-h-0 bg-white border border-[#dadce0] rounded-[1.5rem] overflow-hidden shadow-sm flex flex-col">
             <div className="flex-1 min-h-0 overflow-auto custom-scroll">
               <table className="w-full text-left border-collapse">
@@ -2065,7 +2172,7 @@
 
                             <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
                               <div
-                                style={{                                 
+                                style={{
                                   width: `${
                                     Number(item.excedenteTotalActivo ?? item.excedentetotal ?? 0) > 0
                                       ? Math.min(
@@ -2083,7 +2190,7 @@
                               ></div>
 
                               <div
-                                style={{                                 
+                                style={{
                                   width: `${
                                     Number(item.excedenteTotalActivo ?? item.excedentetotal ?? 0) > 0
                                       ? Math.min(
@@ -2212,7 +2319,7 @@
 
           </div>
 
-          {/* MENÚ FLOTANTE GLOBALIZADO */} 
+          {/* MENÚ FLOTANTE GLOBALIZADO */}
               <div ref={fabContainerRef} className="app-fab-container xl:hidden" style={{ zIndex: 9010 }} >
 
               {isFabMenuMounted && isSearchExpanded && (
@@ -2298,7 +2405,7 @@
                 </div>
               )}
 
-              
+
               <button
                 type="button"
                 className={`app-fab-main ${isFabMenuOpen ? "open" : ""}`}
