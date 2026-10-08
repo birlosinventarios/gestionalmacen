@@ -1,13 +1,58 @@
-<script>/** GestorExcedentes.html */</script>
+<script>
+  /**
+   * GestorExcedentes.html
+   *
+   * Vista consolidada para consultar el estado operativo de los excedentes.
+   *
+   * Responsabilidades:
+   * - Obtener la vista consolidada y su resumen desde el Controller.
+   * - Mostrar indicadores de ubicación, pendientes y stock vigente.
+   * - Filtrar registros por texto y bodega operativa.
+   * - Inferir la bodega visible a partir de la serie o ubicación actual.
+   * - Destacar bodegas con existencias coincidentes con la búsqueda.
+   * - Exportar reportes XLSX por bodega o por código.
+   * - Medir solicitud, respuesta, actualización de estado y pintura de interfaz.
+   * - Evitar solicitudes concurrentes y descartar respuestas obsoletas.
+   * - Administrar el montaje y desmontaje de la raíz React.
+   *
+   * Dependencias globales:
+   * - React y ReactDOM.
+   * - FitoComponents para iconos y bloques KPI.
+   * - google.script.run.
+   * - window.XLSXExportUtilidades.
+   * - window.notificar o window.lanzarNotificacion.
+   *
+   * Controller consumido:
+   * - GestorExcedentesController_obtenerVista().
+   *
+   * Contratos globales expuestos:
+   * - window.cargar_GestorExcedentes().
+   * - window.initVista.
+   * - window.__GESTOR_EXCEDENTES_ROOT__.
+   *
+   * Invariantes operativos:
+   * - Solo una solicitud de carga puede permanecer activa a la vez.
+   * - Las respuestas con secuencia anterior a la ya aplicada se ignoran.
+   * - La vista desmontada no debe aplicar resultados tardíos.
+   * - La búsqueda no modifica el conjunto original recibido del servidor.
+   * - La exportación opera sobre el conjunto consolidado vigente.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
+</script>
 
 <div id="vista-excedentes-root" class="ge-root"></div>
 
 <script type="text/babel">
-  console.log("🧩 GestorExcedentes BUILD: 2026-07-06-FAB-SIN-SWITCH-01");
 
   (function() {
     const { useState, useEffect, useMemo, useRef } = React;
 
+    /**
+     * Inicia una traza de rendimiento del cliente.
+     * @param {string} operation Nombre estable de la operación.
+     * @param {Object=} metadata Contexto inicial.
+     * @return {Object} Traza mutable.
+     */
     const gePerfStart_ = (
       operation,
       metadata = {}
@@ -43,6 +88,13 @@
       };
     };
 
+    /**
+     * Agrega una marca temporal a una traza activa.
+     * @param {Object} trace Traza iniciada previamente.
+     * @param {string} stage Etapa registrada.
+     * @param {Object=} metadata Contexto adicional.
+     * @return {void}
+     */
     const gePerfMark_ = (
       trace,
       stage,
@@ -88,6 +140,13 @@
         now;
     };
 
+    /**
+     * Finaliza y publica una traza de rendimiento.
+     * @param {Object} trace Traza activa.
+     * @param {string=} status Estado final.
+     * @param {Object=} metadata Contexto final.
+     * @return {Object|null} Resultado consolidado o null.
+     */
     const gePerfEnd_ = (
       trace,
       status = "ok",
@@ -152,6 +211,7 @@
       return result;
     };
 
+    /** Ejecuta una acción después de dos ciclos de pintura del navegador. */
     const geAfterPaint_ =
       callback => {
         window.requestAnimationFrame(
@@ -161,11 +221,12 @@
             );
           }
         );
-      };    
+      };
 
     // =========================================================
     // HELPERS DE NOTIFICACIÓN
     // =========================================================
+    /** Emite una notificación mediante la infraestructura global del shell. */
     const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
       if (typeof fn === "function") {
@@ -173,6 +234,7 @@
       }
     };
 
+    /** Crea un emisor de notificaciones con enfriamiento por clave. */
     const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
       const now = Date.now();
       const last = ref.current[key] || 0;
@@ -198,6 +260,11 @@
     // =========================================================
     // LÓGICA DE BODEGA POR SERIE
     // =========================================================
+    /**
+     * Resuelve la bodega operativa a partir de la serie o ubicación actual.
+     * @param {Object} item Excedente consolidado.
+     * @return {string} Nombre visible de la bodega.
+     */
     const obtenerNombreBodega = (item) => {
       const serie =
         String(
@@ -257,6 +324,11 @@
     // =========================================================
     // HELPERS DE ESTATUS VISUAL
     // =========================================================
+    /**
+     * Construye el contrato visual del estado de ubicación.
+     * @param {Object} item Excedente consolidado.
+     * @return {{texto:string,clase:string}} Configuración del distintivo.
+     */
     const obtenerBadgeEstatus = (item) => {
       if (item.conUbicacion) {
         return {
@@ -278,6 +350,7 @@
       };
     };
 
+    /** Presenta números con configuración regional de México. */
     const formatearNumero_ = (valor, decimals = 0) => {
       const numero = Number(valor || 0);
 
@@ -290,6 +363,10 @@
     // =========================================================
     // COMPONENTE PRINCIPAL
     // =========================================================
+    /**
+     * Componente principal del gestor consolidado de excedentes.
+     * @return {React.ReactElement}
+     */
     const VistaGestorExcedentes = () => {
       const [data, setDatos] = useState([]);
 
@@ -322,7 +399,7 @@
         useRef(0);
 
       const lastAppliedSequenceRef =
-        useRef(0);      
+        useRef(0);
 
       const notifyOnce_ = createNotifyOnce_(notifyStateRef);
 
@@ -376,6 +453,11 @@
       // ---------------------------------------------------------
       // REFRESH CONTRA CONTROLLER
       // ---------------------------------------------------------
+      /**
+       * Solicita la vista consolidada y protege la aplicación de respuestas tardías.
+       * @param {"init"|"manual"|string=} contexto Origen de la carga.
+       * @return {void}
+       */
       const refrescarDatos = (
         contexto = "manual"
       ) => {
@@ -793,6 +875,7 @@
           .GestorExcedentesController_obtenerVista();
       };
 
+      /** Normaliza texto para comparaciones flexibles sin espacios. */
       const normalizarBusqueda_ = (valor) => {
         return String(valor || "")
           .toLowerCase()
@@ -800,6 +883,12 @@
           .replace(/\s+/g, "");
       };
 
+      /**
+       * Comprueba si un excedente coincide con el texto de búsqueda.
+       * @param {Object} item Excedente evaluado.
+       * @param {*} filtroTexto Texto capturado.
+       * @return {boolean}
+       */
       const coincideBusqueda_ = (item, filtroTexto) => {
         const f = normalizarBusqueda_(filtroTexto);
 
@@ -950,6 +1039,7 @@
         return base.slice(0, 80);
       }, [codigosExportables, exportCodigoFiltro]);
 
+      /** Genera un reporte XLSX para una bodega seleccionada. */
       const handleSeleccionExportBodega = (bodega) => {
         try {
           setExportMenuOpen(false);
@@ -991,6 +1081,7 @@
         }
       };
 
+      /** Genera un reporte XLSX para un código seleccionado. */
       const handleSeleccionExportCodigo = (codigo) => {
         try {
           setExportMenuOpen(false);
@@ -1031,7 +1122,7 @@
           );
         }
       };
-      
+
       const porcentajePendientesUbicar = useMemo(() => {
         const vigentes = Number(resumen.idsUnicosVigentes || 0);
         const pendientes = Number(resumen.idsUnicosPendientes || 0);
@@ -1509,6 +1600,10 @@
     // =========================================================
     // CONTRATO CON EL SHELL
     // =========================================================
+    /**
+     * Monta la vista en el contenedor administrado por el shell.
+     * @return {void}
+     */
     window.cargar_GestorExcedentes = () => {
       const rootEl = document.getElementById("vista-excedentes-root");
 
@@ -1566,6 +1661,9 @@
 </script>
 
 <style>
+  /* =========================================================
+     1. ANIMACIONES Y ESTADOS DE ÉNFASIS
+     ========================================================= */
   @keyframes geFadeInUp {
     from {
       opacity: 0;
@@ -1600,7 +1698,10 @@
     }
   }
 
-  
+
+  /* =========================================================
+     2. TOKENS LOCALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #vista-excedentes-root.ge-root {
     --local-primary: #d93025;
     --local-primary-dark: #a50e0e;
@@ -1618,6 +1719,9 @@
     background: #f8f9fa;
   }
 
+  /* =========================================================
+     3. ESTRUCTURA FLEXIBLE Y ZONA DE TABLA
+     ========================================================= */
   #vista-excedentes-root .ge-view-shell {
     width: 100%;
     height: 100%;
@@ -1664,6 +1768,9 @@
     scrollbar-color: #dadce0 transparent;
   }
 
+  /* =========================================================
+     4. CABECERA FIJA, SCROLL Y DENSIDAD DE TABLA
+     ========================================================= */
   #vista-excedentes-root .ge-table-head .ge-table-th {
     position: sticky;
     top: 0;
@@ -1696,6 +1803,9 @@
     padding-bottom: 10px !important;
   }
 
+  /* =========================================================
+     5. PANEL SUPERIOR Y MENÚS FLOTANTES
+     ========================================================= */
   #vista-excedentes-root .ge-top-panel {
     overflow: visible !important;
     position: relative;

@@ -1,8 +1,51 @@
 <script>
-  /** FormularioEtiquetasIdentificadoras.html */
+  /**
+   * FormularioEtiquetasIdentificadoras.html
+   *
+   * Vista operativa para preparar e imprimir etiquetas identificadoras de
+   * productos existentes en CATALOGO.
+   *
+   * Responsabilidades:
+   * - Cargar códigos y productos desde el bootstrap o la caché del shell.
+   * - Resolver un producto por código y mostrar sus datos identificadores.
+   * - Mantener una cola sin códigos duplicados.
+   * - Aplicar el tipo fijo IDENTIFICADORA y las dimensiones físicas 150 × 100 mm.
+   * - Procesar el lote mediante el Controller.
+   * - Coordinar la impresión en los modos LOCAL u ONLINE.
+   * - Administrar el montaje y desmontaje de la raíz React.
+   *
+   * Dependencias globales:
+   * - React y ReactDOM.
+   * - Lucide.
+   * - google.script.run.
+   * - window.DATA_ALMACEN_CACHE.
+   * - window.ImpresionModoUtilidades.
+   * - window.notificar o window.lanzarNotificacion.
+   *
+   * Controladores consumidos:
+   * - FormularioEtiquetasIdentificadorasController_getBootstrap().
+   * - FormularioEtiquetasIdentificadorasController_buscarProductoPorCodigo(codigo).
+   * - FormularioEtiquetasIdentificadorasController_procesarLote(cola).
+   *
+   * Contratos globales expuestos:
+   * - window.cargar_FormularioEtiquetasIdentificadoras().
+   * - window.initVista.
+   * - window.__FORMULARIO_ETIQUETAS_IDENTIFICADORAS_ROOT__.
+   *
+   * Invariantes operativos:
+   * - El tipo de etiqueta permanece fijo en IDENTIFICADORA.
+   * - Las dimensiones lógicas permanecen en 150 mm de ancho y 100 mm de alto.
+   * - Un código solo puede aparecer una vez dentro de la cola actual.
+   * - La impresión LOCAL requiere una ventana abierta por acción del usuario.
+   * - El servidor conserva la autoridad final sobre validación y generación.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
 </script>
 
 <style>
+  /* =========================================================
+     1. TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #render-etiquetas-identificadoras {
     --local-primary: #d93025;
     --local-primary-dark: #a50e0e;
@@ -75,6 +118,9 @@
     }
   }
 
+  /* =========================================================
+     2. FORMULARIO Y CONTROLES DE CAPTURA
+     ========================================================= */
   #render-etiquetas-identificadoras .ei-label {
     font-size: 13px;
     font-weight: 900;
@@ -97,6 +143,9 @@
     letter-spacing: 0.04em;
   }
 
+  /* =========================================================
+     3. TARJETA DEL PRODUCTO Y COLA DE IMPRESIÓN
+     ========================================================= */
   #render-etiquetas-identificadoras .ei-id-card {
     padding: 14px;
     border-radius: 1rem;
@@ -107,6 +156,9 @@
     background: #ffffff;
   }
 
+  /* =========================================================
+     4. TABLA, INDICADORES Y ACCIONES
+     ========================================================= */
   #render-etiquetas-identificadoras .ei-results-table {
     width: 100%;
     border-collapse: separate;
@@ -221,6 +273,9 @@
     transform: translateY(0) scale(0.98);
   }
 
+  /* =========================================================
+     5. ESTADOS VACÍOS Y MENSAJES DE CONTEXTO
+     ========================================================= */
   #render-etiquetas-identificadoras .ei-empty-state {
     height: 100%;
     min-height: 320px;
@@ -339,6 +394,9 @@
 
 
 /* =========================================================
+   6. ESTRUCTURA DE PANELES Y CONTROL DE DESBORDAMIENTO
+   ========================================================= */
+/* =========================================================
    CONTROL DE LARGO / ANCHO DE LA VISTA
    SOLO EL PANEL DERECHO TIENE SCROLL
    ========================================================= */
@@ -419,13 +477,24 @@
     // =========================================================
     // CONSTANTES
     // =========================================================
+    /** Tipo de etiqueta aceptado por esta vista y su Service. */
     const TIPO_ETIQUETA_FIJO = "IDENTIFICADORA";
+    /** Alto físico nominal expresado en milímetros. */
     const ALTO_FIJO = 100;
+    /** Ancho físico nominal expresado en milímetros. */
     const ANCHO_FIJO = 150;
 
     // =========================================================
     // HELPERS DE NOTIFICACIÓN
     // =========================================================
+    /**
+     * Emite una notificación mediante la infraestructura global del shell.
+     * @param {string} mensaje Mensaje visible.
+     * @param {string=} tipo Tipo de notificación.
+     * @param {number=} timer Duración en milisegundos.
+     * @param {Object=} options Opciones complementarias.
+     * @return {void}
+     */
     const notify_ = (mensaje, tipo = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
       if (typeof fn === "function") {
@@ -433,6 +502,7 @@
       }
     };
 
+    /** Crea un emisor de notificaciones con enfriamiento por clave. */
     const createNotifyOnce_ = (ref) => (key, mensaje, tipo = "info", timer = 2500, options = {}, cooldown = 8000) => {
       const now = Date.now();
       const last = ref.current[key] || 0;
@@ -447,6 +517,7 @@
     // =========================================================
     // ICONO LOCAL
     // =========================================================
+    /** Renderiza un icono Lucide aislado dentro de la vista. */
     const LocalIcon = ({ name, size = 18, className = "" }) => {
       const iconRef = useRef(null);
 
@@ -469,6 +540,10 @@
     // =========================================================
     // COMPONENTE PRINCIPAL
     // =========================================================
+    /**
+     * Componente principal de captura, cola e impresión de etiquetas.
+     * @return {React.ReactElement}
+     */
     const VistaEtiquetasIdentificadoras = () => {
       const [cola, setCola] = useState([]);
       const [procesando, setProcesando] = useState(false);
@@ -491,8 +566,10 @@
       // =========================================================
       // HELPERS
       // =========================================================
+      /** Normaliza textos de dominio en mayúsculas y sin espacios externos. */
       const normalizarTexto = (valor) => String(valor || "").trim().toUpperCase();
 
+      /** Posiciona el foco en el campo de código después del render. */
       const enfocarCodigo = () => {
         setTimeout(() => {
           codigoInputRef.current?.focus();
@@ -500,6 +577,7 @@
         }, 0);
       };
 
+      /** Restablece el formulario y devuelve el foco al código. */
       const limpiarCampos = () => {
         setForm({
           codigo: '',
@@ -511,6 +589,11 @@
         enfocarCodigo();
       };
 
+      /**
+       * Conserva catálogo y códigos en la caché compartida del shell.
+       * @param {Object} bootstrap Datos recibidos del Controller.
+       * @return {void}
+       */
       const guardarBootstrapEnCache = (bootstrap) => {
         window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
 
@@ -523,6 +606,10 @@
         }
       };
 
+      /**
+       * Recupera los datos reutilizables de la caché compartida.
+       * @return {{mapaCatalogo:Object,codigos:Array<string>}}
+       */
       const leerCacheEtiquetas = () => {
         const cache = window.DATA_ALMACEN_CACHE || {};
         return {
@@ -563,6 +650,7 @@
         };
       }, [cola]);
 
+      /** Comprueba si un código ya está incluido en la cola actual. */
       const existeCodigoEnCola = (codigo) => {
         const c = normalizarTexto(codigo);
         if (!c) return false;
@@ -695,6 +783,11 @@
         );
       }, [codigos]);
 
+      /**
+       * Resuelve un producto desde memoria o mediante consulta al servidor.
+       * @param {*} codigoParam Código capturado.
+       * @return {void}
+       */
       const resolverCodigo = (codigoParam) => {
         const codigo = normalizarTexto(codigoParam);
 
@@ -825,6 +918,7 @@
           .FormularioEtiquetasIdentificadorasController_buscarProductoPorCodigo(codigo);
       };
 
+      /** Procesa cambios del código utilizando el mapa local cuando es posible. */
       const handleCodigoChange = (e) => {
         const valor = normalizarTexto(e.target.value);
         const producto = mapaCatalogo[valor];
@@ -852,6 +946,11 @@
       // =========================================================
       // AGREGAR A COLA
       // =========================================================
+      /**
+       * Valida el producto y agrega una etiqueta no duplicada a la cola.
+       * @param {Event|Object} e Evento de formulario.
+       * @return {void}
+       */
       const handleAdd = (e) => {
         if (e && typeof e.preventDefault === 'function') {
           e.preventDefault();
@@ -925,6 +1024,10 @@
       // =========================================================
       // GENERAR / IMPRIMIR
       // =========================================================
+      /**
+       * Procesa la cola y coordina la impresión LOCAL u ONLINE.
+       * @return {void}
+       */
       const generar = () => {
         if (cola.length === 0) {
           notify_(
