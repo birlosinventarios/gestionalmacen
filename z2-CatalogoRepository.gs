@@ -1,51 +1,45 @@
 /**
- * CatalogoRepository.gs
+ * @fileoverview Repositorio de solo lectura para el catálogo de productos.
  *
- * Repositorio de solo lectura para la hoja lógica CATALOGO.
+ * Centraliza la lectura y normalización de la fuente lógica CATALOGO, mantiene una
+ * caché por ejecución y ofrece consultas exactas y proyecciones de sus campos.
+ * El repositorio no realiza operaciones de escritura sobre Google Sheets.
  *
  * Responsabilidades:
- * - Leer los registros físicos desde la fuente configurada como CATALOGO.
- * - Normalizar identificadores, códigos, descripciones y estados.
- * - Mantener una caché en memoria durante la ejecución actual.
- * - Exponer consultas por código, IDPRODUCTO, descripción y estado.
- * - Proporcionar proyecciones simples para códigos, descripciones,
- *   identificadores y estados.
- * - Permitir la invalidación explícita de la caché local.
- *
- * Invariantes:
- * - El repositorio no inserta, actualiza ni elimina productos.
- * - Los registros sin código se excluyen de la colección normalizada.
- * - Los textos de código, descripción y estado se normalizan en mayúsculas.
- * - IDPRODUCTO conserva el contrato textual utilizado por los consumidores.
- * - No se eliminan duplicados de forma implícita.
+ * - Leer filas mediante getRowsByKey_("CATALOGO").
+ * - Aplicar el contrato de columnas definido en COL.CATALOGO.
+ * - Normalizar códigos, descripciones y estados en mayúsculas.
+ * - Preservar IDPRODUCTO como texto.
+ * - Excluir filas sin código y conservar duplicados explícitamente.
+ * - Proteger la caché mediante copias defensivas en toda la API pública.
  *
  * Dependencias globales:
  * - getRowsByKey_(sheetKey)
  * - toStr_(value)
  * - toStrUpper_(value)
- * - COL.CATALOGO.IDPRODUCTO
- * - COL.CATALOGO.CODIGO
- * - COL.CATALOGO.DESCRIPCION
- * - COL.CATALOGO.STATUS
+ * - COL.CATALOGO
  *
- * API pública:
- * - getAll()
- * - getAllRaw()
- * - getCodigos()
- * - getDescripciones()
- * - getIdProductos()
- * - getStatus()
- * - getPorCodigo(codigo)
- * - getPorIdProducto(idproducto)
- * - getPorDescripcion(descripcion)
- * - getPorStatus(status)
- * - clearCache()
+ * Consideraciones de mantenimiento:
+ * - Un arreglo vacío es una lectura válida; null representa caché no inicializada.
+ * - El orden físico se conserva internamente y getAll() devuelve una copia ordenada.
+ * - Las búsquedas son exactas después de normalizar su criterio.
+ * - No deben agregarse efectos secundarios ni escrituras a este repositorio.
+ *
+ * @author Sigifredo de la Cruz Ramos
  */
 const CatalogoRepository = (() => {
   "use strict";
 
-  /** @const {string} Clave lógica de la fuente de catálogo. */
+  /** @private @const {string} Clave lógica de la fuente de catálogo. */
   const SOURCE_KEY = "CATALOGO";
+
+  /** @private @const {!Object<string, string>} Campos públicos permitidos. */
+  const FIELDS = Object.freeze({
+    ID_PRODUCTO: "idproducto",
+    CODIGO: "codigo",
+    DESCRIPCION: "descripcion",
+    STATUS: "status"
+  });
 
   /**
    * Caché normalizada de la ejecución actual.
@@ -53,7 +47,8 @@ const CatalogoRepository = (() => {
    * null indica que la fuente todavía no se ha leído o que la caché fue
    * invalidada. Un arreglo vacío representa una lectura válida sin productos.
    *
-   * @type {Array<Object>|null}
+   * @private
+   * @type {?Array<!Object>}
    */
   let cache_ = null;
 
@@ -64,7 +59,13 @@ const CatalogoRepository = (() => {
    * @private
    */
   function readSource_() {
-    return getRowsByKey_(SOURCE_KEY);
+    const rows = getRowsByKey_(SOURCE_KEY);
+    if (!Array.isArray(rows)) {
+      throw new TypeError(
+        `getRowsByKey_("${SOURCE_KEY}") debe devolver un arreglo de filas`
+      );
+    }
+    return rows;
   }
 
   /**
@@ -80,6 +81,9 @@ const CatalogoRepository = (() => {
    * @private
    */
   function normalize_(fila) {
+    if (!Array.isArray(fila)) {
+      throw new TypeError("CATALOGO contiene una fila con formato inválido");
+    }
     return {
       idproducto: toStr_(fila[COL.CATALOGO.IDPRODUCTO]),
       codigo: toStrUpper_(fila[COL.CATALOGO.CODIGO]),
@@ -104,7 +108,7 @@ const CatalogoRepository = (() => {
         .map(normalize_)
         .filter(producto => producto.codigo);
 
-      console.log("[CACHE] Catalogo cargado");
+      console.log("[CACHE] Catalogo cargado", { total: cache_.length });
     }
 
     return cache_;
@@ -120,7 +124,28 @@ const CatalogoRepository = (() => {
    * @return {Array<*>} Valores del campo solicitado.
    * @private
    */
+  /**
+   * Genera una copia defensiva de una entidad de catálogo.
+   * @param {!Object} producto
+   * @return {!Object}
+   * @private
+   */
+  function cloneProduct_(producto) {
+    return { ...producto };
+  }
+
+  /**
+   * Proyecta un campo permitido de todos los productos normalizados.
+   *
+   * @param {string} field Propiedad pública por proyectar.
+   * @return {!Array<*>} Valores del campo solicitado.
+   * @throws {RangeError} Si el campo no forma parte del contrato público.
+   * @private
+   */
   function getField_(field) {
+    if (!Object.values(FIELDS).includes(field)) {
+      throw new RangeError(`Campo de catálogo no permitido: ${field}`);
+    }
     return getData_().map(producto => producto[field]);
   }
 
@@ -132,9 +157,9 @@ const CatalogoRepository = (() => {
    * @return {Array<Object>} Copia ordenada del catálogo.
    */
   function getAll() {
-    return [...getData_()].sort((a, b) =>
-      a.codigo.localeCompare(b.codigo)
-    );
+    return getData_()
+      .map(cloneProduct_)
+      .sort((a, b) => a.codigo.localeCompare(b.codigo, "es-MX"));
   }
 
   /**
@@ -143,27 +168,27 @@ const CatalogoRepository = (() => {
    * @return {Array<Object>}
    */
   function getAllRaw() {
-    return [...getData_()];
+    return getData_().map(cloneProduct_);
   }
 
   /** @return {Array<string>} Códigos normalizados del catálogo. */
   function getCodigos() {
-    return getField_("codigo");
+    return getField_(FIELDS.CODIGO);
   }
 
   /** @return {Array<string>} Descripciones normalizadas del catálogo. */
   function getDescripciones() {
-    return getField_("descripcion");
+    return getField_(FIELDS.DESCRIPCION);
   }
 
   /** @return {Array<string>} Identificadores de producto del catálogo. */
   function getIdProductos() {
-    return getField_("idproducto");
+    return getField_(FIELDS.ID_PRODUCTO);
   }
 
   /** @return {Array<string>} Estados normalizados del catálogo. */
   function getStatus() {
-    return getField_("status");
+    return getField_(FIELDS.STATUS);
   }
 
   /**
@@ -177,7 +202,9 @@ const CatalogoRepository = (() => {
    */
   function getPorCodigo(codigo) {
     const filtro = toStrUpper_(codigo);
-    return getData_().filter(producto => producto.codigo === filtro);
+    return getData_()
+      .filter(producto => producto.codigo === filtro)
+      .map(cloneProduct_);
   }
 
   /**
@@ -188,7 +215,9 @@ const CatalogoRepository = (() => {
    */
   function getPorIdProducto(idproducto) {
     const filtro = toStr_(idproducto);
-    return getData_().filter(producto => producto.idproducto === filtro);
+    return getData_()
+      .filter(producto => producto.idproducto === filtro)
+      .map(cloneProduct_);
   }
 
   /**
@@ -199,31 +228,36 @@ const CatalogoRepository = (() => {
    */
   function getPorDescripcion(descripcion) {
     const filtro = toStrUpper_(descripcion);
-    return getData_().filter(producto => producto.descripcion === filtro);
+    return getData_()
+      .filter(producto => producto.descripcion === filtro)
+      .map(cloneProduct_);
   }
 
   /**
    * Busca productos por estado.
    *
-   * Se conserva toStr_() para mantener exactamente el contrato original de
-   * esta consulta. Los estados almacenados ya fueron normalizados al leer.
+   * El criterio se normaliza en mayúsculas, igual que los estados almacenados,
+   * para mantener una comparación consistente con el resto de las consultas.
    *
    * @param {*} status Estado solicitado.
    * @return {Array<Object>} Coincidencias exactas por estado.
    */
   function getPorStatus(status) {
-    const filtro = toStr_(status);
-    return getData_().filter(producto => producto.status === filtro);
+    const filtro = toStrUpper_(status);
+    return getData_()
+      .filter(producto => producto.status === filtro)
+      .map(cloneProduct_);
   }
 
   /**
    * Invalida la caché local para que la siguiente consulta relea CATALOGO.
    *
-   * @return {void}
+   * @return {boolean} true cuando la caché queda invalidada.
    */
   function clearCache() {
     cache_ = null;
     console.log("[CACHE] Catalogo limpio");
+    return true;
   }
 
   return Object.freeze({
