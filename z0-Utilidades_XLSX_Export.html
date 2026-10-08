@@ -2,44 +2,53 @@
 /**
  * z0-Utilidades_XLSX_Export.html
  *
- * Utilidades globales para exportación XLSX.
+ * Exportadores XLSX especializados para los módulos Gestor de excedentes y
+ * Negativos Birlos de APPALMACEN.
  *
- * Requiere:
- * - SheetJS cargado como window.XLSX
+ * Responsabilidades:
+ * - Validar la disponibilidad de SheetJS en window.XLSX.
+ * - Normalizar textos y nombres de archivo.
+ * - Generar reportes de excedentes por bodega o código.
+ * - Generar reportes de negativos según el balance EXISTENCIAS o IDUNICO.
+ * - Crear libros con vistas ordenadas por ubicación y código.
+ * - Forzar tipos de celda para evitar conversiones destructivas de Excel.
+ * - Aplicar anchos de columna y autofiltros.
+ * - Descargar el libro generado en el navegador.
  *
- * Expone:
- * - window.XLSXExportUtilidades.exportarGestorExcedentesPorBodega({
- *     data,
- *     bodega
- *   })
+ * Dependencia global:
+ * - window.XLSX, proporcionado por SheetJS.
  *
- * - window.XLSXExportUtilidades.exportarGestorExcedentesPorCodigo({
- *     data,
- *     codigo
- *   })
+ * API pública:
+ * - XLSXExportUtilidades.exportarGestorExcedentesPorBodega(config).
+ * - XLSXExportUtilidades.exportarGestorExcedentesPorCodigo(config).
+ * - XLSXExportUtilidades.exportarNegativosBirlos(config).
  *
- * - window.XLSXExportUtilidades.exportarNegativosBirlos({
- *     data,
- *     modoBalance
- *   })
+ * Invariantes:
+ * - Los reportes del Gestor excluyen saldos iguales a cero.
+ * - Código, descripción, ubicación e IdUnico se exportan como texto.
+ * - Los reportes de negativos incluyen únicamente saldos menores que cero.
+ * - Los campos cuantitativos del reporte de negativos se exportan como número.
+ * - Cada libro conserva dos hojas con ordenamientos complementarios.
+ * - Los nombres incorporan criterio, modo de balance y fecha cuando corresponde.
+ * - Este archivo no contiene scriptlets de plantilla de Apps Script.
  */
 
 (function() {
   window.XLSXExportUtilidades =
     window.XLSXExportUtilidades || {};
 
-  /**
-   * =========================================================
-   * HELPERS GENERALES
-   * =========================================================
-   */
+  // =========================================================
+  // NORMALIZACIÓN, FECHAS Y VALIDACIÓN DE SHEETJS
+  // =========================================================
 
+  /** Normaliza texto de dominio en mayúsculas. */
   const normalizarTexto_ = (valor) => {
     return String(valor == null ? "" : valor)
       .trim()
       .toUpperCase();
   };
 
+  /** Genera un token seguro para nombres de archivo. */
   const normalizarNombreArchivo_ = (valor) => {
     return normalizarTexto_(valor)
       .normalize("NFD")
@@ -50,6 +59,7 @@
       .replace(/^_+|_+$/g, "");
   };
 
+  /** Devuelve la fecha local en formato yyyyMMdd. */
   const obtenerFechaArchivo_ = () => {
     const fecha = new Date();
 
@@ -60,6 +70,7 @@
     return `${yyyy}${mm}${dd}`;
   };
 
+  /** Verifica que SheetJS esté disponible en el navegador. */
   const validarXLSX_ = () => {
     if (!window.XLSX) {
       throw new Error(
@@ -68,12 +79,11 @@
     }
   };
 
-  /**
-   * =========================================================
-   * HELPERS GESTOR EXCEDENTES
-   * =========================================================
-   */
+  // =========================================================
+  // TRANSFORMACIÓN DE DATOS DEL GESTOR DE EXCEDENTES
+  // =========================================================
 
+  /** Construye el nombre del reporte de excedentes. */
   const obtenerNombreArchivoReporteExcedentes_ = (criterio) => {
     const criterioLimpio = normalizarNombreArchivo_(
       criterio || "GENERAL"
@@ -84,6 +94,7 @@
     return `REPORTE_EXCEDENTES_${criterioLimpio}_${fecha}.xlsx`;
   };
 
+  /** Infiere la bodega visible del registro consolidado. */
   const obtenerNombreBodegaGestor_ = (item) => {
     const serie = normalizarTexto_(
       item && item.eserie
@@ -119,6 +130,7 @@
     );
   };
 
+  /** Resuelve la ubicación visible del excedente. */
   const obtenerUbicacionGestor_ = (item) => {
     return normalizarTexto_(
       (item && item.eserie) ||
@@ -127,6 +139,7 @@
     );
   };
 
+  /** Proyecta un excedente al contrato de exportación. */
   const mapearFilaGestor_ = (item) => {
     return {
       Ubicacion: obtenerUbicacionGestor_(item),
@@ -155,6 +168,7 @@
     );
   };
 
+  /** Elimina registros cuyo saldo sea exactamente cero. */
   const filtrarRegistrosConSaldoDiferenteDeCero_ = (data) => {
     const registros = Array.isArray(data)
       ? data
@@ -196,6 +210,7 @@
     });
   };
 
+  /** Ordena filas por ubicación, código e IdUnico. */
   const ordenarPorUbicacion_ = (filas) => {
     return filas.slice().sort((a, b) => {
       const ordenUbicacion =
@@ -237,6 +252,7 @@
     });
   };
 
+  /** Ordena filas por código e IdUnico. */
   const ordenarPorCodigo_ = (filas) => {
     return filas.slice().sort((a, b) => {
       const ordenCodigo =
@@ -264,11 +280,9 @@
     });
   };
 
-  /**
-   * =========================================================
-   * CONFIGURACIÓN XLSX GESTOR EXCEDENTES
-   * =========================================================
-   */
+  // =========================================================
+  // LIBRO XLSX DEL GESTOR DE EXCEDENTES
+  // =========================================================
 
   const COLUMNAS_REPORTE_EXCEDENTES = [
     "Ubicacion",
@@ -303,6 +317,7 @@
     return [encabezados].concat(cuerpo);
   };
 
+  /** Fuerza todas las celdas del reporte de excedentes a texto. */
   const forzarTextoEnWorksheet_ = (ws) => {
     if (!ws || !ws["!ref"]) {
       return;
@@ -367,6 +382,7 @@
     return ws;
   };
 
+  /** Crea y descarga el libro de excedentes con dos hojas. */
   const crearLibroReporteExcedentes_ = (
     filasBase,
     nombreArchivo
@@ -424,11 +440,9 @@
     ).map(mapearFilaGestor_);
   };
 
-    /**
-   * =========================================================
-   * HELPERS NEGATIVOS BIRLOS
-   * =========================================================
-   */
+  // =========================================================
+  // TRANSFORMACIÓN Y LIBRO XLSX DE NEGATIVOS BIRLOS
+  // =========================================================
 
   const COLUMNAS_NEGATIVOS_BIRLOS = [
     "Codigo",
@@ -452,6 +466,7 @@
     { wch: 26 }
   ];
 
+  /** Resuelve el balance efectivo para un registro negativo. */
   const obtenerModoBalanceNegativos_ = (
     item,
     modoBalanceGeneral
@@ -540,6 +555,7 @@
     );
   };
 
+  /** Calcula el déficit absoluto del registro. */
   const obtenerDeficitNegativos_ = (item) => {
     if (
       item &&
@@ -635,6 +651,7 @@
     return "REVISAR EXCEDENTES";
   };
 
+  /** Proyecta un negativo al contrato de exportación. */
   const mapearFilaNegativosBirlos_ = (
     item,
     modoBalanceGeneral
@@ -758,6 +775,7 @@
     ].concat(cuerpo);
   };
 
+  /** Asigna tipos numéricos o de texto según la columna. */
   const aplicarTiposNegativos_ = (ws) => {
     if (!ws || !ws["!ref"]) {
       return;
@@ -916,6 +934,7 @@
       });
   };
 
+  /** Crea y descarga el libro de negativos con dos hojas. */
   const crearLibroNegativosBirlos_ = (
     filas,
     modoBalance,
@@ -981,12 +1000,11 @@
     };
   };
 
-    /**
-   * =========================================================
-   * EXPORTACIONES PÚBLICAS
-   * =========================================================
-   */
+  // =========================================================
+  // API PÚBLICA DE EXPORTACIÓN
+  // =========================================================
 
+  /** Exporta excedentes con saldo distinto de cero para una bodega. */
   window.XLSXExportUtilidades.exportarGestorExcedentesPorBodega = function(config) {
     config = config || {};
 
@@ -1035,6 +1053,7 @@
     );
   };
 
+  /** Exporta excedentes con saldo distinto de cero para un código. */
   window.XLSXExportUtilidades.exportarGestorExcedentesPorCodigo = function(config) {
     config = config || {};
 
@@ -1078,6 +1097,7 @@
     );
   };
 
+  /** Exporta saldos negativos según el balance y criterio activos. */
   window.XLSXExportUtilidades.exportarNegativosBirlos = function(config) {
     config = config || {};
 

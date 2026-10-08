@@ -1,103 +1,284 @@
-
 <script>
+  /**
+   * z0-Utilidades_XLSX.html
+   *
+   * Utilidades de exportación XLSX para las vistas de APPALMACEN.
+   *
+   * Responsabilidades:
+   * - Validar la disponibilidad de SheetJS en window.XLSX.
+   * - Validar y normalizar el conjunto de filas por exportar.
+   * - Aplicar una proyección opcional mediante definiciones de columnas.
+   * - Crear un libro y una hoja de cálculo en memoria.
+   * - Agregar autofiltro al rango utilizado.
+   * - Calcular anchos de columna legibles con límites defensivos.
+   * - Sanear nombres de archivo y hoja para cumplir las restricciones de Excel.
+   * - Descargar el archivo mediante writeFileXLSX().
+   * - Notificar el resultado al usuario sin interrumpir la vista consumidora.
+   *
+   * Dependencias globales:
+   * - window.XLSX, proporcionado por SheetJS.
+   * - window.notificar, opcional.
+   *
+   * API global expuesta:
+   * - window.ExcelExportUtils.exportarAXLSX(options).
+   *
+   * Contrato de options:
+   * {
+   *   fileName?: string,
+   *   sheetName?: string,
+   *   rows?: Array<Object>,
+   *   columns?: Array<{key:string,label?:string}>
+   * }
+   *
+   * Invariantes:
+   * - Una exportación sin filas se omite y genera una advertencia visible.
+   * - El nombre de hoja se limita a 31 caracteres.
+   * - Los nombres de archivo inválidos se normalizan antes de descargar.
+   * - Los anchos de columna se mantienen entre 12 y 40 caracteres.
+   * - Los errores de exportación se capturan para no romper el shell.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
   (function () {
+    "use strict";
+
+    /** Nombre predeterminado del archivo exportado. */
+    const DEFAULT_FILE_NAME = "Reporte.xlsx";
+
+    /** Nombre predeterminado de la hoja. */
+    const DEFAULT_SHEET_NAME = "Datos";
+
+    /** Longitud máxima admitida por Excel para el nombre de una hoja. */
+    const MAX_SHEET_NAME_LENGTH = 31;
+
+    /** Límites visuales utilizados para el ancho automático de columnas. */
+    const COLUMN_WIDTH = Object.freeze({
+      MIN: 12,
+      MAX: 40,
+      PADDING: 2
+    });
+
+    /**
+     * Conserva el objeto global existente o crea uno nuevo.
+     *
+     * Esto permite cargar el módulo más de una vez sin eliminar otras utilidades
+     * agregadas previamente por el shell.
+     */
     if (!window.ExcelExportUtils) {
       window.ExcelExportUtils = {};
     }
 
+    /**
+     * Emite una notificación únicamente cuando el shell proporciona el helper.
+     *
+     * @param {string} message Mensaje visible.
+     * @param {string} type Tipo de notificación.
+     * @return {void}
+     * @private
+     */
+    function notify_(message, type) {
+      if (typeof window.notificar === "function") {
+        window.notificar(message, type);
+      }
+    }
+
+    /**
+     * Convierte un nombre solicitado en un nombre de archivo seguro.
+     *
+     * @param {*} name Nombre recibido.
+     * @return {string} Nombre saneado sin caracteres reservados.
+     * @private
+     */
     function sanitizeFileName_(name) {
-      return String(name || "Reporte")
+      const sanitized = String(name || "Reporte")
         .replace(/[\\/:*?"<>|]+/g, "_")
         .replace(/\s+/g, "_")
+        .replace(/^\.+|\.+$/g, "")
         .trim();
+
+      return sanitized || "Reporte";
     }
 
+    /**
+     * Normaliza el nombre de una hoja conforme a las restricciones de Excel.
+     *
+     * @param {*} name Nombre recibido.
+     * @return {string} Nombre seguro de hasta 31 caracteres.
+     * @private
+     */
+    function sanitizeSheetName_(name) {
+      const sanitized = String(name || DEFAULT_SHEET_NAME)
+        .replace(/[\\/?*\[\]:]+/g, "_")
+        .trim()
+        .substring(0, MAX_SHEET_NAME_LENGTH);
+
+      return sanitized || DEFAULT_SHEET_NAME;
+    }
+
+    /**
+     * Garantiza que el nombre final utilice la extensión .xlsx una sola vez.
+     *
+     * @param {*} fileName Nombre solicitado.
+     * @return {string} Nombre final para la descarga.
+     * @private
+     */
+    function buildFinalFileName_(fileName) {
+      const safeName = sanitizeFileName_(fileName || DEFAULT_FILE_NAME);
+
+      return /\.xlsx$/i.test(safeName)
+        ? safeName
+        : safeName + ".xlsx";
+    }
+
+    /**
+     * Calcula anchos de columna a partir de encabezados y valores visibles.
+     *
+     * @param {Array<Object>} rows Filas ya proyectadas para exportación.
+     * @return {Array<{wch:number}>} Configuración de anchos para SheetJS.
+     * @private
+     */
     function autoColumns_(rows) {
-      if (!Array.isArray(rows) || !rows.length) return [];
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return [];
+      }
 
       const headers = Object.keys(rows[0] || {});
-      return headers.map(header => {
-        const maxLen = Math.max(
-          String(header || "").length,
-          ...rows.map(r => String(r?.[header] ?? "").length)
-        );
-        return { wch: Math.min(Math.max(maxLen + 2, 12), 40) };
+
+      return headers.map(function (header) {
+        const maxLength = rows.reduce(function (currentMax, row) {
+          const cellValue = row && row[header] != null
+            ? row[header]
+            : "";
+
+          return Math.max(currentMax, String(cellValue).length);
+        }, String(header || "").length);
+
+        return {
+          wch: Math.min(
+            Math.max(
+              maxLength + COLUMN_WIDTH.PADDING,
+              COLUMN_WIDTH.MIN
+            ),
+            COLUMN_WIDTH.MAX
+          )
+        };
       });
     }
 
+    /**
+     * Proyecta las filas según el orden y las etiquetas definidos por columns.
+     *
+     * @param {Array<Object>} rows Filas originales.
+     * @param {Array<{key:string,label?:string}>|null} columns Columnas opcionales.
+     * @return {Array<Object>} Filas listas para json_to_sheet().
+     * @private
+     */
     function mapRowsByColumns_(rows, columns) {
-      if (!Array.isArray(columns) || !columns.length) return rows;
+      if (!Array.isArray(columns) || columns.length === 0) {
+        return rows.slice();
+      }
 
-      return rows.map(row => {
-        const salida = {};
-        columns.forEach(col => {
-          const key = col.key;
-          const label = col.label || key;
-          salida[label] = row?.[key] ?? "";
-        });
-        return salida;
+      return rows.map(function (row) {
+        return columns.reduce(function (output, column) {
+          const safeColumn = column && typeof column === "object"
+            ? column
+            : {};
+          const key = String(safeColumn.key || "").trim();
+
+          if (!key) {
+            return output;
+          }
+
+          const label = String(safeColumn.label || key);
+          output[label] = row && row[key] != null
+            ? row[key]
+            : "";
+
+          return output;
+        }, {});
       });
     }
 
-    window.ExcelExportUtils.exportarAXLSX = function ({
-      fileName = "Reporte.xlsx",
-      sheetName = "Datos",
-      rows = [],
-      columns = null
-    } = {}) {
+    /**
+     * Exporta un arreglo de objetos a un archivo XLSX descargable.
+     *
+     * @param {Object=} options Configuración de exportación.
+     * @param {string=} options.fileName Nombre del archivo.
+     * @param {string=} options.sheetName Nombre de la hoja.
+     * @param {Array<Object>=} options.rows Filas de datos.
+     * @param {Array<{key:string,label?:string}>=} options.columns Proyección opcional.
+     * @return {{ok:boolean,fileName:string,rows:number}|null} Resultado resumido.
+     */
+    window.ExcelExportUtils.exportarAXLSX = function (options = {}) {
+      const {
+        fileName = DEFAULT_FILE_NAME,
+        sheetName = DEFAULT_SHEET_NAME,
+        rows = [],
+        columns = null
+      } = options && typeof options === "object"
+        ? options
+        : {};
+
       try {
-        if (!window.XLSX) {
-          if (window.notificar) {
-            window.notificar("La librería XLSX no está disponible en el shell.", "error");
-          }
-          console.error("❌ XLSX no está disponible en window.");
-          return;
+        if (!window.XLSX || !window.XLSX.utils) {
+          notify_(
+            "La librería XLSX no está disponible en el shell.",
+            "error"
+          );
+          console.error("[ExcelExportUtils] XLSX no está disponible en window.");
+          return null;
         }
 
-        const safeRows = Array.isArray(rows) ? rows : [];
+        const safeRows = Array.isArray(rows)
+          ? rows.filter(function (row) {
+              return row && typeof row === "object";
+            })
+          : [];
 
-        if (!safeRows.length) {
-          if (window.notificar) {
-            window.notificar("No hay datos para exportar.", "warning");
-          }
-          return;
+        if (safeRows.length === 0) {
+          notify_("No hay datos para exportar.", "warning");
+          return null;
         }
 
         const exportRows = mapRowsByColumns_(safeRows, columns);
+        const workbook = window.XLSX.utils.book_new();
+        const worksheet = window.XLSX.utils.json_to_sheet(exportRows);
 
-        const wb = window.XLSX.utils.book_new();
-        const ws = window.XLSX.utils.json_to_sheet(exportRows);
-
-        if (ws["!ref"]) {
-          ws["!autofilter"] = { ref: ws["!ref"] };
+        if (worksheet["!ref"]) {
+          worksheet["!autofilter"] = {
+            ref: worksheet["!ref"]
+          };
         }
 
-        ws["!cols"] = autoColumns_(exportRows);
+        worksheet["!cols"] = autoColumns_(exportRows);
 
         window.XLSX.utils.book_append_sheet(
-          wb,
-          ws,
-          String(sheetName || "Datos").substring(0, 31)
+          workbook,
+          worksheet,
+          sanitizeSheetName_(sheetName)
         );
 
-        const finalName = sanitizeFileName_(fileName).endsWith(".xlsx")
-          ? sanitizeFileName_(fileName)
-          : `${sanitizeFileName_(fileName)}.xlsx`;
+        const finalName = buildFinalFileName_(fileName);
 
-        // writeFile / writeFileXLSX son los helpers recomendados por SheetJS
-        // para intentar guardar / descargar archivos directamente en navegador.
-        window.XLSX.writeFileXLSX(wb, finalName);
-
-        if (window.notificar) {
-          window.notificar(`Archivo exportado: ${finalName}`, "success");
+        if (typeof window.XLSX.writeFileXLSX !== "function") {
+          throw new Error(
+            "SheetJS no expone la función writeFileXLSX()."
+          );
         }
 
-        console.log("✅ XLSX exportado:", finalName);
+        window.XLSX.writeFileXLSX(workbook, finalName);
+
+        notify_("Archivo exportado: " + finalName, "success");
+        console.log("[ExcelExportUtils] XLSX exportado:", finalName);
+
+        return {
+          ok: true,
+          fileName: finalName,
+          rows: exportRows.length
+        };
       } catch (error) {
-        console.error("❌ Error exportando XLSX:", error);
-        if (window.notificar) {
-          window.notificar("No se pudo exportar el archivo Excel.", "error");
-        }
+        console.error("[ExcelExportUtils] Error exportando XLSX:", error);
+        notify_("No se pudo exportar el archivo Excel.", "error");
+        return null;
       }
     };
   })();

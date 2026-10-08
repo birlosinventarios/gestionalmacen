@@ -1,8 +1,38 @@
 /**
- * UtilidadesDatos.gs
- * Auxiliares compartidos de datos, rendimiento, locks y cachés.
+ * z0-UtilidadesDatos.gs
+ *
+ * Infraestructura compartida de acceso a datos, normalización, rendimiento,
+ * concurrencia, diagnóstico y mantenimiento de cachés para APPALMACEN.
+ *
+ * Responsabilidades:
+ * - Resolver archivos y hojas configurados mediante FILES y SHEETS.
+ * - Reutilizar instancias Spreadsheet durante una ejecución.
+ * - Leer y escribir rangos con ancho controlado y telemetría.
+ * - Normalizar textos, números, fechas, horas, ubicaciones y bodegas.
+ * - Sanitizar metadatos sensibles antes de enviarlos a logs.
+ * - Administrar trazas de rendimiento y advertencias por lentitud.
+ * - Ejecutar operaciones críticas mediante ScriptLock.
+ * - Estandarizar la ejecución y errores de Controllers.
+ * - Invalidar cachés por alcance funcional.
+ * - Verificar contratos de hojas del módulo Verificación de entrada.
+ *
+ * Seguridad:
+ * - No enviar XML, CFDI, códigos de barras, certificados, sellos, cuentas ni
+ *   payloads completos a los helpers debug*.
+ * - Para datos sensibles deben utilizarse los helpers perf*, que redactan,
+ *   truncan y limitan profundidad, propiedades y arreglos.
+ *
+ * Invariantes:
+ * - La posición y escritura concurrente deben ocurrir bajo el mismo lock.
+ * - Las hojas de alto crecimiento deben leerse con readSheetRows_().
+ * - Las trazas finalizadas no aceptan nuevas marcas.
+ * - Las limpiezas de caché toleran dependencias opcionales ausentes.
  */
 
+// =========================================================
+// ACCESO A ARCHIVOS, HOJAS Y RANGOS
+// =========================================================
+/** Caché de Spreadsheet válida durante la ejecución actual. */
 const __spreadsheetCache = {};
 
 /**
@@ -265,17 +295,21 @@ function writeRowsBatch_(sheetKey, rows, width, trace) {
   };
 }
 
-/**
- * Formateadores de datos.
- */
+// =========================================================
+// NORMALIZACIÓN DE DATOS, FECHAS Y HORAS
+// =========================================================
+/** Formateadores defensivos compartidos. */
+/** Convierte un valor a texto sin espacios externos. */
 function toStr_(value) {
   return String(value || "").trim();
 }
 
+/** Convierte un valor a texto normalizado en mayúsculas. */
 function toStrUpper_(value) {
   return String(value || "").trim().toUpperCase();
 }
 
+/** Convierte un valor a número y usa cero para entradas inválidas. */
 function toNum_(value) {
   if (value === "" || value == null) return 0;
 
@@ -287,6 +321,7 @@ function isValidDate_(value) {
   return value instanceof Date && !isNaN(value.getTime());
 }
 
+/** Normaliza Date o dd/MM/yyyy a una fecha calendario. */
 function toDate_(value) {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -341,6 +376,7 @@ function sameDate_(a, b) {
   return d1.getTime() === d2.getTime();
 }
 
+/** Normaliza Date o HH:mm:ss a una hora comparable. */
 function toTime_(value) {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -394,6 +430,9 @@ function sameTime_(a, b) {
   );
 }
 
+// =========================================================
+// DIAGNÓSTICO MANUAL Y SEGURIDAD DE LOGS
+// =========================================================
 /**
  * ADVERTENCIA DE SEGURIDAD:
  *
@@ -608,9 +647,11 @@ function debugRepositoryMethods_(label, repository) {
   }
 }
 
-/**
- * Utilities extendidas para services/controllers.
- */
+// =========================================================
+// UTILIDADES GENERALES PARA SERVICES Y CONTROLLERS
+// =========================================================
+/** Utilities extendidas para services/controllers. */
+/** Redondea un valor numérico a dos decimales. */
 function round2_(value) {
   return Math.round(
     (Number(value || 0) + Number.EPSILON) * 100
@@ -643,6 +684,7 @@ function fmtTimeSafe_(date) {
   return Utilities.formatDate(date, getScriptTz_(), "HH:mm:ss");
 }
 
+/** Construye un contexto consistente de fecha y hora actual. */
 function getTemporalContext_() {
   const current = now_();
 
@@ -653,18 +695,21 @@ function getTemporalContext_() {
   };
 }
 
+/** Normaliza una ubicación eliminando espacios. */
 function normalizeLocationToken_(value) {
   return toStrUpper_(value)
     .replace(/\s+/g, "")
     .trim();
 }
 
+/** Normaliza una bodega conservando espacios simples. */
 function normalizeWarehouseToken_(value) {
   return toStrUpper_(value)
     .replace(/\s+/g, " ")
     .trim();
 }
 
+/** Obtiene el primer campo no vacío entre varias claves. */
 function pickFirstField_(row, possibleFields) {
   const fields = Array.isArray(possibleFields) ? possibleFields : [];
 
@@ -684,6 +729,7 @@ function pickFirstField_(row, possibleFields) {
   return "";
 }
 
+/** Conserva la primera aparición de cada clave calculada. */
 function uniqueBy_(arr, mapper) {
   const seen = {};
   const out = [];
@@ -700,6 +746,7 @@ function uniqueBy_(arr, mapper) {
   return out;
 }
 
+/** Compara textos en español con orden numérico. */
 function compareEs_(a, b) {
   return String(a || "").localeCompare(
     String(b || ""),
@@ -711,6 +758,7 @@ function compareEs_(a, b) {
   );
 }
 
+/** Crea una copia JSON de un objeto serializable. */
 function clonePlain_(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
@@ -721,6 +769,7 @@ function clonePlain_(obj) {
  * =========================================================
  */
 
+/** Obtiene la configuración efectiva de rendimiento. */
 function perfConfig_() {
   if (
     typeof VERIFICACION_ENTRADA !== "undefined" &&
@@ -743,6 +792,7 @@ function perfConfig_() {
   };
 }
 
+/** Genera un identificador compacto de correlación. */
 function perfGenerateRequestId_() {
   return (
     "REQ-" +
@@ -753,6 +803,7 @@ function perfGenerateRequestId_() {
   );
 }
 
+/** Redacta y limita metadatos para logs seguros. */
 function perfSanitizeMetadata_(metadata) {
   const cfg = perfConfig_();
   const maxText = Math.max(
@@ -840,6 +891,7 @@ function perfSanitizeMetadata_(metadata) {
   );
 }
 
+/** Inicia una traza de rendimiento. */
 function perfStart_(operation, metadata) {
   const now = Date.now();
 
@@ -857,6 +909,7 @@ function perfStart_(operation, metadata) {
   };
 }
 
+/** Agrega una marca a una traza activa. */
 function perfMark_(trace, stage, metadata) {
   if (!trace || trace.ended === true) return null;
 
@@ -879,6 +932,7 @@ function perfMark_(trace, stage, metadata) {
   return mark;
 }
 
+/** Registra una marca si se supera el umbral. */
 function perfWarnSlow_(trace, stage, elapsedMs, thresholdMs, metadata) {
   const threshold = Number(thresholdMs || 0);
 
@@ -900,6 +954,7 @@ function perfWarnSlow_(trace, stage, elapsedMs, thresholdMs, metadata) {
   );
 }
 
+/** Estima el tamaño JSON de una respuesta. */
 function perfMeasureJsonChars_(value) {
   try {
     return JSON.stringify(value).length;
@@ -908,6 +963,7 @@ function perfMeasureJsonChars_(value) {
   }
 }
 
+/** Finaliza y registra una traza. */
 function perfEnd_(trace, status, metadata) {
   if (!trace || trace.ended === true) return null;
 
@@ -956,6 +1012,7 @@ function perfEnd_(trace, status, metadata) {
   return result;
 }
 
+/** Finaliza una traza con estado de error. */
 function perfFail_(trace, error, metadata) {
   perfMark_(
     trace,
@@ -971,9 +1028,10 @@ function perfFail_(trace, error, metadata) {
   return perfEnd_(trace, "error");
 }
 
-/**
- * Inferencia estándar de bodega por ubicación.
- */
+// =========================================================
+// REGLAS TEMPORALES Y RESOLUCIÓN DE BODEGAS
+// =========================================================
+/** Inferencia estándar de bodega por ubicación. */
 function inferWarehouseByLocation_(ubicacion, fallback) {
   const u = toStrUpper_(ubicacion);
   const fb = toStrUpper_(fallback) || "PENDIENTE DE UBICACIÓN";
@@ -991,6 +1049,7 @@ function inferWarehouseByLocation_(ubicacion, fallback) {
   return fb;
 }
 
+/** Calcula minutos positivos entre horas de una fecha. */
 function minutesDiffFromStrings_(fechaStr, horaInicioStr, horaFinStr) {
   try {
     if (!fechaStr || !horaInicioStr || !horaFinStr) return 0;
@@ -1027,6 +1086,9 @@ function minutesDiffFromStrings_(fechaStr, horaInicioStr, horaFinStr) {
   }
 }
 
+// =========================================================
+// CONCURRENCIA Y LOCKS
+// =========================================================
 /**
  * Ejecuta una operación con LockService y distingue la espera del candado
  * de los errores ocurridos dentro de la operación protegida.
@@ -1139,9 +1201,10 @@ function withScriptLock_(label, executor, timeoutMs, trace) {
   }
 }
 
-/**
- * Wrapper genérico para controllers.
- */
+// =========================================================
+// EJECUCIÓN ESTÁNDAR DE CONTROLLERS
+// =========================================================
+/** Wrapper genérico para controllers. */
 function execController_(controllerName, label, executor) {
   const t0 = Date.now();
 
@@ -1182,9 +1245,10 @@ function execController_(controllerName, label, executor) {
   }
 }
 
-/**
- * Limpia cachés operativas generales.
- */
+// =========================================================
+// INVALIDACIÓN DE CACHÉS
+// =========================================================
+/** Limpia cachés operativas generales. */
 function clearOperationalCaches_() {
   try {
     if (
@@ -1403,6 +1467,9 @@ function clearVerificacionEntradaCaches_() {
  * Prueba de integración de las utilidades y las cinco hojas VE-*.
  * No escribe información.
  */
+// =========================================================
+// PRUEBA DE INTEGRACIÓN DE VERIFICACIÓN DE ENTRADA
+// =========================================================
 function testVeUtilities_() {
   const trace = perfStart_("VE_TEST_UTILITIES", {
     test: true
