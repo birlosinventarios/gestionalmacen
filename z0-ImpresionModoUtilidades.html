@@ -1,25 +1,77 @@
 <script>
-  /** ImpresionModoUtilidades.HTML */
+  /**
+   * z0-ImpresionModoUtilidades.html
+   *
+   * Utilidades compartidas para seleccionar y ejecutar el canal de impresión
+   * de APPALMACEN.
+   *
+   * Responsabilidades:
+   * - Persistir el modo LOCAL u ONLINE en localStorage.
+   * - Notificar cambios de modo mediante un evento global.
+   * - Preparar una ventana de impresión LOCAL.
+   * - Esperar documento, fuentes, imágenes, QR y readiness personalizado.
+   * - Normalizar respuestas actuales y contratos legacy.
+   * - Enviar paquetes ONLINE mediante el Controller del puente.
+   * - Aplicar fallback LOCAL cuando la impresión ONLINE no puede confirmarse.
+   *
+   * Dependencias globales:
+   * - window, localStorage, CustomEvent y requestAnimationFrame.
+   * - google.script.run.
+   * - window.notificar, opcional.
+   * - window.__APP_PRINT_READY, opcional dentro del documento impreso.
+   *
+   * API global expuesta:
+   * - ImpresionModoUtilidades.MODES.
+   * - ImpresionModoUtilidades.getMode().
+   * - ImpresionModoUtilidades.setMode(mode).
+   * - ImpresionModoUtilidades.toggleMode().
+   * - ImpresionModoUtilidades.imprimirResultado(resultado, options).
+   * - ImpresionModoUtilidades.abrirHtmlLocal(html, titulo, ventanaExistente).
+   *
+   * Invariantes:
+   * - Cualquier modo desconocido se normaliza a LOCAL.
+   * - La ausencia de printJob en ONLINE puede activar fallback LOCAL.
+   * - Los fallos de fuentes, imágenes o QR no bloquean indefinidamente.
+   * - La ventana LOCAL debe abrirse desde una acción permitida por el navegador.
+   * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   */
 </script>
 
 <script>
   (function () {
+    // =========================================================
+    // INICIALIZACIÓN, CONFIGURACIÓN Y PERSISTENCIA
+    // =========================================================
     if (!window.ImpresionModoUtilidades) {
-      window.ImpresionModoUtilidades = {};
+      // =========================================================
+    // API GLOBAL
+    // =========================================================
+    window.ImpresionModoUtilidades = {};
     }
 
+    /** Clave persistente del modo de impresión seleccionado. */
     const STORAGE_KEY = "APP_ALMACEN_PRINT_MODE";
 
+    /** Modos públicos admitidos por la infraestructura de impresión. */
     const MODES = {
       LOCAL: "LOCAL",
       ONLINE: "ONLINE"
     };
 
+    /**
+     * Obtiene el modo persistido y normaliza valores desconocidos a LOCAL.
+     * @return {"LOCAL"|"ONLINE"}
+     */
     function getMode() {
       const value = localStorage.getItem(STORAGE_KEY);
       return value === MODES.ONLINE ? MODES.ONLINE : MODES.LOCAL;
     }
 
+    /**
+     * Persiste el modo y emite el evento app-print-mode-change.
+     * @param {*} mode Modo solicitado.
+     * @return {"LOCAL"|"ONLINE"} Modo normalizado.
+     */
     function setMode(mode) {
       const finalMode = mode === MODES.ONLINE ? MODES.ONLINE : MODES.LOCAL;
 
@@ -34,10 +86,25 @@
       return finalMode;
     }
 
+    /**
+     * Alterna entre LOCAL y ONLINE.
+     * @return {"LOCAL"|"ONLINE"} Nuevo modo activo.
+     */
     function toggleMode() {
       return setMode(getMode() === MODES.ONLINE ? MODES.LOCAL : MODES.ONLINE);
     }
 
+    /**
+     * Escribe un documento HTML en una ventana y solicita su impresión.
+     *
+     * @param {string} html Documento completo o fragmento imprimible.
+     * @param {string=} titulo Título lógico de la operación.
+     * @param {Window|null=} ventanaExistente Ventana abierta por el usuario.
+     * @return {boolean} true si el documento pudo prepararse.
+     */
+    // =========================================================
+    // IMPRESIÓN LOCAL Y ESPERA DE RECURSOS
+    // =========================================================
     function abrirHtmlLocal(html, titulo = "Impresión", ventanaExistente = null) {
       const win = ventanaExistente || window.open("", "_blank", "width=900,height=700");
 
@@ -48,8 +115,15 @@
         return false;
       }
 
+      /** Crea una pausa asíncrona no bloqueante. */
       const esperar = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+      /**
+       * Espera varios ciclos de pintura en la ventana de impresión.
+       * @param {Window} w Ventana objetivo.
+       * @param {number=} frames Número de cuadros.
+       * @return {Promise<void>}
+       */
       const esperarFrames = (w, frames = 2) => {
         return new Promise(resolve => {
           let count = 0;
@@ -69,6 +143,7 @@
         });
       };
 
+      /** Espera load o un límite defensivo de 2.5 segundos. */
       const esperarDocumentoListo = async (w) => {
         try {
           if (w.document.readyState === "complete") return;
@@ -85,6 +160,7 @@
         }
       };
 
+      /** Espera document.fonts.ready sin bloquear indefinidamente. */
       const esperarFuentes = async (w) => {
         try {
           if (w.document.fonts && typeof w.document.fonts.ready?.then === "function") {
@@ -98,6 +174,7 @@
         }
       };
 
+      /** Espera la carga o fallo controlado de todas las imágenes. */
       const esperarImagenes = async (w) => {
         try {
           const imagenes = Array.from(w.document.images || []);
@@ -122,6 +199,11 @@
         }
       };
 
+      /**
+       * Comprueba la existencia de un QR visual con dimensiones válidas.
+       * @param {Window} w Ventana objetivo.
+       * @return {Promise<boolean>}
+       */
       const esperarQRVisual = async (w) => {
         const maxIntentos = 30;
         const delay = 150;
@@ -166,6 +248,7 @@
         return false;
       };
 
+      /** Espera el contrato opcional __APP_PRINT_READY. */
       const esperarReadyPersonalizado = async (w) => {
         try {
           if (w.__APP_PRINT_READY && typeof w.__APP_PRINT_READY.then === "function") {
@@ -222,6 +305,14 @@
       }
     }
 
+    /**
+     * Normaliza respuestas actuales y contratos legacy basados en HTML directo.
+     * @param {*} resultado Respuesta del servidor.
+     * @return {{ok:boolean,htmlImpresion:string,printJob:Object|null,legacy:boolean=}}
+     */
+    // =========================================================
+    // NORMALIZACIÓN Y ORQUESTACIÓN LOCAL / ONLINE
+    // =========================================================
     function normalizarResultado(resultado) {
       if (typeof resultado === "string") {
         return {
@@ -239,6 +330,12 @@
       };
     }
 
+    /**
+     * Ejecuta la impresión en el modo activo y aplica fallback cuando procede.
+     * @param {*} resultado Respuesta de generación de impresión.
+     * @param {{titulo:string=,fallbackLocal:boolean=,ventanaLocal:Window|null=}=} options Opciones.
+     * @return {void}
+     */
     function imprimirResultado(resultado, options = {}) {
       const res = normalizarResultado(resultado);
       const mode = getMode();

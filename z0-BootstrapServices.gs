@@ -1,5 +1,61 @@
-const BootstrapServices = (() => {
+/**
+ * z0-BootstrapServices.gs
+ *
+ * Servicio de composición del bootstrap inicial utilizado por las vistas de
+ * APPALMACEN.
+ *
+ * Responsabilidades:
+ * - Consultar usuarios, ubicaciones de excedentes, catálogo y etiquetas.
+ * - Normalizar códigos, descripciones, bodegas y ubicaciones.
+ * - Construir mapas de acceso rápido para el cliente.
+ * - Eliminar códigos duplicados mediante conjuntos.
+ * - Ordenar catálogos visibles de forma determinista.
+ * - Medir la duración de cada etapa del proceso.
+ * - Reutilizar APPALMACENCache cuando el módulo está disponible.
+ * - Devolver un contrato vacío y estable si ocurre un error de composición.
+ *
+ * Dependencias globales:
+ * - UsuariosRepository.
+ * - UbicacionesExcedentesRepository.
+ * - CatalogoRepository.
+ * - EtiquetasRepository.
+ * - APPALMACENCache, opcional.
+ *
+ * Contrato público:
+ * - BootstrapServices.getInfoInicial(forceRefresh).
+ *
+ * Contrato de salida:
+ * - usuarios: usuarios ordenados por nombre.
+ * - bodegas: nombres únicos de bodegas ordenados.
+ * - mapaUbicacionesExcedentes: pares normalizados de bodega y ubicación.
+ * - codigos: códigos únicos del catálogo ordenados.
+ * - mapaCatalogo: producto indexado por código.
+ * - mapaMedidas: dimensiones de etiqueta indexadas por nombre.
+ * - nombresEtiquetas: nombres de etiqueta ordenados.
+ *
+ * Invariantes:
+ * - Los códigos, descripciones, bodegas y ubicaciones se normalizan según el
+ *   comportamiento original del servicio.
+ * - Los mapas utilizan claves normalizadas y conservan el último registro si
+ *   existen duplicados en la fuente.
+ * - El fallback de error mantiene siempre todas las propiedades del contrato.
+ * - forceRefresh solo se considera verdadero cuando su valor es true.
+ */
 
+const BootstrapServices = (() => {
+  // =========================================================
+  // TELEMETRÍA Y NORMALIZADORES PRIVADOS
+  // =========================================================
+
+  /**
+   * Registra la duración de una etapa del bootstrap.
+   *
+   * @param {string} etapa Nombre estable de la etapa.
+   * @param {number} inicio Marca temporal obtenida mediante Date.now().
+   * @param {*=} extra Metadatos opcionales para diagnóstico.
+   * @return {void}
+   * @private
+   */
   function logDuracion_(etapa, inicio, extra) {
     const ms = Date.now() - inicio;
     if (extra !== undefined) {
@@ -9,6 +65,13 @@ const BootstrapServices = (() => {
     }
   }
 
+  /**
+   * Normaliza el catálogo y construye sus índices para el navegador.
+   *
+   * @param {Array<Object>} catalogo Registros obtenidos del repositorio.
+   * @return {{mapaCatalogo:Object,codigos:Array<string>}}
+   * @private
+   */
   function procesarCatalogo_(catalogo) {
     const mapaCatalogo = {};
     const codigosUnicos = new Set();
@@ -32,6 +95,13 @@ const BootstrapServices = (() => {
     };
   }
 
+  /**
+   * Construye el mapa de dimensiones y la lista ordenada de etiquetas.
+   *
+   * @param {Array<Object>} etiquetas Etiquetas configuradas.
+   * @return {{mapaMedidas:Object,nombresEtiquetas:Array<string>}}
+   * @private
+   */
   function procesarEtiquetas_(etiquetas) {
     const mapaMedidas = {};
 
@@ -52,6 +122,13 @@ const BootstrapServices = (() => {
     };
   }
 
+  /**
+   * Normaliza ubicaciones de excedentes y extrae bodegas únicas.
+   *
+   * @param {Array<Object>} ubicaciones Registros de ubicación.
+   * @return {{mapaUbicacionesExcedentes:Array<Object>,bodegas:Array<string>}}
+   * @private
+   */
   function procesarUbicaciones_(ubicaciones) {
     const mapaUbicacionesExcedentes = [];
     const bodegasSet = new Set();
@@ -76,12 +153,31 @@ const BootstrapServices = (() => {
     };
   }
 
+  /**
+   * Devuelve una copia de los usuarios ordenada por nombre visible.
+   *
+   * @param {Array<Object>} usuarios Usuarios obtenidos del repositorio.
+   * @return {Array<Object>} Copia ordenada sin mutar el arreglo original.
+   * @private
+   */
   function usuariosOrdenados_(usuarios) {
     return [...usuarios].sort((a, b) =>
       String(a.nombre || "").localeCompare(String(b.nombre || ""))
     );
   }
 
+  /**
+   * Construye el bootstrap directamente desde los repositorios.
+   *
+   * Cada etapa se mide de forma independiente. Ante cualquier error se devuelve
+   * un contrato vacío estable para evitar fallos de desestructuración en vistas.
+   *
+   * @return {Object} Bootstrap normalizado.
+   * @private
+   */
+  // =========================================================
+  // COMPOSICIÓN DEL BOOTSTRAP DESDE REPOSITORIOS
+  // =========================================================
   function getInfoInicialFresh_() {
     const tTotal = Date.now();
 
@@ -179,7 +275,16 @@ const BootstrapServices = (() => {
     }
   }
 
+  // =========================================================
+  // API PÚBLICA
+  // =========================================================
   return {
+    /**
+     * Obtiene el bootstrap inicial, preferentemente desde la caché compartida.
+     *
+     * @param {boolean=} forceRefresh true para omitir el valor cacheado.
+     * @return {Object} Bootstrap normalizado.
+     */
     getInfoInicial: function(forceRefresh) {
       const forzar = forceRefresh === true;
 
