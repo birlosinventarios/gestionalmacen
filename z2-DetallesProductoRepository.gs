@@ -1,11 +1,39 @@
 /**
- * DetallesProductoRepository.gs
- * Repositorio para lectura y escritura de la hoja DETALLESPRODUCTO
+ * @fileoverview Repositorio de lectura y escritura de detalles de producto.
+ *
+ * Administra la hoja lógica DETALLES_PRODUCTOS, valida su contrato de encabezados,
+ * normaliza entidades y expone consultas, upsert e inserción por lote.
+ *
+ * Dependencias globales:
+ * - SHEETS.DETALLES_PRODUCTOS y COL.DETALLES_PRODUCTOS.
+ * - getSpreadsheetByFileKey_(fileKey).
+ * - toStr_(value), toStrUpper_(value) y toNum_(value).
+ * - debugRepositoryCall_() y debugRepositoryMethods_().
+ * - SpreadsheetApp y LockService de Google Apps Script.
+ *
+ * Reglas de mantenimiento:
+ * - La fila 1 contiene encabezados; los datos comienzan en la fila 2.
+ * - ID es la identidad utilizada por upsert() y no debe estar vacío.
+ * - CODIGO es obligatorio para cualquier registro persistido.
+ * - Las escrituras se protegen con ScriptLock y se confirman con flush().
+ * - Crear la hoja automáticamente está permitido; sobrescribir encabezados con
+ *   datos existentes no lo está, para evitar pérdida silenciosa de información.
+ *
+ * @author Sigifredo de la Cruz Ramos
  */
-
 const DetallesProductoRepository = (() => {
+  "use strict";
 
-  const HEADERS = [
+  /** @private @const {!Object} */
+  const CFG = Object.freeze({
+    HEADER_ROW: 1,
+    FIRST_DATA_ROW: 2,
+    LOCK_TIMEOUT_MS: 30000,
+    NOT_FOUND_ROW: -1
+  });
+
+  /** Contrato físico e inmutable de encabezados. @private @const */
+  const HEADERS = Object.freeze([
     "ID",
     "CODIGO",
     "DESCRIPCION",
@@ -20,41 +48,72 @@ const DetallesProductoRepository = (() => {
     "PESOTEORICO",
     "ROSCADO",
     "LARGOROSCADO"
-  ];
+  ]);
 
+  /**
+   * Obtiene la hoja configurada y garantiza su contrato estructural.
+   * @return {!GoogleAppsScript.Spreadsheet.Sheet}
+   * @private
+   */
   function _getSheet_() {
     const config = SHEETS.DETALLES_PRODUCTOS;
-
     if (!config) {
       throw new Error("No existe la configuración SHEETS.DETALLES_PRODUCTOS.");
     }
 
-    const ss = getSpreadsheetByFileKey_(config.file);
-    let hoja = ss.getSheetByName(config.name);
-
-    if (!hoja) {
-      hoja = ss.insertSheet(config.name);
+    const spreadsheet = getSpreadsheetByFileKey_(config.file);
+    let sheet = spreadsheet.getSheetByName(config.name);
+    if (!sheet) {
+      sheet = spreadsheet.insertSheet(config.name);
     }
 
-    _ensureHeaders_(hoja);
-
-    return hoja;
+    _ensureHeaders_(sheet);
+    return sheet;
   }
 
-  function _ensureHeaders_(hoja) {
-    const currentHeaders = hoja.getRange(1, 1, 1, HEADERS.length).getValues()[0];
+  /**
+   * Valida los encabezados y solo los crea cuando la hoja no contiene datos.
+   * @param {!GoogleAppsScript.Spreadsheet.Sheet} sheet
+   * @return {void}
+   * @throws {Error} Si una hoja con datos tiene un contrato incompatible.
+   * @private
+   */
+  function _ensureHeaders_(sheet) {
+    const currentHeaders = sheet
+      .getRange(CFG.HEADER_ROW, 1, 1, HEADERS.length)
+      .getValues()[0];
+    const areInvalid = HEADERS.some((header, index) =>
+      toStrUpper_(currentHeaders[index]) !== header
+    );
 
-    const headersInvalidos = HEADERS.some(function (header, index) {
-      return toStrUpper_(currentHeaders[index]) !== header;
-    });
-
-    if (headersInvalidos) {
-      hoja.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-      hoja.setFrozenRows(1);
+    if (!areInvalid) {
+      sheet.setFrozenRows(CFG.HEADER_ROW);
+      return;
     }
+
+    const hasData = sheet.getLastRow() >= CFG.FIRST_DATA_ROW;
+    if (hasData) {
+      throw new Error(
+        `La hoja "${sheet.getName()}" contiene datos y encabezados incompatibles`
+      );
+    }
+
+    sheet
+      .getRange(CFG.HEADER_ROW, 1, 1, HEADERS.length)
+      .setValues([[...HEADERS]]);
+    sheet.setFrozenRows(CFG.HEADER_ROW);
   }
 
+  /**
+   * Convierte una fila física al contrato normalizado del repositorio.
+   * @param {!Array<*>} fila
+   * @return {!Object}
+   * @private
+   */
   function _normalizarFila_(fila) {
+    if (!Array.isArray(fila) || fila.length < HEADERS.length) {
+      throw new TypeError("La fila de detalle de producto tiene un formato inválido");
+    }
     return {
       ID: toStr_(fila[COL.DETALLES_PRODUCTOS.ID]),
       CODIGO: toStrUpper_(fila[COL.DETALLES_PRODUCTOS.CODIGO]),
@@ -73,7 +132,24 @@ const DetallesProductoRepository = (() => {
     };
   }
 
-  function _toRow_(item) {
+  /**
+   * Valida una entidad y la convierte en fila física.
+   * @param {*} item
+   * @param {string=} operationName
+   * @return {!Array<*>}
+   * @private
+   */
+  function _toRow_(item, operationName = "operación") {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new TypeError(`${operationName} requiere un objeto válido`);
+    }
+    if (!toStr_(item.ID)) {
+      throw new Error(`${operationName} requiere item.ID`);
+    }
+    if (!toStrUpper_(item.CODIGO)) {
+      throw new Error(`${operationName} requiere item.CODIGO`);
+    }
+
     return [
       toStr_(item.ID),
       toStrUpper_(item.CODIGO),
@@ -92,16 +168,17 @@ const DetallesProductoRepository = (() => {
     ];
   }
 
+  /** Devuelve todos los detalles válidos. @return {!Array<!Object>} */
   function getAll() {
     const hoja = _getSheet_();
     const lastRow = hoja.getLastRow();
 
-    if (lastRow < 2) {
+    if (lastRow < CFG.FIRST_DATA_ROW) {
       return [];
     }
 
     const values = hoja
-      .getRange(2, 1, lastRow - 1, HEADERS.length)
+      .getRange(CFG.FIRST_DATA_ROW, 1, lastRow - CFG.HEADER_ROW, HEADERS.length)
       .getValues();
 
     return values
@@ -113,6 +190,7 @@ const DetallesProductoRepository = (() => {
       });
   }
 
+  /** Busca la primera coincidencia por ID. @param {*} id @return {?Object} */
   function getUnoPorId(id) {
     const idBuscado = toStr_(id);
 
@@ -127,6 +205,7 @@ const DetallesProductoRepository = (() => {
     }) || null;
   }
 
+  /** Busca la primera coincidencia por código. @param {*} codigo @return {?Object} */
   function getUnoPorCodigo(codigo) {
     const codigoBuscado = toStrUpper_(codigo);
 
@@ -141,6 +220,7 @@ const DetallesProductoRepository = (() => {
     }) || null;
   }
 
+  /** Busca todas las coincidencias por ID. @param {*} id @return {!Array<!Object>} */
   function getPorId(id) {
     const idBuscado = toStr_(id);
 
@@ -153,6 +233,7 @@ const DetallesProductoRepository = (() => {
     });
   }
 
+  /** Busca todas las coincidencias por código. @param {*} codigo @return {!Array<!Object>} */
   function getPorCodigo(codigo) {
     const codigoBuscado = toStrUpper_(codigo);
 
@@ -165,93 +246,108 @@ const DetallesProductoRepository = (() => {
     });
   }
 
-  function _findRowById_(id) {
-    const hoja = _getSheet_();
+  /**
+   * Localiza la fila física correspondiente a un ID.
+   * @param {*} id
+   * @param {GoogleAppsScript.Spreadsheet.Sheet=} sheet
+   * @return {number} Fila base uno o CFG.NOT_FOUND_ROW.
+   * @private
+   */
+  function _findRowById_(id, sheet) {
+    const hoja = sheet || _getSheet_();
     const lastRow = hoja.getLastRow();
     const idBuscado = toStr_(id);
 
     if (!idBuscado || lastRow < 2) {
-      return -1;
+      return CFG.NOT_FOUND_ROW;
     }
 
     const values = hoja
-      .getRange(2, COL.DETALLES_PRODUCTOS.ID + 1, lastRow - 1, 1)
+      .getRange(
+        CFG.FIRST_DATA_ROW,
+        COL.DETALLES_PRODUCTOS.ID + 1,
+        lastRow - CFG.HEADER_ROW,
+        1
+      )
       .getValues();
 
     for (let i = 0; i < values.length; i++) {
       const idActual = toStr_(values[i][0]);
 
       if (idActual === idBuscado) {
-        return i + 2;
+        return i + CFG.FIRST_DATA_ROW;
       }
     }
 
-    return -1;
+    return CFG.NOT_FOUND_ROW;
   }
 
+  /** Indica si existe un registro por ID. @param {*} id @return {boolean} */
   function existePorId(id) {
     return _findRowById_(id) > 0;
   }
 
+  /** Crea o actualiza un detalle bajo bloqueo. @param {!Object} item @return {!Object} */
   function upsert(item) {
-    const hoja = _getSheet_();
+    const row = _toRow_(item, "upsert()");
+    const lock = LockService.getScriptLock();
+    lock.waitLock(CFG.LOCK_TIMEOUT_MS);
 
-    if (!item || !item.ID) {
-      throw new Error("No se puede guardar detalle sin ID.");
-    }
+    try {
+      const sheet = _getSheet_();
+      const rowNumber = _findRowById_(item.ID, sheet);
+      let action;
+      let persistedRow;
 
-    if (!item.CODIGO) {
-      throw new Error("No se puede guardar detalle sin CODIGO.");
-    }
+      if (rowNumber > 0) {
+        sheet.getRange(rowNumber, 1, 1, HEADERS.length).setValues([row]);
+        action = "ACTUALIZADO";
+        persistedRow = rowNumber;
+      } else {
+        persistedRow = sheet.getLastRow() + 1;
+        sheet.getRange(persistedRow, 1, 1, HEADERS.length).setValues([row]);
+        action = "CREADO";
+      }
 
-    const row = _toRow_(item);
-    const rowNumber = _findRowById_(item.ID);
-
-    if (rowNumber > 0) {
-      hoja.getRange(rowNumber, 1, 1, HEADERS.length).setValues([row]);
-
+      SpreadsheetApp.flush();
       return {
         ok: true,
-        accion: "ACTUALIZADO",
-        rowNumber: rowNumber,
+        accion: action,
+        rowNumber: persistedRow,
         item: _normalizarFila_(row)
       };
+    } finally {
+      lock.releaseLock();
     }
-
-    hoja.appendRow(row);
-
-    return {
-      ok: true,
-      accion: "CREADO",
-      rowNumber: hoja.getLastRow(),
-      item: _normalizarFila_(row)
-    };
   }
 
+  /** Inserta un lote validado en una sola escritura. @param {!Array<!Object>} items @return {!Object} */
   function insertarLote(items) {
-    const hoja = _getSheet_();
-
-    if (!Array.isArray(items) || items.length === 0) {
-      return {
-        ok: true,
-        insertados: 0
-      };
+    if (!Array.isArray(items)) {
+      throw new TypeError("insertarLote() requiere un arreglo");
+    }
+    if (items.length === 0) {
+      return { ok: true, insertados: 0 };
     }
 
-    const rows = items.map(function (item) {
-      return _toRow_(item);
-    });
+    const rows = items.map((item, index) =>
+      _toRow_(item, `insertarLote()[${index}]`)
+    );
+    const lock = LockService.getScriptLock();
+    lock.waitLock(CFG.LOCK_TIMEOUT_MS);
 
-    hoja
-      .getRange(hoja.getLastRow() + 1, 1, rows.length, HEADERS.length)
-      .setValues(rows);
-
-    return {
-      ok: true,
-      insertados: rows.length
-    };
+    try {
+      const sheet = _getSheet_();
+      const startRow = sheet.getLastRow() + 1;
+      sheet.getRange(startRow, 1, rows.length, HEADERS.length).setValues(rows);
+      SpreadsheetApp.flush();
+      return { ok: true, insertados: rows.length, startRow };
+    } finally {
+      lock.releaseLock();
+    }
   }
 
+  /** Ejecuta una lectura instrumentada para diagnóstico. @return {*} */
   function debugGetAll() {
     return debugRepositoryCall_(
       "DetallesProductoRepository.getAll",
@@ -265,6 +361,7 @@ const DetallesProductoRepository = (() => {
     );
   }
 
+  /** Describe los métodos públicos mediante la utilidad de diagnóstico. @return {*} */
   function debugMethods() {
     return debugRepositoryMethods_(
       "DetallesProductoRepository",
@@ -272,17 +369,17 @@ const DetallesProductoRepository = (() => {
     );
   }
 
-  return {
-    getAll: getAll,
-    getUnoPorId: getUnoPorId,
-    getUnoPorCodigo: getUnoPorCodigo,
-    getPorId: getPorId,
-    getPorCodigo: getPorCodigo,
-    existePorId: existePorId,
-    upsert: upsert,
-    insertarLote: insertarLote,
-    debugGetAll: debugGetAll,
-    debugMethods: debugMethods
-  };
+  return Object.freeze({
+    getAll,
+    getUnoPorId,
+    getUnoPorCodigo,
+    getPorId,
+    getPorCodigo,
+    existePorId,
+    upsert,
+    insertarLote,
+    debugGetAll,
+    debugMethods
+  });
 
 })();
