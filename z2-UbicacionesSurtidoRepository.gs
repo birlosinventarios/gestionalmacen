@@ -28,6 +28,7 @@
  *
  * @author Sigifredo de la Cruz Ramos
  */
+
 const UbicacionesSurtidoRepository = (() => {
   "use strict";
 
