@@ -42,6 +42,7 @@
  * - Las equivalencias usan una generación versionada para su invalidación.
  * - Los valores que exceden el límite configurado no se almacenan en caché.
  * - clearCache() invalida configuración y generación de equivalencias.
+ * - La API pública permanece inmutable y limita las mutaciones a mapas autorizados.
  *
  * @author Sigifredo de la Cruz Ramos
  */
@@ -101,7 +102,11 @@ const VerificacionEntradaRepository = (() => {
       ["toStr_", typeof toStr_],
       ["toStrUpper_", typeof toStrUpper_],
       ["toNum_", typeof toNum_],
-      ["perfMark_", typeof perfMark_]
+      ["perfStart_", typeof perfStart_],
+      ["perfMark_", typeof perfMark_],
+      ["perfEnd_", typeof perfEnd_],
+      ["perfFail_", typeof perfFail_],
+      ["perfMeasureJsonChars_", typeof perfMeasureJsonChars_]
     ];
     const missing = dependencies
       .filter(function(dependency) { return dependency[1] !== "function"; })
@@ -295,7 +300,10 @@ const VerificacionEntradaRepository = (() => {
     return true;
   }
 
-  function _mapSesion_(r, n) { 
+  function _mapSesion_(r, n) {
+    if (!Array.isArray(r)) {
+      throw new TypeError(CFG.LOG_PREFIX + " La fila recibida es inválida.");
+    } 
     const c = COL.VERIFICACION_ENTRADA_SESIONES; 
       return {
       rowNumber:Number(n||0),
@@ -337,6 +345,9 @@ const VerificacionEntradaRepository = (() => {
     }; }
 
   function _mapDetalle_(r,n){
+    if (!Array.isArray(r)) {
+      throw new TypeError(CFG.LOG_PREFIX + " La fila recibida es inválida.");
+    }
     const c=COL.VERIFICACION_ENTRADA_DETALLE;
       return{
       rowNumber:Number(n||0),
@@ -372,6 +383,9 @@ const VerificacionEntradaRepository = (() => {
     };}
 
   function _mapCaja_(r,n){
+    if (!Array.isArray(r)) {
+      throw new TypeError(CFG.LOG_PREFIX + " La fila recibida es inválida.");
+    }
     const c=COL.VERIFICACION_ENTRADA_CAJAS;
       return{
       rowNumber:Number(n||0),
@@ -403,7 +417,10 @@ const VerificacionEntradaRepository = (() => {
       creadoEn:_date_(r[c.CREADOEN])
     };}
 
-  function _mapEvento_(r,n){const c=COL.VERIFICACION_ENTRADA_EVENTOS;return{
+  function _mapEvento_(r,n){
+    if (!Array.isArray(r)) {
+      throw new TypeError(CFG.LOG_PREFIX + " La fila recibida es inválida.");
+    }const c=COL.VERIFICACION_ENTRADA_EVENTOS;return{
     rowNumber:Number(n||0),
     idEvento:_text_(r[c.IDEVENTO]),
     idSesion:_text_(r[c.IDSESION]),
@@ -426,7 +443,10 @@ const VerificacionEntradaRepository = (() => {
     creadoEn:_date_(r[c.CREADOEN])
   };}
 
-  function _mapEquivalencia_(r,n){const c=COL.VERIFICACION_ENTRADA_EQUIVALENCIAS;return{
+  function _mapEquivalencia_(r,n){
+    if (!Array.isArray(r)) {
+      throw new TypeError(CFG.LOG_PREFIX + " La fila recibida es inválida.");
+    }const c=COL.VERIFICACION_ENTRADA_EQUIVALENCIAS;return{
     rowNumber:Number(n||0),idEquivalencia:_text_(r[c.IDEQUIVALENCIA]),rfcEmisor:_upper_(r[c.RFCEMISOR]),idProveedor:_text_(r[c.IDPROVEEDOR]),codigoProveedorXml:_upper_(r[c.CODIGOPROVEEDORXML]),codigoEtiqueta:_upper_(r[c.CODIGOETIQUETA]),codigoInterno:_upper_(r[c.CODIGOINTERNO]),idProducto:_text_(r[c.IDPRODUCTO]),descripcionInterna:_text_(r[c.DESCRIPCIONINTERNA]),claveUnidadXml:_upper_(r[c.CLAVEUNIDADXML]),unidadXml:_upper_(r[c.UNIDADXML]),unidadInterna:_upper_(r[c.UNIDADINTERNA]),factorConversion:_number_(r[c.FACTORCONVERSION]),tipoConcepto:_upper_(r[c.TIPOCONCEPTO]),activo:_boolean_(r[c.ACTIVO]),nivelConfianza:_upper_(r[c.NIVELCONFIANZA]),origenRegla:_upper_(r[c.ORIGENREGLA]),fechaInicio:_date_(r[c.FECHAINICIO]),fechaFin:_date_(r[c.FECHAFIN]),creadoPor:_text_(r[c.CREADOPOR]),fechaCreacion:_date_(r[c.FECHACREACION]),modificadoPor:_text_(r[c.MODIFICADOPOR]),fechaModificacion:_date_(r[c.FECHAMODIFICACION]),observacion:_text_(r[c.OBSERVACION])
   };}
 
@@ -485,7 +505,35 @@ const VerificacionEntradaRepository = (() => {
     return _readRowsByNumbers_(key,_findRowNumbers_(key,columnName,value,trace),mapper,trace);
   }
 
-  function _buildRow_(key,object,fieldMap){const row=_blank_(key),columns=_columns_(key),source=object||{};Object.keys(fieldMap).forEach(function(columnName){if(!Object.prototype.hasOwnProperty.call(columns,columnName))throw new Error("Columna no configurada: "+key+"."+columnName);const value=source[fieldMap[columnName]];row[columns[columnName]]=value===null||value===undefined?"":value;});return row;}
+  /**
+   * Construye una fila física a partir de un contrato de campos autorizado.
+   *
+   * @param {string} key Clave lógica de la hoja.
+   * @param {!Object} object Entidad de entrada.
+   * @param {!Object<string,string>} fieldMap Mapa columna-propiedad.
+   * @return {!Array<*>} Fila completa con el ancho esperado.
+   * @throws {TypeError} Si la entidad o el mapa no son objetos válidos.
+   * @throws {Error} Si el mapa referencia una columna inexistente.
+   * @private
+   */
+  function _buildRow_(key, object, fieldMap) {
+    if (!object || typeof object !== "object" || Array.isArray(object)) {
+      throw new TypeError("Se requiere una entidad válida para construir " + key + ".");
+    }
+    if (!fieldMap || typeof fieldMap !== "object" || Array.isArray(fieldMap)) {
+      throw new TypeError("El mapa de campos es inválido para " + key + ".");
+    }
+    const row = _blank_(key);
+    const columns = _columns_(key);
+    Object.keys(fieldMap).forEach(function(columnName) {
+      if (!Object.prototype.hasOwnProperty.call(columns, columnName)) {
+        throw new Error("Columna no configurada: " + key + "." + columnName);
+      }
+      const value = object[fieldMap[columnName]];
+      row[columns[columnName]] = value === null || value === undefined ? "" : value;
+    });
+    return row;
+  }
 
   const SESSION_FIELD_MAP=Object.freeze({IDSESION:"idSesion",HASHXML:"hashXml",UUIDCFDI:"uuidCfdi",RFCEMISOR:"rfcEmisor",NOMBREEMISOR:"nombreEmisor",SERIE:"serie",FOLIO:"folio",FECHACFDI:"fechaCfdi",VERSIONCFDI:"versionCfdi",TIPOCOMPROBANTE:"tipoComprobante",MONEDA:"moneda",NOMBREARCHIVO:"nombreArchivo",ESTRATEGIAETIQUETA:"estrategiaEtiqueta",ESTADOSESION:"estadoSesion",TOTALSKUS:"totalSkus",TOTALCONCEPTOS:"totalConceptos",CONCEPTOSEXCLUIDOS:"conceptosExcluidos",CANTIDADESPERADA:"cantidadEsperada",CANTIDADCAPTURADA:"cantidadCapturada",CANTIDADFALTANTE:"cantidadFaltante",CANTIDADSOBRANTE:"cantidadSobrante",TOTALCAJAS:"totalCajas",INICIADAPOR:"iniciadaPor",FECHAINICIO:"fechaInicio",HORAINICIO:"horaInicio",FECHACIERRE:"fechaCierre",HORACIERRE:"horaCierre",CERRADAPOR:"cerradaPor",SEGUNDOSACTIVOS:"segundosActivos",SEGUNDOSPAUSADOS:"segundosPausados",OBSERVACIONCIERRE:"observacionCierre",RESULTADOFINAL:"resultadoFinal",VERSIONPERFIL:"versionPerfil",CREADOEN:"creadoEn",ACTUALIZADOEN:"actualizadoEn"});
   const DETAIL_FIELD_MAP=Object.freeze({IDDETALLE:"idDetalle",IDSESION:"idSesion",RFCEMISOR:"rfcEmisor",CODIGOPROVEEDORXML:"codigoProveedorXml",CODIGOINTERNO:"codigoInterno",IDPRODUCTO:"idProducto",DESCRIPCIONXML:"descripcionXml",DESCRIPCIONINTERNA:"descripcionInterna",CLAVEPRODSERV:"claveProdServ",CLAVEUNIDADXML:"claveUnidadXml",UNIDADXML:"unidadXml",UNIDADINTERNA:"unidadInterna",FACTORCONVERSION:"factorConversion",CANTIDADXML:"cantidadXml",CANTIDADESPERADA:"cantidadEsperada",CANTIDADCAPTURADA:"cantidadCapturada",CANTIDADFALTANTE:"cantidadFaltante",CANTIDADSOBRANTE:"cantidadSobrante",TOTALCAJAS:"totalCajas",ESTADOSKU:"estadoSku",CLASIFICACION:"clasificacion",INCLUIRENCONTEO:"incluirEnConteo",CONFIANZACLASIFICACION:"confianzaClasificacion",MOTIVOEXCLUSION:"motivoExclusion",RENGLONESORIGINALES:"renglonesOriginales",REQUIEREREVISION:"requiereRevision",OBSERVACION:"observacion",CREADOEN:"creadoEn",ACTUALIZADOEN:"actualizadoEn"});
@@ -722,4 +770,45 @@ const VerificacionEntradaRepository = (() => {
   });
 })();
 
-function testVerificacionEntradaRepositoryLectura(){const trace=perfStart_("VE_REPOSITORY_READ_TEST",{test:true});try{VerificacionEntradaRepository.assertConfiguration(trace);const sesiones=VerificacionEntradaRepository.getAllSesiones(trace),result={configuracionOk:true,sesiones:sesiones.length,tieneSesiones:sesiones.length>0,primeraSesionId:sesiones.length?sesiones[0].idSesion:"",actualizarDetallesPorLoteDisponible:typeof VerificacionEntradaRepository.actualizarDetallesPorLote==="function",actualizarSesionPorFilaDisponible:typeof VerificacionEntradaRepository.actualizarSesionPorFila==="function",getSesionDuplicadaDisponible:typeof VerificacionEntradaRepository.getSesionDuplicada==="function",getEquivalenciasPorEtiquetasDisponible:typeof VerificacionEntradaRepository.getEquivalenciasPorEtiquetas==="function"};perfEnd_(trace,"ok",{sesiones:sesiones.length,responseChars:perfMeasureJsonChars_(result)});return result;}catch(error){perfFail_(trace,error);throw error;}}
+/**
+ * Ejecuta una prueba manual de lectura y disponibilidad del contrato público.
+ *
+ * No realiza escrituras y no forma parte de la API productiva del repositorio.
+ *
+ * @return {!Object} Resultado del diagnóstico de configuración y lectura.
+ * @throws {Error} Si la configuración o la lectura no son válidas.
+ */
+function testVerificacionEntradaRepositoryLectura() {
+  const trace = perfStart_("VE_REPOSITORY_READ_TEST", { test: true });
+
+  try {
+    VerificacionEntradaRepository.assertConfiguration(trace);
+    const sesiones = VerificacionEntradaRepository.getAllSesiones(trace);
+    const result = {
+      configuracionOk: true,
+      sesiones: sesiones.length,
+      tieneSesiones: sesiones.length > 0,
+      primeraSesionId: sesiones.length ? sesiones[0].idSesion : "",
+      actualizarDetallesPorLoteDisponible:
+        typeof VerificacionEntradaRepository.actualizarDetallesPorLote ===
+        "function",
+      actualizarSesionPorFilaDisponible:
+        typeof VerificacionEntradaRepository.actualizarSesionPorFila ===
+        "function",
+      getSesionDuplicadaDisponible:
+        typeof VerificacionEntradaRepository.getSesionDuplicada === "function",
+      getEquivalenciasPorEtiquetasDisponible:
+        typeof VerificacionEntradaRepository.getEquivalenciasPorEtiquetas ===
+        "function"
+    };
+
+    perfEnd_(trace, "ok", {
+      sesiones: sesiones.length,
+      responseChars: perfMeasureJsonChars_(result)
+    });
+    return result;
+  } catch (error) {
+    perfFail_(trace, error);
+    throw error;
+  }
+}
