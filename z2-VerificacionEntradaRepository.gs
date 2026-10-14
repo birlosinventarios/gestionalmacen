@@ -43,6 +43,7 @@
  * - Los valores que exceden el límite configurado no se almacenan en caché.
  * - clearCache() invalida configuración y generación de equivalencias.
  * - La API pública permanece inmutable y limita las mutaciones a mapas autorizados.
+ * - Todas las funciones incluyen documentación y separación visual consistente.
  *
  * @author Sigifredo de la Cruz Ramos
  */
@@ -127,6 +128,13 @@ const VerificacionEntradaRepository = (() => {
     }
   }
 
+  /**
+   * Ejecuta la operación interna o pública _width_.
+   *
+   * @param {*} key Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _width_(key) {
     const width = Number(VERIFICACION_ENTRADA_EXPECTED_WIDTHS[key] || 0);
     if (!Number.isInteger(width) || width <= 0) {
@@ -135,36 +143,93 @@ const VerificacionEntradaRepository = (() => {
     return width;
   }
 
+  /**
+   * Ejecuta la operación interna o pública _columns_.
+   *
+   * @param {*} key Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _columns_(key) {
     const value = COL_BY_KEY[key];
     if (!value) throw new Error("No existe configuración de columnas para: " + key);
     return value;
   }
 
+  /**
+   * Ejecuta la operación interna o pública _headers_.
+   *
+   * @param {*} key Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _headers_(key) {
     const value = HEADERS_BY_KEY[key];
     if (!Array.isArray(value)) throw new Error("No existe contrato de encabezados para: " + key);
     return value;
   }
 
+  /**
+   * Ejecuta la operación interna o pública _text_.
+   *
+   * @param {*} value Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _text_(value) { return toStr_(value); }
 
+  /**
+   * Ejecuta la operación interna o pública _upper_.
+   *
+   * @param {*} value Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _upper_(value) { return toStrUpper_(value); }
 
+  /**
+   * Ejecuta la operación interna o pública _number_.
+   *
+   * @param {*} value Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _number_(value) { return toNum_(value); }
 
+  /**
+   * Ejecuta la operación interna o pública _date_.
+   *
+   * @param {*} value Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _date_(value) {
     return value instanceof Date && !isNaN(value.getTime())
       ? new Date(value.getTime())
       : (value || "");
   }
 
+  /**
+   * Ejecuta la operación interna o pública _boolean_.
+   *
+   * @param {*} value Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _boolean_(value) {
     if (value === true) return true;
     if (value === false) return false;
     return ["SI", "SÍ", "TRUE", "VERDADERO", "1", "ACTIVO"].includes(_upper_(value));
   }
 
+  /**
+   * Ejecuta la operación interna o pública _json_.
+   *
+   * @param {*} value Valor requerido por la operación.
+   * @param {*} maxLength Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _json_(value, maxLength) {
     if (value === null || value === undefined || value === "") return "";
     let text = "";
@@ -178,8 +243,22 @@ const VerificacionEntradaRepository = (() => {
     return text.length > limit ? text.slice(0, limit) : text;
   }
 
+  /**
+   * Ejecuta la operación interna o pública _blank_.
+   *
+   * @param {*} key Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _blank_(key) { return new Array(_width_(key)).fill(""); }
 
+  /**
+   * Ejecuta la operación interna o pública _assertUniqueColumns_.
+   *
+   * @param {*} key Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _assertUniqueColumns_(key) {
     const columns = _columns_(key);
     const width = _width_(key);
@@ -193,6 +272,14 @@ const VerificacionEntradaRepository = (() => {
     if (indexes.length !== width) throw new Error("Columnas configuradas distintas al ancho de " + key + ".");
   }
 
+  /**
+   * Ejecuta la operación interna o pública _assertSheet_.
+   *
+   * @param {*} key Valor requerido por la operación.
+   * @param {*} trace Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _assertSheet_(key, trace) {
     const startedAt = Date.now();
     const config = SHEETS[key];
@@ -217,10 +304,22 @@ const VerificacionEntradaRepository = (() => {
     return true;
   }
 
+  /**
+   * Ejecuta la operación interna o pública _scriptCache_.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _scriptCache_() {
     return CacheService.getScriptCache();
   }
 
+  /**
+   * Ejecuta la operación interna o pública _equivalenceGeneration_.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _equivalenceGeneration_() {
     if (equivalenceGeneration_) return equivalenceGeneration_;
 
@@ -240,6 +339,14 @@ const VerificacionEntradaRepository = (() => {
     return generation;
   }
 
+  /**
+   * Ejecuta la operación interna o pública _cacheKeyForEquivalence_.
+   *
+   * @param {*} rfc Valor requerido por la operación.
+   * @param {*} label Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _cacheKeyForEquivalence_(rfc, label) {
     const raw = [
       _equivalenceGeneration_(),
@@ -257,6 +364,13 @@ const VerificacionEntradaRepository = (() => {
       Utilities.base64EncodeWebSafe(digest).replace(/=+$/g, "");
   }
 
+  /**
+   * Ejecuta la operación interna o pública assertConfiguration.
+   *
+   * @param {*} trace Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function assertConfiguration(trace) {
     _assertDependencies_();
     if (configurationValidated_) {
@@ -300,6 +414,14 @@ const VerificacionEntradaRepository = (() => {
     return true;
   }
 
+  /**
+   * Ejecuta la operación interna o pública _mapSesion_.
+   *
+   * @param {*} r Valor requerido por la operación.
+   * @param {*} n Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _mapSesion_(r, n) {
     if (!Array.isArray(r)) {
       throw new TypeError(CFG.LOG_PREFIX + " La fila recibida es inválida.");
@@ -344,6 +466,14 @@ const VerificacionEntradaRepository = (() => {
       actualizadoEn:_date_(r[c.ACTUALIZADOEN])
     }; }
 
+  /**
+   * Ejecuta la operación interna o pública _mapDetalle_.
+   *
+   * @param {*} r Valor requerido por la operación.
+   * @param {*} n Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _mapDetalle_(r,n){
     if (!Array.isArray(r)) {
       throw new TypeError(CFG.LOG_PREFIX + " La fila recibida es inválida.");
@@ -382,74 +512,132 @@ const VerificacionEntradaRepository = (() => {
       actualizadoEn:_date_(r[c.ACTUALIZADOEN])
     };}
 
+  /**
+   * Ejecuta la operación interna o pública _mapCaja_.
+   *
+   * @param {*} r Valor requerido por la operación.
+   * @param {*} n Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _mapCaja_(r,n){
     if (!Array.isArray(r)) {
       throw new TypeError(CFG.LOG_PREFIX + " La fila recibida es inválida.");
     }
     const c=COL.VERIFICACION_ENTRADA_CAJAS;
       return{
+        rowNumber:Number(n||0),
+        idUnicoCaja:_text_(r[c.IDUNICOCAJA]),
+        idSesion:_text_(r[c.IDSESION]),
+        idDetalle:_text_(r[c.IDDETALLE]),
+        rfcEmisor:_upper_(r[c.RFCEMISOR]),
+        codigoProveedorXml:_upper_(r[c.CODIGOPROVEEDORXML]),
+        codigoEtiqueta:_upper_(r[c.CODIGOETIQUETA]),
+        codigoInterno:_upper_(r[c.CODIGOINTERNO]),
+        idProducto:_text_(r[c.IDPRODUCTO]),
+        cantidadCaja:_number_(r[c.CANTIDADCAJA]),
+        unidad:_upper_(r[c.UNIDAD]),
+        consecutivoProveedor:_text_(r[c.CONSECUTIVOPROVEEDOR]),
+        estrategiaEtiqueta:_upper_(r[c.ESTRATEGIAETIQUETA]),
+        huellaLectura:_text_(r[c.HUELLALECTURA]),
+        longitudLectura:_number_(r[c.LONGITUDLECTURA]),
+        estadoCaja:_upper_(r[c.ESTADOCAJA]),
+        resultadoValidacion:_upper_(r[c.RESULTADOVALIDACION]),
+        advertencias:_json_(r[c.ADVERTENCIAS]),
+        capturadaPor:_text_(r[c.CAPTURADAPOR]),
+        fechaCaptura:_date_(r[c.FECHACAPTURA]),
+        horaCaptura:_date_(r[c.HORACAPTURA]),
+        canceladaPor:_text_(r[c.CANCELADAPOR]),
+        fechaCancelacion:_date_(r[c.FECHACANCELACION]),
+        horaCancelacion:_date_(r[c.HORACANCELACION]),
+        motivoCancelacion:_text_(r[c.MOTIVOCANCELACION]),
+        observacion:_text_(r[c.OBSERVACION]),
+        creadoEn:_date_(r[c.CREADOEN])
+    };}
+
+  /**
+   * Ejecuta la operación interna o pública _mapEvento_.
+   *
+   * @param {*} r Valor requerido por la operación.
+   * @param {*} n Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _mapEvento_(r,n){
+    if (!Array.isArray(r)) {
+      throw new TypeError(CFG.LOG_PREFIX + " La fila recibida es inválida.");
+    }const c=COL.VERIFICACION_ENTRADA_EVENTOS;
+    return{
       rowNumber:Number(n||0),
-      idUnicoCaja:_text_(r[c.IDUNICOCAJA]),
+      idEvento:_text_(r[c.IDEVENTO]),
       idSesion:_text_(r[c.IDSESION]),
+      tipoEvento:_upper_(r[c.TIPOEVENTO]),
+      idUnicoCaja:_text_(r[c.IDUNICOCAJA]),
       idDetalle:_text_(r[c.IDDETALLE]),
+      codigoInterno:_upper_(r[c.CODIGOINTERNO]),
+      cantidad:_number_(r[c.CANTIDAD]),
+      estadoAnterior:_upper_(r[c.ESTADOANTERIOR]),
+      estadoNuevo:_upper_(r[c.ESTADONUEVO]),
+      resultado:_upper_(r[c.RESULTADO]),
+      codigoMotivo:_upper_(r[c.CODIGOMOTIVO]),
+      mensaje:_text_(r[c.MENSAJE]),
+      usuario:_text_(r[c.USUARIO]),
+      rolUsuario:_upper_(r[c.ROLUSUARIO]),
+      fecha:_date_(r[c.FECHA]),
+      hora:_date_(r[c.HORA]),
+      timestampMs:_number_(r[c.TIMESTAMPMS]),
+      metadataJson:_json_(r[c.METADATAJSON]),
+      creadoEn:_date_(r[c.CREADOEN])
+  };}
+
+  /**
+   * Ejecuta la operación interna o pública _mapEquivalencia_.
+   *
+   * @param {*} r Valor requerido por la operación.
+   * @param {*} n Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _mapEquivalencia_(r,n){
+    if (!Array.isArray(r)) {
+      throw new TypeError(CFG.LOG_PREFIX + " La fila recibida es inválida.");
+    }const c=COL.VERIFICACION_ENTRADA_EQUIVALENCIAS;
+    return{
+      rowNumber:Number(n||0),
+      idEquivalencia:_text_(r[c.IDEQUIVALENCIA]),
       rfcEmisor:_upper_(r[c.RFCEMISOR]),
+      idProveedor:_text_(r[c.IDPROVEEDOR]),
       codigoProveedorXml:_upper_(r[c.CODIGOPROVEEDORXML]),
       codigoEtiqueta:_upper_(r[c.CODIGOETIQUETA]),
       codigoInterno:_upper_(r[c.CODIGOINTERNO]),
       idProducto:_text_(r[c.IDPRODUCTO]),
-      cantidadCaja:_number_(r[c.CANTIDADCAJA]),
-      unidad:_upper_(r[c.UNIDAD]),
-      consecutivoProveedor:_text_(r[c.CONSECUTIVOPROVEEDOR]),
-      estrategiaEtiqueta:_upper_(r[c.ESTRATEGIAETIQUETA]),
-      huellaLectura:_text_(r[c.HUELLALECTURA]),
-      longitudLectura:_number_(r[c.LONGITUDLECTURA]),
-      estadoCaja:_upper_(r[c.ESTADOCAJA]),
-      resultadoValidacion:_upper_(r[c.RESULTADOVALIDACION]),
-      advertencias:_json_(r[c.ADVERTENCIAS]),
-      capturadaPor:_text_(r[c.CAPTURADAPOR]),
-      fechaCaptura:_date_(r[c.FECHACAPTURA]),
-      horaCaptura:_date_(r[c.HORACAPTURA]),
-      canceladaPor:_text_(r[c.CANCELADAPOR]),
-      fechaCancelacion:_date_(r[c.FECHACANCELACION]),
-      horaCancelacion:_date_(r[c.HORACANCELACION]),
-      motivoCancelacion:_text_(r[c.MOTIVOCANCELACION]),
-      observacion:_text_(r[c.OBSERVACION]),
-      creadoEn:_date_(r[c.CREADOEN])
-    };}
-
-  function _mapEvento_(r,n){
-    if (!Array.isArray(r)) {
-      throw new TypeError(CFG.LOG_PREFIX + " La fila recibida es inválida.");
-    }const c=COL.VERIFICACION_ENTRADA_EVENTOS;return{
-    rowNumber:Number(n||0),
-    idEvento:_text_(r[c.IDEVENTO]),
-    idSesion:_text_(r[c.IDSESION]),
-    tipoEvento:_upper_(r[c.TIPOEVENTO]),
-    idUnicoCaja:_text_(r[c.IDUNICOCAJA]),
-    idDetalle:_text_(r[c.IDDETALLE]),
-    codigoInterno:_upper_(r[c.CODIGOINTERNO]),
-    cantidad:_number_(r[c.CANTIDAD]),
-    estadoAnterior:_upper_(r[c.ESTADOANTERIOR]),
-    estadoNuevo:_upper_(r[c.ESTADONUEVO]),
-    resultado:_upper_(r[c.RESULTADO]),
-    codigoMotivo:_upper_(r[c.CODIGOMOTIVO]),
-    mensaje:_text_(r[c.MENSAJE]),
-    usuario:_text_(r[c.USUARIO]),
-    rolUsuario:_upper_(r[c.ROLUSUARIO]),
-    fecha:_date_(r[c.FECHA]),
-    hora:_date_(r[c.HORA]),
-    timestampMs:_number_(r[c.TIMESTAMPMS]),
-    metadataJson:_json_(r[c.METADATAJSON]),
-    creadoEn:_date_(r[c.CREADOEN])
+      descripcionInterna:_text_(r[c.DESCRIPCIONINTERNA]),
+      claveUnidadXml:_upper_(r[c.CLAVEUNIDADXML]),
+      unidadXml:_upper_(r[c.UNIDADXML]),
+      unidadInterna:_upper_(r[c.UNIDADINTERNA]),
+      factorConversion:_number_(r[c.FACTORCONVERSION]),
+      tipoConcepto:_upper_(r[c.TIPOCONCEPTO]),
+      activo:_boolean_(r[c.ACTIVO]),
+      nivelConfianza:_upper_(r[c.NIVELCONFIANZA]),
+      origenRegla:_upper_(r[c.ORIGENREGLA]),
+      fechaInicio:_date_(r[c.FECHAINICIO]),
+      fechaFin:_date_(r[c.FECHAFIN]),
+      creadoPor:_text_(r[c.CREADOPOR]),
+      fechaCreacion:_date_(r[c.FECHACREACION]),
+      modificadoPor:_text_(r[c.MODIFICADOPOR]),
+      fechaModificacion:_date_(r[c.FECHAMODIFICACION]),
+      observacion:_text_(r[c.OBSERVACION])
   };}
 
-  function _mapEquivalencia_(r,n){
-    if (!Array.isArray(r)) {
-      throw new TypeError(CFG.LOG_PREFIX + " La fila recibida es inválida.");
-    }const c=COL.VERIFICACION_ENTRADA_EQUIVALENCIAS;return{
-    rowNumber:Number(n||0),idEquivalencia:_text_(r[c.IDEQUIVALENCIA]),rfcEmisor:_upper_(r[c.RFCEMISOR]),idProveedor:_text_(r[c.IDPROVEEDOR]),codigoProveedorXml:_upper_(r[c.CODIGOPROVEEDORXML]),codigoEtiqueta:_upper_(r[c.CODIGOETIQUETA]),codigoInterno:_upper_(r[c.CODIGOINTERNO]),idProducto:_text_(r[c.IDPRODUCTO]),descripcionInterna:_text_(r[c.DESCRIPCIONINTERNA]),claveUnidadXml:_upper_(r[c.CLAVEUNIDADXML]),unidadXml:_upper_(r[c.UNIDADXML]),unidadInterna:_upper_(r[c.UNIDADINTERNA]),factorConversion:_number_(r[c.FACTORCONVERSION]),tipoConcepto:_upper_(r[c.TIPOCONCEPTO]),activo:_boolean_(r[c.ACTIVO]),nivelConfianza:_upper_(r[c.NIVELCONFIANZA]),origenRegla:_upper_(r[c.ORIGENREGLA]),fechaInicio:_date_(r[c.FECHAINICIO]),fechaFin:_date_(r[c.FECHAFIN]),creadoPor:_text_(r[c.CREADOPOR]),fechaCreacion:_date_(r[c.FECHACREACION]),modificadoPor:_text_(r[c.MODIFICADOPOR]),fechaModificacion:_date_(r[c.FECHAMODIFICACION]),observacion:_text_(r[c.OBSERVACION])
-  };}
-
+  /**
+   * Ejecuta la operación interna o pública _readAndMap_.
+   *
+   * @param {*} key Valor requerido por la operación.
+   * @param {*} mapper Valor requerido por la operación.
+   * @param {*} trace Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _readAndMap_(key, mapper, trace) {
     assertConfiguration(trace);
     const startedAt=Date.now();
@@ -459,6 +647,16 @@ const VerificacionEntradaRepository = (() => {
     return mapped;
   }
 
+  /**
+   * Ejecuta la operación interna o pública _findRowNumbers_.
+   *
+   * @param {*} key Valor requerido por la operación.
+   * @param {*} columnName Valor requerido por la operación.
+   * @param {*} value Valor requerido por la operación.
+   * @param {*} trace Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _findRowNumbers_(key, columnName, value, trace) {
     assertConfiguration(trace);
     const normalized=_text_(value);
@@ -475,6 +673,13 @@ const VerificacionEntradaRepository = (() => {
     return numbers;
   }
 
+  /**
+   * Ejecuta la operación interna o pública _groupRowNumbers_.
+   *
+   * @param {*} numbers Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _groupRowNumbers_(numbers) {
     const groups=[];
     numbers.forEach(function(rowNumber){
@@ -485,6 +690,16 @@ const VerificacionEntradaRepository = (() => {
     return groups;
   }
 
+  /**
+   * Ejecuta la operación interna o pública _readRowsByNumbers_.
+   *
+   * @param {*} key Valor requerido por la operación.
+   * @param {*} numbers Valor requerido por la operación.
+   * @param {*} mapper Valor requerido por la operación.
+   * @param {*} trace Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _readRowsByNumbers_(key, numbers, mapper, trace) {
     if(!numbers.length)return[];
     const startedAt=Date.now();
@@ -501,6 +716,17 @@ const VerificacionEntradaRepository = (() => {
     return result;
   }
 
+  /**
+   * Ejecuta la operación interna o pública _getByColumn_.
+   *
+   * @param {*} key Valor requerido por la operación.
+   * @param {*} columnName Valor requerido por la operación.
+   * @param {*} value Valor requerido por la operación.
+   * @param {*} mapper Valor requerido por la operación.
+   * @param {*} trace Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _getByColumn_(key,columnName,value,mapper,trace) {
     return _readRowsByNumbers_(key,_findRowNumbers_(key,columnName,value,trace),mapper,trace);
   }
@@ -514,6 +740,15 @@ const VerificacionEntradaRepository = (() => {
    * @return {!Array<*>} Fila completa con el ancho esperado.
    * @throws {TypeError} Si la entidad o el mapa no son objetos válidos.
    * @throws {Error} Si el mapa referencia una columna inexistente.
+   * @private
+   */
+  /**
+   * Ejecuta la operación interna o pública _buildRow_.
+   *
+   * @param {*} key Valor requerido por la operación.
+   * @param {*} object Valor requerido por la operación.
+   * @param {*} fieldMap Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
    * @private
    */
   function _buildRow_(key, object, fieldMap) {
@@ -535,15 +770,204 @@ const VerificacionEntradaRepository = (() => {
     return row;
   }
 
-  const SESSION_FIELD_MAP=Object.freeze({IDSESION:"idSesion",HASHXML:"hashXml",UUIDCFDI:"uuidCfdi",RFCEMISOR:"rfcEmisor",NOMBREEMISOR:"nombreEmisor",SERIE:"serie",FOLIO:"folio",FECHACFDI:"fechaCfdi",VERSIONCFDI:"versionCfdi",TIPOCOMPROBANTE:"tipoComprobante",MONEDA:"moneda",NOMBREARCHIVO:"nombreArchivo",ESTRATEGIAETIQUETA:"estrategiaEtiqueta",ESTADOSESION:"estadoSesion",TOTALSKUS:"totalSkus",TOTALCONCEPTOS:"totalConceptos",CONCEPTOSEXCLUIDOS:"conceptosExcluidos",CANTIDADESPERADA:"cantidadEsperada",CANTIDADCAPTURADA:"cantidadCapturada",CANTIDADFALTANTE:"cantidadFaltante",CANTIDADSOBRANTE:"cantidadSobrante",TOTALCAJAS:"totalCajas",INICIADAPOR:"iniciadaPor",FECHAINICIO:"fechaInicio",HORAINICIO:"horaInicio",FECHACIERRE:"fechaCierre",HORACIERRE:"horaCierre",CERRADAPOR:"cerradaPor",SEGUNDOSACTIVOS:"segundosActivos",SEGUNDOSPAUSADOS:"segundosPausados",OBSERVACIONCIERRE:"observacionCierre",RESULTADOFINAL:"resultadoFinal",VERSIONPERFIL:"versionPerfil",CREADOEN:"creadoEn",ACTUALIZADOEN:"actualizadoEn"});
-  const DETAIL_FIELD_MAP=Object.freeze({IDDETALLE:"idDetalle",IDSESION:"idSesion",RFCEMISOR:"rfcEmisor",CODIGOPROVEEDORXML:"codigoProveedorXml",CODIGOINTERNO:"codigoInterno",IDPRODUCTO:"idProducto",DESCRIPCIONXML:"descripcionXml",DESCRIPCIONINTERNA:"descripcionInterna",CLAVEPRODSERV:"claveProdServ",CLAVEUNIDADXML:"claveUnidadXml",UNIDADXML:"unidadXml",UNIDADINTERNA:"unidadInterna",FACTORCONVERSION:"factorConversion",CANTIDADXML:"cantidadXml",CANTIDADESPERADA:"cantidadEsperada",CANTIDADCAPTURADA:"cantidadCapturada",CANTIDADFALTANTE:"cantidadFaltante",CANTIDADSOBRANTE:"cantidadSobrante",TOTALCAJAS:"totalCajas",ESTADOSKU:"estadoSku",CLASIFICACION:"clasificacion",INCLUIRENCONTEO:"incluirEnConteo",CONFIANZACLASIFICACION:"confianzaClasificacion",MOTIVOEXCLUSION:"motivoExclusion",RENGLONESORIGINALES:"renglonesOriginales",REQUIEREREVISION:"requiereRevision",OBSERVACION:"observacion",CREADOEN:"creadoEn",ACTUALIZADOEN:"actualizadoEn"});
-  const BOX_FIELD_MAP=Object.freeze({IDUNICOCAJA:"idUnicoCaja",IDSESION:"idSesion",IDDETALLE:"idDetalle",RFCEMISOR:"rfcEmisor",CODIGOPROVEEDORXML:"codigoProveedorXml",CODIGOETIQUETA:"codigoEtiqueta",CODIGOINTERNO:"codigoInterno",IDPRODUCTO:"idProducto",CANTIDADCAJA:"cantidadCaja",UNIDAD:"unidad",CONSECUTIVOPROVEEDOR:"consecutivoProveedor",ESTRATEGIAETIQUETA:"estrategiaEtiqueta",HUELLALECTURA:"huellaLectura",LONGITUDLECTURA:"longitudLectura",ESTADOCAJA:"estadoCaja",RESULTADOVALIDACION:"resultadoValidacion",ADVERTENCIAS:"advertencias",CAPTURADAPOR:"capturadaPor",FECHACAPTURA:"fechaCaptura",HORACAPTURA:"horaCaptura",CANCELADAPOR:"canceladaPor",FECHACANCELACION:"fechaCancelacion",HORACANCELACION:"horaCancelacion",MOTIVOCANCELACION:"motivoCancelacion",OBSERVACION:"observacion",CREADOEN:"creadoEn"});
-  const EVENT_FIELD_MAP=Object.freeze({IDEVENTO:"idEvento",IDSESION:"idSesion",TIPOEVENTO:"tipoEvento",IDUNICOCAJA:"idUnicoCaja",IDDETALLE:"idDetalle",CODIGOINTERNO:"codigoInterno",CANTIDAD:"cantidad",ESTADOANTERIOR:"estadoAnterior",ESTADONUEVO:"estadoNuevo",RESULTADO:"resultado",CODIGOMOTIVO:"codigoMotivo",MENSAJE:"mensaje",USUARIO:"usuario",ROLUSUARIO:"rolUsuario",FECHA:"fecha",HORA:"hora",TIMESTAMPMS:"timestampMs",METADATAJSON:"metadataJson",CREADOEN:"creadoEn"});
-  const SESSION_PATCH_MAP=Object.freeze({estrategiaEtiqueta:"ESTRATEGIAETIQUETA",estadoSesion:"ESTADOSESION",cantidadCapturada:"CANTIDADCAPTURADA",cantidadFaltante:"CANTIDADFALTANTE",cantidadSobrante:"CANTIDADSOBRANTE",totalCajas:"TOTALCAJAS",fechaCierre:"FECHACIERRE",horaCierre:"HORACIERRE",cerradaPor:"CERRADAPOR",segundosActivos:"SEGUNDOSACTIVOS",segundosPausados:"SEGUNDOSPAUSADOS",observacionCierre:"OBSERVACIONCIERRE",resultadoFinal:"RESULTADOFINAL",actualizadoEn:"ACTUALIZADOEN"});
-  const DETAIL_PATCH_MAP=Object.freeze({codigoInterno:"CODIGOINTERNO",idProducto:"IDPRODUCTO",descripcionInterna:"DESCRIPCIONINTERNA",unidadInterna:"UNIDADINTERNA",factorConversion:"FACTORCONVERSION",cantidadEsperada:"CANTIDADESPERADA",cantidadCapturada:"CANTIDADCAPTURADA",cantidadFaltante:"CANTIDADFALTANTE",cantidadSobrante:"CANTIDADSOBRANTE",totalCajas:"TOTALCAJAS",estadoSku:"ESTADOSKU",clasificacion:"CLASIFICACION",incluirEnConteo:"INCLUIRENCONTEO",confianzaClasificacion:"CONFIANZACLASIFICACION",motivoExclusion:"MOTIVOEXCLUSION",requiereRevision:"REQUIEREREVISION",observacion:"OBSERVACION",actualizadoEn:"ACTUALIZADOEN"});
-  const BOX_PATCH_MAP=Object.freeze({estadoCaja:"ESTADOCAJA",resultadoValidacion:"RESULTADOVALIDACION",canceladaPor:"CANCELADAPOR",fechaCancelacion:"FECHACANCELACION",horaCancelacion:"HORACANCELACION",motivoCancelacion:"MOTIVOCANCELACION",observacion:"OBSERVACION"});
+  /** @private @const {!Object<string,string>} */
+  const SESSION_FIELD_MAP = Object.freeze({
+    IDSESION:"idSesion",
+    HASHXML:"hashXml",
+    UUIDCFDI:"uuidCfdi",
+    RFCEMISOR:"rfcEmisor",
+    NOMBREEMISOR:"nombreEmisor",
+    SERIE:"serie",
+    FOLIO:"folio",
+    FECHACFDI:"fechaCfdi",
+    VERSIONCFDI:"versionCfdi",
+    TIPOCOMPROBANTE:"tipoComprobante",
+    MONEDA:"moneda",
+    NOMBREARCHIVO:"nombreArchivo",
+    ESTRATEGIAETIQUETA:"estrategiaEtiqueta",
+    ESTADOSESION:"estadoSesion",
+    TOTALSKUS:"totalSkus",
+    TOTALCONCEPTOS:"totalConceptos",
+    CONCEPTOSEXCLUIDOS:"conceptosExcluidos",
+    CANTIDADESPERADA:"cantidadEsperada",
+    CANTIDADCAPTURADA:"cantidadCapturada",
+    CANTIDADFALTANTE:"cantidadFaltante",
+    CANTIDADSOBRANTE:"cantidadSobrante",
+    TOTALCAJAS:"totalCajas",
+    INICIADAPOR:"iniciadaPor",
+    FECHAINICIO:"fechaInicio",
+    HORAINICIO:"horaInicio",
+    FECHACIERRE:"fechaCierre",
+    HORACIERRE:"horaCierre",
+    CERRADAPOR:"cerradaPor",
+    SEGUNDOSACTIVOS:"segundosActivos",
+    SEGUNDOSPAUSADOS:"segundosPausados",
+    OBSERVACIONCIERRE:"observacionCierre",
+    RESULTADOFINAL:"resultadoFinal",
+    VERSIONPERFIL:"versionPerfil",
+    CREADOEN:"creadoEn",
+    ACTUALIZADOEN:"actualizadoEn"
+  });
+  /** @private @const {!Object<string,string>} */
+  const DETAIL_FIELD_MAP = Object.freeze({
+    IDDETALLE:"idDetalle",
+    IDSESION:"idSesion",
+    RFCEMISOR:"rfcEmisor",
+    CODIGOPROVEEDORXML:"codigoProveedorXml",
+    CODIGOINTERNO:"codigoInterno",
+    IDPRODUCTO:"idProducto",
+    DESCRIPCIONXML:"descripcionXml",
+    DESCRIPCIONINTERNA:"descripcionInterna",
+    CLAVEPRODSERV:"claveProdServ",
+    CLAVEUNIDADXML:"claveUnidadXml",
+    UNIDADXML:"unidadXml",
+    UNIDADINTERNA:"unidadInterna",
+    FACTORCONVERSION:"factorConversion",
+    CANTIDADXML:"cantidadXml",
+    CANTIDADESPERADA:"cantidadEsperada",
+    CANTIDADCAPTURADA:"cantidadCapturada",
+    CANTIDADFALTANTE:"cantidadFaltante",
+    CANTIDADSOBRANTE:"cantidadSobrante",
+    TOTALCAJAS:"totalCajas",
+    ESTADOSKU:"estadoSku",
+    CLASIFICACION:"clasificacion",
+    INCLUIRENCONTEO:"incluirEnConteo",
+    CONFIANZACLASIFICACION:"confianzaClasificacion",
+    MOTIVOEXCLUSION:"motivoExclusion",
+    RENGLONESORIGINALES:"renglonesOriginales",
+    REQUIEREREVISION:"requiereRevision",
+    OBSERVACION:"observacion",
+    CREADOEN:"creadoEn",
+    ACTUALIZADOEN:"actualizadoEn"
+  });
+  /** @private @const {!Object<string,string>} */
+  const BOX_FIELD_MAP = Object.freeze({
+    IDUNICOCAJA:"idUnicoCaja",
+    IDSESION:"idSesion",
+    IDDETALLE:"idDetalle",
+    RFCEMISOR:"rfcEmisor",
+    CODIGOPROVEEDORXML:"codigoProveedorXml",
+    CODIGOETIQUETA:"codigoEtiqueta",
+    CODIGOINTERNO:"codigoInterno",
+    IDPRODUCTO:"idProducto",
+    CANTIDADCAJA:"cantidadCaja",
+    UNIDAD:"unidad",
+    CONSECUTIVOPROVEEDOR:"consecutivoProveedor",
+    ESTRATEGIAETIQUETA:"estrategiaEtiqueta",
+    HUELLALECTURA:"huellaLectura",
+    LONGITUDLECTURA:"longitudLectura",
+    ESTADOCAJA:"estadoCaja",
+    RESULTADOVALIDACION:"resultadoValidacion",
+    ADVERTENCIAS:"advertencias",
+    CAPTURADAPOR:"capturadaPor",
+    FECHACAPTURA:"fechaCaptura",
+    HORACAPTURA:"horaCaptura",
+    CANCELADAPOR:"canceladaPor",
+    FECHACANCELACION:"fechaCancelacion",
+    HORACANCELACION:"horaCancelacion",
+    MOTIVOCANCELACION:"motivoCancelacion",
+    OBSERVACION:"observacion",
+    CREADOEN:"creadoEn"
+  });
+  /** @private @const {!Object<string,string>} */
+  const EVENT_FIELD_MAP = Object.freeze({
+    IDEVENTO:"idEvento",
+    IDSESION:"idSesion",
+    TIPOEVENTO:"tipoEvento",
+    IDUNICOCAJA:"idUnicoCaja",
+    IDDETALLE:"idDetalle",
+    CODIGOINTERNO:"codigoInterno",
+    CANTIDAD:"cantidad",
+    ESTADOANTERIOR:"estadoAnterior",
+    ESTADONUEVO:"estadoNuevo",
+    RESULTADO:"resultado",
+    CODIGOMOTIVO:"codigoMotivo",
+    MENSAJE:"mensaje",
+    USUARIO:"usuario",
+    ROLUSUARIO:"rolUsuario",
+    FECHA:"fecha",
+    HORA:"hora",
+    TIMESTAMPMS:"timestampMs",
+    METADATAJSON:"metadataJson",
+    CREADOEN:"creadoEn"
+  });
+  /** @private @const {!Object<string,string>} */
+  const SESSION_PATCH_MAP = Object.freeze({
+    estrategiaEtiqueta:"ESTRATEGIAETIQUETA",
+    estadoSesion:"ESTADOSESION",
+    cantidadCapturada:"CANTIDADCAPTURADA",
+    cantidadFaltante:"CANTIDADFALTANTE",
+    cantidadSobrante:"CANTIDADSOBRANTE",
+    totalCajas:"TOTALCAJAS",
+    fechaCierre:"FECHACIERRE",
+    horaCierre:"HORACIERRE",
+    cerradaPor:"CERRADAPOR",
+    segundosActivos:"SEGUNDOSACTIVOS",
+    segundosPausados:"SEGUNDOSPAUSADOS",
+    observacionCierre:"OBSERVACIONCIERRE",
+    resultadoFinal:"RESULTADOFINAL",
+    actualizadoEn:"ACTUALIZADOEN"
+  });
+  /** @private @const {!Object<string,string>} */
+  const DETAIL_PATCH_MAP = Object.freeze({
+    codigoInterno:"CODIGOINTERNO",
+    idProducto:"IDPRODUCTO",
+    descripcionInterna:"DESCRIPCIONINTERNA",
+    unidadInterna:"UNIDADINTERNA",
+    factorConversion:"FACTORCONVERSION",
+    cantidadEsperada:"CANTIDADESPERADA",
+    cantidadCapturada:"CANTIDADCAPTURADA",
+    cantidadFaltante:"CANTIDADFALTANTE",
+    cantidadSobrante:"CANTIDADSOBRANTE",
+    totalCajas:"TOTALCAJAS",
+    estadoSku:"ESTADOSKU",
+    clasificacion:"CLASIFICACION",
+    incluirEnConteo:"INCLUIRENCONTEO",
+    confianzaClasificacion:"CONFIANZACLASIFICACION",
+    motivoExclusion:"MOTIVOEXCLUSION",
+    requiereRevision:"REQUIEREREVISION",
+    observacion:"OBSERVACION",
+    actualizadoEn:"ACTUALIZADOEN"
+  });
+  /** @private @const {!Object<string,string>} */
+  const BOX_PATCH_MAP = Object.freeze({
+    estadoCaja:"ESTADOCAJA",
+    resultadoValidacion:"RESULTADOVALIDACION",
+    canceladaPor:"CANCELADAPOR",
+    fechaCancelacion:"FECHACANCELACION",
+    horaCancelacion:"HORACANCELACION",
+    motivoCancelacion:"MOTIVOCANCELACION",
+    observacion:"OBSERVACION"
+  });
 
-  function buildSesionRow(v){return _buildRow_(KEYS.SESIONES,v,SESSION_FIELD_MAP);} function buildDetalleRow(v){return _buildRow_(KEYS.DETALLE,Object.assign({},v||{},{renglonesOriginales:_json_(v&&v.renglonesOriginales)}),DETAIL_FIELD_MAP);} function buildCajaRow(v){return _buildRow_(KEYS.CAJAS,Object.assign({},v||{},{advertencias:_json_(v&&v.advertencias)}),BOX_FIELD_MAP);} function buildEventoRow(v){return _buildRow_(KEYS.EVENTOS,Object.assign({},v||{},{metadataJson:_json_(v&&v.metadataJson)}),EVENT_FIELD_MAP);}
+  /** Convierte una sesión de dominio en una fila física completa. */
+  function buildSesionRow(value) {
+    return _buildRow_(KEYS.SESIONES, value, SESSION_FIELD_MAP);
+  }
+
+  /** Convierte un detalle de dominio en una fila física completa. */
+  function buildDetalleRow(value) {
+    const source = Object.assign({}, value || {}, {
+      renglonesOriginales: _json_(value && value.renglonesOriginales)
+    });
+    return _buildRow_(KEYS.DETALLE, source, DETAIL_FIELD_MAP);
+  }
+
+  /** Convierte una caja de dominio en una fila física completa. */
+  function buildCajaRow(value) {
+    const source = Object.assign({}, value || {}, {
+      advertencias: _json_(value && value.advertencias)
+    });
+    return _buildRow_(KEYS.CAJAS, source, BOX_FIELD_MAP);
+  }
+
+  /** Convierte un evento de dominio en una fila física completa. */
+  function buildEventoRow(value) {
+    const source = Object.assign({}, value || {}, {
+      metadataJson: _json_(value && value.metadataJson)
+    });
+    return _buildRow_(KEYS.EVENTOS, source, EVENT_FIELD_MAP);
+  }
 
   function _activeEquivalenceForRfc_(item, rfc) {
     return Boolean(
@@ -553,6 +977,14 @@ const VerificacionEntradaRepository = (() => {
     );
   }
 
+  /**
+   * Ejecuta la operación interna o pública _readCachedEquivalences_.
+   *
+   * @param {*} cacheKey Valor requerido por la operación.
+   * @param {*} trace Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _readCachedEquivalences_(cacheKey, trace) {
     const cached = _scriptCache_().get(cacheKey);
     if (!cached) return null;
@@ -569,6 +1001,15 @@ const VerificacionEntradaRepository = (() => {
     }
   }
 
+  /**
+   * Ejecuta la operación interna o pública _writeCachedEquivalences_.
+   *
+   * @param {*} cacheKey Valor requerido por la operación.
+   * @param {*} rows Valor requerido por la operación.
+   * @param {*} trace Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _writeCachedEquivalences_(cacheKey, rows, trace) {
     const serializable = (rows || []).map(function(item) {
       return {
@@ -608,6 +1049,14 @@ const VerificacionEntradaRepository = (() => {
     }
   }
 
+  /**
+   * Ejecuta la operación interna o pública getEquivalenciasPorRfc.
+   *
+   * @param {*} rfcEmisor Valor requerido por la operación.
+   * @param {*} trace Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function getEquivalenciasPorRfc(rfcEmisor, trace) {
     const startedAt = Date.now();
     const rfc = _upper_(rfcEmisor);
@@ -701,30 +1150,337 @@ const VerificacionEntradaRepository = (() => {
 
     return result;
   }
-  function getAllSesiones(trace){return _readAndMap_(KEYS.SESIONES,_mapSesion_,trace);}
-  function getSesionPorId(id,trace){const rows=_getByColumn_(KEYS.SESIONES,"IDSESION",_text_(id),_mapSesion_,trace);return rows[0]||null;}
-  function getSesionDuplicada(hash,uuid,trace){const sesiones=getAllSesiones(trace),h=_text_(hash),u=_upper_(uuid);return{byHash:sesiones.find(function(x){return h&&x.hashXml===h;})||null,byUuid:sesiones.find(function(x){return u&&x.uuidCfdi===u;})||null};}
-  function getSesionPorHashXml(hash,trace){return getSesionDuplicada(hash,"",trace).byHash;} function getSesionPorUuidCfdi(uuid,trace){return getSesionDuplicada("",uuid,trace).byUuid;}
-  function getDetallePorSesion(id,trace){return _getByColumn_(KEYS.DETALLE,"IDSESION",_text_(id),_mapDetalle_,trace);}
-  function getCajasPorSesion(id,trace){const startedAt=Date.now(),result=_getByColumn_(KEYS.CAJAS,"IDSESION",_text_(id),_mapCaja_,trace);perfMark_(trace,"VE_BOXES_BY_SESSION_READY",{elapsedMs:Date.now()-startedAt,rows:result.length,strategy:"TEXT_FINDER_GROUPED"});return result;}
-  function getCajaPorId(id,trace){const rows=_getByColumn_(KEYS.CAJAS,"IDUNICOCAJA",_text_(id),_mapCaja_,trace);return rows[0]||null;}
-  function getEventosPorSesion(id,trace){return _getByColumn_(KEYS.EVENTOS,"IDSESION",_text_(id),_mapEvento_,trace).sort(function(a,b){return a.timestampMs-b.timestampMs;});}
-  function existeHuellaLecturaEnSesion(id,huella,trace){const h=_text_(huella);return Boolean(h&&getCajasPorSesion(id,trace).some(function(x){return x.huellaLectura===h&&x.estadoCaja!==VERIFICACION_ENTRADA.ESTADOS_CAJA.CANCELADA;}));}
+  /** Devuelve todas las sesiones mediante lectura completa instrumentada. */
+  function getAllSesiones(trace) {
+    return _readAndMap_(KEYS.SESIONES, _mapSesion_, trace);
+  }
 
-  function insertarSesion(v,t){assertConfiguration(t);return writeRowsBatch_(KEYS.SESIONES,[buildSesionRow(v)],_width_(KEYS.SESIONES),t);} function insertarDetalles(v,t){assertConfiguration(t);return writeRowsBatch_(KEYS.DETALLE,(v||[]).map(buildDetalleRow),_width_(KEYS.DETALLE),t);} function insertarCajas(v,t){assertConfiguration(t);return writeRowsBatch_(KEYS.CAJAS,(v||[]).map(buildCajaRow),_width_(KEYS.CAJAS),t);} function insertarEventos(v,t){assertConfiguration(t);return writeRowsBatch_(KEYS.EVENTOS,(v||[]).map(buildEventoRow),_width_(KEYS.EVENTOS),t);}
-  function crearSesionConDetalle(s,d,e,t){return{sesion:insertarSesion(s,t),detalles:insertarDetalles(d,t),eventos:insertarEventos(e||[],t)};} function registrarCajasConEventos(c,e,t){return{cajas:insertarCajas(c,t),eventos:insertarEventos(e||[],t)};}
+  /** Busca una sesión por su identificador. */
+  function getSesionPorId(id, trace) {
+    const rows = _getByColumn_(
+      KEYS.SESIONES,
+      "IDSESION",
+      _text_(id),
+      _mapSesion_,
+      trace
+    );
+    return rows[0] || null;
+  }
 
-  function _applyPatch_(row,key,patch,map){const columns=_columns_(key);let changed=0;Object.keys(patch||{}).forEach(function(name){const col=map[name];if(!col)throw new Error("Campo no actualizable en "+key+": "+name);const value=patch[name];row[columns[col]]=value===null||value===undefined?"":value;changed++;});return changed;}
-  function _updateKnownRow_(key,rowNumber,patch,map,trace){assertConfiguration(trace);const rowNo=Number(rowNumber);if(!Number.isInteger(rowNo)||rowNo<2)throw new Error("Número de fila inválido en "+key+".");const sheet=getSheetByKey_(key,trace),width=_width_(key),row=sheet.getRange(rowNo,1,1,width).getValues()[0],changed=_applyPatch_(row,key,patch||{},map);if(!changed)return{updated:false,rowNumber:rowNo,changedFields:0};const startedAt=Date.now();sheet.getRange(rowNo,1,1,width).setValues([row]);const elapsed=Date.now()-startedAt;perfMark_(trace,"VE_KNOWN_ROW_UPDATED",{sheetKey:key,elapsedMs:elapsed,rowNumber:rowNo,changedFields:changed});return{updated:true,rowNumber:rowNo,changedFields:changed};}
-  function _updateRowById_(key,idColumn,id,patch,map,trace){const numbers=_findRowNumbers_(key,idColumn,id,trace);if(!numbers.length)throw new Error("No se encontró el registro "+id+" en "+key+".");return _updateKnownRow_(key,numbers[0],patch,map,trace);}
+  /** Detecta una sesión previamente registrada por hash o UUID. */
+  function getSesionDuplicada(hash, uuid, trace) {
+    const sesiones = getAllSesiones(trace);
+    const normalizedHash = _text_(hash);
+    const normalizedUuid = _upper_(uuid);
+    return {
+      byHash: sesiones.find(function(item) {
+        return normalizedHash && item.hashXml === normalizedHash;
+      }) || null,
+      byUuid: sesiones.find(function(item) {
+        return normalizedUuid && item.uuidCfdi === normalizedUuid;
+      }) || null
+    };
+  }
 
-  function actualizarDetallesPorLote(detalles,trace){assertConfiguration(trace);const source=Array.isArray(detalles)?detalles:[];if(!source.length)return{updated:0,requested:0,writeGroups:0,strategy:"EMPTY"};const startedAt=Date.now(),key=KEYS.DETALLE,width=_width_(key),sheet=getSheetByKey_(key,trace);let strategy="KNOWN_ROWS",entries=[];const allKnown=source.every(function(item){return Number.isInteger(Number(item&&item.rowNumber))&&Number(item.rowNumber)>=2;});
-    if(allKnown){entries=source.map(function(item){return{rowNumber:Number(item.rowNumber),item:item};});}
-    else{strategy="ID_LOOKUP";const lastRow=sheet.getLastRow();if(lastRow<=1)throw new Error("VE_DETALLE no contiene registros.");const rows=sheet.getRange(2,1,lastRow-1,width).getValues(),idCol=_columns_(key).IDDETALLE,index={};rows.forEach(function(row,i){const id=_text_(row[idCol]);if(id)index[id]=i+2;});const missing=[];source.forEach(function(item){const id=_text_(item&&item.idDetalle),rowNumber=index[id];if(!rowNumber)missing.push(id);else entries.push({rowNumber:rowNumber,item:item});});if(missing.length)throw new Error("No se encontraron detalles: "+JSON.stringify(missing.slice(0,20)));}
-    const byRow={};entries.forEach(function(entry){byRow[entry.rowNumber]=entry.item;});const numbers=Object.keys(byRow).map(Number).sort(function(a,b){return a-b;}),groups=_groupRowNumbers_(numbers),writeStartedAt=Date.now();groups.forEach(function(group){const length=group.end-group.start+1,rows=sheet.getRange(group.start,1,length,width).getValues();rows.forEach(function(row,index){const item=byRow[group.start+index];if(item)_applyPatch_(row,key,item.patch||{},DETAIL_PATCH_MAP);});sheet.getRange(group.start,1,length,width).setValues(rows);});const writeMs=Date.now()-writeStartedAt;perfMark_(trace,"VE_DETAIL_BATCH_UPDATED",{elapsedMs:Date.now()-startedAt,writeElapsedMs:writeMs,requested:source.length,updated:numbers.length,writeGroups:groups.length,strategy:strategy});return{updated:numbers.length,requested:source.length,writeGroups:groups.length,strategy:strategy};}
+  /** Busca una sesión por HASHXML. */
+  function getSesionPorHashXml(hash, trace) {
+    return getSesionDuplicada(hash, "", trace).byHash;
+  }
 
-  function actualizarSesion(id,p,t){return _updateRowById_(KEYS.SESIONES,"IDSESION",id,p,SESSION_PATCH_MAP,t);} function actualizarSesionPorFila(row,p,t){return _updateKnownRow_(KEYS.SESIONES,row,p,SESSION_PATCH_MAP,t);} function actualizarDetalle(id,p,t){return _updateRowById_(KEYS.DETALLE,"IDDETALLE",id,p,DETAIL_PATCH_MAP,t);} function actualizarCaja(id,p,t){return _updateRowById_(KEYS.CAJAS,"IDUNICOCAJA",id,p,BOX_PATCH_MAP,t);}
+  /** Busca una sesión por UUIDCFDI. */
+  function getSesionPorUuidCfdi(uuid, trace) {
+    return getSesionDuplicada("", uuid, trace).byUuid;
+  }
 
+  /** Devuelve los detalles pertenecientes a una sesión. */
+  function getDetallePorSesion(id, trace) {
+    return _getByColumn_(
+      KEYS.DETALLE,
+      "IDSESION",
+      _text_(id),
+      _mapDetalle_,
+      trace
+    );
+  }
+
+  /** Devuelve las cajas pertenecientes a una sesión. */
+  function getCajasPorSesion(id, trace) {
+    const startedAt = Date.now();
+    const result = _getByColumn_(
+      KEYS.CAJAS,
+      "IDSESION",
+      _text_(id),
+      _mapCaja_,
+      trace
+    );
+    perfMark_(trace, "VE_BOXES_BY_SESSION_READY", {
+      elapsedMs: Date.now() - startedAt,
+      rows: result.length,
+      strategy: "TEXT_FINDER_GROUPED"
+    });
+    return result;
+  }
+
+  /** Busca una caja por su identificador único. */
+  function getCajaPorId(id, trace) {
+    const rows = _getByColumn_(
+      KEYS.CAJAS,
+      "IDUNICOCAJA",
+      _text_(id),
+      _mapCaja_,
+      trace
+    );
+    return rows[0] || null;
+  }
+
+  /** Devuelve los eventos de una sesión ordenados cronológicamente. */
+  function getEventosPorSesion(id, trace) {
+    return _getByColumn_(
+      KEYS.EVENTOS,
+      "IDSESION",
+      _text_(id),
+      _mapEvento_,
+      trace
+    ).sort(function(left, right) {
+      return left.timestampMs - right.timestampMs;
+    });
+  }
+
+  /** Indica si una huella activa ya fue capturada en la sesión. */
+  function existeHuellaLecturaEnSesion(id, huella, trace) {
+    const normalizedFingerprint = _text_(huella);
+    if (!normalizedFingerprint) return false;
+    return getCajasPorSesion(id, trace).some(function(item) {
+      return item.huellaLectura === normalizedFingerprint &&
+        item.estadoCaja !== VERIFICACION_ENTRADA.ESTADOS_CAJA.CANCELADA;
+    });
+  }
+
+  /** Inserta una sesión en una sola operación de escritura. */
+  function insertarSesion(value, trace) {
+    assertConfiguration(trace);
+    return writeRowsBatch_(
+      KEYS.SESIONES,
+      [buildSesionRow(value)],
+      _width_(KEYS.SESIONES),
+      trace
+    );
+  }
+
+  /** Inserta un lote de detalles. */
+  function insertarDetalles(values, trace) {
+    assertConfiguration(trace);
+    const source = Array.isArray(values) ? values : [];
+    return writeRowsBatch_(
+      KEYS.DETALLE,
+      source.map(buildDetalleRow),
+      _width_(KEYS.DETALLE),
+      trace
+    );
+  }
+
+  /** Inserta un lote de cajas. */
+  function insertarCajas(values, trace) {
+    assertConfiguration(trace);
+    const source = Array.isArray(values) ? values : [];
+    return writeRowsBatch_(
+      KEYS.CAJAS,
+      source.map(buildCajaRow),
+      _width_(KEYS.CAJAS),
+      trace
+    );
+  }
+
+  /** Inserta un lote de eventos. */
+  function insertarEventos(values, trace) {
+    assertConfiguration(trace);
+    const source = Array.isArray(values) ? values : [];
+    return writeRowsBatch_(
+      KEYS.EVENTOS,
+      source.map(buildEventoRow),
+      _width_(KEYS.EVENTOS),
+      trace
+    );
+  }
+
+  /** Crea una sesión junto con sus detalles y eventos iniciales. */
+  function crearSesionConDetalle(sesion, detalles, eventos, trace) {
+    return {
+      sesion: insertarSesion(sesion, trace),
+      detalles: insertarDetalles(detalles, trace),
+      eventos: insertarEventos(eventos || [], trace)
+    };
+  }
+
+  /** Registra cajas y sus eventos relacionados. */
+  function registrarCajasConEventos(cajas, eventos, trace) {
+    return {
+      cajas: insertarCajas(cajas, trace),
+      eventos: insertarEventos(eventos || [], trace)
+    };
+  }
+
+  /** Aplica un parche validado sobre una fila física. */
+  function _applyPatch_(row, key, patch, patchMap) {
+    if (!Array.isArray(row)) {
+      throw new TypeError("La fila que se desea actualizar es inválida.");
+    }
+    const source = patch || {};
+    const columns = _columns_(key);
+    let changedFields = 0;
+    Object.keys(source).forEach(function(fieldName) {
+      const columnName = patchMap[fieldName];
+      if (!columnName) {
+        throw new Error("Campo no actualizable en " + key + ": " + fieldName);
+      }
+      const value = source[fieldName];
+      row[columns[columnName]] = value === null || value === undefined ? "" : value;
+      changedFields += 1;
+    });
+    return changedFields;
+  }
+
+  /** Actualiza directamente una fila física conocida. */
+  function _updateKnownRow_(key, rowNumber, patch, patchMap, trace) {
+    assertConfiguration(trace);
+    const normalizedRow = Number(rowNumber);
+    if (!Number.isInteger(normalizedRow) || normalizedRow < 2) {
+      throw new Error("Número de fila inválido en " + key + ".");
+    }
+    const sheet = getSheetByKey_(key, trace);
+    const width = _width_(key);
+    const range = sheet.getRange(normalizedRow, 1, 1, width);
+    const row = range.getValues()[0];
+    const changedFields = _applyPatch_(row, key, patch || {}, patchMap);
+    if (!changedFields) {
+      return { updated: false, rowNumber: normalizedRow, changedFields: 0 };
+    }
+    const startedAt = Date.now();
+    range.setValues([row]);
+    perfMark_(trace, "VE_KNOWN_ROW_UPDATED", {
+      sheetKey: key,
+      elapsedMs: Date.now() - startedAt,
+      rowNumber: normalizedRow,
+      changedFields
+    });
+    return { updated: true, rowNumber: normalizedRow, changedFields };
+  }
+
+  /** Localiza un registro por ID y aplica un parche autorizado. */
+  function _updateRowById_(key, idColumn, id, patch, patchMap, trace) {
+    const rowNumbers = _findRowNumbers_(key, idColumn, id, trace);
+    if (!rowNumbers.length) {
+      throw new Error("No se encontró el registro " + id + " en " + key + ".");
+    }
+    return _updateKnownRow_(key, rowNumbers[0], patch, patchMap, trace);
+  }
+
+  /**
+   * Ejecuta la operación interna o pública actualizarDetallesPorLote.
+   *
+   * @param {*} detalles Valor requerido por la operación.
+   * @param {*} trace Valor requerido por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  function actualizarDetallesPorLote(detalles,trace){assertConfiguration(trace);
+    const source=Array.isArray(detalles)?detalles:[];if(!source.length)
+      return{
+        updated:0,
+        requested:0,
+        writeGroups:0,
+        strategy:"EMPTY"
+        };
+        
+      const startedAt= Date.now(),
+        key=KEYS.DETALLE,
+        width=_width_(key),
+        sheet=getSheetByKey_(key,trace);
+
+      let strategy="KNOWN_ROWS",entries=[];
+
+      const allKnown=source.every(
+        function(item){
+          return Number.isInteger(Number(item&&item.rowNumber))&&Number(item.rowNumber)>=2;}
+      );
+
+        if(allKnown){entries=source.map(function(item){
+          return{
+            rowNumber:Number(item.rowNumber),item:item};});}
+
+        else{strategy="ID_LOOKUP";
+          const lastRow=sheet.getLastRow();
+          
+          if(lastRow<=1)
+          throw new Error("VE_DETALLE no contiene registros.");
+          
+          const rows=sheet.getRange(2,1,lastRow-1,width).getValues(),idCol=_columns_(key).IDDETALLE,index={};
+          
+          rows.forEach(function(row,i){
+            const id=_text_(row[idCol]);
+            
+          if(id)index[id]=i+2;});
+            const missing=[];
+            source.forEach(function(item){const id=_text_(item&&item.idDetalle),rowNumber=index[id];if(!rowNumber)missing.push(id);else entries.push({rowNumber:rowNumber,item:item});});if(missing.length)throw new Error("No se encontraron detalles: "+JSON.stringify(missing.slice(0,20)));}
+        const byRow={};entries.forEach(function(entry){byRow[entry.rowNumber]=entry.item;});const numbers=Object.keys(byRow).map(Number).sort(function(a,b){return a-b;}),
+        groups=_groupRowNumbers_(numbers),
+        writeStartedAt=Date.now();groups.forEach(function(group){
+          const length=group.end-group.start+1,
+          rows=sheet.getRange(group.start,1,length,width).getValues();rows.forEach(function(row,index){const item=byRow[group.start+index];if(item)_applyPatch_(row,key,item.patch||{},DETAIL_PATCH_MAP);});sheet.getRange(group.start,1,length,width).setValues(rows);});const writeMs=Date.now()-writeStartedAt;perfMark_(trace,"VE_DETAIL_BATCH_UPDATED",{elapsedMs:Date.now()-startedAt,writeElapsedMs:writeMs,requested:source.length,updated:numbers.length,writeGroups:groups.length,strategy:strategy});return{updated:numbers.length,requested:source.length,writeGroups:groups.length,strategy:strategy};}
+
+  /** Actualiza una sesión mediante su identificador. */
+  function actualizarSesion(id, patch, trace) {
+    return _updateRowById_(
+      KEYS.SESIONES,
+      "IDSESION",
+      id,
+      patch,
+      SESSION_PATCH_MAP,
+      trace
+    );
+  }
+
+  /** Actualiza una sesión mediante un número físico de fila conocido. */
+  function actualizarSesionPorFila(rowNumber, patch, trace) {
+    return _updateKnownRow_(
+      KEYS.SESIONES,
+      rowNumber,
+      patch,
+      SESSION_PATCH_MAP,
+      trace
+    );
+  }
+
+  /** Actualiza un detalle mediante su identificador. */
+  function actualizarDetalle(id, patch, trace) {
+    return _updateRowById_(
+      KEYS.DETALLE,
+      "IDDETALLE",
+      id,
+      patch,
+      DETAIL_PATCH_MAP,
+      trace
+    );
+  }
+
+  /** Actualiza una caja mediante su identificador único. */
+  function actualizarCaja(id, patch, trace) {
+    return _updateRowById_(
+      KEYS.CAJAS,
+      "IDUNICOCAJA",
+      id,
+      patch,
+      BOX_PATCH_MAP,
+      trace
+    );
+  }
+
+  /**
+   * Ejecuta la operación interna o pública clearCache.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function clearCache() {
     configurationValidated_ = false;
     equivalenceGeneration_ = "";
