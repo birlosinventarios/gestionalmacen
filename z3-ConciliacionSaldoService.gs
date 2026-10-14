@@ -386,6 +386,27 @@ const CFG = Object.freeze({
   }
 
   /**
+   * Redondea un valor numérico a dos posiciones decimales.
+   *
+   * Centraliza el redondeo utilizado por los acumulados monetarios y de
+   * cantidades del grupo. Number.EPSILON reduce errores comunes de precisión
+   * binaria en operaciones como 1.005 * 100.
+   *
+   * @param {*} value Valor numérico o convertible a número.
+   * @return {number} Valor finito redondeado a dos decimales.
+   * @private
+   */
+  function _round2_(value) {
+    const numericValue = _num_(value);
+
+    if (!Number.isFinite(numericValue)) {
+      return 0;
+    }
+
+    return Math.round((numericValue + Number.EPSILON) * 100) / 100;
+  }
+
+  /**
    * Obtiene una lectura fresca apta para conciliación.
    *
    * @return {*} Resultado de la operación.
