@@ -1,49 +1,134 @@
 /**
- * EstadoActualExcedentesService.gs
+ * z3-EstadoActualExcedentesService
  *
- * Servicio canónico para calcular el estado operativo vigente de cada IdUnico.
+ * @fileoverview Servicio canónico para calcular el estado operativo vigente de
+ * cada IdUnico de excedentes.
+ *
  * Integra la cantidad inicial registrada en BD-EXCEDENTES con el historial de
- * Bitacora-TRASPASOS y entrega un modelo consolidado para auditoría, vistas y
- * procesos de traspaso.
+ * Bitacora-TRASPASOS. A partir de ambas fuentes calcula saldo, ubicación, bodega,
+ * vigencia, auditabilidad y estado lógico para consultas, auditorías y procesos
+ * operativos.
  *
  * Responsabilidades:
  * - Seleccionar el registro base más reciente de cada IdUnico.
- * - Consolidar movimientos de acomodo y surtido por identificador.
- * - Determinar el último movimiento usando fecha, hora y fila física.
+ * - Consolidar movimientos de ACOMODO y SURTIDO por identificador.
+ * - Determinar el último movimiento mediante fecha, hora y fila física.
  * - Calcular saldo, ubicación, bodega, vigencia y estado lógico.
- * - Construir consultas operativas, filtros de auditoría y resúmenes.
+ * - Construir filtros globales o por bodega para auditoría.
+ * - Generar métricas globales y agrupadas por bodega.
  * - Mantener una caché local durante la ejecución actual.
  * - Exponer trazas de rendimiento de las etapas de consolidación.
+ * - Devolver copias defensivas para proteger la caché interna.
+ *
+ * Dependencias globales:
+ * - ExcedentesRepository y TraspasosRepository.
+ * - toStr_(value), toStrUpper_(value), toNum_(value), round2_(value) y
+ *   compareEs_(left, right).
  *
  * Reglas invariantes:
  * - BD-EXCEDENTES.CANTIDAD permanece como cantidad inicial histórica.
  * - saldoActual = cantidadInicial - suma absoluta de movimientos SURTIDO.
  * - El saldo nunca se devuelve por debajo de cero.
- * - ACOMODO no reduce el saldo; únicamente participa en ubicación y trazabilidad.
- * - Un excedente es vigente cuando existe en BD, su STATUS es válido y su saldo
+ * - ACOMODO no reduce el saldo, solo participa en ubicación y trazabilidad.
+ * - Un excedente es vigente cuando existe en BD, su STATUS es válido y el saldo
  *   es mayor que cero.
  * - Un excedente es auditable cuando está vigente y tiene ubicación física.
- * - El servicio devuelve copias defensivas para proteger la caché interna.
+ * - La ubicación vigente depende del último movimiento y del saldo actual.
+ * - Las consultas con criterios vacíos devuelven [] o el universo completo según
+ *   el contrato documentado de cada método.
  *
- * Dependencias:
- * - ExcedentesRepository y TraspasosRepository.
- * - toStr_(), toStrUpper_(), toNum_(), round2_() y compareEs_().
+ * Estrategia de caché:
+ * - La consolidación se conserva únicamente durante la ejecución actual.
+ * - clearCache() obliga a reconstruir el estado en la siguiente consulta.
+ * - Los resultados públicos se clonan antes de salir del servicio.
  *
- * API pública:
- * - getAll()
- * - getVigentes()
- * - getAuditables(config)
- * - getPorIdUnico(idUnico)
- * - getUnoPorIdUnico(idUnico)
- * - getPorUbicacion(ubicacion)
- * - getPorBodega(bodega)
- * - getResumen()
- * - clearCache()
+ * @author Sigifredo de la Cruz Ramos
  */
+
 const EstadoActualExcedentesService = (() => {
   "use strict";
 
-  /** Inicia una traza de rendimiento de consolidación. */
+  /** @private @const {!Object} */
+  const CFG = Object.freeze({
+    LOCALE: "es-MX",
+    PERF_PREFIX: "[APPALMACEN][ESTADO_BACKEND_PERF]",
+    LOG_PREFIX: "[EstadoActualExcedentesService]"
+  });
+
+  // ==========================================================================
+  // VALIDACIÓN E INSTRUMENTACIÓN
+  // ==========================================================================
+
+  /**
+   * Verifica la disponibilidad de repositorios y utilidades obligatorias.
+   *
+   * @return {void}
+   * @throws {Error} Si falta alguna dependencia global.
+   * @private
+   */
+  /**
+   * Verifica la disponibilidad de repositorios y utilidades obligatorias.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _assertDependencies_() {
+    const functions = [
+      ["toStr_", typeof toStr_],
+      ["toStrUpper_", typeof toStrUpper_],
+      ["toNum_", typeof toNum_],
+      ["round2_", typeof round2_],
+      ["compareEs_", typeof compareEs_]
+    ];
+    const missingFunctions = functions
+      .filter(function (dependency) {
+        return dependency[1] !== "function";
+      })
+      .map(function (dependency) {
+        return dependency[0];
+      });
+
+    if (missingFunctions.length > 0) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} Faltan utilidades globales: ` +
+          `${missingFunctions.join(", ")}.`
+      );
+    }
+
+    const repositories = [
+      ["ExcedentesRepository", typeof ExcedentesRepository],
+      ["TraspasosRepository", typeof TraspasosRepository]
+    ];
+    const missingRepositories = repositories
+      .filter(function (dependency) {
+        return dependency[1] === "undefined";
+      })
+      .map(function (dependency) {
+        return dependency[0];
+      });
+
+    if (missingRepositories.length > 0) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} Faltan repositorios obligatorios: ` +
+          `${missingRepositories.join(", ")}.`
+      );
+    }
+  }
+
+  /**
+   * Inicia una traza de rendimiento para la consolidación.
+   *
+   * @param {*} operation Valor utilizado por la operación.
+   * @param {*} metadata Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Inicia una traza de rendimiento para la consolidación.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _perfEstadoStart_(operation, metadata) {
     const now = Date.now();
     return {
@@ -55,7 +140,21 @@ const EstadoActualExcedentesService = (() => {
     };
   }
 
-  /** Registra una etapa con tiempos parcial y acumulado. */
+  /**
+   * Registra una etapa con tiempos parcial y acumulado.
+   *
+   * @param {*} trace Valor utilizado por la operación.
+   * @param {*} stage Valor utilizado por la operación.
+   * @param {*} metadata Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Registra una etapa con tiempos parcial y acumulado.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _perfEstadoMark_(trace, stage, metadata) {
     if (!trace) return;
     const now = Date.now();
@@ -68,7 +167,21 @@ const EstadoActualExcedentesService = (() => {
     trace.lastAt = now;
   }
 
-  /** Finaliza, registra y devuelve la traza de rendimiento. */
+  /**
+   * Finaliza, registra y devuelve la traza de rendimiento.
+   *
+   * @param {*} trace Valor utilizado por la operación.
+   * @param {*} status Valor utilizado por la operación.
+   * @param {*} metadata Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Finaliza, registra y devuelve la traza de rendimiento.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _perfEstadoEnd_(trace, status, metadata) {
     if (!trace) return null;
     const result = {
@@ -79,7 +192,7 @@ const EstadoActualExcedentesService = (() => {
       marks: trace.marks.slice()
     };
     console.log(
-      "[APPALMACEN][ESTADO_BACKEND_PERF] " + JSON.stringify(result)
+      CFG.PERF_PREFIX + " " + JSON.stringify(result)
     );
     return result;
   }
@@ -120,27 +233,91 @@ const EstadoActualExcedentesService = (() => {
     ])
   });
 
-  /** Normaliza de forma segura un valor textual. */
+  // ==========================================================================
+  // NORMALIZACIÓN Y UTILIDADES TEMPORALES
+  // ==========================================================================
+
+  /**
+   * Normaliza de forma segura un valor textual.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Normaliza de forma segura un valor textual.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _toSafeStr_(value) {
     return toStr_(value || "");
   }
 
-  /** Normaliza de forma segura un texto en mayúsculas. */
+  /**
+   * Normaliza un texto en mayúsculas.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Normaliza un texto en mayúsculas.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _toSafeUpper_(value) {
     return toStrUpper_(value || "");
   }
 
-  /** Normaliza de forma segura un valor numérico. */
+  /**
+   * Normaliza un valor numérico.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Normaliza un valor numérico.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _toSafeNum_(value) {
     return toNum_(value || 0);
   }
 
-  /** Genera una copia defensiva serializable. */
+  /**
+   * Genera una copia defensiva serializable.
+   *
+   * @param {*} obj Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Genera una copia defensiva serializable.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _clone_(obj) {
     return JSON.parse(JSON.stringify(obj));
   }
 
-  /** Construye una marca comparable desde fecha y hora del excedente. */
+  /**
+   * Construye una marca temporal desde un excedente.
+   *
+   * @param {*} row Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Construye una marca temporal desde un excedente.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _timestampFromExcedente_(row) {
     const fecha = row.fechaexcedente instanceof Date
       ? row.fechaexcedente.getTime()
@@ -158,7 +335,19 @@ const EstadoActualExcedentesService = (() => {
     return fecha + horaMs;
   }
 
-  /** Formatea una fecha válida como dd/MM/yyyy. */
+  /**
+   * Formatea una fecha válida como dd/MM/yyyy.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Formatea una fecha válida como dd/MM/yyyy.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _formatDateFast_(value) {
     if (!(value instanceof Date) || isNaN(value.getTime())) return "";
     const day = String(value.getDate()).padStart(2, "0");
@@ -166,7 +355,19 @@ const EstadoActualExcedentesService = (() => {
     return day + "/" + month + "/" + value.getFullYear();
   }
 
-  /** Formatea una hora válida como HH:mm:ss. */
+  /**
+   * Formatea una hora válida como HH:mm:ss.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Formatea una hora válida como HH:mm:ss.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _formatTimeFast_(value) {
     if (!(value instanceof Date) || isNaN(value.getTime())) return "";
     return [
@@ -176,7 +377,19 @@ const EstadoActualExcedentesService = (() => {
     ].join(":");
   }
 
-  /** Construye una marca comparable de un movimiento. */
+  /**
+   * Construye una marca temporal desde un movimiento.
+   *
+   * @param {*} movimiento Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Construye una marca temporal desde un movimiento.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _timestampFromMovimiento_(movimiento) {
     const fecha = movimiento.fechatraspaso instanceof Date
       ? movimiento.fechatraspaso.getTime()
@@ -194,7 +407,19 @@ const EstadoActualExcedentesService = (() => {
     return fecha + horaMs;
   }
 
-  /** Determina si un valor corresponde a una ubicación física conocida. */
+  /**
+   * Determina si un valor representa una ubicación física conocida.
+   *
+   * @param {*} valor Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Determina si un valor representa una ubicación física conocida.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _esUbicacionFisica_(valor) {
     const value = _toSafeUpper_(valor);
 
@@ -217,7 +442,20 @@ const EstadoActualExcedentesService = (() => {
     );
   }
 
-  /** Infiere el nombre de bodega a partir del prefijo de ubicación. */
+  /**
+   * Infiere la bodega a partir del prefijo de ubicación.
+   *
+   * @param {*} serie Valor utilizado por la operación.
+   * @param {*} fallback = DOMAIN.BODEGA_FALLBACK Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Infiere la bodega a partir del prefijo de ubicación.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _obtenerNombreBodegaPorSerie_(
     serie,
     fallback = DOMAIN.BODEGA_FALLBACK
@@ -248,7 +486,19 @@ const EstadoActualExcedentesService = (() => {
     return _toSafeUpper_(fallback) || DOMAIN.BODEGA_FALLBACK;
   }
 
-  /** Normaliza configuraciones globales o por bodega para auditoría. */
+  /**
+   * Normaliza el alcance global o por bodega.
+   *
+   * @param {*} config Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Normaliza el alcance global o por bodega.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _normalizarConfigAuditoria_(config) {
     if (typeof config === "string") {
       const bodega = _toSafeUpper_(config);
@@ -296,7 +546,19 @@ const EstadoActualExcedentesService = (() => {
     };
   }
 
-  /** Determina si STATUS permite que el registro participe operativamente. */
+  /**
+   * Determina si STATUS permite participación operativa.
+   *
+   * @param {*} status Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Determina si STATUS permite participación operativa.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _esStatusBDValido_(status) {
     const value = _toSafeUpper_(status);
 
@@ -307,7 +569,22 @@ const EstadoActualExcedentesService = (() => {
     return DOMAIN.STATUS_BD_VALIDOS.includes(value);
   }
 
-  /** Selecciona el registro base más reciente de cada IdUnico. */
+  // ==========================================================================
+  // INDEXACIÓN DE FUENTES
+  // ==========================================================================
+
+  /**
+   * Selecciona el registro base más reciente de cada IdUnico.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Selecciona el registro base más reciente de cada IdUnico.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _indexarExcedentesPorIdUnico_() {
     const rows =
           typeof ExcedentesRepository.getAllForEstado === "function"
@@ -345,7 +622,18 @@ const EstadoActualExcedentesService = (() => {
     }, {});
   }
 
-  /** Obtiene movimientos optimizados para construir el estado. */
+  /**
+   * Obtiene movimientos optimizados para consolidación.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Obtiene movimientos optimizados para consolidación.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _obtenerMovimientos_() {
     if (
       typeof TraspasosRepository.getAllForEstado === "function"
@@ -360,7 +648,19 @@ const EstadoActualExcedentesService = (() => {
     ).filter(item => _toSafeStr_(item.idunico));
   }
 
-  /** Indexa el último movimiento por fecha, hora y fila física. */
+  /**
+   * Indexa el último movimiento por fecha, hora y fila.
+   *
+   * @param {*} movimientos Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Indexa el último movimiento por fecha, hora y fila.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _indexarUltimoMovimientoPorIdUnico_(
     movimientos
   ) {
@@ -477,7 +777,19 @@ const EstadoActualExcedentesService = (() => {
     );
   }
 
-  /** Acumula cantidades y conteos de ACOMODO y SURTIDO por IdUnico. */
+  /**
+   * Acumula cantidades y conteos por IdUnico.
+   *
+   * @param {*} movimientos Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Acumula cantidades y conteos por IdUnico.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _indexarResumenMovimientosPorIdUnico_(movimientos) {
     return (movimientos || []).reduce((acc, movimiento) => {
       const id =
@@ -521,7 +833,24 @@ const EstadoActualExcedentesService = (() => {
     }, {});
   }
 
-  /** Calcula el saldo vigente sin permitir resultados negativos. */
+  // ==========================================================================
+  // RESOLUCIÓN DEL ESTADO CANÓNICO
+  // ==========================================================================
+
+  /**
+   * Calcula el saldo vigente sin valores negativos.
+   *
+   * @param {*} base Valor utilizado por la operación.
+   * @param {*} resumenMovimientos Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Calcula el saldo vigente sin valores negativos.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _resolverSaldoActual_(base, resumenMovimientos) {
     const cantidadInicial = Math.abs(
       _toSafeNum_(base ? base.cantidadInicial : 0)
@@ -541,7 +870,20 @@ const EstadoActualExcedentesService = (() => {
     );
   }
 
-  /** Resuelve la ubicación vigente a partir del último movimiento. */
+  /**
+   * Resuelve la ubicación actual desde el último movimiento.
+   *
+   * @param {*} ultimoMovimiento Valor utilizado por la operación.
+   * @param {*} saldoActual Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Resuelve la ubicación actual desde el último movimiento.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _resolverUbicacionActualDesdeTraspasos_(
     ultimoMovimiento,
     saldoActual
@@ -585,7 +927,20 @@ const EstadoActualExcedentesService = (() => {
     return "";
   }
 
-  /** Resuelve la bodega actual desde ubicación o datos del movimiento. */
+  /**
+   * Resuelve la bodega actual desde ubicación y movimiento.
+   *
+   * @param {*} ubicacionActual Valor utilizado por la operación.
+   * @param {*} ultimoMovimiento Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Resuelve la bodega actual desde ubicación y movimiento.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _resolverBodegaActual_(ubicacionActual, ultimoMovimiento) {
     const ubicacion = _toSafeUpper_(ubicacionActual);
 
@@ -618,7 +973,22 @@ const EstadoActualExcedentesService = (() => {
     return DOMAIN.BODEGA_FALLBACK;
   }
 
-  /** Clasifica el estado lógico consolidado de un excedente. */
+  /**
+   * Clasifica el estado lógico consolidado.
+   *
+   * @param {*} base Valor utilizado por la operación.
+   * @param {*} ultimoMovimiento Valor utilizado por la operación.
+   * @param {*} ubicacionActual Valor utilizado por la operación.
+   * @param {*} saldoActual Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Clasifica el estado lógico consolidado.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _resolverEstatusLogico_(
     base,
     ultimoMovimiento,
@@ -648,8 +1018,21 @@ const EstadoActualExcedentesService = (() => {
     return DOMAIN.ESTATUS_LOGICOS.PENDIENTE_UBICACION;
   }
 
-  /** Construye, clasifica y ordena el universo consolidado. */
+  /**
+   * Construye, clasifica y ordena el universo consolidado.
+   *
+   * @param {*} trace Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Construye, clasifica y ordena el universo consolidado.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _construirEstado_(trace) {
+    _assertDependencies_();
     const baseStartedAt = Date.now();
     const mapaBase = _indexarExcedentesPorIdUnico_();
     _perfEstadoMark_(trace, "INDEXAR_EXCEDENTES", {
@@ -770,21 +1153,21 @@ const EstadoActualExcedentesService = (() => {
       const ubicacionB = _toSafeUpper_(b.ubicacionActual) || "ZZZZZZ";
       const comparacionUbicacion = ubicacionA.localeCompare(
         ubicacionB,
-        "es",
+        CFG.LOCALE,
         { sensitivity: "base", numeric: true }
       );
       if (comparacionUbicacion !== 0) return comparacionUbicacion;
 
       const comparacionCodigo = _toSafeUpper_(a.codigo).localeCompare(
         _toSafeUpper_(b.codigo),
-        "es",
+        CFG.LOCALE,
         { sensitivity: "base", numeric: true }
       );
       if (comparacionCodigo !== 0) return comparacionCodigo;
 
       return _toSafeStr_(a.idUnico).localeCompare(
         _toSafeStr_(b.idUnico),
-        "es",
+        CFG.LOCALE,
         { sensitivity: "base", numeric: true }
       );
     });
@@ -796,10 +1179,26 @@ const EstadoActualExcedentesService = (() => {
     return estado;
   }
 
+  // ==========================================================================
+  // CACHÉ Y API PÚBLICA
+  // ==========================================================================
+
   /** @type {Array<Object>|null} Caché consolidada de la ejecución actual. */
   let cacheEstado_ = null;
 
-  /** Obtiene la consolidación desde memoria o la construye. */
+  /**
+   * Obtiene la consolidación desde caché o la construye.
+   *
+   * @param {*} trace Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Obtiene la consolidación desde caché o la construye.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _getEstado_(trace) {
     if (cacheEstado_ === null) {
       const buildStartedAt = Date.now();
@@ -817,12 +1216,34 @@ const EstadoActualExcedentesService = (() => {
     return cacheEstado_;
   }
 
-  /** @return {Array<Object>} Copia completa del estado consolidado. */
+  /**
+   * Devuelve una copia completa del estado consolidado.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  /**
+   * Devuelve una copia completa del estado consolidado.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function getAll() {
     return _clone_(_getEstado_());
   }
 
-  /** @return {Array<Object>} Excedentes vigentes con saldo positivo. */
+  /**
+   * Devuelve excedentes vigentes con saldo positivo.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  /**
+   * Devuelve excedentes vigentes con saldo positivo.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function getVigentes() {
     const trace =
       _perfEstadoStart_(
@@ -914,7 +1335,19 @@ const EstadoActualExcedentesService = (() => {
     }
   }
 
-  /** Filtra excedentes auditables globalmente o por bodega. */
+  /**
+   * Filtra excedentes auditables por alcance.
+   *
+   * @param {*} config Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  /**
+   * Filtra excedentes auditables por alcance.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function getAuditables(config) {
     const cfg = _normalizarConfigAuditoria_(config);
     let output = _getEstado_().filter(item => item.auditable);
@@ -934,7 +1367,19 @@ const EstadoActualExcedentesService = (() => {
     return _clone_(output);
   }
 
-  /** Busca coincidencias por IdUnico normalizado. */
+  /**
+   * Busca coincidencias por IdUnico normalizado.
+   *
+   * @param {*} idUnico Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  /**
+   * Busca coincidencias por IdUnico normalizado.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function getPorIdUnico(idUnico) {
     const id =
       _toSafeUpper_(
@@ -956,12 +1401,36 @@ const EstadoActualExcedentesService = (() => {
   }
 
 
-  /** Devuelve la primera coincidencia de IdUnico o null. */
+  /**
+   * Devuelve la primera coincidencia o null.
+   *
+   * @param {*} idUnico Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  /**
+   * Devuelve la primera coincidencia o null.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function getUnoPorIdUnico(idUnico) {
     return getPorIdUnico(idUnico)[0] || null;
   }
 
-  /** Busca excedentes por ubicación física actual. */
+  /**
+   * Busca excedentes por ubicación actual.
+   *
+   * @param {*} ubicacion Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  /**
+   * Busca excedentes por ubicación actual.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function getPorUbicacion(ubicacion) {
     const value = _toSafeUpper_(ubicacion);
 
@@ -973,7 +1442,19 @@ const EstadoActualExcedentesService = (() => {
     );
   }
 
-  /** Busca por bodega; TODAS o vacío devuelve el universo completo. */
+  /**
+   * Busca excedentes por bodega actual.
+   *
+   * @param {*} bodega Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  /**
+   * Busca excedentes por bodega actual.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function getPorBodega(bodega) {
     const value = _toSafeUpper_(bodega);
 
@@ -988,7 +1469,18 @@ const EstadoActualExcedentesService = (() => {
     );
   }
 
-  /** Construye métricas globales y agrupadas por bodega. */
+  /**
+   * Construye métricas globales y por bodega.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  /**
+   * Construye métricas globales y por bodega.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function getResumen() {
     const all = _getEstado_();
     const vigentes = all.filter(item => item.vigente);
@@ -1063,11 +1555,22 @@ const EstadoActualExcedentesService = (() => {
     };
   }
 
-  /** Invalida la consolidación local para forzar su reconstrucción. */
+  /**
+   * Invalida la consolidación local.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  /**
+   * Invalida la consolidación local.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function clearCache() {
     cacheEstado_ = null;
     console.log(
-      "[CACHE] EstadoActualExcedentesService limpio"
+      CFG.LOG_PREFIX + " Caché invalidada."
     );
     return true;
   }

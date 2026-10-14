@@ -1,19 +1,53 @@
 /**
- * ConciliacionSaldoService.gs
+ * z3-ConciliacionSaldoService
  *
- * Servicio de dominio para Conciliacion de saldo.
+ * @fileoverview Servicio de dominio para consultar, agrupar, validar y registrar
+ * conciliaciones administrativas de movimientos de traspaso.
  *
- * REGLAS
- * - Agrupa por FECHA + HORA + SERIE.
- * - ACOMODO y SURTIDO pueden convivir en el mismo grupo.
- * - Traduce bodegas fisicas a almacenes administrativos.
- * - ACOMODO: SERIE debe coincidir con UBICACION_ENTRADA.
- * - SURTIDO: SERIE debe coincidir con UBICACION_SALIDA.
- * - Solo completa filas PENDIENTES.
- * - El responsable debe tener rol RESPONSABLE.
- * - Fecha y hora de respuesta se generan en servidor.
- * - No modifica existencias, excedentes, saldos ni ubicaciones.
+ * El servicio interpreta la bitácora de traspasos, agrupa movimientos por fecha,
+ * hora y serie, traduce bodegas físicas a almacenes administrativos, identifica
+ * grupos pendientes o inconsistentes y registra folio, responsable, fecha y hora
+ * de respuesta únicamente sobre filas que siguen pendientes.
+ *
+ * Responsabilidades:
+ * - Obtener lecturas frescas de la bitácora de traspasos.
+ * - Normalizar y validar movimientos ACOMODO y SURTIDO.
+ * - Agrupar movimientos mediante FECHA, HORA y SERIE.
+ * - Traducir bodegas físicas a almacenes administrativos.
+ * - Clasificar filas y grupos por su estado de conciliación.
+ * - Construir alertas, métricas temporales y resúmenes operativos.
+ * - Validar folios numéricos y usuarios con rol RESPONSABLE.
+ * - Registrar conciliaciones bajo ScriptLock.
+ * - Releer y validar las filas objetivo antes de escribir.
+ * - Invalidar la caché local después de una escritura o un error.
+ *
+ * Dependencias globales:
+ * - TraspasosRepository y UsuariosRepository.
+ * - toStr_(value), toStrUpper_(value), toNum_(value) y compareEs_().
+ * - getTemporalContext_().
+ * - LockService y SpreadsheetApp de Google Apps Script.
+ *
+ * Reglas de negocio:
+ * - La clave de agrupación es FECHA|HORA|SERIE.
+ * - ACOMODO y SURTIDO pueden convivir en un mismo grupo.
+ * - ACOMODO exige que SERIE coincida con UBICACION_ENTRADA.
+ * - SURTIDO exige que SERIE coincida con UBICACION_SALIDA.
+ * - Solo se actualizan filas cuyo estado continúa siendo PENDIENTE.
+ * - El responsable debe existir y tener el rol RESPONSABLE.
+ * - La fecha y la hora de respuesta se generan en el servidor.
+ * - El folio debe ser numérico y respetar la longitud máxima configurada.
+ * - Este servicio no modifica existencias, excedentes, saldos ni ubicaciones.
+ * - Un grupo admite como máximo 1000 filas pendientes.
+ *
+ * Integridad transaccional:
+ * - registrarConciliacion() adquiere ScriptLock antes de releer y escribir.
+ * - Todas las filas se validan nuevamente dentro del bloqueo.
+ * - Si una fila cambió, no se escribe ninguna conciliación del grupo.
+ * - SpreadsheetApp.flush() confirma la escritura antes de liberar el bloqueo.
+ *
+ * @author Sigifredo de la Cruz Ramos
  */
+
 const ConciliacionSaldoService = (() => {
   "use strict";
 
@@ -60,12 +94,117 @@ const ConciliacionSaldoService = (() => {
     ])
   });
 
+  /** @private @const {!Object} */
   const CFG = Object.freeze({
     LOCK_TIMEOUT_MS: 30000,
     MAX_FOLIO_LENGTH: 80,
     MAX_GROUP_ROWS: 1000,
-    DEFAULT_VIEW_LIMIT: 500
+    DEFAULT_VIEW_LIMIT: 500,
+    RESPONSIBLE_ROLE: CFG.RESPONSIBLE_ROLE,
+    PERF_PREFIX: "[APPALMACEN][CONCILIACION_BACKEND_PERF]",
+    LOG_PREFIX: "[ConciliacionSaldoService]"
   });
+
+  /**
+   * Verifica que las dependencias obligatorias estén disponibles.
+   *
+   * @return {void}
+   * @throws {Error} Si falta un repositorio, utilidad o servicio de Apps Script.
+   * @private
+   */
+  /**
+   * Verifica que las dependencias obligatorias estén disponibles.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _assertDependencies_() {
+    const functions = [
+      ["toStr_", typeof toStr_],
+      ["toStrUpper_", typeof toStrUpper_],
+      ["toNum_", typeof toNum_],
+      ["compareEs_", typeof compareEs_],
+      ["getTemporalContext_", typeof getTemporalContext_]
+    ];
+    const missingFunctions = functions
+      .filter(function (dependency) {
+        return dependency[1] !== "function";
+      })
+      .map(function (dependency) {
+        return dependency[0];
+      });
+
+    if (missingFunctions.length > 0) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} Faltan utilidades globales: ` +
+          `${missingFunctions.join(", ")}.`
+      );
+    }
+
+    const services = [
+      ["TraspasosRepository", typeof TraspasosRepository],
+      ["UsuariosRepository", typeof UsuariosRepository]
+    ];
+    const missingServices = services
+      .filter(function (dependency) {
+        return dependency[1] === "undefined";
+      })
+      .map(function (dependency) {
+        return dependency[0];
+      });
+
+    if (missingServices.length > 0) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} Faltan repositorios obligatorios: ` +
+          `${missingServices.join(", ")}.`
+      );
+    }
+
+    if (
+      typeof LockService === "undefined" ||
+      typeof SpreadsheetApp === "undefined"
+    ) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} LockService y SpreadsheetApp son obligatorios.`
+      );
+    }
+  }
+
+  /**
+   * Valida que el argumento recibido sea un objeto de payload.
+   *
+   * @param {*} payload Valor recibido por una operación pública.
+   * @param {string} operationName Nombre de la operación para diagnóstico.
+   * @return {!Object} Payload validado.
+   * @throws {TypeError} Si el valor no es un objeto plano.
+   * @private
+   */
+  /**
+   * Valida que un argumento sea un payload utilizable.
+   *
+   * @param {*} payload Valor utilizado por la operación.
+   * @param {*} operationName Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _payloadOrThrow_(payload, operationName) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      throw new TypeError(`${operationName} requiere un objeto payload válido.`);
+    }
+    return payload;
+  }
+
+  /**
+   * Crea una traza de rendimiento para una operación.
+   *
+   * @param {*} operation Valor utilizado por la operación.
+   * @param {*} metadata Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  // ==========================================================================
+  // INSTRUMENTACIÓN DE RENDIMIENTO
+  // ==========================================================================
 
   function _perfConciliacionStart_(
     operation,
@@ -99,6 +238,15 @@ const ConciliacionSaldoService = (() => {
     };
   }
 
+  /**
+   * Registra una etapa dentro de una traza de rendimiento.
+   *
+   * @param {*} trace Valor utilizado por la operación.
+   * @param {*} stage Valor utilizado por la operación.
+   * @param {*} metadata Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _perfConciliacionMark_(
     trace,
     stage,
@@ -140,6 +288,15 @@ const ConciliacionSaldoService = (() => {
       now;
   }
 
+  /**
+   * Finaliza, registra y devuelve una traza de rendimiento.
+   *
+   * @param {*} trace Valor utilizado por la operación.
+   * @param {*} status Valor utilizado por la operación.
+   * @param {*} metadata Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _perfConciliacionEnd_(
     trace,
     status,
@@ -177,8 +334,7 @@ const ConciliacionSaldoService = (() => {
     };
 
     console.log(
-      "[APPALMACEN]" +
-      "[CONCILIACION_BACKEND_PERF] " +
+      CFG.PERF_PREFIX + " " +
       JSON.stringify(
         result
       )
@@ -187,19 +343,51 @@ const ConciliacionSaldoService = (() => {
     return result;
   }  
 
+  /**
+   * Normaliza un valor como texto.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  // ==========================================================================
+  // NORMALIZACIÓN Y LECTURA
+  // ==========================================================================
+
   function _str_(value) {
     return toStr_(value || "");
   }
 
+  /**
+   * Normaliza un valor como texto en mayúsculas.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _upper_(value) {
     return toStrUpper_(value || "");
   }
 
+  /**
+   * Normaliza un valor numérico.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _num_(value) {
     return toNum_(value || 0);
   }
 
+  /**
+   * Obtiene una lectura fresca apta para conciliación.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _getAllFreshForConciliacion_() {
+    _assertDependencies_();
     if (
       typeof TraspasosRepository !==
         "undefined" &&
@@ -221,7 +409,7 @@ const ConciliacionSaldoService = (() => {
         "function"
     ) {
       console.warn(
-        "[CONCILIACION] " +
+        CFG.LOG_PREFIX + " " +
         "getAllForConciliacionFresh no está disponible. " +
         "Se utilizará getAllFresh como respaldo."
       );
@@ -236,6 +424,14 @@ const ConciliacionSaldoService = (() => {
     );
   }
 
+  /**
+   * Convierte fecha y hora textuales a milisegundos.
+   *
+   * @param {*} fecha Valor utilizado por la operación.
+   * @param {*} hora Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _dateTimeMs_(fecha, hora) {
     const f = _str_(fecha).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     const h = _str_(hora).match(/^(\d{2}):(\d{2}):(\d{2})$/);
@@ -253,6 +449,13 @@ const ConciliacionSaldoService = (() => {
     return isNaN(date.getTime()) ? 0 : date.getTime();
   }
 
+  /**
+   * Construye la clave FECHA|HORA|SERIE.
+   *
+   * @param {*} movement Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _buildGroupKey_(movement) {
     return [
       _str_(movement.fecha),
@@ -261,10 +464,24 @@ const ConciliacionSaldoService = (() => {
     ].join("|");
   }
 
+  /**
+   * Indica si el tipo de movimiento es permitido.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _isAllowedType_(value) {
     return DOMAIN.TIPOS_VALIDOS.indexOf(_upper_(value)) !== -1;
   }
 
+  /**
+   * Clasifica el estado administrativo de una fila.
+   *
+   * @param {*} movement Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _classifyRow_(movement) {
     const f = !!_str_(movement.folio);
     const r = !!_str_(movement.responsable);
@@ -277,6 +494,13 @@ const ConciliacionSaldoService = (() => {
     return DOMAIN.ESTADOS_FILA.INCONSISTENTE;
   }
 
+  /**
+   * Traduce una bodega física a un almacén administrativo.
+   *
+   * @param {*} physicalWarehouse Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _resolveAdministrativeWarehouse_(physicalWarehouse) {
     const value = _upper_(physicalWarehouse);
 
@@ -295,6 +519,13 @@ const ConciliacionSaldoService = (() => {
     return "";
   }
 
+  /**
+   * Valida las reglas administrativas de un movimiento.
+   *
+   * @param {*} movement Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _validateAdministrativeMovement_(movement) {
     const errors = [];
     const warnings = [];
@@ -362,6 +593,13 @@ const ConciliacionSaldoService = (() => {
     };
   }
 
+  /**
+   * Normaliza una fila del repositorio al contrato del servicio.
+   *
+   * @param {*} row Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _normalizeMovement_(
     row
   ) {
@@ -514,10 +752,30 @@ const ConciliacionSaldoService = (() => {
     return movement;
   }
 
+  /**
+   * Agrega un valor normalizado si aún no existe.
+   *
+   * @param {*} array Valor utilizado por la operación.
+   * @param {*} value Valor utilizado por la operación.
+   * @param {*} preserveCase Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _pushUnique_(array, value, preserveCase) {
     const safe = preserveCase === true ? _str_(value) : _upper_(value);
     if (safe && array.indexOf(safe) === -1) array.push(safe);
   }
+
+  /**
+   * Crea la estructura inicial de un grupo.
+   *
+   * @param {*} movement Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  // ==========================================================================
+  // CONSTRUCCIÓN Y CLASIFICACIÓN DE GRUPOS
+  // ==========================================================================
 
   function _createGroup_(movement) {
     return {
@@ -569,24 +827,32 @@ const ConciliacionSaldoService = (() => {
     };
   }
 
+  /**
+   * Acumula un movimiento dentro de un grupo.
+   *
+   * @param {*} group Valor utilizado por la operación.
+   * @param {*} movement Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _addMovement_(group, movement) {
     group.totalmovimientos += 1;
-    group.cantidadneta = round2_(group.cantidadneta + movement.cantidad);
-    group.cantidadabsoluta = round2_(
+    group.cantidadneta = _round2_(group.cantidadneta + movement.cantidad);
+    group.cantidadabsoluta = _round2_(
       group.cantidadabsoluta + Math.abs(movement.cantidad)
     );
     group.filas.push(movement.fila);
 
     if (movement.tipomovimiento === "ACOMODO") {
       group.totalacomodos += 1;
-      group.cantidadacomodos = round2_(
+      group.cantidadacomodos = _round2_(
         group.cantidadacomodos + movement.cantidadadministrativa
       );
     }
 
     if (movement.tipomovimiento === "SURTIDO") {
       group.totalsurtidos += 1;
-      group.cantidadsurtidos = round2_(
+      group.cantidadsurtidos = _round2_(
         group.cantidadsurtidos + movement.cantidadadministrativa
       );
     }
@@ -643,6 +909,13 @@ const ConciliacionSaldoService = (() => {
     group.movimientos.push(movement);
   }
 
+  /**
+   * Convierte segundos a una descripción de tiempo.
+   *
+   * @param {*} seconds Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _elapsedText_(seconds) {
     const total = Math.max(0, Math.floor(seconds || 0));
     const days = Math.floor(total / 86400);
@@ -654,6 +927,14 @@ const ConciliacionSaldoService = (() => {
     return minutes + " min";
   }
 
+  /**
+   * Calcula estado, alertas y métricas finales de un grupo.
+   *
+   * @param {*} group Valor utilizado por la operación.
+   * @param {*} nowMs Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _finalizeGroup_(group, nowMs) {
     if (group.inconsistentes > 0) {
       group.estadogrupo = DOMAIN.ESTADOS_GRUPO.INCONSISTENTE;
@@ -704,6 +985,13 @@ const ConciliacionSaldoService = (() => {
     return group;
   }
 
+  /**
+   * Agrupa y ordena los movimientos válidos.
+   *
+   * @param {*} rows Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _buildGroups_(rows) {
     const map = {};
     const invalidRows = [];
@@ -756,13 +1044,24 @@ const ConciliacionSaldoService = (() => {
     };
   }
 
+  /**
+   * Obtiene usuarios con rol RESPONSABLE.
+   *
+   * @param {*} forceRefresh Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  // ==========================================================================
+  // RESPONSABLES, FILTROS Y VALIDACIONES DE ENTRADA
+  // ==========================================================================
+
   function _getResponsibles_(forceRefresh) {
     if (forceRefresh === true && UsuariosRepository.clearCache) {
       UsuariosRepository.clearCache();
     }
 
     return UsuariosRepository
-      .getPorRol("RESPONSABLE")
+      .getPorRol(CFG.RESPONSIBLE_ROLE)
       .map(function (user) {
         return {
           idusuario: _num_(user.idusuario),
@@ -771,13 +1070,20 @@ const ConciliacionSaldoService = (() => {
         };
       })
       .filter(function (user) {
-        return user.nombre && user.rol === "RESPONSABLE";
+        return user.nombre && user.rol === CFG.RESPONSIBLE_ROLE;
       })
       .sort(function (a, b) {
         return compareEs_(a.nombre, b.nombre);
       });
   }
 
+  /**
+   * Valida y devuelve el responsable seleccionado.
+   *
+   * @param {*} responsible Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _assertResponsible_(responsible) {
     const normalized = _upper_(responsible);
     if (!normalized) throw new Error("El responsable es obligatorio.");
@@ -795,6 +1101,14 @@ const ConciliacionSaldoService = (() => {
     return normalized;
   }
 
+  /**
+   * Construye el resumen global de conciliación.
+   *
+   * @param {*} groups Valor utilizado por la operación.
+   * @param {*} invalidRows Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _summary_(groups, invalidRows) {
     return {
       totalgrupos: groups.length,
@@ -826,12 +1140,26 @@ const ConciliacionSaldoService = (() => {
     };
   }
 
+  /**
+   * Selecciona los grupos que requieren atención.
+   *
+   * @param {*} groups Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _workGroups_(groups) {
     return groups.filter(function (group) {
       return DOMAIN.ESTADOS_TRABAJO.indexOf(group.estadogrupo) !== -1;
     });
   }
 
+  /**
+   * Cuenta grupos por estado.
+   *
+   * @param {*} groups Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _countGroupsByStatus_(groups) {
     return (groups || []).reduce(
       function (accumulator, group) {
@@ -854,8 +1182,19 @@ const ConciliacionSaldoService = (() => {
   }
 
 
+  /**
+   * Aplica filtros y límite de vista a los grupos.
+   *
+   * @param {*} groups Valor utilizado por la operación.
+   * @param {*} filters Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _filterGroups_(groups, filters) {
-    const cfg = filters || {};
+    const cfg =
+      filters && typeof filters === "object" && !Array.isArray(filters)
+        ? filters
+        : {};
     const state = _upper_(cfg.estado);
     const series = _upper_(cfg.serie);
     const type = _upper_(cfg.tipomovimiento);
@@ -902,6 +1241,13 @@ const ConciliacionSaldoService = (() => {
     return output.slice(0, limit);
   }
 
+  /**
+   * Valida el folio administrativo.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _validateFolio_(
     value
   ) {
@@ -942,6 +1288,13 @@ const ConciliacionSaldoService = (() => {
     return folio;
   }
 
+  /**
+   * Normaliza y deduplica números físicos de fila.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _normalizeRows_(value) {
     return Array.from(new Set((Array.isArray(value) ? value : [])
       .map(function (row) { return Math.floor(Number(row)); })
@@ -949,13 +1302,32 @@ const ConciliacionSaldoService = (() => {
     )).sort(function (a, b) { return a - b; });
   }
 
+  /**
+   * Compara dos colecciones ordenadas de filas.
+   *
+   * @param {*} a Valor utilizado por la operación.
+   * @param {*} b Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _sameRows_(a, b) {
     return a.length === b.length && a.every(function (value, index) {
       return value === b[index];
     });
   }
 
+  /**
+   * Construye la carga inicial del módulo.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  // ==========================================================================
+  // API PÚBLICA
+  // ==========================================================================
+
   function obtenerBootstrap() {
+    _assertDependencies_();
     const trace =
       _perfConciliacionStart_(
         "CONCILIACION_OBTENER_BOOTSTRAP"
@@ -1247,6 +1619,13 @@ const ConciliacionSaldoService = (() => {
     }
   }
 
+  /**
+   * Lista grupos aplicando filtros de consulta.
+   *
+   * @param {*} filters Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function listarGrupos(
     filters
   ) {
@@ -1393,6 +1772,13 @@ const ConciliacionSaldoService = (() => {
     }
   }
 
+  /**
+   * Obtiene un grupo exacto por su clave.
+   *
+   * @param {*} claveGrupo Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerGrupo(
     claveGrupo
   ) {
@@ -1530,11 +1916,17 @@ const ConciliacionSaldoService = (() => {
     }
   }
 
+  /**
+   * Registra una conciliación de forma transaccional.
+   *
+   * @param {*} payload Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function registrarConciliacion(
     payload
   ) {
-    const input =
-      payload || {};
+    const input = _payloadOrThrow_(payload, "registrarConciliacion()");
 
     const trace =
       _perfConciliacionStart_(
@@ -2167,7 +2559,7 @@ const ConciliacionSaldoService = (() => {
         cacheError
       ) {
         console.warn(
-          "[CONCILIACION] " +
+          CFG.LOG_PREFIX + " " +
           "No se pudo limpiar TraspasosRepository " +
           "después del error.",
           cacheError &&
@@ -2216,6 +2608,12 @@ const ConciliacionSaldoService = (() => {
     }
   }
 
+  /**
+   * Devuelve información de disponibilidad y versión del servicio.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function ping() {
     return {
       ok: true,
@@ -2228,11 +2626,11 @@ const ConciliacionSaldoService = (() => {
     };
   }
 
-  return {
+  return Object.freeze({
     obtenerBootstrap,
     listarGrupos,
     obtenerGrupo,
     registrarConciliacion,
     ping
-  };
+  });
 })();

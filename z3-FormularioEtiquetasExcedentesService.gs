@@ -1,44 +1,54 @@
 /**
- * FormularioEtiquetasExcedentesService.gs
+ * z3-FormularioEtiquetasExcedentesService
  *
- * Servicio de dominio para la generación e impresión de etiquetas de
- * excedentes.
+ * @fileoverview Servicio de dominio para validar, registrar y preparar la
+ * impresión de etiquetas correspondientes a nuevos excedentes.
+ *
+ * El servicio obtiene el catálogo autoritativo, valida cada elemento del lote,
+ * exige un único responsable de impresión, registra las filas en BD-EXCEDENTES
+ * bajo ScriptLock y genera documentos HTML para impresión LOCAL y ONLINE.
  *
  * Responsabilidades:
- * - Construir la información inicial requerida por la vista.
- * - Validar productos, cantidades, identificadores y responsable de impresión.
- * - Registrar en BD-EXCEDENTES cada etiqueta generada.
- * - Preparar los documentos de impresión LOCAL y ONLINE.
+ * - Construir los catálogos requeridos por la vista.
+ * - Validar código, cantidad, IdUnico, caja, total de cajas y responsable.
+ * - Exigir un único responsable para todo el lote de impresión.
+ * - Resolver ID, código y descripción desde el catálogo autoritativo.
+ * - Construir filas físicas compatibles con BD-EXCEDENTES.
+ * - Registrar el lote bajo exclusión mutua mediante ScriptLock.
+ * - Confirmar la escritura con SpreadsheetApp.flush().
  * - Invalidar las cachés operativas después de una escritura exitosa.
+ * - Renderizar documentos para impresión local y online.
+ * - Retirar bloques script del HTML enviado al puente de impresión online.
  *
- * Decisión funcional vigente:
- * - La selección del responsable es obligatoria para imprimir.
- * - El responsable se registra independientemente de su rol.
- * - La vista debe garantizar la selección antes de invocar procesarLote().
- * - El Service vuelve a validar el responsable y no permite lotes sin usuario.
- * - Todo el lote debe pertenecer a un único responsable de impresión.
+ * Dependencias globales:
+ * - CatalogoRepository y ExcedentesRepository.
+ * - getSpreadsheetByFileKey_(fileKey) y getSheetByKey_(sheetKey).
+ * - clearOperationalCaches_(), cuando esté disponible.
+ * - COL.EXCEDENTES.RESPONSABLEIMPRESION.
+ * - SHEETS.EXCEDENTES.file.
+ * - HtmlService, Utilities, LockService y SpreadsheetApp.
+ * - toStr_(value), toStrUpper_(value) y toNum_(value).
+ * - Plantilla EtiquetaExcedentesImpresa.
  *
- * Contrato esperado por elemento de procesarLote(lote):
- * {
- *   codigo: string,
- *   descripcion: string,
- *   cantidad: number,
- *   id: string,
- *   idUnico: string,
- *   cajaNo: number,
- *   totalCajas: number,
- *   responsableImpresion: string
- * }
+ * Reglas de integridad:
+ * - El lote no puede estar vacío ni superar el máximo configurado.
+ * - Todos los elementos deben pertenecer a un único responsable de impresión.
+ * - El responsable es obligatorio, pero no se restringe por rol.
+ * - Código, producto y descripción se validan contra el catálogo vigente.
+ * - Cantidad, caja y total de cajas deben ser valores finitos y positivos.
+ * - cajaNo no puede ser mayor que totalCajas.
+ * - Los IdUnicos no pueden repetirse dentro del lote.
+ * - El contrato físico de BD-EXCEDENTES debe contener exactamente nueve columnas.
+ * - El servicio no modifica existencias, saldos, ubicaciones ni traspasos.
  *
- * Dependencias:
- * - Constants.gs
- * - CatalogoRepository
- * - ExcedentesRepository
- * - getSpreadsheetByFileKey_()
- * - getSheetByKey_()
- * - clearOperationalCaches_(), cuando esté disponible
- * - EtiquetaExcedentesImpresa.html
+ * Concurrencia:
+ * - procesarLote() adquiere ScriptLock antes de releer catálogo y escribir.
+ * - El bloqueo se libera siempre mediante finally.
+ * - Las cachés se invalidan únicamente después de completar la escritura.
+ *
+ * @author Sigifredo de la Cruz Ramos
  */
+
 const FormularioEtiquetasExcedentesService = (() => {
   "use strict";
 
@@ -51,14 +61,163 @@ const FormularioEtiquetasExcedentesService = (() => {
     TIPO_IMPRESION: "ETIQUETAS_EXCEDENTES",
     ETIQUETA: "EXCEDENTES",
     FORMATO: "HTML",
-    PAPEL: "150x100mm"
+    PAPEL: "150x100mm",
+    TEMPLATE_FILE: "EtiquetaExcedentesImpresa",
+    MODO_LOCAL: "LOCAL",
+    MODO_ONLINE: "ONLINE",
+    MAX_BATCH_ITEMS: 500,
+    EXPECTED_WIDTH: 9,
+    LOCALE: "es-MX",
+    LOG_PREFIX: "[FormularioEtiquetasExcedentesService]"
   });
+
+  // ==========================================================================
+  // VALIDACIÓN DE DEPENDENCIAS Y CONTRATOS
+  // ==========================================================================
+
+  /**
+   * Verifica que todos los servicios y repositorios obligatorios estén activos.
+   *
+   * @return {void}
+   * @throws {Error} Si falta una dependencia necesaria para consultar o escribir.
+   * @private
+   */
+  /**
+   * Verifica los servicios y repositorios obligatorios.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _assertDependencies_() {
+    const functions = [
+      ["getSpreadsheetByFileKey_", typeof getSpreadsheetByFileKey_],
+      ["getSheetByKey_", typeof getSheetByKey_],
+      ["toStr_", typeof toStr_],
+      ["toStrUpper_", typeof toStrUpper_],
+      ["toNum_", typeof toNum_]
+    ];
+    const missingFunctions = functions
+      .filter(function (dependency) {
+        return dependency[1] !== "function";
+      })
+      .map(function (dependency) {
+        return dependency[0];
+      });
+
+    if (missingFunctions.length > 0) {
+      throw new Error(
+        `${DOMAIN.LOG_PREFIX} Faltan utilidades globales: ` +
+          `${missingFunctions.join(", ")}.`
+      );
+    }
+
+    const repositories = [
+      ["CatalogoRepository", typeof CatalogoRepository],
+      ["ExcedentesRepository", typeof ExcedentesRepository]
+    ];
+    const missingRepositories = repositories
+      .filter(function (dependency) {
+        return dependency[1] === "undefined";
+      })
+      .map(function (dependency) {
+        return dependency[0];
+      });
+
+    if (missingRepositories.length > 0) {
+      throw new Error(
+        `${DOMAIN.LOG_PREFIX} Faltan repositorios obligatorios: ` +
+          `${missingRepositories.join(", ")}.`
+      );
+    }
+
+    if (
+      typeof HtmlService === "undefined" ||
+      typeof Utilities === "undefined" ||
+      typeof LockService === "undefined" ||
+      typeof SpreadsheetApp === "undefined"
+    ) {
+      throw new Error(
+        `${DOMAIN.LOG_PREFIX} Faltan servicios obligatorios de Apps Script.`
+      );
+    }
+  }
+
+  /**
+   * Obtiene y valida la clave del archivo configurado para excedentes.
+   *
+   * @return {string} Clave lógica del archivo de destino.
+   * @throws {Error} Si SHEETS.EXCEDENTES.file no está disponible.
+   * @private
+   */
+  /**
+   * Obtiene la clave del archivo de excedentes.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _getExcedentesFileKey_() {
+    if (
+      typeof SHEETS === "undefined" ||
+      !SHEETS ||
+      !SHEETS.EXCEDENTES ||
+      !toStr_(SHEETS.EXCEDENTES.file)
+    ) {
+      throw new Error(`${DOMAIN.LOG_PREFIX} No existe SHEETS.EXCEDENTES.file.`);
+    }
+    return toStr_(SHEETS.EXCEDENTES.file);
+  }
+
+  /**
+   * Valida el ancho físico esperado para las filas de BD-EXCEDENTES.
+   *
+   * @return {number} Ancho validado del contrato físico.
+   * @throws {Error} Si COL.EXCEDENTES no está configurado correctamente.
+   * @private
+   */
+  /**
+   * Valida el ancho del contrato físico.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _getExpectedWidth_() {
+    if (
+      typeof COL === "undefined" ||
+      !COL ||
+      !COL.EXCEDENTES ||
+      !Number.isInteger(COL.EXCEDENTES.RESPONSABLEIMPRESION)
+    ) {
+      throw new Error(
+        `${DOMAIN.LOG_PREFIX} No existe ` +
+          "COL.EXCEDENTES.RESPONSABLEIMPRESION."
+      );
+    }
+
+    const width = COL.EXCEDENTES.RESPONSABLEIMPRESION + 1;
+    if (width !== DOMAIN.EXPECTED_WIDTH) {
+      throw new Error(
+        `El contrato de BD-EXCEDENTES debe contener ` +
+          `${DOMAIN.EXPECTED_WIDTH} columnas.`
+      );
+    }
+    return width;
+  }
+
+  // ==========================================================================
+  // CONTEXTO TEMPORAL Y CATÁLOGO
+  // ==========================================================================
 
   /**
    * Obtiene la fecha y hora con la zona horaria del Spreadsheet de destino.
    *
    * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} spreadsheet Archivo destino.
    * @return {{fecha:string, hora:string, ahora:Date, zonaHoraria:string}}
+   */
+  /**
+   * Obtiene fecha y hora en la zona del archivo destino.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
    */
   function _obtenerContextoTemporal_(spreadsheet) {
     if (!spreadsheet) {
@@ -81,6 +240,12 @@ const FormularioEtiquetasExcedentesService = (() => {
    *
    * @return {Array<string>}
    */
+  /**
+   * Construye códigos únicos y ordenados.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _buildCodigos_() {
     const codigos = CatalogoRepository
       .getCodigos()
@@ -90,7 +255,7 @@ const FormularioEtiquetasExcedentesService = (() => {
       .filter(Boolean);
 
     return Array.from(new Set(codigos)).sort(function(a, b) {
-      return a.localeCompare(b, "es", {
+      return a.localeCompare(b, DOMAIN.LOCALE, {
         numeric: true,
         sensitivity: "base"
       });
@@ -101,6 +266,12 @@ const FormularioEtiquetasExcedentesService = (() => {
    * Construye un índice de catálogo por código normalizado.
    *
    * @return {Object<string, Object>}
+   */
+  /**
+   * Construye un índice seguro del catálogo por código.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
    */
   function _buildMapaCatalogo_() {
     return CatalogoRepository.getAll().reduce(function(index, item) {
@@ -121,12 +292,22 @@ const FormularioEtiquetasExcedentesService = (() => {
     }, {});
   }
 
+  // ==========================================================================
+  // VALIDACIÓN DE ELEMENTOS Y RESPONSABLE
+  // ==========================================================================
+
   /**
    * Valida que el código exista en el catálogo vigente cargado por el Service.
    *
    * @param {*} codigo Código recibido.
    * @param {Object<string, Object>} mapaCatalogo Índice del catálogo.
    * @return {{codigo:string, producto:Object}}
+   */
+  /**
+   * Valida un código contra el catálogo vigente.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
    */
   function _validarCodigo_(codigo, mapaCatalogo) {
     const codigoNormalizado = toStrUpper_(codigo);
@@ -156,6 +337,12 @@ const FormularioEtiquetasExcedentesService = (() => {
    * @param {string} codigo Código relacionado.
    * @return {number}
    */
+  /**
+   * Valida una cantidad finita y positiva.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _validarCantidad_(cantidad, codigo) {
     const valor = toNum_(cantidad);
 
@@ -174,6 +361,12 @@ const FormularioEtiquetasExcedentesService = (() => {
    * @param {*} idUnico Identificador recibido.
    * @param {string} codigo Código relacionado.
    * @return {string}
+   */
+  /**
+   * Valida el identificador único de una etiqueta.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
    */
   function _validarIdUnico_(idUnico, codigo) {
     const valor = toStr_(idUnico);
@@ -196,6 +389,12 @@ const FormularioEtiquetasExcedentesService = (() => {
    * @param {*} responsable Valor recibido desde la vista.
    * @param {number=} itemIndex Posición del elemento en el lote.
    * @return {string}
+   */
+  /**
+   * Valida al responsable operativo de impresión.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
    */
   function _validarResponsableImpresion_(responsable, itemIndex) {
     const valor = toStrUpper_(responsable);
@@ -229,6 +428,12 @@ const FormularioEtiquetasExcedentesService = (() => {
    * @param {Array<Object>} lote Lote recibido.
    * @return {string} Responsable normalizado del lote.
    */
+  /**
+   * Exige un único responsable para todo el lote.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _resolverResponsableDelLote_(lote) {
     const responsables = lote.map(function(item, index) {
       return _validarResponsableImpresion_(
@@ -248,6 +453,10 @@ const FormularioEtiquetasExcedentesService = (() => {
     return unicos[0];
   }
 
+  // ==========================================================================
+  // MAPEO DE PERSISTENCIA E IMPRESIÓN
+  // ==========================================================================
+
   /**
    * Construye una fila física de nueve columnas para BD-EXCEDENTES.
    *
@@ -256,6 +465,12 @@ const FormularioEtiquetasExcedentesService = (() => {
    * @param {Object<string,Object>} mapaCatalogo Índice del catálogo.
    * @param {string} responsableImpresion Responsable normalizado del lote.
    * @return {Array<*>}
+   */
+  /**
+   * Construye una fila física para BD-EXCEDENTES.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
    */
   function _mapExcedenteToRow_(
     item,
@@ -299,6 +514,12 @@ const FormularioEtiquetasExcedentesService = (() => {
    * @param {Object<string,Object>} mapaCatalogo Índice del catálogo.
    * @param {string} responsableImpresion Responsable normalizado del lote.
    * @return {Object}
+   */
+  /**
+   * Construye el contrato seguro de una etiqueta.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
    */
   function _mapPrintItem_(item, mapaCatalogo, responsableImpresion) {
     const validation = _validarCodigo_(item.codigo, mapaCatalogo);
@@ -353,14 +574,20 @@ const FormularioEtiquetasExcedentesService = (() => {
    * @param {Array<Object>} lote Lote recibido.
    * @return {boolean}
    */
+  /**
+   * Detecta IdUnicos repetidos dentro del lote.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _validarIdsUnicosDelLote_(lote) {
-    const seen = {};
+    const seen = Object.create(null);
 
     lote.forEach(function(item, index) {
       const codigo = toStrUpper_(item && item.codigo);
       const idUnico = _validarIdUnico_(item && item.idUnico, codigo || "SIN_CODIGO");
 
-      if (seen[idUnico]) {
+      if (Object.prototype.hasOwnProperty.call(seen, idUnico)) {
         throw new Error(
           "El idUnico " + idUnico + " está repetido dentro del lote."
         );
@@ -379,8 +606,14 @@ const FormularioEtiquetasExcedentesService = (() => {
    * @param {*} html HTML renderizado.
    * @return {string}
    */
+  /**
+   * Retira bloques script del HTML online.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _prepararHtmlOnline_(html) {
-    return String(html || "").replace(/<script[\s\S]*?<\/script>/gi, "");
+    return String(html || "").replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "");
   }
 
   /**
@@ -392,6 +625,12 @@ const FormularioEtiquetasExcedentesService = (() => {
    * @param {string} responsableImpresion Responsable del lote.
    * @return {string}
    */
+  /**
+   * Renderiza la plantilla de etiquetas.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _renderEtiquetaExcedentes_(
     loteImpresion,
     fechaHora,
@@ -399,7 +638,7 @@ const FormularioEtiquetasExcedentesService = (() => {
     responsableImpresion
   ) {
     const template = HtmlService.createTemplateFromFile(
-      "EtiquetaExcedentesImpresa"
+      DOMAIN.TEMPLATE_FILE
     );
 
     template.lote = loteImpresion;
@@ -414,6 +653,12 @@ const FormularioEtiquetasExcedentesService = (() => {
    * Invalida las cachés operativas después de registrar los excedentes.
    *
    * @return {void}
+   */
+  /**
+   * Invalida cachés operativas después de escribir.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
    */
   function _clearOperationalCaches_() {
     if (typeof clearOperationalCaches_ === "function") {
@@ -430,12 +675,23 @@ const FormularioEtiquetasExcedentesService = (() => {
     }
   }
 
+  // ==========================================================================
+  // API PÚBLICA
+  // ==========================================================================
+
   /**
    * Devuelve los datos necesarios para inicializar la vista.
    *
    * @return {{codigos:Array<string>, mapaCatalogo:Object}}
    */
+  /**
+   * Devuelve los datos iniciales de la vista.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function getBootstrap() {
+    _assertDependencies_();
     return {
       codigos: _buildCodigos_(),
       mapaCatalogo: _buildMapaCatalogo_()
@@ -448,7 +704,14 @@ const FormularioEtiquetasExcedentesService = (() => {
    * @param {*} codigo Código solicitado.
    * @return {Object}
    */
+  /**
+   * Busca un producto por código.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function buscarProductoPorCodigo(codigo) {
+    _assertDependencies_();
     const codigoNormalizado = toStrUpper_(codigo);
 
     if (!codigoNormalizado) {
@@ -488,11 +751,23 @@ const FormularioEtiquetasExcedentesService = (() => {
    *   responsableImpresion:string
    * }}
    */
+  /**
+   * Valida, registra y prepara la impresión del lote.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function procesarLote(lote) {
+    _assertDependencies_();
     if (!Array.isArray(lote) || lote.length === 0) {
       throw new Error("El lote de etiquetas de excedentes está vacío.");
     }
 
+    if (lote.length > DOMAIN.MAX_BATCH_ITEMS) {
+      throw new Error(
+        `El lote supera el máximo de ${DOMAIN.MAX_BATCH_ITEMS} etiquetas.`
+      );
+    }
     if (!lote.every(function(item) {
       return item && typeof item === "object" && !Array.isArray(item);
     })) {
@@ -509,8 +784,17 @@ const FormularioEtiquetasExcedentesService = (() => {
       lock.waitLock(DOMAIN.LOCK_TIMEOUT_MS);
       locked = true;
 
-      const spreadsheet = getSpreadsheetByFileKey_(SHEETS.EXCEDENTES.file);
+      const spreadsheet = getSpreadsheetByFileKey_(
+        _getExcedentesFileKey_()
+      );
       const sheet = getSheetByKey_(DOMAIN.SHEET_KEY);
+      if (
+        !sheet ||
+        typeof sheet.getLastRow !== "function" ||
+        typeof sheet.getRange !== "function"
+      ) {
+        throw new Error("No se obtuvo una hoja válida para BD-EXCEDENTES.");
+      }
       const temporal = _obtenerContextoTemporal_(spreadsheet);
       const mapaCatalogo = _buildMapaCatalogo_();
       const fechaHora = temporal.fecha + " " + temporal.hora;
@@ -549,7 +833,7 @@ const FormularioEtiquetasExcedentesService = (() => {
       const htmlImpresion = _renderEtiquetaExcedentes_(
         loteImpresion,
         fechaHora,
-        "LOCAL",
+        DOMAIN.MODO_LOCAL,
         responsableImpresion
       );
 
@@ -557,7 +841,7 @@ const FormularioEtiquetasExcedentesService = (() => {
         _renderEtiquetaExcedentes_(
           loteImpresion,
           fechaHora,
-          "ONLINE",
+          DOMAIN.MODO_ONLINE,
           responsableImpresion
         )
       );
@@ -581,7 +865,7 @@ const FormularioEtiquetasExcedentesService = (() => {
 
       return {
         ok: true,
-        modoCompatible: ["LOCAL", "ONLINE"],
+        modoCompatible: [DOMAIN.MODO_LOCAL, DOMAIN.MODO_ONLINE],
         htmlImpresion: htmlImpresion,
         printJob: printJob,
         total: loteImpresion.length,
@@ -600,8 +884,8 @@ const FormularioEtiquetasExcedentesService = (() => {
   }
 
   return Object.freeze({
-    getBootstrap: getBootstrap,
-    buscarProductoPorCodigo: buscarProductoPorCodigo,
-    procesarLote: procesarLote
+    getBootstrap,
+    buscarProductoPorCodigo,
+    procesarLote
   });
 })();
