@@ -1,6 +1,5 @@
 /**
- * 
- * AuditoriaExcedentesDetalleRepository.gs
+ * z2-AuditoriaExcedentesDetalleRepository.gs
  * 
  * @fileoverview Repositorio de persistencia para el detalle de auditorías de excedentes.
  *

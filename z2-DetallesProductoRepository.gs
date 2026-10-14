@@ -1,4 +1,6 @@
 /**
+ * z2-DetallesProductoRepository
+ * 
  * @fileoverview Repositorio de lectura y escritura de detalles de producto.
  *
  * Administra la hoja lógica DETALLES_PRODUCTOS, valida su contrato de encabezados,

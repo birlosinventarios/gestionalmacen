@@ -1,4 +1,6 @@
 /**
+ * z2-CatalogoRepository.gs
+ * 
  * @fileoverview Repositorio de solo lectura para el catálogo de productos.
  *
  * Centraliza la lectura y normalización de la fuente lógica CATALOGO, mantiene una
