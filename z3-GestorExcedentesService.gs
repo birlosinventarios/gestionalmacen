@@ -1,51 +1,198 @@
 /**
- * GestorExcedentesService.gs
+ * z3-GestorExcedentesService
  *
- * Adaptador de compatibilidad entre EstadoActualExcedentesService y las vistas
- * legacy que consumen el contrato histórico de GestorExcedentesService.
+ * @fileoverview Adaptador de compatibilidad entre el estado canónico de
+ * excedentes y las vistas legacy que consumen el contrato histórico del gestor.
+ *
+ * El servicio delega todos los cálculos de saldo y vigencia a
+ * EstadoActualExcedentesService. Su responsabilidad se limita a adaptar nombres,
+ * ordenar resultados, construir resúmenes de presentación y ofrecer endpoints
+ * estrictos o tolerantes según el consumidor.
  *
  * Responsabilidades:
- * - Delegar el cálculo del estado y del saldo consolidado al servicio canónico.
- * - Adaptar registros canónicos al shape legacy sin recalcular cantidades.
- * - Construir vistas completas, ligeras y estrictas según el consumidor.
- * - Conservar orden, nombres de propiedades y resúmenes esperados por vistas
- *   existentes y por PrototipoTraspasosService.
- * - Propagar o tolerar errores según el endpoint utilizado.
- * - Exponer métricas de rendimiento para lectura, mapeo y serialización.
+ * - Delegar la consolidación de saldos al servicio canónico.
+ * - Adaptar registros canónicos al contrato legacy sin recalcular cantidades.
+ * - Preservar los campos eidUnico, ecodigo, edescripcion, esaldo, eserie y
+ *   ebodegaActual.
+ * - Construir vistas completas, ligeras y especializadas para consumidores
+ *   existentes.
+ * - Mantener el orden natural por ubicación, código e IdUnico.
+ * - Adaptar el resumen canónico a métricas de presentación legacy.
+ * - Medir lectura, mapeo, ordenamiento y serialización.
+ * - Aplicar una política explícita de propagación o tolerancia de errores.
+ *
+ * Dependencias globales:
+ * - EstadoActualExcedentesService.
+ * - toStr_(value), toStrUpper_(value) y toNum_(value).
  *
  * Reglas invariantes:
- * - Este adaptador no recalcula el saldo.
+ * - Este adaptador nunca recalcula saldoActual.
  * - EstadoActualExcedentesService es la única fuente del saldo consolidado.
- * - saldoActual representa CANTIDAD inicial menos la suma de SURTIDO.
- * - Los excedentes PARCIAL continúan vigentes mientras saldoActual sea mayor
- *   que cero.
+ * - saldoActual representa cantidad inicial menos la suma de SURTIDO.
+ * - Los excedentes PARCIAL siguen vigentes mientras el saldo sea mayor que cero.
  * - obtenerExcedentesConsolidados() devuelve únicamente excedentes vigentes.
- * - Los campos legacy eidUnico, ecodigo, edescripcion, esaldo, eserie y
- *   ebodegaActual deben conservarse.
+ * - Los resultados legacy conservan nombres y semántica histórica.
+ * - Las colecciones devueltas son nuevas estructuras y no referencias internas.
  *
  * Política de errores:
  * - obtenerVistaRaw(), obtenerVistaLigeraRaw(), getResumen(),
  *   obtenerExcedentesConsolidados() y obtenerExcedentesAuditables() propagan
  *   errores operativos.
  * - obtenerVista() es tolerante y devuelve una estructura vacía compatible.
+ * - Los errores tolerados se registran sin exponer datos sensibles del proceso.
  *
- * Dependencias:
- * - EstadoActualExcedentesService.
- * - toStr_(), toStrUpper_() y toNum_().
- *
- * API pública:
- * - obtenerVista()
- * - obtenerVistaLigeraRaw()
- * - obtenerVistaRaw()
- * - obtenerExcedentesConsolidados()
- * - obtenerExcedentesAuditables()
- * - getResumen()
- * - clearCache()
+ * @author Sigifredo de la Cruz Ramos
  */
+
 const GestorExcedentesService = (() => {
   "use strict";
 
-  /** Inicia una traza de rendimiento para una operación del adaptador. */
+  /** @private @const {!Object} */
+  const CFG = Object.freeze({
+    LOCALE: "es-MX",
+    SORT_FALLBACK: "ZZZZZZ",
+    PERF_PREFIX: "[APPALMACEN][GESTOR_BACKEND_PERF]",
+    LOG_PREFIX: "[GestorExcedentesService]"
+  });
+
+  // ==========================================================================
+  // VALIDACIÓN Y UTILIDADES GENERALES
+  // ==========================================================================
+
+  /**
+   * Verifica la disponibilidad del servicio canónico y utilidades globales.
+   *
+   * @return {void}
+   * @throws {Error} Si falta una dependencia obligatoria.
+   * @private
+   */
+  /**
+   * Verifica las dependencias obligatorias del adaptador.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _assertDependencies_() {
+    const functions = [
+      ["toStr_", typeof toStr_],
+      ["toStrUpper_", typeof toStrUpper_],
+      ["toNum_", typeof toNum_]
+    ];
+    const missingFunctions = functions
+      .filter(function (dependency) {
+        return dependency[1] !== "function";
+      })
+      .map(function (dependency) {
+        return dependency[0];
+      });
+
+    if (missingFunctions.length > 0) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} Faltan utilidades globales: ` +
+          `${missingFunctions.join(", ")}.`
+      );
+    }
+
+    if (
+      typeof EstadoActualExcedentesService === "undefined" ||
+      !EstadoActualExcedentesService
+    ) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} EstadoActualExcedentesService no está disponible.`
+      );
+    }
+
+    const requiredMethods = [
+      "getAll",
+      "getVigentes",
+      "getResumen"
+    ];
+    const missingMethods = requiredMethods.filter(function (methodName) {
+      return typeof EstadoActualExcedentesService[methodName] !== "function";
+    });
+
+    if (missingMethods.length > 0) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} El servicio canónico no implementa: ` +
+          `${missingMethods.join(", ")}.`
+      );
+    }
+  }
+
+  /**
+   * Construye el resumen vacío compatible con las vistas legacy.
+   *
+   * @return {!Object} Resumen con métricas inicializadas en cero.
+   * @private
+   */
+  /**
+   * Construye el resumen vacío compatible con vistas legacy.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _buildEmptySummary_() {
+    return {
+      totalIdsRegistrados: 0,
+      idsUnicosVigentes: 0,
+      idsUnicosPendientes: 0,
+      idsUnicosConUbicacion: 0,
+      stockTotalVigente: 0,
+      foliosVigentes: 0,
+      foliosPendientes: 0,
+      foliosConUbicacion: 0,
+      avanceUbicacionPct: 0,
+      auditables: 0,
+      cerrados: 0,
+      stockTotalAuditable: 0,
+      bodegasAuditables: [],
+      porBodega: []
+    };
+  }
+
+  /**
+   * Mide el tamaño JSON de una respuesta sin interrumpir la operación.
+   *
+   * @param {*} value Valor que se desea medir.
+   * @return {number} Número de caracteres o -1 si no puede serializarse.
+   * @private
+   */
+  /**
+   * Mide el tamaño JSON de una respuesta de forma segura.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _measureJsonChars_(value) {
+    try {
+      return JSON.stringify(value).length;
+    } catch (error) {
+      console.warn(
+        CFG.LOG_PREFIX + " No fue posible medir una respuesta JSON: " +
+          (error && error.message ? error.message : String(error || ""))
+      );
+      return -1;
+    }
+  }
+
+  // ==========================================================================
+  // INSTRUMENTACIÓN DE RENDIMIENTO
+  // ==========================================================================
+
+  /**
+   * Inicia una traza de rendimiento del adaptador.
+   *
+   * @param {*} operation Valor utilizado por la operación.
+   * @param {*} metadata Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Inicia una traza de rendimiento del adaptador.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _perfGestorStart_(operation, metadata) {
     const now = Date.now();
 
@@ -58,7 +205,21 @@ const GestorExcedentesService = (() => {
     };
   }
 
-  /** Registra una etapa con tiempos parcial y acumulado. */
+  /**
+   * Registra una etapa con tiempos parcial y acumulado.
+   *
+   * @param {*} trace Valor utilizado por la operación.
+   * @param {*} stage Valor utilizado por la operación.
+   * @param {*} metadata Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Registra una etapa con tiempos parcial y acumulado.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _perfGestorMark_(trace, stage, metadata) {
     if (!trace) return;
 
@@ -74,7 +235,21 @@ const GestorExcedentesService = (() => {
     trace.lastAt = now;
   }
 
-  /** Finaliza, registra y devuelve la traza de rendimiento. */
+  /**
+   * Finaliza, registra y devuelve una traza de rendimiento.
+   *
+   * @param {*} trace Valor utilizado por la operación.
+   * @param {*} status Valor utilizado por la operación.
+   * @param {*} metadata Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  /**
+   * Finaliza, registra y devuelve una traza de rendimiento.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _perfGestorEnd_(trace, status, metadata) {
     if (!trace) return null;
 
@@ -87,35 +262,40 @@ const GestorExcedentesService = (() => {
     };
 
     console.log(
-      "[APPALMACEN][GESTOR_BACKEND_PERF] " +
-      JSON.stringify(result)
+      CFG.PERF_PREFIX + " " + JSON.stringify(result)
     );
 
     return result;
   }
 
-  // =========================================================
-  // HELPERS DE VISTA
-  // =========================================================
+  // ==========================================================================
+  // ADAPTACIÓN Y ORDENAMIENTO DE LA VISTA LEGACY
+  // ==========================================================================
 
   /**
    * Ordena por ubicación, código e IdUnico usando comparación natural.
    * @param {Array<Object>} rows Registros legacy.
    * @return {Array<Object>} Copia ordenada.
    */
+  /**
+   * Ordena registros por ubicación, código e IdUnico.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _ordenarVista_(rows) {
     return [...(rows || [])].sort((a, b) => {
       const ubicacionA =
         toStrUpper_(a.eserie || a.ubicacionActual) ||
-        "ZZZZZZ";
+        CFG.SORT_FALLBACK;
 
       const ubicacionB =
         toStrUpper_(b.eserie || b.ubicacionActual) ||
-        "ZZZZZZ";
+        CFG.SORT_FALLBACK;
 
       const comparacionUbicacion = ubicacionA.localeCompare(
         ubicacionB,
-        "es",
+        CFG.LOCALE,
         {
           sensitivity: "base",
           numeric: true
@@ -136,7 +316,7 @@ const GestorExcedentesService = (() => {
 
       const comparacionCodigo = codigoA.localeCompare(
         codigoB,
-        "es",
+        CFG.LOCALE,
         {
           sensitivity: "base",
           numeric: true
@@ -149,7 +329,7 @@ const GestorExcedentesService = (() => {
 
       return toStr_(a.eidUnico || a.idUnico).localeCompare(
         toStr_(b.eidUnico || b.idUnico),
-        "es",
+        CFG.LOCALE,
         {
           sensitivity: "base",
           numeric: true
@@ -162,6 +342,12 @@ const GestorExcedentesService = (() => {
    * Adapta un registro canónico al contrato legacy sin recalcular el saldo.
    * @param {Object} item Registro de EstadoActualExcedentesService.
    * @return {Object} Registro compatible con vistas legacy.
+   */
+  /**
+   * Adapta un registro canónico al contrato legacy.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
    */
   function _mapEstadoToLegacyView_(item) {
     const cantidadInicial = toNum_(
@@ -254,6 +440,12 @@ const GestorExcedentesService = (() => {
    * @param {Object} resumenBase Resumen del servicio canónico.
    * @return {Object} Resumen compatible con consumidores legacy.
    */
+  /**
+   * Adapta el resumen canónico a métricas de presentación.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _mapResumen_(resumenBase) {
     const resumen = resumenBase || {};
 
@@ -314,15 +506,22 @@ const GestorExcedentesService = (() => {
     };
   }
 
-  // =========================================================
-  // CONSTRUCCION DE VISTA
-  // =========================================================
+  // ==========================================================================
+  // CONSTRUCCIÓN DE RESPUESTAS
+  // ==========================================================================
 
   /**
    * Construye la vista completa con universo, vigentes y resumen.
    * @return {{data:Array<Object>,dataCompleta:Array<Object>,resumen:Object}}
    */
+  /**
+   * Construye la vista completa con universo, vigentes y resumen.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _construirVista_() {
+    _assertDependencies_();
     const trace = _perfGestorStart_(
       "GESTOR_CONSTRUIR_VISTA"
     );
@@ -418,7 +617,14 @@ const GestorExcedentesService = (() => {
    * Construye una respuesta ligera de vigentes y resumen sin reordenar.
    * @return {{data:Array<Object>,resumen:Object}}
    */
+  /**
+   * Construye una respuesta ligera de vigentes y resumen.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _construirVistaLigera_() {
+    _assertDependencies_();
     const trace =
       _perfGestorStart_(
         "GESTOR_CONSTRUIR_VISTA_LIGERA"
@@ -521,23 +727,8 @@ const GestorExcedentesService = (() => {
           resumen
       };
 
-      const serializeStartedAt =
-        Date.now();
-
-      let responseChars =
-        -1;
-
-      try {
-        responseChars =
-          JSON.stringify(
-            result
-          ).length;
-      } catch (
-        error
-      ) {
-        responseChars =
-          -1;
-      }
+      const serializeStartedAt = Date.now();
+      const responseChars = _measureJsonChars_(result);
 
       _perfGestorMark_(
         trace,
@@ -598,13 +789,19 @@ const GestorExcedentesService = (() => {
     }
   }
 
-  // =========================================================
-  // API PUBLICA
-  // =========================================================
+  // ==========================================================================
+  // API PÚBLICA
+  // ==========================================================================
 
   /**
    * Devuelve la vista completa y propaga cualquier error operativo.
    * @return {Object}
+   */
+  /**
+   * Devuelve la vista completa y propaga errores.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
    */
   function obtenerVistaRaw() {
     return _construirVista_();
@@ -614,14 +811,19 @@ const GestorExcedentesService = (() => {
    * Devuelve una vista ligera tolerante para pantallas informativas.
    * @return {{data:Array<Object>,resumen:Object}}
    */
+  /**
+   * Devuelve una vista ligera tolerante para pantallas informativas.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerVista() {
     try {
       const result =
         _construirVistaLigera_();
 
       console.log(
-        "[GestorExcedentesService] " +
-        "obtenerVista :: OK",
+        CFG.LOG_PREFIX + " obtenerVista :: OK",
         JSON.stringify({
           data:
             result.data.length,
@@ -636,15 +838,13 @@ const GestorExcedentesService = (() => {
       error
     ) {
       console.error(
-        "[GestorExcedentesService] " +
-        "obtenerVista :: ERROR message",
+        CFG.LOG_PREFIX + " obtenerVista :: ERROR message",
         error &&
         error.message
       );
 
       console.error(
-        "[GestorExcedentesService] " +
-        "obtenerVista :: ERROR stack",
+        CFG.LOG_PREFIX + " obtenerVista :: ERROR stack",
         error &&
         error.stack
       );
@@ -701,7 +901,18 @@ const GestorExcedentesService = (() => {
     }
   }
 
-  /** Devuelve la vista ligera y propaga errores al consumidor. */
+  /**
+   * Devuelve la vista ligera y propaga errores.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  /**
+   * Devuelve la vista ligera y propaga errores.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerVistaLigeraRaw() {
     return _construirVistaLigera_();
   }  
@@ -710,7 +921,14 @@ const GestorExcedentesService = (() => {
    * Adapta y ordena únicamente excedentes vigentes.
    * @return {Array<Object>} Registros legacy vigentes.
    */
+  /**
+   * Adapta y ordena únicamente excedentes vigentes.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _construirSoloVigentes_() {
+    _assertDependencies_();
     const trace = _perfGestorStart_(
       "GESTOR_CONSTRUIR_SOLO_VIGENTES"
     );
@@ -759,16 +977,44 @@ const GestorExcedentesService = (() => {
    * Fuente operativa utilizada por PrototipoTraspasosService.
    * @return {Array<Object>} Excedentes vigentes con saldo consolidado.
    */
+  /**
+   * Devuelve excedentes vigentes para procesos operativos.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerExcedentesConsolidados() {
     return _construirSoloVigentes_();
   }
 
-  /** @return {Object} Resumen estricto de la vista completa. */
+  /**
+   * Devuelve el resumen estricto de la vista completa.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  /**
+   * Devuelve el resumen estricto de la vista completa.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function getResumen() {
     return obtenerVistaRaw().resumen;
   }
 
-  /** @return {Array<Object>} Excedentes marcados como auditables. */
+  /**
+   * Devuelve los excedentes marcados como auditables.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
+  /**
+   * Devuelve los excedentes marcados como auditables.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerExcedentesAuditables() {
     return obtenerVistaRaw().data.filter(
       item => item.auditable === true
@@ -778,6 +1024,12 @@ const GestorExcedentesService = (() => {
   /**
    * Invalida la caché del servicio canónico cuando está disponible.
    * @return {boolean}
+   */
+  /**
+   * Invalida la caché del servicio canónico.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
    */
   function clearCache() {
     if (
@@ -789,7 +1041,7 @@ const GestorExcedentesService = (() => {
     }
 
     console.log(
-      "[CACHE] GestorExcedentesService: EstadoActualExcedentesService limpio"
+      CFG.LOG_PREFIX + " Caché canónica invalidada."
     );
 
     return true;

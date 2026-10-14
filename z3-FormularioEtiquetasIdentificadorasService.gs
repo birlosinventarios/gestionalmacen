@@ -41,6 +41,7 @@
  *
  * @author Sigifredo de la Cruz Ramos
  */
+
 const FormularioEtiquetasIdentificadorasService = (() => {
   "use strict";
 
