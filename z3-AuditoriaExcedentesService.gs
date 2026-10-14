@@ -52,16 +52,21 @@
 const AuditoriaExcedentesService = (() => {
   "use strict";
 
-  /** @private @const {!Object} */
-  const CFG = Object.freeze({
-    DEFAULT_TIME_ZONE: "America/Mexico_City",
-    ALL_WAREHOUSES: "TODAS",
-    UNASSIGNED_WAREHOUSE: CFG.UNASSIGNED_WAREHOUSE,
-    RELIABILITY_CRITICAL_MAX: 90,
-    RELIABILITY_CONTROLLED_MIN: 97,
-    LOG_PREFIX: "[AuditoriaExcedentesService]",
-    LIVE_LOG_PREFIX: "[AuditoriaExcedentesLiveCache]"
-  });
+/**
+ * Configuración técnica inmutable del servicio.
+ *
+ * @private
+ * @const {!Object}
+ */
+const CFG = Object.freeze({
+  DEFAULT_TIME_ZONE: "America/Mexico_City",
+  ALL_WAREHOUSES: "TODAS",
+  UNASSIGNED_WAREHOUSE: "SIN ASIGNAR",
+  RELIABILITY_CRITICAL_MAX: 90,
+  RELIABILITY_CONTROLLED_MIN: 97,
+  LOG_PREFIX: "[AuditoriaExcedentesService]",
+  LIVE_LOG_PREFIX: "[AuditoriaExcedentesLiveCache]"
+});
 
   const STATUS = Object.freeze({
     ABIERTA: "ABIERTA",

@@ -94,16 +94,21 @@ const ConciliacionSaldoService = (() => {
     ])
   });
 
-  /** @private @const {!Object} */
-  const CFG = Object.freeze({
-    LOCK_TIMEOUT_MS: 30000,
-    MAX_FOLIO_LENGTH: 80,
-    MAX_GROUP_ROWS: 1000,
-    DEFAULT_VIEW_LIMIT: 500,
-    RESPONSIBLE_ROLE: CFG.RESPONSIBLE_ROLE,
-    PERF_PREFIX: "[APPALMACEN][CONCILIACION_BACKEND_PERF]",
-    LOG_PREFIX: "[ConciliacionSaldoService]"
-  });
+/**
+ * Configuración técnica inmutable del servicio de conciliación.
+ *
+ * @private
+ * @const {!Object}
+ */
+const CFG = Object.freeze({
+  LOCK_TIMEOUT_MS: 30000,
+  MAX_FOLIO_LENGTH: 80,
+  MAX_GROUP_ROWS: 1000,
+  DEFAULT_VIEW_LIMIT: 500,
+  RESPONSIBLE_ROLE: "RESPONSABLE",
+  PERF_PREFIX: "[APPALMACEN][CONCILIACION_BACKEND_PERF]",
+  LOG_PREFIX: "[ConciliacionSaldoService]"
+});
 
   /**
    * Verifica que las dependencias obligatorias estén disponibles.
