@@ -1,48 +1,51 @@
 /**
- * ExistenciasRepository.gs
+ * z2-ExistenciasRepository
  *
- * Repositorio de lectura y actualización controlada de la hoja EXISTENCIAS.
- * También administra la bitácora técnica de idempotencia almacenada en
+ * @fileoverview Repositorio de consulta y actualización controlada para la hoja
+ * lógica EXISTENCIAS, con soporte de idempotencia mediante la bitácora
  * SINCRONIZACION_EXISTENCIAS.
  *
  * Responsabilidades:
- * - Normalizar y cachear el inventario disponible por producto.
- * - Consultar productos por identificador, código, descripción y saldo.
- * - Resolver bodegas contra la configuración EXISTENCIAS_BODEGAS.
- * - Aplicar traspasos entre columnas de inventario sin adquirir un candado
- *   adicional cuando el Service ya protege la operación completa.
- * - Evitar aplicaciones duplicadas mediante una clave basada en idOperacion.
+ * - Leer, normalizar y cachear el inventario disponible por producto.
+ * - Consultar productos por ID, código, descripción y condición de saldo.
+ * - Resolver bodegas mediante el contrato EXISTENCIAS_BODEGAS.
+ * - Aplicar traspasos idempotentes entre columnas de inventario.
  * - Registrar movimientos confirmados en SINCRONIZACION_EXISTENCIAS.
- * - Permitir actualizaciones directas y controladas de ALMACENBIRLOS.
+ * - Actualizar ALMACENBIRLOS de forma individual o por lote.
+ * - Emitir métricas estructuradas para diagnóstico de rendimiento.
  *
- * Reglas invariantes:
- * - aplicarMovimientosTraspaso() no adquiere LockService.
- * - El servicio llamador debe proteger la transacción completa.
- * - La idempotencia incluye idOperacion para permitir múltiples SURTIDO
- *   legítimos sobre el mismo IdUnico.
- * - La existencia de Almacén Birlos se escribe únicamente en
- *   COL.EXISTENCIAS.ALMACENBIRLOS.
- * - aplicarMovimientosTraspaso() no ejecuta SpreadsheetApp.flush().
- * - updateBirlosById() y updateBirlosBatch() sí administran su propio candado.
- *
- * Dependencias principales:
- * - getSheetByKey_(), getRowsByKey_().
- * - toNum_(), toStr_(), toStrUpper_().
+ * Dependencias globales:
+ * - getSheetByKey_(sourceKey) y getRowsByKey_(sourceKey).
+ * - toNum_(value), toStr_(value) y toStrUpper_(value).
  * - COL.EXISTENCIAS y COL.SINCRONIZACION_EXISTENCIAS.
  * - EXISTENCIAS_BODEGAS.
- * - LockService y SpreadsheetApp.
+ * - LockService y SpreadsheetApp de Google Apps Script.
  *
- * API pública:
- * - Consultas: getAll(), getAllRaw(), getPorIdProducto(),
- *   getOnePorIdProducto(), getPorCodigo(), getPorDescripcion().
- * - Saldos: getExistenciasBirlos(), getExcedentesBodega(),
- *   getExcedentesCasaBlanca() y sus variantes negativas.
- * - Escritura: updateBirlosById(), updateBirlosBatch(),
- *   aplicarMovimientosTraspaso().
- * - Mantenimiento: clearCache().
+ * Reglas transaccionales:
+ * - aplicarMovimientosTraspaso() no adquiere ScriptLock ni ejecuta flush().
+ * - El servicio llamador debe proteger y confirmar la transacción completa.
+ * - La idempotencia incorpora idOperacion, idunico, tipo y código.
+ * - updateBirlosById() y updateBirlosBatch() administran su propio ScriptLock.
+ * - ALMACENBIRLOS solo se escribe en COL.EXISTENCIAS.ALMACENBIRLOS.
+ * - La caché es local a la ejecución y debe invalidarse después de escrituras.
+ * - La API pública devuelve copias defensivas de los registros almacenados.
+ *
+ * @author Sigifredo de la Cruz Ramos
  */
+
 const ExistenciasRepository = (() => {
   "use strict";
+
+  /** @private @const {!Object} */
+  const CFG = Object.freeze({
+    EXISTENCIAS_KEY: "EXISTENCIAS",
+    SYNC_KEY: "SINCRONIZACION_EXISTENCIAS",
+    HEADER_ROW: 1,
+    FIRST_DATA_ROW: 2,
+    LOCK_TIMEOUT_MS: 30000,
+    PERF_PREFIX: "[APPALMACEN][EXISTENCIAS_BACKEND_PERF]",
+    LOG_PREFIX: "[ExistenciasRepository]"
+  });
 
   /** Inicia una traza de rendimiento para una operación de existencias. */
   function _perfExistenciasStart_(
@@ -126,8 +129,7 @@ const ExistenciasRepository = (() => {
     };
 
     console.log(
-      "[APPALMACEN]" +
-      "[EXISTENCIAS_BACKEND_PERF] " +
+      CFG.PERF_PREFIX + " " +
       JSON.stringify(result)
     );
 
@@ -135,10 +137,10 @@ const ExistenciasRepository = (() => {
   }
 
   /** @const {number} Fila física que contiene los encabezados. */
-  const HEADER_ROW_ = 1;
+  const HEADER_ROW_ = CFG.HEADER_ROW;
 
   /** @const {number} Primera fila física con información operativa. */
-  const FIRST_DATA_ROW_ = HEADER_ROW_ + 1;
+  const FIRST_DATA_ROW_ = CFG.FIRST_DATA_ROW;
 
   /** @type {Array<Object>|null} Caché normalizada de EXISTENCIAS. */
   let cache_ = null;
@@ -149,19 +151,21 @@ const ExistenciasRepository = (() => {
 
   /** @return {GoogleAppsScript.Spreadsheet.Sheet} Hoja EXISTENCIAS. */
   function getSheet_() {
-    return getSheetByKey_(
-      "EXISTENCIAS"
-    );
+    return getSheetByKey_(CFG.EXISTENCIAS_KEY);
   }
 
   /** @return {Array<Array<*>>} Filas de la fuente EXISTENCIAS. */
   function readSource_() {
-    return getRowsByKey_("EXISTENCIAS");
+    return getRowsByKey_(CFG.EXISTENCIAS_KEY);
   }
 
   /** Convierte una fila física al contrato normalizado del repositorio. */
   function normalize_(row) {
-    return {
+    if (!Array.isArray(row)) {
+      throw new TypeError(`${CFG.LOG_PREFIX} La fila de EXISTENCIAS es inválida.`);
+    }
+
+    return Object.freeze({
       idproducto: toNum_(
         row[COL.EXISTENCIAS.IDPRODUCTO] || ""
       ),
@@ -180,7 +184,7 @@ const ExistenciasRepository = (() => {
       excedentecasablanca: toNum_(
         row[COL.EXISTENCIAS.EXCEDENTECASABLANCA] || ""
       )
-    };
+    });
   }
 
   /** Obtiene la colección normalizada desde caché o desde la hoja. */
@@ -196,6 +200,24 @@ const ExistenciasRepository = (() => {
     }
 
     return cache_;
+  }
+
+  /**
+   * Crea una copia defensiva de una entidad normalizada.
+   *
+   * @param {!Object} item Registro almacenado en caché.
+   * @return {!Object} Copia independiente para el consumidor.
+   * @private
+   */
+  function copyItem_(item) {
+    return {
+      idproducto: item.idproducto,
+      codigo: item.codigo,
+      descripcion: item.descripcion,
+      almacenbirlos: item.almacenbirlos,
+      excedentebodega: item.excedentebodega,
+      excedentecasablanca: item.excedentecasablanca
+    };
   }
 
   /** Invalida la caché interna del repositorio. */
@@ -470,9 +492,7 @@ const ExistenciasRepository = (() => {
       Date.now();
 
     const sheet =
-      getSheetByKey_(
-        "SINCRONIZACION_EXISTENCIAS"
-      );
+      getSheetByKey_(CFG.SYNC_KEY);
 
     const lastRow =
       sheet.getLastRow();
@@ -865,9 +885,7 @@ const ExistenciasRepository = (() => {
       Date.now();
 
     const sheet =
-      getSheetByKey_(
-        "SINCRONIZACION_EXISTENCIAS"
-      );
+      getSheetByKey_(CFG.SYNC_KEY);
 
     const now =
       new Date();
@@ -1198,7 +1216,7 @@ const ExistenciasRepository = (() => {
     }
 
     const lock = LockService.getScriptLock();
-    const locked = lock.tryLock(30000);
+    const locked = lock.tryLock(CFG.LOCK_TIMEOUT_MS);
 
     if (!locked) {
       throw new Error(
@@ -1255,10 +1273,10 @@ const ExistenciasRepository = (() => {
   // API PUBLICA
   // =========================================================
 
-  return {
+  return Object.freeze({
     /** Devuelve todas las existencias ordenadas por código. */
     getAll: function () {
-      return [...getData_()].sort((a, b) =>
+      return getData_().map(copyItem_).sort((a, b) =>
         a.codigo.localeCompare(
           b.codigo,
           "es-MX",
@@ -1272,22 +1290,29 @@ const ExistenciasRepository = (() => {
 
     /** Devuelve una copia superficial sin orden adicional. */
     getAllRaw: function () {
-      return [...getData_()];
+      return getData_().map(copyItem_);
     },
 
     /** Busca todos los registros de un IDPRODUCTO. */
     getPorIdProducto: function (idproducto) {
       const filter = toNum_(idproducto || 0);
 
-      return getData_().filter(
-        item => item.idproducto === filter
-      );
+      if (!Number.isInteger(filter) || filter <= 0) {
+        return [];
+      }
+      return getData_()
+        .filter(item => item.idproducto === filter)
+        .map(copyItem_);
     },
 
     /** Devuelve un registro único, null o error por duplicidad. */
     getOnePorIdProducto: function (idproducto) {
+      const normalizedId = toNum_(idproducto || 0);
+      if (!Number.isInteger(normalizedId) || normalizedId <= 0) {
+        return null;
+      }
       const results = getData_().filter(
-        item => item.idproducto === toNum_(idproducto || 0)
+        item => item.idproducto === normalizedId
       );
 
       if (results.length === 0) {
@@ -1300,61 +1325,67 @@ const ExistenciasRepository = (() => {
         );
       }
 
-      return results[0];
+      return copyItem_(results[0]);
     },
 
     /** Busca registros por código normalizado. */
     getPorCodigo: function (codigo) {
       const filter = toStrUpper_(codigo || "");
 
-      return getData_().filter(
-        item => item.codigo === filter
-      );
+      if (!filter) {
+        return [];
+      }
+      return getData_()
+        .filter(item => item.codigo === filter)
+        .map(copyItem_);
     },
 
     /** Busca registros por descripción normalizada. */
     getPorDescripcion: function (descripcion) {
       const filter = toStrUpper_(descripcion || "");
 
-      return getData_().filter(
-        item => item.descripcion === filter
-      );
+      if (!filter) {
+        return [];
+      }
+      return getData_()
+        .filter(item => item.descripcion === filter)
+        .map(copyItem_);
     },
 
     getExistenciasBirlos: function () {
-      return getData_().filter(
-        item => item.almacenbirlos > 0
-      );
+      return getData_()
+        .filter(item => item.almacenbirlos > 0)
+        .map(copyItem_);
     },
 
     getExcedentesBodega: function () {
-      return getData_().filter(
-        item => item.excedentebodega > 0
-      );
+      return getData_()
+        .filter(item => item.excedentebodega > 0)
+        .map(copyItem_);
     },
 
     getExcedentesCasaBlanca: function () {
-      return getData_().filter(
-        item => item.excedentecasablanca > 0
-      );
+      return getData_()
+        .filter(item => item.excedentecasablanca > 0)
+        .map(copyItem_);
     },
 
     getNegativosBirlos: function () {
-      return getData_().filter(
-        item => item.almacenbirlos < 0
-      );
+      return getData_()
+        .filter(item => item.almacenbirlos < 0)
+        .map(copyItem_);
     },
 
     getNegativosBodega: function () {
-      return getData_().filter(
-        item => item.excedentebodega < 0
-      );
+      return getData_()
+        .filter(item => item.excedentebodega < 0)
+        .map(copyItem_);
     },
 
     getNegativosCasaBlanca: function () {
-      return getData_().filter(
-        item => item.excedentecasablanca < 0
-      );
+      return getData_()
+        .filter(item => item.excedentecasablanca < 0)
+        .map(copyItem_);
     },
 
     /** Actualiza una existencia Birlos bajo ScriptLock. */
@@ -1364,7 +1395,7 @@ const ExistenciasRepository = (() => {
       codigoEsperado
     ) {
       const lock = LockService.getScriptLock();
-      const locked = lock.tryLock(30000);
+      const locked = lock.tryLock(CFG.LOCK_TIMEOUT_MS);
 
       if (!locked) {
         throw new Error(
@@ -1405,25 +1436,33 @@ const ExistenciasRepository = (() => {
 
       return {
         correcto: true,
-        mensaje: "Cache de existencias limpiada."
+        mensaje: "Caché de existencias invalidada."
       };
     }
-  };
+  });
 })();
 
 /**
- * Prueba manual de actualización directa. No forma parte de la API productiva.
+ * Diagnóstico manual parametrizado para actualización directa.
  *
- * @return {void}
+ * Esta función no forma parte de la API del repositorio. Debe utilizarse solo en
+ * un entorno controlado, ya que modifica datos reales de EXISTENCIAS.
+ *
+ * @param {*} idproducto Identificador del producto.
+ * @param {*} existencia Nueva existencia de ALMACENBIRLOS.
+ * @param {*=} codigoEsperado Código opcional para validar la identidad.
+ * @return {!Object} Resultado de la actualización.
  */
-function testActualizarExistenciaBirlos() {
+function testActualizarExistenciaBirlos(
+  idproducto,
+  existencia,
+  codigoEsperado
+) {
   const resultado = ExistenciasRepository.updateBirlosById(
-    5723,
-    1,
-    "01-311-A-6"
+    idproducto,
+    existencia,
+    codigoEsperado
   );
-
-  console.log(
-    JSON.stringify(resultado, null, 2)
-  );
+  console.log(JSON.stringify(resultado, null, 2));
+  return resultado;
 }
