@@ -1,15 +1,68 @@
 /**
- * AuditoriaExcedentesService.gs
- * Version completa corregida.
+ * z3-AuditoriaExcedentesService
  *
- * Correcciones incluidas:
- * 1. obtenerDetalleAuditoriaEnVivo() esta declarado y exportado.
- * 2. La respuesta antes de llegar al navegador se normaliza a valores serializables.
- * 3. _timeToSeconds_ acepta Date y texto HH:mm:ss.
- * 4. Las ubicaciones con filas de IdUnico aparecen aunque el marcador historico este incompleto.
- * 5. Las ubicaciones tocadas se calculan con marcadores o actividad real.
+ * @fileoverview Servicio principal de aplicación para administrar auditorías de
+ * excedentes, sus métricas, estado operativo y respuestas para la interfaz.
+ *
+ * Coordina la apertura y cierre de auditorías, delega operaciones de ubicación
+ * al servicio de detalle, calcula indicadores deduplicados, construye el estado
+ * operativo en vivo y normaliza todos los resultados antes de enviarlos al
+ * navegador mediante google.script.run.
+ *
+ * Responsabilidades:
+ * - Administrar el ciclo de vida completo de una auditoría.
+ * - Construir el universo esperado según el alcance global o por bodega.
+ * - Calcular métricas maestras a partir del detalle persistido.
+ * - Medir confiabilidad, progreso, ritmo y tiempo estimado restante.
+ * - Construir el detalle completo y el pulso operativo en vivo.
+ * - Reconciliar opcionalmente AuditoriaExcedentesLiveCache con Sheets.
+ * - Delegar la apertura, captura y cierre de ubicaciones.
+ * - Normalizar Date, NaN e Infinity para respuestas serializables.
+ * - Generar métricas globales para el tablero de auditorías.
+ *
+ * Dependencias globales:
+ * - AuditoriaExcedentesRepository.
+ * - AuditoriaExcedentesDetalleRepository.
+ * - AuditoriaExcedentesDetalleService.
+ * - EstadoActualExcedentesService.
+ * - AuditoriaExcedentesLiveCache como integración opcional.
+ * - UsuariosRepository como catálogo opcional para el bootstrap.
+ * - Session, Utilities y servicios estándar de Google Apps Script.
+ * - toStr_(), toStrUpper_(), toNum_(), compareEs_(),
+ *   inferWarehouseByLocation_() y minutesDiffFromStrings_().
+ *
+ * Reglas de integridad:
+ * - Una auditoría debe existir antes de consultarse o modificarse.
+ * - Las operaciones de captura requieren una auditoría ABIERTA.
+ * - Las métricas deduplican IdUnicos antes de contar resultados.
+ * - Los sobrantes se deduplican por ubicación e IdUnico.
+ * - Una auditoría no debe cerrarse con ubicaciones abiertas, salvo que el flujo
+ *   solicite explícitamente cerrarlas primero.
+ * - Sheets es la fuente autoritativa en las cargas completas.
+ * - Las respuestas públicas deben ser serializables para google.script.run.
+ *
+ * Concurrencia:
+ * - Este servicio no adquiere LockService.
+ * - La capa invocadora debe proteger secuencias críticas de lectura y escritura
+ *   cuando varias solicitudes puedan modificar la misma auditoría.
+ *
+ * @author Sigifredo de la Cruz Ramos
  */
+
 const AuditoriaExcedentesService = (() => {
+  "use strict";
+
+  /** @private @const {!Object} */
+  const CFG = Object.freeze({
+    DEFAULT_TIME_ZONE: "America/Mexico_City",
+    ALL_WAREHOUSES: "TODAS",
+    UNASSIGNED_WAREHOUSE: CFG.UNASSIGNED_WAREHOUSE,
+    RELIABILITY_CRITICAL_MAX: 90,
+    RELIABILITY_CONTROLLED_MIN: 97,
+    LOG_PREFIX: "[AuditoriaExcedentesService]",
+    LIVE_LOG_PREFIX: "[AuditoriaExcedentesLiveCache]"
+  });
+
   const STATUS = Object.freeze({
     ABIERTA: "ABIERTA",
     CERRADA: "CERRADA"
@@ -24,36 +77,186 @@ const AuditoriaExcedentesService = (() => {
   // HELPERS GENERALES
   // =========================================================
 
-  function _tz_() {
-    return Session.getScriptTimeZone() || "America/Mexico_City";
+  /**
+   * Verifica que las dependencias obligatorias estén disponibles.
+   *
+   * @return {void}
+   * @throws {Error} Si falta una utilidad, servicio o API de Apps Script.
+   * @private
+   */
+  /**
+   * Ejecuta la operación _assertDependencies_.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _assertDependencies_() {
+    const functions = [
+      ["toStr_", typeof toStr_],
+      ["toStrUpper_", typeof toStrUpper_],
+      ["toNum_", typeof toNum_],
+      ["compareEs_", typeof compareEs_],
+      ["inferWarehouseByLocation_", typeof inferWarehouseByLocation_],
+      ["minutesDiffFromStrings_", typeof minutesDiffFromStrings_]
+    ];
+    const missingFunctions = functions
+      .filter(function (dependency) {
+        return dependency[1] !== "function";
+      })
+      .map(function (dependency) {
+        return dependency[0];
+      });
+
+    if (missingFunctions.length > 0) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} Faltan utilidades globales: ` +
+          `${missingFunctions.join(", ")}.`
+      );
+    }
+
+    const services = [
+      ["AuditoriaExcedentesRepository", typeof AuditoriaExcedentesRepository],
+      [
+        "AuditoriaExcedentesDetalleRepository",
+        typeof AuditoriaExcedentesDetalleRepository
+      ],
+      [
+        "AuditoriaExcedentesDetalleService",
+        typeof AuditoriaExcedentesDetalleService
+      ],
+      ["EstadoActualExcedentesService", typeof EstadoActualExcedentesService]
+    ];
+    const missingServices = services
+      .filter(function (dependency) {
+        return dependency[1] === "undefined";
+      })
+      .map(function (dependency) {
+        return dependency[0];
+      });
+
+    if (missingServices.length > 0) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} Faltan servicios obligatorios: ` +
+          `${missingServices.join(", ")}.`
+      );
+    }
+
+    if (typeof Session === "undefined" || typeof Utilities === "undefined") {
+      throw new Error(
+        `${CFG.LOG_PREFIX} Session y Utilities son servicios obligatorios.`
+      );
+    }
   }
 
+  /**
+   * Valida un payload público.
+   *
+   * @param {*} payload Valor recibido por una operación.
+   * @param {string} operationName Nombre de la operación para diagnóstico.
+   * @return {!Object} Payload validado.
+   * @throws {TypeError} Si el valor no es un objeto plano.
+   * @private
+   */
+  /**
+   * Ejecuta la operación _payloadOrThrow_.
+   *
+   * @param {*} payload Valor utilizado por la operación.
+   * @param {*} operationName Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _payloadOrThrow_(payload, operationName) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      throw new TypeError(`${operationName} requiere un objeto payload válido.`);
+    }
+    return payload;
+  }
+
+  /**
+   * Obtiene la zona horaria efectiva del proyecto.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
+  function _tz_() {
+    return Session.getScriptTimeZone() || CFG.DEFAULT_TIME_ZONE;
+  }
+
+  /**
+   * Devuelve la fecha y hora actual.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _now_() {
     return new Date();
   }
 
+  /**
+   * Formatea una fecha con el contrato dd/MM/yyyy.
+   *
+   * @param {*} date Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _fmtDate_(date) {
     return Utilities.formatDate(date || _now_(), _tz_(), "dd/MM/yyyy");
   }
 
+  /**
+   * Formatea una hora con el contrato HH:mm:ss.
+   *
+   * @param {*} date Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _fmtTime_(date) {
     return Utilities.formatDate(date || _now_(), _tz_(), "HH:mm:ss");
   }
 
+  /**
+   * Redondea un valor numérico a dos decimales.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _round2_(value) {
     return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
   }
 
+  /**
+   * Calcula un porcentaje seguro.
+   *
+   * @param {*} numerator Valor utilizado por la operación.
+   * @param {*} denominator Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _pct_(numerator, denominator) {
     return toNum_(denominator) > 0
       ? _round2_((toNum_(numerator) / toNum_(denominator)) * 100)
       : 0;
   }
 
+  /**
+   * Genera un identificador temporal de auditoría.
+   *
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _genIdAuditoria_() {
     return "AUD-" + Utilities.formatDate(_now_(), _tz_(), "yyyyMMdd-HHmmss");
   }
 
+  /**
+   * Deduplica una colección mediante una clave calculada.
+   *
+   * @param {*} arr Valor utilizado por la operación.
+   * @param {*} mapper Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _uniqueBy_(arr, mapper) {
     const seen = new Set();
 
@@ -69,7 +272,16 @@ const AuditoriaExcedentesService = (() => {
     });
   }
 
+  /**
+   * Obtiene una auditoría o genera un error descriptivo.
+   *
+   * @param {*} idauditoria Valor utilizado por la operación.
+   * @param {*} fresh Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _getAuditoriaOrThrow_(idauditoria, fresh) {
+    _assertDependencies_();
     const id = toStr_(idauditoria);
 
     if (!id) {
@@ -87,6 +299,13 @@ const AuditoriaExcedentesService = (() => {
     return audit;
   }
 
+  /**
+   * Construye la configuración para EstadoActualExcedentesService.
+   *
+   * @param {*} audit Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _buildConfigEstadoActual_(audit) {
     if (toStrUpper_(audit.tipoauditoria) === TIPOS_AUDITORIA.POR_BODEGA) {
       return {
@@ -97,23 +316,45 @@ const AuditoriaExcedentesService = (() => {
 
     return {
       tipoAuditoria: TIPOS_AUDITORIA.GLOBAL,
-      bodegaObjetivo: "TODAS"
+      bodegaObjetivo: CFG.ALL_WAREHOUSES
     };
   }
 
+  /**
+   * Obtiene el universo auditable esperado.
+   *
+   * @param {*} audit Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _getUniversoEsperado_(audit) {
     return EstadoActualExcedentesService.getAuditables(
       _buildConfigEstadoActual_(audit)
     ) || [];
   }
 
+  /**
+   * Infiere la bodega asociada a una ubicación.
+   *
+   * @param {*} ubicacion Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _inferirBodegaPorUbicacion_(ubicacion) {
     return inferWarehouseByLocation_(
       toStrUpper_(ubicacion),
-      "PENDIENTE DE UBICACION"
+      CFG.UNASSIGNED_WAREHOUSE
     );
   }
 
+  /**
+   * Clasifica visualmente el nivel de confiabilidad.
+   *
+   * @param {*} valor Valor utilizado por la operación.
+   * @param {*} esperados Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _confiabilidadState_(valor, esperados) {
     const value = _round2_(valor);
 
@@ -126,7 +367,7 @@ const AuditoriaExcedentesService = (() => {
       };
     }
 
-    if (value < 90) {
+    if (value < CFG.RELIABILITY_CRITICAL_MAX) {
       return {
         valor: value,
         nivel: "RED",
@@ -135,7 +376,7 @@ const AuditoriaExcedentesService = (() => {
       };
     }
 
-    if (value >= 97) {
+    if (value >= CFG.RELIABILITY_CONTROLLED_MIN) {
       return {
         valor: value,
         nivel: "EMERALD",
@@ -152,6 +393,14 @@ const AuditoriaExcedentesService = (() => {
     };
   }
 
+  /**
+   * Lee el detalle de una auditoría.
+   *
+   * @param {*} id Valor utilizado por la operación.
+   * @param {*} fresh Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _leerDetalle_(id, fresh) {
     return fresh !== false && AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh
       ? AuditoriaExcedentesDetalleRepository.getByIdAuditoriaFresh(id) || []
@@ -161,6 +410,13 @@ const AuditoriaExcedentesService = (() => {
   /**
    * Convierte Date, NaN e Infinity antes de enviar la respuesta al navegador.
    * google.script.run debe recibir un objeto plano y serializable.
+   */
+  /**
+   * Convierte recursivamente una respuesta a valores serializables.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
    */
   function _normalizarRespuestaCliente_(value) {
     function sanitize(current, keyName) {
@@ -213,6 +469,14 @@ const AuditoriaExcedentesService = (() => {
   // RESUMEN MAESTRO
   // =========================================================
 
+  /**
+   * Calcula métricas leyendo auditoría y detalle.
+   *
+   * @param {*} idauditoria Valor utilizado por la operación.
+   * @param {*} options Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _calcularMetricosAuditoriaDesdeDetalle_(idauditoria, options) {
     options = options || {};
 
@@ -341,6 +605,14 @@ const AuditoriaExcedentesService = (() => {
     };
   }
 
+  /**
+   * Calcula métricas a partir de datos ya disponibles.
+   *
+   * @param {*} audit Valor utilizado por la operación.
+   * @param {*} detalle Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _calcularMetricosDesdeDatos_(audit, detalle) {
     const safeAudit = audit || {};
     const safeDetalle = Array.isArray(detalle) ? detalle : [];
@@ -463,6 +735,13 @@ const AuditoriaExcedentesService = (() => {
     };
   }
 
+  /**
+   * Consolida ubicaciones a partir del detalle en memoria.
+   *
+   * @param {*} detalle Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _listarUbicacionesDesdeDetalle_(detalle) {
     const map = {};
 
@@ -516,6 +795,14 @@ const AuditoriaExcedentesService = (() => {
       });
   }
 
+  /**
+   * Recalcula y opcionalmente persiste el resumen maestro.
+   *
+   * @param {*} idauditoria Valor utilizado por la operación.
+   * @param {*} options Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function recalcularResumen(idauditoria, options) {
     options = options || {};
 
@@ -558,6 +845,13 @@ const AuditoriaExcedentesService = (() => {
   // TIEMPO Y RITMO
   // =========================================================
 
+  /**
+   * Convierte una hora Date o textual a segundos del día.
+   *
+   * @param {*} value Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _timeToSeconds_(value) {
     if (value === null || value === undefined || value === "") {
       return null;
@@ -593,6 +887,14 @@ const AuditoriaExcedentesService = (() => {
     return hours * 3600 + minutes * 60 + seconds;
   }
 
+  /**
+   * Calcula minutos transcurridos entre dos horas.
+   *
+   * @param {*} inicio Valor utilizado por la operación.
+   * @param {*} fin Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _diffMinutes_(inicio, fin) {
     const start = _timeToSeconds_(inicio);
     const end = _timeToSeconds_(fin || _fmtTime_());
@@ -614,6 +916,13 @@ const AuditoriaExcedentesService = (() => {
   // UBICACIONES EN VIVO
   // =========================================================
 
+  /**
+   * Agrupa el universo esperado por ubicación.
+   *
+   * @param {*} audit Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _esperadosMap_(audit) {
     const map = {};
 
@@ -642,6 +951,15 @@ const AuditoriaExcedentesService = (() => {
     return map;
   }
 
+  /**
+   * Construye el estado operativo por ubicación.
+   *
+   * @param {*} idauditoria Valor utilizado por la operación.
+   * @param {*} audit Valor utilizado por la operación.
+   * @param {*} detalle Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _buildUbicacionesEnVivo_(idauditoria, audit, detalle) {
     const id = toStr_(idauditoria);
     const safeAudit = audit || _getAuditoriaOrThrow_(id, true);
@@ -858,6 +1176,13 @@ const AuditoriaExcedentesService = (() => {
       });
   }
 
+  /**
+   * Resume los indicadores del estado operativo en vivo.
+   *
+   * @param {*} lista Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @private
+   */
   function _resumenOperativo_(lista) {
     const ubicaciones = Array.isArray(lista) ? lista : [];
     const abiertas = ubicaciones.filter(function(item) {
@@ -905,6 +1230,13 @@ const AuditoriaExcedentesService = (() => {
   // DETALLE VIVO
   // =========================================================
 
+  /**
+   * Construye la carga completa autoritativa de una auditoría.
+   *
+   * @param {*} idauditoria Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerDetalleAuditoriaEnVivo(idauditoria) {
     const id = toStr_(idauditoria);
 
@@ -953,12 +1285,12 @@ const AuditoriaExcedentesService = (() => {
             );
 
         console.log(
-          "[AED FULL] Reconciliación LiveCache",
+          CFG.LIVE_LOG_PREFIX + " Reconciliación",
           JSON.stringify(reconciliacion)
         );
       } catch (errorCache) {
         console.warn(
-          "[AED FULL] No se pudo reconciliar LiveCache:",
+          CFG.LIVE_LOG_PREFIX + " No se pudo reconciliar:",
           errorCache && errorCache.message
         );
       }
@@ -987,12 +1319,12 @@ const AuditoriaExcedentesService = (() => {
             );
 
         console.log(
-          "[AED FULL] Reconciliación LiveCache",
+          CFG.LIVE_LOG_PREFIX + " Reconciliación",
           JSON.stringify(reconciliacion)
         );
       } catch (errorCache) {
         console.warn(
-          "[AED FULL] No se pudo reconciliar LiveCache:",
+          CFG.LIVE_LOG_PREFIX + " No se pudo reconciliar:",
           errorCache && errorCache.message
         );
       }
@@ -1044,6 +1376,13 @@ const AuditoriaExcedentesService = (() => {
     return _normalizarRespuestaCliente_(response);
   }
 
+  /**
+   * Obtiene el pulso rápido desde LiveCache cuando existe.
+   *
+   * @param {*} idauditoria Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerPulsoAuditoriaEnVivo(idauditoria) {
     const id = toStr_(idauditoria);
 
@@ -1069,7 +1408,7 @@ const AuditoriaExcedentesService = (() => {
           return _normalizarRespuestaCliente_(live);
         }
       } catch (error) {
-        console.warn("[LIVE] No se pudo leer LiveCache:", error);
+        console.warn(CFG.LIVE_LOG_PREFIX + " No se pudo leer:", error);
       }
     }
 
@@ -1090,7 +1429,14 @@ const AuditoriaExcedentesService = (() => {
   // API GENERAL
   // =========================================================
 
+  /**
+   * Obtiene catálogos y auditorías para la interfaz.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerBootstrap() {
+    _assertDependencies_();
     const resumenEstado = EstadoActualExcedentesService.getResumen() || {};
 
     return {
@@ -1108,8 +1454,15 @@ const AuditoriaExcedentesService = (() => {
     };
   }
 
+  /**
+   * Crea y persiste una nueva auditoría abierta.
+   *
+   * @param {*} payload Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function abrirAuditoria(payload) {
-    payload = payload || {};
+    payload = _payloadOrThrow_(payload, "abrirAuditoria()");
 
     const auditor = toStrUpper_(payload.auditor);
     const tipo = toStrUpper_(payload.tipoauditoria) || TIPOS_AUDITORIA.GLOBAL;
@@ -1169,6 +1522,13 @@ const AuditoriaExcedentesService = (() => {
     };
   }
 
+  /**
+   * Filtra el historial de auditorías.
+   *
+   * @param {*} filtros Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function listarAuditorias(filtros) {
     filtros = filtros || {};
 
@@ -1182,10 +1542,24 @@ const AuditoriaExcedentesService = (() => {
     });
   }
 
+  /**
+   * Obtiene una auditoría por identificador.
+   *
+   * @param {*} id Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerAuditoriaPorId(id) {
     return _getAuditoriaOrThrow_(id, true);
   }
 
+  /**
+   * Obtiene una auditoría con su resumen vigente.
+   *
+   * @param {*} id Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerAuditoriaActiva(id) {
     const audit = _getAuditoriaOrThrow_(id, true);
     const resumen = recalcularResumen(id, {
@@ -1203,12 +1577,28 @@ const AuditoriaExcedentesService = (() => {
     });
   }
 
+  /**
+   * Delega la apertura de una ubicación al servicio de detalle.
+   *
+   * @param {*} payload Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function abrirUbicacion(payload) {
+    payload = _payloadOrThrow_(payload, "abrirUbicacion()");
     return AuditoriaExcedentesDetalleService.abrirUbicacion(payload);
   }
 
+  /**
+   * Delega un escaneo y recalcula el resumen maestro.
+   *
+   * @param {*} payload Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function registrarEscaneoIdUnico(payload) {
-    const result = AuditoriaExcedentesDetalleService.registrarEscaneoIdUnico(payload || {});
+    payload = _payloadOrThrow_(payload, "registrarEscaneoIdUnico()");
+    const result = AuditoriaExcedentesDetalleService.registrarEscaneoIdUnico(payload);
 
     if (result && result.ok && payload && payload.idauditoria) {
       result.resumenAuditoria = recalcularResumen(payload.idauditoria, {
@@ -1220,8 +1610,16 @@ const AuditoriaExcedentesService = (() => {
     return result;
   }
 
+  /**
+   * Delega el cierre de ubicación y recalcula el resumen.
+   *
+   * @param {*} payload Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function cerrarUbicacion(payload) {
-    const result = AuditoriaExcedentesDetalleService.cerrarUbicacion(payload || {});
+    payload = _payloadOrThrow_(payload, "cerrarUbicacion()");
+    const result = AuditoriaExcedentesDetalleService.cerrarUbicacion(payload);
 
     if (payload && payload.idauditoria) {
       result.resumenAuditoria = recalcularResumen(payload.idauditoria, {
@@ -1233,12 +1631,27 @@ const AuditoriaExcedentesService = (() => {
     return result;
   }
 
+  /**
+   * Obtiene y normaliza el detalle de una ubicación.
+   *
+   * @param {*} id Valor utilizado por la operación.
+   * @param {*} ubicacion Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerDetalleUbicacion(id, ubicacion) {
     return _normalizarRespuestaCliente_(
       AuditoriaExcedentesDetalleService.getDetalleUbicacion(id, ubicacion)
     );
   }
 
+  /**
+   * Obtiene el detalle completo de una auditoría.
+   *
+   * @param {*} id Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerDetalleAuditoria(id) {
     const audit = _getAuditoriaOrThrow_(id, true);
     const resumen = recalcularResumen(id, {
@@ -1257,8 +1670,15 @@ const AuditoriaExcedentesService = (() => {
     });
   }
 
+  /**
+   * Cierra ubicaciones pendientes y finaliza la auditoría.
+   *
+   * @param {*} payload Valor utilizado por la operación.
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function cerrarAuditoria(payload) {
-    payload = payload || {};
+    payload = _payloadOrThrow_(payload, "cerrarAuditoria()");
 
     const id = toStr_(payload.idauditoria);
     const audit = _getAuditoriaOrThrow_(id, true);
@@ -1306,7 +1726,7 @@ const AuditoriaExcedentesService = (() => {
       try {
         AuditoriaExcedentesLiveCache.clear(id);
       } catch (error) {
-        console.warn("[LIVE] No se pudo limpiar LiveCache:", error);
+        console.warn(CFG.LIVE_LOG_PREFIX + " No se pudo limpiar:", error);
       }
     }
 
@@ -1318,6 +1738,12 @@ const AuditoriaExcedentesService = (() => {
     });
   }
 
+  /**
+   * Calcula indicadores globales para el tablero.
+   *
+   * @return {*} Resultado de la operación.
+   * @public
+   */
   function obtenerDashboardMetricos() {
     const audits = AuditoriaExcedentesRepository.getAll();
 
@@ -1363,21 +1789,21 @@ const AuditoriaExcedentesService = (() => {
   // API PUBLICA
   // =========================================================
 
-  return {
-    obtenerBootstrap: obtenerBootstrap,
-    abrirAuditoria: abrirAuditoria,
-    listarAuditorias: listarAuditorias,
-    obtenerAuditoriaPorId: obtenerAuditoriaPorId,
-    obtenerAuditoriaActiva: obtenerAuditoriaActiva,
-    obtenerDetalleAuditoriaEnVivo: obtenerDetalleAuditoriaEnVivo,
-    obtenerPulsoAuditoriaEnVivo: obtenerPulsoAuditoriaEnVivo,
-    recalcularResumen: recalcularResumen,
-    cerrarAuditoria: cerrarAuditoria,
-    abrirUbicacion: abrirUbicacion,
-    registrarEscaneoIdUnico: registrarEscaneoIdUnico,
-    cerrarUbicacion: cerrarUbicacion,
-    obtenerDetalleUbicacion: obtenerDetalleUbicacion,
-    obtenerDetalleAuditoria: obtenerDetalleAuditoria,
-    obtenerDashboardMetricos: obtenerDashboardMetricos
-  };
+  return Object.freeze({
+    obtenerBootstrap,
+    abrirAuditoria,
+    listarAuditorias,
+    obtenerAuditoriaPorId,
+    obtenerAuditoriaActiva,
+    obtenerDetalleAuditoriaEnVivo,
+    obtenerPulsoAuditoriaEnVivo,
+    recalcularResumen,
+    cerrarAuditoria,
+    abrirUbicacion,
+    registrarEscaneoIdUnico,
+    cerrarUbicacion,
+    obtenerDetalleUbicacion,
+    obtenerDetalleAuditoria,
+    obtenerDashboardMetricos
+  });
 })();
