@@ -1,9 +1,65 @@
-
 /**
- * AuditoriaExcedentesCapturaService.gs
+ * z3-AuditoriaExcedentesCapturaService
+ *
+ * @fileoverview Servicio de aplicación para la captura operativa de auditorías
+ * de excedentes.
+ *
+ * Coordina repositorios y servicios de dominio para abrir ubicaciones mediante
+ * identificadores escaneables, clasificar IdUnicos en el servidor, persistir
+ * capturas por lote, calcular faltantes, enriquecer sobrantes y cerrar
+ * ubicaciones o auditorías. La clasificación autoritativa siempre se obtiene del
+ * estado actual del servidor y no se confía en el resultado preliminar enviado
+ * por el cliente.
+ *
+ * Responsabilidades:
+ * - Validar la auditoría y comprobar que permanezca abierta.
+ * - Resolver identificadores físicos de ubicación y verificar su alcance.
+ * - Construir el paquete completo de captura para la interfaz.
+ * - Clasificar escaneos como correctos, sobrantes o duplicados.
+ * - Persistir marcadores de ubicación y detalles de auditoría.
+ * - Recalcular la cabecera mediante AuditoriaExcedentesService.
+ * - Emitir actualizaciones opcionales a AuditoriaExcedentesLiveCache.
+ * - Cerrar ubicaciones calculando faltantes desde el universo autoritativo.
+ * - Cerrar la auditoría solo cuando no existan ubicaciones abiertas.
+ *
+ * Dependencias globales:
+ * - AuditoriaExcedentesRepository y AuditoriaExcedentesDetalleRepository.
+ * - AuditoriaExcedentesService y EstadoActualExcedentesService.
+ * - UbicacionesExcedentesRepository y, opcionalmente, UsuariosRepository.
+ * - AuditoriaExcedentesLiveCache como integración opcional.
+ * - toStr_(), toStrUpper_(), toNum_(), pickFirstField_(), compareEs_(),
+ *   normalizeWarehouseToken_(), normalizeLocationToken_() e
+ *   inferWarehouseByLocation_().
+ * - fmtDateNow_(), fmtTimeNow_() y minutesDiffFromStrings_().
+ *
+ * Reglas de integridad:
+ * - Toda operación de escritura requiere una auditoría existente y ABIERTA.
+ * - Una ubicación debe resolverse desde el catálogo y pertenecer al alcance.
+ * - Un IdUnico solo puede persistirse una vez por auditoría.
+ * - Un identificador de ubicación nunca debe registrarse como IdUnico.
+ * - El servidor recalcula la clasificación y puede corregir al cliente.
+ * - El lote de escaneos no puede superar 100 elementos.
+ * - Al cerrar una ubicación, los faltantes se calculan nuevamente en servidor.
+ * - Una auditoría no puede cerrarse mientras existan ubicaciones abiertas.
+ *
+ * Concurrencia:
+ * - Este servicio no adquiere LockService en su implementación actual.
+ * - La capa invocadora debe garantizar exclusión mutua cuando varias solicitudes
+ *   puedan modificar la misma auditoría simultáneamente.
+ *
+ * @author Sigifredo de la Cruz Ramos
  */
 
 const AuditoriaExcedentesCapturaService = (() => {
+  "use strict";
+
+  /** @private @const {!Object} */
+  const CFG = Object.freeze({
+    MAX_SCAN_BATCH_SIZE: 100,
+    ALL_WAREHOUSES: "TODAS",
+    LOG_PREFIX: "[AuditoriaExcedentesCapturaService]",
+    LIVE_LOG_PREFIX: "[AuditoriaExcedentesLiveCache]"
+  });
 
   const STATUS = Object.freeze({
     ABIERTA: "ABIERTA",
@@ -24,7 +80,87 @@ const AuditoriaExcedentesCapturaService = (() => {
   // HELPERS DE DOMINIO
   // =========================================================
 
+  /**
+   * Verifica las dependencias obligatorias antes de ejecutar operaciones.
+   *
+   * @return {void}
+   * @throws {Error} Si falta un repositorio, servicio o utilidad esencial.
+   * @private
+   */
+  function _assertDependencies_() {
+    const functions = [
+      ["toStr_", typeof toStr_],
+      ["toStrUpper_", typeof toStrUpper_],
+      ["toNum_", typeof toNum_],
+      ["pickFirstField_", typeof pickFirstField_],
+      ["compareEs_", typeof compareEs_],
+      ["normalizeWarehouseToken_", typeof normalizeWarehouseToken_],
+      ["normalizeLocationToken_", typeof normalizeLocationToken_],
+      ["inferWarehouseByLocation_", typeof inferWarehouseByLocation_],
+      ["fmtDateNow_", typeof fmtDateNow_],
+      ["fmtTimeNow_", typeof fmtTimeNow_],
+      ["minutesDiffFromStrings_", typeof minutesDiffFromStrings_]
+    ];
+    const missingFunctions = functions
+      .filter(function (dependency) {
+        return dependency[1] !== "function";
+      })
+      .map(function (dependency) {
+        return dependency[0];
+      });
+    if (missingFunctions.length > 0) {
+      throw new Error(
+        CFG.LOG_PREFIX + " Faltan utilidades globales: " +
+        missingFunctions.join(", ") + "."
+      );
+    }
+
+    const services = [
+      ["AuditoriaExcedentesRepository", typeof AuditoriaExcedentesRepository],
+      [
+        "AuditoriaExcedentesDetalleRepository",
+        typeof AuditoriaExcedentesDetalleRepository
+      ],
+      ["AuditoriaExcedentesService", typeof AuditoriaExcedentesService],
+      ["EstadoActualExcedentesService", typeof EstadoActualExcedentesService],
+      [
+        "UbicacionesExcedentesRepository",
+        typeof UbicacionesExcedentesRepository
+      ]
+    ];
+    const missingServices = services
+      .filter(function (dependency) {
+        return dependency[1] === "undefined";
+      })
+      .map(function (dependency) {
+        return dependency[0];
+      });
+    if (missingServices.length > 0) {
+      throw new Error(
+        CFG.LOG_PREFIX + " Faltan servicios obligatorios: " +
+        missingServices.join(", ") + "."
+      );
+    }
+  }
+
+  /**
+   * Normaliza y valida un payload público.
+   *
+   * @param {*} payload Valor recibido por la operación.
+   * @param {string} operationName Nombre utilizado en mensajes de error.
+   * @return {!Object} Payload validado.
+   * @throws {TypeError} Si el valor no es un objeto plano.
+   * @private
+   */
+  function _payloadOrThrow_(payload, operationName) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+      throw new TypeError(operationName + " requiere un objeto payload válido.");
+    }
+    return payload;
+  }
+
   function _getAuditoriaOrThrow_(idauditoria) {
+    _assertDependencies_();
     const id = toStr_(idauditoria);
 
     if (!id) {
@@ -65,7 +201,7 @@ const AuditoriaExcedentesCapturaService = (() => {
 
     return {
       tipoAuditoria: TIPOS_AUDITORIA.GLOBAL,
-      bodegaObjetivo: "TODAS"
+      bodegaObjetivo: CFG.ALL_WAREHOUSES
     };
   }
 
@@ -498,7 +634,9 @@ const AuditoriaExcedentesCapturaService = (() => {
   // BOOTSTRAP
   // =========================================================
 
+  /** @return {!Object} Catálogos y auditorías requeridos por la captura. */
   function obtenerBootstrapCaptura() {
+    _assertDependencies_();
     const usuarios = typeof UsuariosRepository !== "undefined" && UsuariosRepository.getAll
       ? UsuariosRepository.getAll()
       : [];
@@ -515,7 +653,7 @@ const AuditoriaExcedentesCapturaService = (() => {
         ? UbicacionesExcedentesRepository.getBodegas()
         : [];
     } catch (error) {
-      console.warn("[AuditoriaExcedentesCapturaService] No se pudieron cargar bodegas:", error);
+      console.warn(CFG.LOG_PREFIX + " No se pudieron cargar bodegas:", error);
       bodegas = [];
     }
 
@@ -526,7 +664,9 @@ const AuditoriaExcedentesCapturaService = (() => {
     };
   }
 
+  /** @return {!Array<!Object>} Auditorías actualmente abiertas. */
   function obtenerAuditoriasAbiertas() {
+    _assertDependencies_();
     return AuditoriaExcedentesRepository.getAbiertas
       ? AuditoriaExcedentesRepository.getAbiertas()
       : [];
@@ -536,6 +676,11 @@ const AuditoriaExcedentesCapturaService = (() => {
   // PAQUETE COMPLETO DE CAPTURA
   // =========================================================
 
+  /**
+   * Construye el paquete autoritativo de captura.
+   * @param {*} idauditoria Identificador de auditoría.
+   * @return {!Object} Estado consolidado para la interfaz.
+   */
   function obtenerPaqueteCaptura(idauditoria) {
     const id = toStr_(idauditoria);
 
@@ -679,7 +824,9 @@ const AuditoriaExcedentesCapturaService = (() => {
   // ABRIR UBICACIÓN
   // =========================================================
 
+  /** Abre una ubicación resuelta desde su identificador escaneable. */
   function abrirUbicacionPorEscaneo(payload) {
+    payload = _payloadOrThrow_(payload, "abrirUbicacionPorEscaneo()");
     const idauditoria = toStr_(payload && payload.idauditoria);
     const identificadorEscaneado = toStrUpper_(
       payload && (payload.identificadorUbicacion || payload.ubicacion)
@@ -747,7 +894,7 @@ const AuditoriaExcedentesCapturaService = (() => {
         });
       }
     } catch (e) {
-      console.warn("[LIVE] No se pudo emitir apertura de ubicación:", e);
+      console.warn(CFG.LIVE_LOG_PREFIX + " No se pudo emitir apertura de ubicación:", e);
     }
 
     return {
@@ -769,7 +916,9 @@ const AuditoriaExcedentesCapturaService = (() => {
   // ESTADO PERSISTIDO DE UBICACIÓN
   // =========================================================
 
+  /** Devuelve detalle y resumen persistido de una ubicación. */
   function obtenerEstadoUbicacion(payload) {
+    payload = _payloadOrThrow_(payload, "obtenerEstadoUbicacion()");
     const idauditoria = toStr_(payload && payload.idauditoria);
     const ubicacion = toStrUpper_(payload && payload.ubicacion);
 
@@ -795,7 +944,7 @@ const AuditoriaExcedentesCapturaService = (() => {
   // RECÁLCULO DE CABECERA DESDE DETALLE
   // =========================================================
 
-function _recalcularCabeceraDesdeDetalle_(idauditoria) {
+  function _recalcularCabeceraDesdeDetalle_(idauditoria) {
   /**
    * Delegamos el cálculo maestro a AuditoriaExcedentesService
    * para que captura, detalle, dashboard y cabecera usen la misma regla.
@@ -811,7 +960,8 @@ function _recalcularCabeceraDesdeDetalle_(idauditoria) {
   // REGISTRO POR LOTE
   // =========================================================
 
-function registrarEscaneosLote(payload) {
+  /** Clasifica y persiste un lote de escaneos de forma autoritativa. */
+  function registrarEscaneosLote(payload) {
     const idauditoria = toStr_(payload && payload.idauditoria);
     const ubicacion = toStrUpper_(payload && payload.ubicacion);
     const escaneos = Array.isArray(payload && payload.escaneos)
@@ -838,8 +988,12 @@ function registrarEscaneosLote(payload) {
       };
     }
 
-    if (escaneos.length > 100) {
-      throw new Error("El lote excede el máximo permitido de 100 escaneos.");
+    if (escaneos.length > CFG.MAX_SCAN_BATCH_SIZE) {
+      throw new Error(
+        "El lote excede el máximo permitido de " +
+        CFG.MAX_SCAN_BATCH_SIZE +
+        " escaneos."
+      );
     }
 
     const audit = _getAuditoriaOrThrow_(idauditoria);
@@ -1023,7 +1177,7 @@ function registrarEscaneosLote(payload) {
           });
         }
       } catch (errorLive) {
-        console.warn("[LIVE] No se pudo emitir lote de escaneos:", errorLive);
+        console.warn(CFG.LIVE_LOG_PREFIX + " No se pudo emitir lote de escaneos:", errorLive);
       }
 
       auditSnapshot = _recalcularCabeceraDesdeDetalle_(idauditoria);
@@ -1053,7 +1207,7 @@ function registrarEscaneosLote(payload) {
    * El frontend debe enviar tipoResultado.
    */
   function registrarEscaneoIdUnico(payload) {
-    const item = payload || {};
+    const item = _payloadOrThrow_(payload, "registrarEscaneoIdUnico()");
 
     if (!item.tipoResultado) {
       throw new Error(
@@ -1081,7 +1235,9 @@ function registrarEscaneosLote(payload) {
   // =========================================================
   // CIERRE DE UBICACIÓN
   // =========================================================
+  /** Cierra una ubicación y persiste sus faltantes calculados en servidor. */
   function cerrarUbicacion(payload) {
+    payload = _payloadOrThrow_(payload, "cerrarUbicacion()");
     const idauditoria = toStr_(payload && payload.idauditoria);
     const ubicacion = toStrUpper_(payload && payload.ubicacion);
     const observaciones = toStr_(payload && payload.observaciones);
@@ -1198,7 +1354,7 @@ function registrarEscaneosLote(payload) {
         });
       }
     } catch (errorLive) {
-      console.warn("[LIVE] No se pudo emitir cierre de ubicación:", errorLive);
+      console.warn(CFG.LIVE_LOG_PREFIX + " No se pudo emitir cierre de ubicación:", errorLive);
     }
 
     const auditSnapshot = _recalcularCabeceraDesdeDetalle_(idauditoria);
@@ -1225,7 +1381,9 @@ function registrarEscaneosLote(payload) {
   // CIERRE DE AUDITORÍA
   // =========================================================
 
+  /** Cierra una auditoría cuando ya no existen ubicaciones abiertas. */
   function cerrarAuditoria(payload) {
+    payload = _payloadOrThrow_(payload, "cerrarAuditoria()");
     const idauditoria = toStr_(payload && payload.idauditoria);
     const observaciones = toStr_(payload && payload.observaciones);
 
@@ -1273,7 +1431,7 @@ function registrarEscaneosLote(payload) {
         AuditoriaExcedentesLiveCache.clear(idauditoria);
       }
     } catch (e) {
-      console.warn("[LIVE] No se pudo limpiar LiveCache al cerrar auditoría:", e);
+      console.warn(CFG.LIVE_LOG_PREFIX + " No se pudo limpiar al cerrar auditoría:", e);
     }
 
     return {
@@ -1284,7 +1442,9 @@ function registrarEscaneosLote(payload) {
     };
   }
 
+  /** Enriquece sobrantes consultando el estado actual por IdUnico. */
   function enriquecerSobrantesLote(payload) {
+    payload = _payloadOrThrow_(payload, "enriquecerSobrantesLote()");
     const ids = Array.isArray(payload && payload.ids)
       ? payload.ids
       : [];
@@ -1344,7 +1504,9 @@ function registrarEscaneosLote(payload) {
     };
   }
 
+  /** Actualiza datos descriptivos y observaciones de sobrantes persistidos. */
   function actualizarObservacionesSobrantes(payload) {
+    payload = _payloadOrThrow_(payload, "actualizarObservacionesSobrantes()");
     payload = payload || {};
 
     const idauditoria = toStrUpper_(payload.idauditoria || "");
@@ -1419,7 +1581,7 @@ function registrarEscaneosLote(payload) {
   // =========================================================
 
 
-  return {
+  return Object.freeze({
     obtenerBootstrapCaptura,
     obtenerAuditoriasAbiertas,
     obtenerPaqueteCaptura,
@@ -1431,8 +1593,5 @@ function registrarEscaneosLote(payload) {
     enriquecerSobrantesLote,
     actualizarObservacionesSobrantes,
     cerrarAuditoria
-  };
-
-
+  });
 })();
-

@@ -1,18 +1,63 @@
 /**
- * VerificacionEntradaRepository.gs
- * Persistencia optimizada del módulo Verificación de entrada.
+ * z2-VerificacionEntradaRepository
  *
- * Mejoras:
- * - Búsqueda selectiva con TextFinder por IDSESION e identificadores.
- * - Lectura agrupada de filas contiguas.
- * - Actualización directa por rowNumber conocido.
- * - Actualización agrupada de VE_DETALLE.
- * - Detección de HASH/UUID con una sola lectura.
- * - Escrituras por lote para cajas y eventos.
- * - Trazabilidad por estrategia de lectura y escritura.
+ * @fileoverview Repositorio de persistencia optimizada para el módulo de
+ * Verificación de entrada.
+ *
+ * Administra sesiones, detalles, cajas, eventos y equivalencias mediante cinco
+ * hojas lógicas relacionadas. Valida contratos físicos, normaliza entidades,
+ * ejecuta búsquedas selectivas, agrupa lecturas y escrituras contiguas, aplica
+ * actualizaciones controladas y utiliza caché de script para reducir lecturas.
+ *
+ * Responsabilidades:
+ * - Validar hojas, encabezados, anchos e índices de columna.
+ * - Mapear filas físicas a contratos de dominio normalizados.
+ * - Buscar registros con TextFinder y leer filas contiguas por grupos.
+ * - Construir filas completas para inserciones por lote.
+ * - Aplicar parches limitados a propiedades autorizadas.
+ * - Detectar sesiones duplicadas por HASHXML o UUIDCFDI.
+ * - Resolver equivalencias activas por RFC y código de etiqueta.
+ * - Registrar métricas de estrategia, volumen y duración.
+ *
+ * Dependencias globales:
+ * - SHEETS, COL, VERIFICACION_ENTRADA_HEADERS y
+ *   VERIFICACION_ENTRADA_EXPECTED_WIDTHS.
+ * - VERIFICACION_ENTRADA y sus contratos de límites y estados.
+ * - getSheetByKey_(), readSheetRows_() y writeRowsBatch_().
+ * - toStr_(), toStrUpper_(), toNum_() y utilidades perf*().
+ * - CacheService y Utilities de Google Apps Script.
+ *
+ * Reglas de integridad:
+ * - Todas las hojas deben pertenecer al archivo lógico GESTION2.
+ * - El ancho físico, los encabezados y los índices deben coincidir.
+ * - Los índices no pueden repetirse ni quedar fuera del ancho esperado.
+ * - Las actualizaciones solo aceptan campos incluidos en mapas de parche.
+ * - Las escrituras por fila requieren rowNumber entero y mayor o igual que 2.
+ * - Las escrituras por lote agrupan filas contiguas para reducir llamadas.
+ * - El repositorio no adquiere LockService ni ejecuta flush(); la capa de
+ *   servicio debe controlar la transacción completa cuando corresponda.
+ *
+ * Estrategia de caché:
+ * - La configuración validada se conserva en memoria y ScriptCache.
+ * - Las equivalencias usan una generación versionada para su invalidación.
+ * - Los valores que exceden el límite configurado no se almacenan en caché.
+ * - clearCache() invalida configuración y generación de equivalencias.
+ *
+ * @author Sigifredo de la Cruz Ramos
  */
 const VerificacionEntradaRepository = (() => {
   "use strict";
+
+  /** @private @const {!Object} */
+  const CFG = Object.freeze({
+    REQUIRED_FILE_KEY: "GESTION2",
+    CONFIG_CACHE_KEY: "VE_REPOSITORY_CONFIG_V4",
+    EQUIVALENCE_GENERATION_KEY: "VE_EQUIVALENCES_GENERATION_V2",
+    CONFIG_CACHE_TTL_SECONDS: 21600,
+    EQUIVALENCE_CACHE_TTL_SECONDS: 600,
+    CACHE_VALUE_MAX_CHARS: 90000,
+    LOG_PREFIX: "[VerificacionEntradaRepository]"
+  });
 
   const KEYS = Object.freeze({
     SESIONES: "VERIFICACION_ENTRADA_SESIONES",
@@ -38,14 +83,44 @@ const VerificacionEntradaRepository = (() => {
     VERIFICACION_ENTRADA_EQUIVALENCIAS: COL.VERIFICACION_ENTRADA_EQUIVALENCIAS
   });
 
-  const CONFIG_CACHE_KEY = "VE_REPOSITORY_CONFIG_V4";
-  const EQUIVALENCE_GENERATION_KEY = "VE_EQUIVALENCES_GENERATION_V2";
-  const CONFIG_CACHE_TTL_SECONDS = 21600;
-  const EQUIVALENCE_CACHE_TTL_SECONDS = 600;
-  const CACHE_VALUE_MAX_CHARS = 90000;
+  const CONFIG_CACHE_KEY = CFG.CONFIG_CACHE_KEY;
+  const EQUIVALENCE_GENERATION_KEY = CFG.EQUIVALENCE_GENERATION_KEY;
+  const CONFIG_CACHE_TTL_SECONDS = CFG.CONFIG_CACHE_TTL_SECONDS;
+  const EQUIVALENCE_CACHE_TTL_SECONDS = CFG.EQUIVALENCE_CACHE_TTL_SECONDS;
+  const CACHE_VALUE_MAX_CHARS = CFG.CACHE_VALUE_MAX_CHARS;
 
   let configurationValidated_ = false;
   let equivalenceGeneration_ = "";
+
+  /** Valida dependencias y contratos globales obligatorios. @private */
+  function _assertDependencies_() {
+    const dependencies = [
+      ["getSheetByKey_", typeof getSheetByKey_],
+      ["readSheetRows_", typeof readSheetRows_],
+      ["writeRowsBatch_", typeof writeRowsBatch_],
+      ["toStr_", typeof toStr_],
+      ["toStrUpper_", typeof toStrUpper_],
+      ["toNum_", typeof toNum_],
+      ["perfMark_", typeof perfMark_]
+    ];
+    const missing = dependencies
+      .filter(function(dependency) { return dependency[1] !== "function"; })
+      .map(function(dependency) { return dependency[0]; });
+    if (missing.length) {
+      throw new Error(CFG.LOG_PREFIX + " Faltan dependencias: " + missing.join(", ") + ".");
+    }
+    if (
+      typeof SHEETS === "undefined" ||
+      typeof COL === "undefined" ||
+      typeof VERIFICACION_ENTRADA_HEADERS === "undefined" ||
+      typeof VERIFICACION_ENTRADA_EXPECTED_WIDTHS === "undefined" ||
+      typeof VERIFICACION_ENTRADA === "undefined" ||
+      typeof CacheService === "undefined" ||
+      typeof Utilities === "undefined"
+    ) {
+      throw new Error(CFG.LOG_PREFIX + " Faltan contratos o servicios globales.");
+    }
+  }
 
   function _width_(key) {
     const width = Number(VERIFICACION_ENTRADA_EXPECTED_WIDTHS[key] || 0);
@@ -73,7 +148,11 @@ const VerificacionEntradaRepository = (() => {
 
   function _number_(value) { return toNum_(value); }
 
-  function _date_(value) { return value instanceof Date && !isNaN(value.getTime()) ? value : (value || ""); }
+  function _date_(value) {
+    return value instanceof Date && !isNaN(value.getTime())
+      ? new Date(value.getTime())
+      : (value || "");
+  }
 
   function _boolean_(value) {
     if (value === true) return true;
@@ -84,7 +163,12 @@ const VerificacionEntradaRepository = (() => {
   function _json_(value, maxLength) {
     if (value === null || value === undefined || value === "") return "";
     let text = "";
-    try { text = typeof value === "string" ? value : JSON.stringify(value); } catch (error) { text = ""; }
+    try {
+      text = typeof value === "string" ? value : JSON.stringify(value);
+    } catch (error) {
+      console.warn(CFG.LOG_PREFIX + " No fue posible serializar JSON: " + (error.message || error));
+      text = "";
+    }
     const limit = Math.max(1, Number(maxLength || VERIFICACION_ENTRADA.LIMITES.METADATA_JSON_MAX_LENGTH || 5000));
     return text.length > limit ? text.slice(0, limit) : text;
   }
@@ -98,7 +182,7 @@ const VerificacionEntradaRepository = (() => {
     const indexes = Object.keys(columns).map(function(name) { return columns[name]; });
     indexes.forEach(function(index) {
       if (!Number.isInteger(index) || index < 0 || index >= width) throw new Error("Índice inválido en " + key + ": " + index);
-      if (seen[index]) throw new Error("Índice repetido en " + key + ": " + index);
+      if (Object.prototype.hasOwnProperty.call(seen, index)) throw new Error("Índice repetido en " + key + ": " + index);
       seen[index] = true;
     });
     if (indexes.length !== width) throw new Error("Columnas configuradas distintas al ancho de " + key + ".");
@@ -108,12 +192,15 @@ const VerificacionEntradaRepository = (() => {
     const startedAt = Date.now();
     const config = SHEETS[key];
     if (!config) throw new Error("No existe SHEETS." + key);
-    if (config.file !== "GESTION2") throw new Error("La hoja " + key + " debe usar GESTION2.");
+    if (config.file !== CFG.REQUIRED_FILE_KEY) throw new Error("La hoja " + key + " debe usar " + CFG.REQUIRED_FILE_KEY + ".");
     const width = _width_(key);
     const headers = _headers_(key);
     if (headers.length !== width) throw new Error("Encabezados y ancho no coinciden en " + key + ".");
     _assertUniqueColumns_(key);
     const sheet = getSheetByKey_(key, trace);
+    if (!sheet || typeof sheet.getLastColumn !== "function" || typeof sheet.getRange !== "function") {
+      throw new Error("No se obtuvo una hoja válida para: " + key);
+    }
     if (sheet.getLastColumn() !== width) throw new Error("Ancho físico incorrecto en " + key + ".");
     const actual = sheet.getRange(1, 1, 1, width).getDisplayValues()[0].map(_upper_);
     const mismatches = [];
@@ -166,6 +253,7 @@ const VerificacionEntradaRepository = (() => {
   }
 
   function assertConfiguration(trace) {
+    _assertDependencies_();
     if (configurationValidated_) {
       perfMark_(trace, "VE_REPOSITORY_CONFIG_CACHE_HIT", {
         sheets: Object.keys(KEYS).length,
@@ -316,7 +404,26 @@ const VerificacionEntradaRepository = (() => {
     };}
 
   function _mapEvento_(r,n){const c=COL.VERIFICACION_ENTRADA_EVENTOS;return{
-    rowNumber:Number(n||0),idEvento:_text_(r[c.IDEVENTO]),idSesion:_text_(r[c.IDSESION]),tipoEvento:_upper_(r[c.TIPOEVENTO]),idUnicoCaja:_text_(r[c.IDUNICOCAJA]),idDetalle:_text_(r[c.IDDETALLE]),codigoInterno:_upper_(r[c.CODIGOINTERNO]),cantidad:_number_(r[c.CANTIDAD]),estadoAnterior:_upper_(r[c.ESTADOANTERIOR]),estadoNuevo:_upper_(r[c.ESTADONUEVO]),resultado:_upper_(r[c.RESULTADO]),codigoMotivo:_upper_(r[c.CODIGOMOTIVO]),mensaje:_text_(r[c.MENSAJE]),usuario:_text_(r[c.USUARIO]),rolUsuario:_upper_(r[c.ROLUSUARIO]),fecha:_date_(r[c.FECHA]),hora:_date_(r[c.HORA]),timestampMs:_number_(r[c.TIMESTAMPMS]),metadataJson:_json_(r[c.METADATAJSON]),creadoEn:_date_(r[c.CREADOEN])
+    rowNumber:Number(n||0),
+    idEvento:_text_(r[c.IDEVENTO]),
+    idSesion:_text_(r[c.IDSESION]),
+    tipoEvento:_upper_(r[c.TIPOEVENTO]),
+    idUnicoCaja:_text_(r[c.IDUNICOCAJA]),
+    idDetalle:_text_(r[c.IDDETALLE]),
+    codigoInterno:_upper_(r[c.CODIGOINTERNO]),
+    cantidad:_number_(r[c.CANTIDAD]),
+    estadoAnterior:_upper_(r[c.ESTADOANTERIOR]),
+    estadoNuevo:_upper_(r[c.ESTADONUEVO]),
+    resultado:_upper_(r[c.RESULTADO]),
+    codigoMotivo:_upper_(r[c.CODIGOMOTIVO]),
+    mensaje:_text_(r[c.MENSAJE]),
+    usuario:_text_(r[c.USUARIO]),
+    rolUsuario:_upper_(r[c.ROLUSUARIO]),
+    fecha:_date_(r[c.FECHA]),
+    hora:_date_(r[c.HORA]),
+    timestampMs:_number_(r[c.TIMESTAMPMS]),
+    metadataJson:_json_(r[c.METADATAJSON]),
+    creadoEn:_date_(r[c.CREADOEN])
   };}
 
   function _mapEquivalencia_(r,n){const c=COL.VERIFICACION_ENTRADA_EQUIVALENCIAS;return{
@@ -578,11 +685,41 @@ const VerificacionEntradaRepository = (() => {
     cache.remove(CONFIG_CACHE_KEY);
     cache.remove(EQUIVALENCE_GENERATION_KEY);
 
-    console.log("[CACHE] VerificacionEntradaRepository limpio");
+    console.log(CFG.LOG_PREFIX + " Caché invalidada.");
     return true;
   }
 
-  return Object.freeze({assertConfiguration:assertConfiguration,getEquivalenciasPorRfc:getEquivalenciasPorRfc,getEquivalenciasPorEtiquetas:getEquivalenciasPorEtiquetas,getAllSesiones:getAllSesiones,getSesionPorId:getSesionPorId,getSesionPorHashXml:getSesionPorHashXml,getSesionPorUuidCfdi:getSesionPorUuidCfdi,getSesionDuplicada:getSesionDuplicada,getDetallePorSesion:getDetallePorSesion,getCajasPorSesion:getCajasPorSesion,getCajaPorId:getCajaPorId,getEventosPorSesion:getEventosPorSesion,existeHuellaLecturaEnSesion:existeHuellaLecturaEnSesion,buildSesionRow:buildSesionRow,buildDetalleRow:buildDetalleRow,buildCajaRow:buildCajaRow,buildEventoRow:buildEventoRow,insertarSesion:insertarSesion,insertarDetalles:insertarDetalles,insertarCajas:insertarCajas,insertarEventos:insertarEventos,crearSesionConDetalle:crearSesionConDetalle,registrarCajasConEventos:registrarCajasConEventos,actualizarSesion:actualizarSesion,actualizarSesionPorFila:actualizarSesionPorFila,actualizarDetalle:actualizarDetalle,actualizarDetallesPorLote:actualizarDetallesPorLote,actualizarCaja:actualizarCaja,clearCache:clearCache});
+  return Object.freeze({
+    assertConfiguration,
+    getEquivalenciasPorRfc,
+    getEquivalenciasPorEtiquetas,
+    getAllSesiones,
+    getSesionPorId,
+    getSesionPorHashXml,
+    getSesionPorUuidCfdi,
+    getSesionDuplicada,
+    getDetallePorSesion,
+    getCajasPorSesion,
+    getCajaPorId,
+    getEventosPorSesion,
+    existeHuellaLecturaEnSesion,
+    buildSesionRow,
+    buildDetalleRow,
+    buildCajaRow,
+    buildEventoRow,
+    insertarSesion,
+    insertarDetalles,
+    insertarCajas,
+    insertarEventos,
+    crearSesionConDetalle,
+    registrarCajasConEventos,
+    actualizarSesion,
+    actualizarSesionPorFila,
+    actualizarDetalle,
+    actualizarDetallesPorLote,
+    actualizarCaja,
+    clearCache
+  });
 })();
 
 function testVerificacionEntradaRepositoryLectura(){const trace=perfStart_("VE_REPOSITORY_READ_TEST",{test:true});try{VerificacionEntradaRepository.assertConfiguration(trace);const sesiones=VerificacionEntradaRepository.getAllSesiones(trace),result={configuracionOk:true,sesiones:sesiones.length,tieneSesiones:sesiones.length>0,primeraSesionId:sesiones.length?sesiones[0].idSesion:"",actualizarDetallesPorLoteDisponible:typeof VerificacionEntradaRepository.actualizarDetallesPorLote==="function",actualizarSesionPorFilaDisponible:typeof VerificacionEntradaRepository.actualizarSesionPorFila==="function",getSesionDuplicadaDisponible:typeof VerificacionEntradaRepository.getSesionDuplicada==="function",getEquivalenciasPorEtiquetasDisponible:typeof VerificacionEntradaRepository.getEquivalenciasPorEtiquetas==="function"};perfEnd_(trace,"ok",{sesiones:sesiones.length,responseChars:perfMeasureJsonChars_(result)});return result;}catch(error){perfFail_(trace,error);throw error;}}

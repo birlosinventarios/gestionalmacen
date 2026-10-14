@@ -37,6 +37,7 @@
  *
  * @author Sigifredo de la Cruz Ramos
  */
+
 const UsuariosRepository = (() => {
   "use strict";
 
