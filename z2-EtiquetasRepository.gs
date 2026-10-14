@@ -26,6 +26,7 @@
  *
  * @author Sigifredo de la Cruz Ramos
  */
+
 const EtiquetasRepository = (() => {
   "use strict";
 

@@ -35,6 +35,7 @@
  *
  * @author Sigifredo de la Cruz Ramos
  */
+
 const ExcedentesRepository = (() => {
   "use strict";
 

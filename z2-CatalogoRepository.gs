@@ -29,6 +29,7 @@
  *
  * @author Sigifredo de la Cruz Ramos
  */
+
 const CatalogoRepository = (() => {
   "use strict";
 

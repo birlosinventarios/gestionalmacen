@@ -23,6 +23,7 @@
  *
  * @author Sigifredo de la Cruz Ramos
  */
+
 const DetallesProductoRepository = (() => {
   "use strict";
 

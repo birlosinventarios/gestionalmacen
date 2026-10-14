@@ -43,6 +43,7 @@
  * - El origen predeterminado permanece como APPALMACEN.
  * - El encabezado de compatibilidad con el túnel se conserva.
  */
+
 const ImpresionPuenteService = (() => {
   /** Nombres de las propiedades utilizadas por el Service. */
   const PROPERTY_NAMES = Object.freeze({

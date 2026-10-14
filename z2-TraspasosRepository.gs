@@ -1,48 +1,93 @@
 /**
- * TraspasosRepository.gs
+ * z2-TraspasosRepository
  *
- * Repositorio de lectura y actualización controlada para Bitacora-TRASPASOS.
+ * @fileoverview Repositorio de lectura y actualización administrativa para la
+ * bitácora lógica Bitacora-TRASPASOS.
+ *
+ * Centraliza la validación del contrato de columnas, la normalización de
+ * movimientos históricos, las consultas cacheadas, las lecturas frescas para
+ * procesos críticos y la escritura controlada de datos de conciliación.
+ * Conserva los nombres de propiedades consumidos por servicios existentes y el
+ * número físico de fila mediante la propiedad `fila`.
  *
  * Responsabilidades:
  * - Leer y normalizar movimientos históricos de traspaso.
- * - Conservar los nombres de propiedades consumidos por servicios existentes.
  * - Exponer lecturas cacheadas y lecturas frescas para procesos críticos.
- * - Soportar consultas por fecha, hora, tipo, ubicación, producto, folio,
- *   responsable e IdUnico.
- * - Escribir datos administrativos de conciliación sin modificar IdUnico.
+ * - Consultar por fecha, hora, movimiento, ubicación, producto y responsable.
+ * - Escribir folio, responsable, fecha y hora de respuesta por bloques.
  * - Mantener compatibilidad con FECHARESPUESTA y HORARESPUESTA.
+ * - Conservar la API legacy relacionada con IDOPERACION.
+ *
+ * Dependencias globales:
+ * - getSheetByKey_(sourceKey).
+ * - COL.TRASPASOS.
+ * - toStr_(value), toStrUpper_(value), toNum_(value) y toDate_(value).
+ * - formatDate_(date), formatTime_(time), sameDate_(left, right) y
+ *   sameTime_(left, right).
+ * - Servicios de Spreadsheet de Google Apps Script.
  *
  * Reglas de escritura:
- * - FOLIO y RESPONSABLE se escriben exclusivamente en M:N.
- * - IDUNICO permanece intacto en O.
+ * - FOLIO y RESPONSABLE se escriben exclusivamente en columnas contiguas M:N.
+ * - IDUNICO permanece intacto en la columna O.
  * - FECHARESPUESTA y HORARESPUESTA se escriben exclusivamente en P:Q.
- * - Los métodos de escritura no adquieren LockService.
- * - El Service llamador debe releer, validar y escribir bajo el mismo
- *   ScriptLock para evitar condiciones de carrera.
- * - Una operación admite como máximo 1000 filas normalizadas.
+ * - Los métodos de escritura no adquieren LockService ni ejecutan flush().
+ * - El servicio llamador debe releer, validar, escribir y confirmar bajo el
+ *   mismo ScriptLock para impedir condiciones de carrera.
+ * - Una operación admite como máximo 1000 filas físicas normalizadas.
  *
  * Estrategia de lectura:
  * - Las consultas generales utilizan caché durante la ejecución actual.
  * - Las operaciones de conciliación utilizan lecturas frescas.
- * - Las filas conservan su número físico en la propiedad fila.
+ * - La API pública devuelve copias defensivas de las lecturas cacheadas.
+ * - clearCache() debe invocarse después de cambios realizados por otros módulos
+ *   durante la misma ejecución.
  *
  * Compatibilidad:
  * - Se conserva la API pública anterior.
  * - Se conservan las propiedades utilizadas por EstadoActualExcedentesService.
- * - getPorIdOperacion() permanece como compatibilidad legacy. La bitácora
- *   actual no contiene una columna IDOPERACION.
+ * - getPorIdOperacion() permanece como compatibilidad legacy; la bitácora actual
+ *   no define una columna IDOPERACION y, por ello, normalmente devuelve [].
  *
- * Dependencias:
- * - getSheetByKey_(), COL.TRASPASOS.
- * - toStr_(), toStrUpper_(), toNum_(), toDate_().
- * - formatDate_(), formatTime_(), sameDate_() y sameTime_().
+ * @author Sigifredo de la Cruz Ramos
  */
+
 const TraspasosRepository = (() => {
   "use strict";
 
-  const HEADER_ROW_ = 1;
-  const FIRST_DATA_ROW_ = HEADER_ROW_ + 1;
-  const MAX_BATCH_ROWS_ = 1000;
+  /** @private @const {!Object} */
+  const CFG = Object.freeze({
+    SOURCE_KEY: "TRASPASOS",
+    HEADER_ROW: 1,
+    FIRST_DATA_ROW: 2,
+    MAX_BATCH_ROWS: 1000,
+    LOG_PREFIX: "[TraspasosRepository]",
+    PERF_PREFIX: "[APPALMACEN][TRASPASOS_REPOSITORY_PERF]"
+  });
+
+  /** @private @const {!Array<string>} */
+  const REQUIRED_COLUMNS = Object.freeze([
+    "FECHA",
+    "HORA",
+    "TIPOMOVIMIENTO",
+    "SERIE",
+    "BODEGA_SALIDA",
+    "UBICACION_SALIDA",
+    "BODEGA_ENTRADA",
+    "UBICACION_ENTRADA",
+    "SOLICITANTE",
+    "CODIGO",
+    "DESCRIPCION",
+    "CANTIDAD",
+    "FOLIO",
+    "RESPONSABLE",
+    "IDUNICO",
+    "FECHARESPUESTA",
+    "HORARESPUESTA"
+  ]);
+
+  const HEADER_ROW_ = CFG.HEADER_ROW;
+  const FIRST_DATA_ROW_ = CFG.FIRST_DATA_ROW;
+  const MAX_BATCH_ROWS_ = CFG.MAX_BATCH_ROWS;
 
   let cache_ = null;
 
@@ -52,7 +97,7 @@ const TraspasosRepository = (() => {
 
   /** @return {GoogleAppsScript.Spreadsheet.Sheet} Hoja TRASPASOS. */
   function getSheet_() {
-    return getSheetByKey_("TRASPASOS");
+    return getSheetByKey_(CFG.SOURCE_KEY);
   }
 
   /** Calcula el ancho requerido por el contrato completo de columnas. */
@@ -78,64 +123,78 @@ const TraspasosRepository = (() => {
     ) + 1;
   }
 
-  /** Valida índices y contigüidad de columnas administrativas. */
+  /**
+   * Valida dependencias, índices y contigüidad de columnas administrativas.
+   *
+   * @return {void}
+   * @throws {Error} Si falta una dependencia o el contrato físico es inválido.
+   * @private
+   */
   function assertConfiguration_() {
-    if (!COL || !COL.TRASPASOS) {
+    const dependencyStatus = [
+      ["getSheetByKey_", typeof getSheetByKey_],
+      ["toStr_", typeof toStr_],
+      ["toStrUpper_", typeof toStrUpper_],
+      ["toNum_", typeof toNum_],
+      ["toDate_", typeof toDate_],
+      ["formatDate_", typeof formatDate_],
+      ["formatTime_", typeof formatTime_],
+      ["sameDate_", typeof sameDate_],
+      ["sameTime_", typeof sameTime_]
+    ];
+    const missingFunctions = dependencyStatus
+      .filter(function (dependency) {
+        return dependency[1] !== "function";
+      })
+      .map(function (dependency) {
+        return dependency[0];
+      });
+
+    if (missingFunctions.length > 0) {
       throw new Error(
-        "No existe la configuración COL.TRASPASOS."
+        `${CFG.LOG_PREFIX} Faltan dependencias globales: ` +
+          `${missingFunctions.join(", ")}.`
       );
     }
-
-    const required = [
-      "FECHA",
-      "HORA",
-      "TIPOMOVIMIENTO",
-      "SERIE",
-      "BODEGA_SALIDA",
-      "UBICACION_SALIDA",
-      "BODEGA_ENTRADA",
-      "UBICACION_ENTRADA",
-      "SOLICITANTE",
-      "CODIGO",
-      "DESCRIPCION",
-      "CANTIDAD",
-      "FOLIO",
-      "RESPONSABLE",
-      "IDUNICO",
-      "FECHARESPUESTA",
-      "HORARESPUESTA"
-    ];
-
-    required.forEach(function (key) {
-      if (
-        !Object.prototype.hasOwnProperty.call(
-          COL.TRASPASOS,
-          key
-        ) ||
-        !Number.isInteger(COL.TRASPASOS[key]) ||
-        COL.TRASPASOS[key] < 0
-      ) {
-        throw new Error(
-          "Falta o es inválida COL.TRASPASOS." + key + "."
-        );
-      }
-    });
 
     if (
-      COL.TRASPASOS.FOLIO + 1 !==
-      COL.TRASPASOS.RESPONSABLE
+      typeof COL === "undefined" ||
+      !COL ||
+      !COL.TRASPASOS ||
+      typeof COL.TRASPASOS !== "object"
     ) {
-      throw new Error(
-        "FOLIO y RESPONSABLE deben ser columnas contiguas."
-      );
+      throw new Error(`${CFG.LOG_PREFIX} No existe COL.TRASPASOS.`);
     }
 
+    const usedIndexes = Object.create(null);
+    REQUIRED_COLUMNS.forEach(function (key) {
+      const index = COL.TRASPASOS[key];
+      if (!Number.isInteger(index) || index < 0) {
+        throw new Error(
+          `${CFG.LOG_PREFIX} Falta o es inválida COL.TRASPASOS.${key}.`
+        );
+      }
+      if (Object.prototype.hasOwnProperty.call(usedIndexes, index)) {
+        throw new Error(
+          `${CFG.LOG_PREFIX} Las columnas ${usedIndexes[index]} y ${key} ` +
+            `comparten el índice ${index}.`
+        );
+      }
+      usedIndexes[index] = key;
+    });
+
+    if (COL.TRASPASOS.FOLIO + 1 !== COL.TRASPASOS.RESPONSABLE) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} FOLIO y RESPONSABLE deben ser columnas contiguas.`
+      );
+    }
     if (
       COL.TRASPASOS.FECHARESPUESTA + 1 !==
       COL.TRASPASOS.HORARESPUESTA
     ) {
       throw new Error(
-        "FECHARESPUESTA y HORARESPUESTA deben ser columnas contiguas."
+        `${CFG.LOG_PREFIX} FECHARESPUESTA y HORARESPUESTA deben ser ` +
+          `columnas contiguas.`
       );
     }
   }
@@ -420,6 +479,11 @@ const TraspasosRepository = (() => {
 
   /** Normaliza una fila completa conservando compatibilidad histórica. */
   function normalize_(fila, filaReal) {
+    if (!Array.isArray(fila)) {
+      throw new TypeError(
+        `${CFG.LOG_PREFIX} La fila física ${filaReal} tiene un formato inválido.`
+      );
+    }
     const fechaTraspasoRaw = fila[COL.TRASPASOS.FECHA];
     const horaTraspasoRaw = fila[COL.TRASPASOS.HORA];
     const fechaRespuestaRaw =
@@ -749,8 +813,7 @@ const TraspasosRepository = (() => {
       FIRST_DATA_ROW_
     ) {
       console.log(
-        "[APPALMACEN]" +
-        "[TRASPASOS_REPOSITORY_PERF] " +
+        CFG.PERF_PREFIX + " " +
         JSON.stringify({
           operation:
             "GET_ALL_FOR_CONCILIACION_FRESH",
@@ -838,8 +901,7 @@ const TraspasosRepository = (() => {
       normalizeStartedAt;
 
     console.log(
-      "[APPALMACEN]" +
-      "[TRASPASOS_REPOSITORY_PERF] " +
+      CFG.PERF_PREFIX + " " +
       JSON.stringify({
         operation:
           "GET_ALL_FOR_CONCILIACION_FRESH",
@@ -871,6 +933,46 @@ const TraspasosRepository = (() => {
     return result;
   }
 
+  /**
+   * Crea una copia defensiva de un movimiento, incluidas sus fechas mutables.
+   *
+   * @param {!Object} item Movimiento normalizado.
+   * @return {!Object} Copia independiente para el consumidor.
+   * @private
+   */
+  function copyItem_(item) {
+    const copy = {};
+    Object.keys(item).forEach(function (key) {
+      const value = item[key];
+      copy[key] = value instanceof Date
+        ? new Date(value.getTime())
+        : value;
+    });
+    return copy;
+  }
+
+  /**
+   * Copia una colección normalizada sin exponer referencias internas.
+   *
+   * @param {!Array<!Object>} items Colección de origen.
+   * @return {!Array<!Object>} Copias defensivas.
+   * @private
+   */
+  function copyItems_(items) {
+    return items.map(copyItem_);
+  }
+
+  /**
+   * Filtra la caché y devuelve copias defensivas.
+   *
+   * @param {function(!Object): boolean} predicate Criterio de selección.
+   * @return {!Array<!Object>} Coincidencias independientes.
+   * @private
+   */
+  function filterCached_(predicate) {
+    return getData_().filter(predicate).map(copyItem_);
+  }
+
   /** Determina si una fila contiene información operativa. */
   function isDataRow_(item) {
     return Boolean(
@@ -899,7 +1001,7 @@ const TraspasosRepository = (() => {
       );
 
       console.log(
-        "[CACHE] Traspasos cargados",
+        `${CFG.LOG_PREFIX} Caché cargada`,
         { total: cache_.length }
       );
     }
@@ -909,8 +1011,28 @@ const TraspasosRepository = (() => {
 
   /** Proyecta una propiedad de todos los movimientos cacheados. */
   function getField_(field) {
+    const allowedFields = Object.freeze([
+      "serie",
+      "bodegasalida",
+      "ubicacionsalida",
+      "bodegaentrada",
+      "ubicacionentrada",
+      "solicitante",
+      "codigo",
+      "folio",
+      "responsable",
+      "idunico",
+      "fecharespuesta",
+      "horarespuesta"
+    ]);
+    if (!allowedFields.includes(field)) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} La proyección "${field}" no está permitida.`
+      );
+    }
     return getData_().map(function (item) {
-      return item[field];
+      const value = item[field];
+      return value instanceof Date ? new Date(value.getTime()) : value;
     });
   }
 
@@ -1225,11 +1347,11 @@ const TraspasosRepository = (() => {
   // API PÚBLICA
   // =========================================================
 
-  return {
+  return Object.freeze({
     // API existente.
     /** Devuelve movimientos ordenados por código. */
     getAll: function () {
-      return [...getData_()].sort(function (a, b) {
+      return copyItems_(getData_()).sort(function (a, b) {
         return a.codigo.localeCompare(
           b.codigo,
           "es",
@@ -1243,7 +1365,7 @@ const TraspasosRepository = (() => {
 
     /** Devuelve una copia en el orden de la caché. */
     getAllRaw: function () {
-      return [...getData_()];
+      return copyItems_(getData_());
     },
 
     /** Devuelve una lectura fresca optimizada para estado operativo. */
@@ -1253,7 +1375,7 @@ const TraspasosRepository = (() => {
 
     /** Ordena cronológicamente y desempata por fila física. */
     getAllByFechaHora: function () {
-      return [...getData_()].sort(function (a, b) {
+      return copyItems_(getData_()).sort(function (a, b) {
         return (
           timestamp_(a) - timestamp_(b) ||
           Number(a.fila || 0) - Number(b.fila || 0)
@@ -1268,11 +1390,14 @@ const TraspasosRepository = (() => {
         Math.floor(Number(limit) || 0)
       );
 
-      return [...getData_()].slice(-safeLimit);
+      if (!safeLimit) {
+        return [];
+      }
+      return copyItems_(getData_().slice(-safeLimit));
     },
 
     getPorFecha: function (fechatraspaso) {
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return sameDate_(
           item.fechatraspaso,
           fechatraspaso
@@ -1281,7 +1406,7 @@ const TraspasosRepository = (() => {
     },
 
     getPorHora: function (horatraspaso) {
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return sameTime_(
           item.horatraspaso,
           horatraspaso
@@ -1291,70 +1416,70 @@ const TraspasosRepository = (() => {
 
     getPorTipoMovimiento: function (tipomovimiento) {
       const filter = toStrUpper_(tipomovimiento || "");
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return item.tipomovimiento === filter;
       });
     },
 
     getPorSerie: function (serie) {
       const filter = toStrUpper_(serie || "");
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return item.serie === filter;
       });
     },
 
     getPorBodegaSalida: function (bodegasalida) {
       const filter = toStrUpper_(bodegasalida || "");
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return item.bodegasalida === filter;
       });
     },
 
     getPorUbicacionSalida: function (ubicacionsalida) {
       const filter = toStrUpper_(ubicacionsalida || "");
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return item.ubicacionsalida === filter;
       });
     },
 
     getPorBodegaEntrada: function (bodegaentrada) {
       const filter = toStrUpper_(bodegaentrada || "");
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return item.bodegaentrada === filter;
       });
     },
 
     getPorUbicacionEntrada: function (ubicacionentrada) {
       const filter = toStrUpper_(ubicacionentrada || "");
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return item.ubicacionentrada === filter;
       });
     },
 
     getPorSolicitante: function (solicitante) {
       const filter = toStrUpper_(solicitante || "");
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return item.solicitante === filter;
       });
     },
 
     getPorCodigo: function (codigo) {
       const filter = toStrUpper_(codigo || "");
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return item.codigo === filter;
       });
     },
 
     getPorDescripcion: function (descripcion) {
       const filter = toStrUpper_(descripcion || "");
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return item.descripcion === filter;
       });
     },
 
     getPorFolio: function (folio) {
       const filter = toStr_(folio || "");
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return item.folio === filter;
       });
     },
@@ -1368,7 +1493,7 @@ const TraspasosRepository = (() => {
       const filter = toStr_(idOperacion || "");
       if (!filter) return [];
 
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return toStr_(item.idoperacion || "") === filter;
       });
     },
@@ -1389,20 +1514,20 @@ const TraspasosRepository = (() => {
 
     getPorResponsable: function (responsable) {
       const filter = toStrUpper_(responsable || "");
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return item.responsable === filter;
       });
     },
 
     getPorIdUnico: function (idunico) {
       const filter = toStr_(idunico || "");
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return item.idunico === filter;
       });
     },
 
     getPorFechaRespuesta: function (fecharespuesta) {
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return sameDate_(
           item.fecharespuesta,
           fecharespuesta
@@ -1411,7 +1536,7 @@ const TraspasosRepository = (() => {
     },
 
     getPorHoraRespuesta: function (horarespuesta) {
-      return getData_().filter(function (item) {
+      return filterCached_(function (item) {
         return sameTime_(
           item.horarespuesta,
           horarespuesta
@@ -1491,8 +1616,8 @@ const TraspasosRepository = (() => {
     /** Invalida la caché local del repositorio. */
     clearCache: function () {
       cache_ = null;
-      console.log("[CACHE] Traspasos limpios");
+      console.log(`${CFG.LOG_PREFIX} Caché invalidada.`);
       return true;
     }
-  };
+  });
 })();

@@ -35,6 +35,7 @@
  * - ImpresionPrintJobBuilder.buildExcedentesJob(lote, fechaHora, meta).
  * - ImpresionPrintJobBuilder.buildIdentificadorasJob(lote, fechaHora, meta).
  */
+
 const ImpresionPrintJobBuilder = (() => {
   /** Anchura lógica utilizada para separadores y contenido térmico. */
   const LINE_WIDTH = 48;
