@@ -1323,10 +1323,155 @@
             setLoading(false);
             setRefreshing(false);
             applyResponse_(safe);
-            csPerfMark_(trace, "REACT_STATE_REQUESTED", { groups: groupsReceived, movements: movementsReceived });
+
+            csPerfMark_(trace, "REACT_STATE_REQUESTED", {
+              groups: groupsReceived,
+              movements: movementsReceived
+            });
+
+            /*
+             * Informa el resultado de la carga sin saturar al usuario.
+             *
+             * - La carga inicial confirma si existen movimientos pendientes.
+             * - La actualización manual siempre confirma su resultado.
+             * - Las actualizaciones automáticas solo notifican cambios relevantes.
+             * - Los avisos de inconsistencias tienen prioridad sobre los informativos.
+             */
+            const currentSummary = safe.resumen || {};
+            const pendingGroups = num_(currentSummary.grupospendientes);
+            const pendingMovements = num_(
+              currentSummary.movimientospendientes
+            );
+            const inconsistentGroups = num_(
+              currentSummary.gruposinconsistentes
+            );
+            const nonReconciliableGroups = num_(
+              currentSummary.gruposnoconciliables
+            );
+            const previousPendingMovements = num_(
+              summary.movimientospendientes
+            );
+            const newPendingMovements = Math.max(
+              0,
+              pendingMovements - previousPendingMovements
+            );
+            const isInitialLoad = source === "initial";
+            const isManualRefresh = source === "manual";
+            const isAutomaticRefresh =
+              source === "focus" || source === "visibilitychange";
+
+            if (isManualRefresh) {
+              if (pendingMovements === 0) {
+                notify_(
+                  "No existen movimientos pendientes de procesar.",
+                  "success",
+                  3200,
+                  {
+                    title: "Conciliación al día",
+                    sound: false
+                  }
+                );
+              } else if (
+                inconsistentGroups > 0 ||
+                nonReconciliableGroups > 0
+              ) {
+                notify_(
+                  `${pendingGroups} grupo(s) y ` +
+                    `${pendingMovements} movimiento(s) pendiente(s). ` +
+                    `${inconsistentGroups} grupo(s) con inconsistencias y ` +
+                    `${nonReconciliableGroups} no conciliable(s).`,
+                  "warning",
+                  5200,
+                  {
+                    title: "Conciliaciones actualizadas",
+                    sound: true
+                  }
+                );
+              } else {
+                notify_(
+                  `${pendingGroups} grupo(s) y ` +
+                    `${pendingMovements} movimiento(s) pendiente(s).`,
+                  "info",
+                  3800,
+                  {
+                    title: "Conciliaciones actualizadas",
+                    sound: false
+                  }
+                );
+              }
+            } else if (isInitialLoad) {
+              if (pendingMovements === 0) {
+                notify_(
+                  "No existen movimientos pendientes de procesar.",
+                  "success",
+                  3200,
+                  {
+                    title: "Conciliación al día",
+                    sound: false
+                  }
+                );
+              } else if (
+                inconsistentGroups > 0 ||
+                nonReconciliableGroups > 0
+              ) {
+                notify_(
+                  `${pendingGroups} grupo(s) con ` +
+                    `${pendingMovements} movimiento(s) pendiente(s). ` +
+                    "Existen elementos que requieren revisión.",
+                  "warning",
+                  4800,
+                  {
+                    title: "Pendientes con observaciones",
+                    sound: true
+                  }
+                );
+              } else {
+                notify_(
+                  `${pendingGroups} grupo(s) con ` +
+                    `${pendingMovements} movimiento(s) pendiente(s).`,
+                  "info",
+                  3800,
+                  {
+                    title: "Movimientos pendientes",
+                    sound: false
+                  }
+                );
+              }
+            } else if (
+              isAutomaticRefresh &&
+              newPendingMovements > 0
+            ) {
+              notify_(
+                `Se detectaron ${newPendingMovements} ` +
+                  "movimiento(s) pendiente(s) adicional(es).",
+                "info",
+                3600,
+                {
+                  title: "Nuevos movimientos pendientes",
+                  sound: false
+                }
+              );
+            }
+
             csAfterPaint_(() => {
-              csPerfMark_(trace, "UI_PAINT_COMPLETED", { groups: groupsReceived, movements: movementsReceived, responseHandlerMs: Number((performance.now() - responseReceivedAt).toFixed(1)) });
-              csPerfEnd_(trace, "ok", { groups: groupsReceived, movements: movementsReceived, responsibles: responsiblesReceived });
+              csPerfMark_(trace, "UI_PAINT_COMPLETED", {
+                groups: groupsReceived,
+                movements: movementsReceived,
+                responseHandlerMs: Number(
+                  (performance.now() - responseReceivedAt).toFixed(1)
+                )
+              });
+
+              csPerfEnd_(trace, "ok", {
+                groups: groupsReceived,
+                movements: movementsReceived,
+                responsibles: responsiblesReceived,
+                pendingGroups,
+                pendingMovements,
+                inconsistentGroups,
+                nonReconciliableGroups,
+                source
+              });
             });
           })
           .withFailureHandler(error => {
