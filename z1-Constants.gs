@@ -44,7 +44,7 @@
 const FILES = Object.freeze({
   GESTION1: "1xPMnPg_-m7yQQoMq6ku1iwyXRlZC-RjypGpC_2gv4xE",
   GESTION2: "1hXRyADfhVn_teWydRvCisNBEQnqh6U-9wue9A5_zpeo",
-  GESTION3: "",
+  GESTION3: "102KnS9dsTzVxr3XX983MopCGpaGmST9ccf0n_KhYbqc",
   PEDIDOS: "1PJh2JaMH2FVDNOzZ7vTcKlFSJ48R5rYGjsF_HyjMWO0"
 });
 
@@ -76,7 +76,11 @@ const SHEETS = Object.freeze({
   VERIFICACION_ENTRADA_CAJAS: Object.freeze({ file: "GESTION2", name: "VE_CAJAS" }),
   VERIFICACION_ENTRADA_EVENTOS: Object.freeze({ file: "GESTION2", name: "VE_EVENTOS" }),
   VERIFICACION_ENTRADA_CATALOGO_PROVEEDORES: Object.freeze({ file: "GESTION2", name: "VE_CATALOGO_PROVEEDORES" }),
-  VERIFICACION_ENTRADA_EQUIVALENCIAS: Object.freeze({ file: "GESTION2", name: "VE_EQUIVALENCIAS" })
+  VERIFICACION_ENTRADA_EQUIVALENCIAS: Object.freeze({ file: "GESTION2", name: "VE_EQUIVALENCIAS" }),
+
+  /** Verificación de entrada. Todas estas hojas viven en GESTION2. */
+  MAT_DOCUMENTOS: Object.freeze({ file: "GESTION3", name: "MAT_DOCUMENTOS" }),
+  MAT_DOCUMENTOSDETALLE: Object.freeze({ file: "GESTION3", name: "MAT_DOCUMENTOSDETALLE" }),   
 });
 
 /**
