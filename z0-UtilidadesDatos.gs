@@ -15,6 +15,8 @@
  * - Estandarizar la ejecución y errores de Controllers.
  * - Invalidar cachés por alcance funcional.
  * - Verificar contratos de hojas del módulo Verificación de entrada.
+ * - Validar y normalizar contratos documentales de Gestión de Material.
+ * - Administrar claves COTIZACION_NUM, identificadores y consecutivos diarios.
  *
  * Seguridad:
  * - No enviar XML, CFDI, códigos de barras, certificados, sellos, cuentas ni
@@ -25,6 +27,8 @@
  * Invariantes:
  * - La posición y escritura concurrente deben ocurrir bajo el mismo lock.
  * - Las hojas de alto crecimiento deben leerse con readSheetRows_().
+ * - COTIZACION_NUM se trata siempre como texto, nunca como número.
+ * - La unicidad técnica se confirma bajo ScriptLock en el repositorio.
  * - Las trazas finalizadas no aceptan nuevas marcas.
  * - Las limpiezas de caché toleran dependencias opcionales ausentes.
  */
@@ -1330,6 +1334,20 @@ function clearOperationalCaches_() {
     }
 
     if (
+      typeof DocumentosRepository !== "undefined" &&
+      DocumentosRepository &&
+      typeof DocumentosRepository.clearCache === "function"
+    ) {
+      DocumentosRepository.clearCache();
+    }
+    if (
+      typeof DocumentosDetalleRepository !== "undefined" &&
+      DocumentosDetalleRepository &&
+      typeof DocumentosDetalleRepository.clearCache === "function"
+    ) {
+      DocumentosDetalleRepository.clearCache();
+    }
+    if (
       typeof VerificacionEntradaRepository !== "undefined" &&
       VerificacionEntradaRepository &&
       typeof VerificacionEntradaRepository.clearCache === "function"
@@ -1460,6 +1478,544 @@ function clearVerificacionEntradaCaches_() {
     );
 
     return false;
+  }
+}
+
+// =========================================================
+// GESTIÓN DE MATERIAL: UTILIDADES DOCUMENTALES
+// =========================================================
+/**
+ * Utilidades compartidas por DocumentosRepository y
+ * DocumentosDetalleRepository.
+ *
+ * Estas funciones validan contratos, normalizan claves y ejecutan operaciones
+ * de infraestructura. No contienen reglas de negocio específicas de una vista.
+ *
+ * Dependencias:
+ * - GESTION_MATERIAL_DOCUMENTOS.
+ * - GESTION_MATERIAL_DOCUMENTOS_HEADERS.
+ * - GESTION_MATERIAL_DOCUMENTOS_EXPECTED_WIDTHS.
+ *
+ * @version MAT-UTIL-2026-10-26-01
+ */
+// =========================================================
+// VALIDACIÓN ESTRUCTURAL Y NORMALIZACIÓN DE CONTRATOS
+// =========================================================
+
+/**
+ * Determina si un valor es un objeto plano utilizable como payload.
+ *
+ * @param {*} value Valor por evaluar.
+ * @return {boolean}
+ */
+function isPlainObject_(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Exige un objeto plano y devuelve el mismo objeto.
+ *
+ * @param {*} value Valor recibido.
+ * @param {string} argumentName Nombre funcional del argumento.
+ * @return {Object}
+ * @throws {TypeError} Cuando el valor no es un objeto plano.
+ */
+function requirePlainObject_(value, argumentName) {
+  if (!isPlainObject_(value)) {
+    throw new TypeError(
+      String(argumentName || "payload") + " debe ser un objeto válido."
+    );
+  }
+
+  return value;
+}
+
+/**
+ * Normaliza texto sin convertirlo a mayúsculas y valida su longitud.
+ *
+ * @param {*} value Valor original.
+ * @param {Object=} options Opciones de validación.
+ * @param {string=} options.fieldName Nombre del campo para mensajes.
+ * @param {boolean=} options.required Indica si el texto es obligatorio.
+ * @param {number=} options.maxLength Longitud máxima permitida.
+ * @return {string}
+ */
+function normalizeTextField_(value, options) {
+  const opts = options || {};
+  const fieldName = String(opts.fieldName || "campo");
+  const required = opts.required === true;
+  const maxLength = Math.max(0, Number(opts.maxLength || 0));
+  const normalized = String(value == null ? "" : value).trim();
+
+  if (required && !normalized) {
+    throw new Error(fieldName + " es obligatorio.");
+  }
+
+  if (maxLength > 0 && normalized.length > maxLength) {
+    throw new Error(
+      fieldName + " excede la longitud máxima de " + maxLength + " caracteres."
+    );
+  }
+
+  return normalized;
+}
+
+/**
+ * Normaliza COTIZACION_NUM como texto obligatorio e inmutable.
+ * No lo convierte a número para conservar ceros iniciales y evitar notación
+ * científica en Google Sheets.
+ *
+ * @param {*} value Valor recibido.
+ * @return {string}
+ */
+function normalizeCotizacionNum_(value) {
+  const limits =
+    typeof GESTION_MATERIAL_DOCUMENTOS !== "undefined" &&
+    GESTION_MATERIAL_DOCUMENTOS &&
+    GESTION_MATERIAL_DOCUMENTOS.LIMITES
+      ? GESTION_MATERIAL_DOCUMENTOS.LIMITES
+      : {};
+
+  return normalizeTextField_(value, {
+    fieldName: "COTIZACION_NUM",
+    required: true,
+    maxLength: Number(limits.COTIZACION_NUM_MAX_LENGTH || 100)
+  });
+}
+
+/**
+ * Convierte valores comunes de hoja o interfaz a SI, NO o PENDIENTE.
+ *
+ * @param {*} value Valor original.
+ * @param {Object=} options Opciones.
+ * @param {boolean=} options.allowPending Permite PENDIENTE y vacío.
+ * @param {string=} options.fieldName Nombre del campo.
+ * @return {string}
+ */
+function normalizeTriState_(value, options) {
+  const opts = options || {};
+  const allowPending = opts.allowPending !== false;
+  const fieldName = String(opts.fieldName || "estado");
+  const normalized = toStrUpper_(value);
+
+  if (
+    value === true ||
+    normalized === "SI" ||
+    normalized === "SÍ" ||
+    normalized === "TRUE" ||
+    normalized === "1"
+  ) {
+    return "SI";
+  }
+
+  if (
+    value === false ||
+    normalized === "NO" ||
+    normalized === "FALSE" ||
+    normalized === "0"
+  ) {
+    return "NO";
+  }
+
+  if (allowPending && (!normalized || normalized === "PENDIENTE")) {
+    return "PENDIENTE";
+  }
+
+  throw new Error(
+    fieldName + " debe ser SI, NO" +
+      (allowPending ? " o PENDIENTE." : ".")
+  );
+}
+
+/**
+ * Valida y normaliza un valor contra un catálogo cerrado.
+ *
+ * @param {*} value Valor recibido.
+ * @param {Object} enumObject Objeto de valores admitidos.
+ * @param {Object=} options Opciones de validación.
+ * @param {string=} options.fieldName Nombre del campo.
+ * @param {boolean=} options.required Indica si es obligatorio.
+ * @param {string=} options.defaultValue Valor por defecto.
+ * @return {string}
+ */
+function normalizeEnumValue_(value, enumObject, options) {
+  const opts = options || {};
+  const fieldName = String(opts.fieldName || "campo");
+  const normalized = toStrUpper_(value || opts.defaultValue);
+  const allowed = Object.keys(enumObject || {}).map(function(key) {
+    return toStrUpper_(enumObject[key]);
+  });
+
+  if (!normalized) {
+    if (opts.required === true) {
+      throw new Error(fieldName + " es obligatorio.");
+    }
+    return "";
+  }
+
+  if (allowed.indexOf(normalized) === -1) {
+    throw new Error(
+      fieldName + " contiene un valor no permitido: " + normalized + "."
+    );
+  }
+
+  return normalized;
+}
+
+/**
+ * Normaliza un monto monetario no negativo con dos decimales.
+ *
+ * @param {*} value Valor recibido.
+ * @param {string=} fieldName Nombre del campo.
+ * @return {number}
+ */
+function normalizeMoney_(value, fieldName) {
+  if (value === "" || value == null) return 0;
+
+  const number = Number(value);
+  if (!isFinite(number) || number < 0) {
+    throw new Error(
+      String(fieldName || "monto") + " debe ser un número no negativo."
+    );
+  }
+
+  return round2_(number);
+}
+
+// =========================================================
+// CONTRATOS DE HOJAS
+// =========================================================
+
+/**
+ * Valida ancho y encabezados físicos de una hoja configurada.
+ *
+ * @param {string} sheetKey Clave de SHEETS.
+ * @param {ReadonlyArray<string>} expectedHeaders Encabezados esperados.
+ * @param {Object=} trace Tracker de rendimiento opcional.
+ * @return {{sheetKey:string, sheetName:string, width:number, headersOk:boolean}}
+ */
+function assertSheetContract_(sheetKey, expectedHeaders, trace) {
+  const key = String(sheetKey || "").trim();
+  const headers = Array.isArray(expectedHeaders)
+    ? expectedHeaders.slice()
+    : [];
+
+  if (!key || !SHEETS[key]) {
+    throw new Error("No existe la configuración SHEETS." + key + ".");
+  }
+
+  if (headers.length === 0) {
+    throw new Error("No se definieron encabezados para " + key + ".");
+  }
+
+  const sheet = getSheetByKey_(key, trace);
+  const actualWidth = sheet.getLastColumn();
+
+  if (actualWidth !== headers.length) {
+    throw new Error(
+      "Ancho incorrecto en " + key + ". Esperado: " + headers.length +
+      ", encontrado: " + actualWidth + "."
+    );
+  }
+
+  const actualHeaders = sheet
+    .getRange(1, 1, 1, headers.length)
+    .getDisplayValues()[0]
+    .map(toStrUpper_);
+
+  const mismatches = [];
+  headers.forEach(function(expected, index) {
+    const normalizedExpected = toStrUpper_(expected);
+    const actual = actualHeaders[index];
+
+    if (actual !== normalizedExpected) {
+      mismatches.push({
+        column: index + 1,
+        expected: normalizedExpected,
+        actual: actual
+      });
+    }
+  });
+
+  if (mismatches.length > 0) {
+    throw new Error(
+      "Encabezados incorrectos en " + key + ": " +
+      JSON.stringify(mismatches.slice(0, 10))
+    );
+  }
+
+  perfMark_(trace, "SHEET_CONTRACT_VALIDATED", {
+    sheetKey: key,
+    width: headers.length
+  });
+
+  return {
+    sheetKey: key,
+    sheetName: sheet.getName(),
+    width: headers.length,
+    headersOk: true
+  };
+}
+
+/**
+ * Valida los contratos físicos de MAT_DOCUMENTOS y MAT_DOCUMENTODETALLE.
+ * No escribe información.
+ *
+ * @param {Object=} trace Tracker opcional.
+ * @return {Array<Object>}
+ */
+function assertMaterialDocumentSheets_(trace) {
+  if (
+    typeof GESTION_MATERIAL_DOCUMENTOS_HEADERS === "undefined" ||
+    !GESTION_MATERIAL_DOCUMENTOS_HEADERS
+  ) {
+    throw new Error(
+      "GESTION_MATERIAL_DOCUMENTOS_HEADERS no está disponible."
+    );
+  }
+
+  return [
+    assertSheetContract_(
+      "MAT_DOCUMENTOS",
+      GESTION_MATERIAL_DOCUMENTOS_HEADERS.DOCUMENTOS,
+      trace
+    ),
+    assertSheetContract_(
+      "MAT_DOCUMENTODETALLE",
+      GESTION_MATERIAL_DOCUMENTOS_HEADERS.DOCUMENTODETALLE,
+      trace
+    )
+  ];
+}
+
+// =========================================================
+// BÚSQUEDA Y ACTUALIZACIÓN CONTROLADA POR FILA
+// =========================================================
+
+/**
+ * Localiza filas físicas por igualdad exacta normalizada en una columna.
+ * La comparación trata los valores como texto para preservar COTIZACION_NUM.
+ *
+ * @param {string} sheetKey Clave de SHEETS.
+ * @param {number} width Ancho del contrato.
+ * @param {number} columnIndex Índice base cero.
+ * @param {*} value Valor buscado.
+ * @param {Object=} trace Tracker opcional.
+ * @return {Array<number>} Números de fila físicos, base uno.
+ */
+function findRowNumbersByTextColumn_(
+  sheetKey,
+  width,
+  columnIndex,
+  value,
+  trace
+) {
+  const safeWidth = Math.max(1, Math.floor(Number(width || 1)));
+  const safeColumnIndex = Math.floor(Number(columnIndex));
+  const normalizedValue = String(value == null ? "" : value).trim();
+
+  if (
+    !Number.isInteger(safeColumnIndex) ||
+    safeColumnIndex < 0 ||
+    safeColumnIndex >= safeWidth
+  ) {
+    throw new RangeError(
+      "columnIndex está fuera del ancho de " + sheetKey + "."
+    );
+  }
+
+  if (!normalizedValue) return [];
+
+  const rows = readSheetRows_(sheetKey, safeWidth, trace);
+  const result = [];
+
+  rows.forEach(function(row, index) {
+    const candidate = String(
+      row[safeColumnIndex] == null ? "" : row[safeColumnIndex]
+    ).trim();
+
+    if (candidate === normalizedValue) {
+      result.push(index + 2);
+    }
+  });
+
+  return result;
+}
+
+/**
+ * Escribe una fila completa en una posición física existente.
+ * Debe ejecutarse bajo el mismo ScriptLock que protegió la lectura previa.
+ *
+ * @param {string} sheetKey Clave de SHEETS.
+ * @param {number} rowNumber Número físico de fila, base uno.
+ * @param {Array<*>} row Fila completa.
+ * @param {number} width Ancho esperado.
+ * @param {Object=} trace Tracker opcional.
+ * @return {{updated:boolean, rowNumber:number}}
+ */
+function writeRowAt_(sheetKey, rowNumber, row, width, trace) {
+  const safeRowNumber = Math.floor(Number(rowNumber));
+  const safeWidth = Math.max(1, Math.floor(Number(width || 1)));
+
+  if (!Number.isInteger(safeRowNumber) || safeRowNumber < 2) {
+    throw new RangeError("rowNumber debe ser una fila de datos válida.");
+  }
+
+  if (!Array.isArray(row) || row.length !== safeWidth) {
+    throw new Error(
+      "La fila para " + sheetKey + " debe contener exactamente " +
+      safeWidth + " columnas."
+    );
+  }
+
+  const startedAt = Date.now();
+  const sheet = getSheetByKey_(sheetKey, trace);
+  sheet.getRange(safeRowNumber, 1, 1, safeWidth).setValues([row]);
+  const elapsedMs = Date.now() - startedAt;
+
+  perfMark_(trace, "SHEET_ROW_UPDATED", {
+    sheetKey: sheetKey,
+    rowNumber: safeRowNumber,
+    width: safeWidth,
+    elapsedMs: elapsedMs
+  });
+
+  perfWarnSlow_(
+    trace,
+    "SLOW_SHEET_ROW_UPDATE",
+    elapsedMs,
+    perfConfig_().WARN_SHEET_WRITE_MS,
+    {
+      sheetKey: sheetKey,
+      rowNumber: safeRowNumber,
+      width: safeWidth
+    }
+  );
+
+  return {
+    updated: true,
+    rowNumber: safeRowNumber
+  };
+}
+
+// =========================================================
+// IDENTIFICADORES Y CONSECUTIVOS
+// =========================================================
+
+/**
+ * Genera un identificador técnico no secuencial, apto para filas internas.
+ * La unicidad definitiva debe comprobarse en el repositorio bajo ScriptLock.
+ *
+ * @param {string} prefix Prefijo funcional.
+ * @return {string}
+ */
+function generateTechnicalId_(prefix) {
+  const safePrefix = toStrUpper_(prefix)
+    .replace(/[^A-Z0-9_-]/g, "") || "ID";
+  const timestamp = Utilities.formatDate(
+    now_(),
+    getScriptTz_(),
+    "yyyyMMddHHmmssSSS"
+  );
+  const random = Utilities.getUuid()
+    .replace(/-/g, "")
+    .slice(0, 8)
+    .toUpperCase();
+
+  return safePrefix + "-" + timestamp + "-" + random;
+}
+
+/**
+ * Obtiene el siguiente consecutivo del día a partir de filas ya normalizadas.
+ * No realiza lecturas ni escrituras y debe invocarse bajo ScriptLock cuando se
+ * use para insertar un documento.
+ *
+ * @param {Array<Object>} documents Documentos normalizados.
+ * @param {string} dateText Fecha dd/MM/yyyy.
+ * @return {number}
+ */
+function nextDailyConsecutive_(documents, dateText) {
+  const normalizedDate = formatDate_(toDate_(dateText));
+  if (!normalizedDate) {
+    throw new Error("La fecha del consecutivo diario es inválida.");
+  }
+
+  let maximum = 0;
+  (Array.isArray(documents) ? documents : []).forEach(function(document) {
+    if (!document || formatDate_(toDate_(document.cotizacionFecha)) !== normalizedDate) {
+      return;
+    }
+
+    const candidate = Math.floor(Number(document.idConsecutivoDiario || 0));
+    if (candidate > maximum) maximum = candidate;
+  });
+
+  return maximum + 1;
+}
+
+// =========================================================
+// CACHÉS Y PRUEBA DE INTEGRACIÓN DEL MÓDULO DOCUMENTAL
+// =========================================================
+
+/**
+ * Limpia únicamente las cachés de los repositorios documentales cuando existan.
+ *
+ * @return {boolean}
+ */
+function clearDocumentosCaches_() {
+  try {
+    if (
+      typeof DocumentosRepository !== "undefined" &&
+      DocumentosRepository &&
+      typeof DocumentosRepository.clearCache === "function"
+    ) {
+      DocumentosRepository.clearCache();
+    }
+
+    if (
+      typeof DocumentosDetalleRepository !== "undefined" &&
+      DocumentosDetalleRepository &&
+      typeof DocumentosDetalleRepository.clearCache === "function"
+    ) {
+      DocumentosDetalleRepository.clearCache();
+    }
+
+    console.log("[CACHE] clearDocumentosCaches_ :: OK");
+    return true;
+  } catch (error) {
+    console.warn(
+      "[CACHE] clearDocumentosCaches_ :: ERROR",
+      error && error.message ? error.message : String(error || "")
+    );
+    return false;
+  }
+}
+
+/**
+ * Prueba de integración de los contratos de MAT_DOCUMENTOS y
+ * MAT_DOCUMENTODETALLE. No escribe información.
+ *
+ * @return {Array<Object>}
+ */
+function testMaterialDocumentUtilities_() {
+  const trace = perfStart_("MAT_DOC_TEST_UTILITIES", {
+    test: true
+  });
+
+  try {
+    const result = assertMaterialDocumentSheets_(trace);
+    perfEnd_(trace, "ok", {
+      sheets: result.length
+    });
+    return result;
+  } catch (error) {
+    perfFail_(trace, error);
+    throw error;
   }
 }
 
