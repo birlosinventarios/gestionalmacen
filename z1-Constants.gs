@@ -45,6 +45,8 @@ const FILES = Object.freeze({
   GESTION1: "1xPMnPg_-m7yQQoMq6ku1iwyXRlZC-RjypGpC_2gv4xE",
   GESTION2: "1hXRyADfhVn_teWydRvCisNBEQnqh6U-9wue9A5_zpeo",
   GESTION3: "102KnS9dsTzVxr3XX983MopCGpaGmST9ccf0n_KhYbqc",
+  GESTION4:
+  "1PI4JkHcIl6mHKM9uCtolBGx0olIYdGhZO-ao3_QaT4Q",
   PEDIDOS: "1PJh2JaMH2FVDNOzZ7vTcKlFSJ48R5rYGjsF_HyjMWO0"
 });
 
@@ -80,7 +82,10 @@ const SHEETS = Object.freeze({
 
   /** Cola de trabajo documental. Todas estas hojas viven en GESTION3. */
   MAT_DOCUMENTOS: Object.freeze({ file: "GESTION3", name: "MAT_DOCUMENTOS" }),
-  MAT_DOCUMENTODETALLE: Object.freeze({ file: "GESTION3", name: "MAT_DOCUMENTODETALLE" })
+  MAT_DOCUMENTODETALLE: Object.freeze({ file: "GESTION3", name: "MAT_DOCUMENTODETALLE" }),
+
+  /** Maximos y minimos de almacen. Todas estas hojas viven en GESTION4. */
+  UBICACIONES_MAXMIN: Object.freeze({ file: "GESTION4", name: "UBICACIONES_MAXMIN" })
 });
 
 /**
