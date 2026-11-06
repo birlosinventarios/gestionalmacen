@@ -13,7 +13,8 @@
    * RESPONSABILIDADES
    * - Cargar usuarios y registros pendientes desde el Controller.
    * - Permitir seleccionar cualquier usuario, sin filtrar por rol.
-   * - Mostrar únicamente códigos cuya captura inicial está pendiente.
+   * - Mostrar únicamente filas cuya captura inicial está pendiente.
+   * - Distinguir códigos repetidos mediante numFila, bodega y ubicación.
    * - Capturar EXISTENCIA y PORCENTAJE de ocupación.
    * - Calcular MAXIMO cuando PORCENTAJE es menor que 100.
    * - Habilitar MAXIMO cuando PORCENTAJE es igual a 100.
@@ -27,7 +28,9 @@
    * - Si PORCENTAJE < 100:
    *     MAXIMO = redondearADecena((EXISTENCIA / PORCENTAJE) * 100).
    * - El signo de porcentaje es visual y no puede borrarse.
-   * - FECHA, HORA y USUARIO seleccionado se resuelven en el servidor.
+   * - FECHA y HORA se generan en el servidor.
+   * - USUARIO se selecciona en la vista y se valida en el servidor.
+   * - La selección técnica utiliza numFila, no CODIGO como identidad única.
    *
    * DEPENDENCIAS GLOBALES
    * - React y ReactDOM.
@@ -46,7 +49,7 @@
    * - window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__.
    *
    * @author Sigifredo de la Cruz Ramos
-   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-06-02
+   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-06-03
    */
 </script>
 
@@ -504,7 +507,7 @@
 
     const FORM_INICIAL = Object.freeze({
       usuario: "",
-      codigo: "",
+      seleccion: "",
       existencia: "",
       porcentaje: "",
       maximo: ""
@@ -518,17 +521,40 @@
       const [form, setForm] = useState({ ...FORM_INICIAL });
       const codigoInputRef = useRef(null);
 
+      /**
+       * Construye identidades de selección estables para códigos repetidos.
+       * La fila física es la identidad técnica de esta captura.
+       */
+      const construirClaveSeleccion_ = registro => {
+        const claveServidor = String(registro?.claveSeleccion || "").trim();
+        return claveServidor || [
+          Number(registro?.numFila || 0),
+          normalizarTexto_(registro?.codigo),
+          normalizarTexto_(registro?.bodega),
+          normalizarTexto_(registro?.ubicacion)
+        ].join("|");
+      };
+
+      const construirEtiquetaSeleccion_ = registro => [
+        normalizarTexto_(registro?.codigo),
+        normalizarTexto_(registro?.bodega),
+        normalizarTexto_(registro?.ubicacion),
+        `FILA ${Number(registro?.numFila || 0)}`
+      ].filter(Boolean).join(" · ");
+
       const mapaRegistros = useMemo(() => {
         return registrosPendientes.reduce((mapa, registro) => {
-          const codigo = normalizarTexto_(registro.codigo);
-          if (codigo && !mapa[codigo]) mapa[codigo] = registro;
+          const etiqueta = construirEtiquetaSeleccion_(registro);
+          if (etiqueta) {
+            mapa[normalizarTexto_(etiqueta)] = registro;
+          }
           return mapa;
         }, {});
       }, [registrosPendientes]);
 
       const registroSeleccionado = useMemo(() => {
-        return mapaRegistros[normalizarTexto_(form.codigo)] || null;
-      }, [mapaRegistros, form.codigo]);
+        return mapaRegistros[normalizarTexto_(form.seleccion)] || null;
+      }, [mapaRegistros, form.seleccion]);
 
       const existencia = toNumberSafe_(form.existencia);
       const porcentaje = toNumberSafe_(form.porcentaje);
@@ -562,6 +588,11 @@
         const listaUsuarios = Array.isArray(data?.usuarios) ? data.usuarios : [];
         const listaPendientes = Array.isArray(data?.registrosPendientes)
           ? data.registrosPendientes
+              .filter(item => Number(item?.numFila || 0) >= 2)
+              .map(item => ({
+                ...item,
+                claveSeleccion: construirClaveSeleccion_(item)
+              }))
           : [];
         setUsuarios(listaUsuarios);
         setRegistrosPendientes(listaPendientes);
@@ -637,10 +668,10 @@
         };
       }, []);
 
-      const actualizarCodigo_ = value => {
+      const actualizarSeleccion_ = value => {
         setForm(previous => ({
           ...previous,
-          codigo: normalizarTexto_(value),
+          seleccion: value,
           existencia: "",
           porcentaje: "",
           maximo: ""
@@ -661,7 +692,9 @@
 
       const validarForm_ = () => {
         if (!form.usuario) return "Selecciona un usuario responsable.";
-        if (!registroSeleccionado) return "Selecciona un código pendiente válido.";
+        if (!registroSeleccionado) {
+          return "Selecciona un registro pendiente válido de la lista.";
+        }
         if (form.existencia === "") return "Captura la existencia actual.";
         if (existencia < 0) return "La existencia no puede ser negativa.";
         if (!porcentaje || porcentaje < 1 || porcentaje > 100) {
@@ -685,20 +718,12 @@
         }
 
         const payload = {
-          numFila: registroSeleccionado.numFila,
+          numFila: Number(registroSeleccionado.numFila),
           usuario: form.usuario,
           codigo: registroSeleccionado.codigo,
-          descripcion: registroSeleccionado.descripcion,
-          bodega: registroSeleccionado.bodega,
-          ubicacion: registroSeleccionado.ubicacion,
           existencia,
           porcentaje,
-          maximo: maximoCalculado,
-          minimo: toNumberSafe_(registroSeleccionado.minimo),
-          zonaBodega: registroSeleccionado.zonaBodega || "",
-          zonaAbastecimiento: registroSeleccionado.zonaAbastecimiento || "",
-          zonaNivel: registroSeleccionado.zonaNivel || "",
-          validacion: registroSeleccionado.validacion || ""
+          maximo: maximoEditable ? form.maximo : maximoCalculado
         };
 
         setGuardando(true);
@@ -719,6 +744,14 @@
               usuarios,
               registrosPendientes: restantes
             };
+            window.DATA_ALMACEN_CACHE.registrosPendientesUbicacionesMaxMin = restantes;
+            window.DATA_ALMACEN_CACHE.codigosPendientesUbicacionesMaxMin = [
+              ...new Set(
+                restantes
+                  .map(item => normalizarTexto_(item.codigo))
+                  .filter(Boolean)
+              )
+            ];
             setForm(previous => ({
               ...FORM_INICIAL,
               usuario: previous.usuario
@@ -766,7 +799,7 @@
                         <option value="">Selecciona un usuario</option>
                         {usuarios.map((usuario, index) => {
                           const nombre = usuario.nombre || usuario.NOMBRE || "";
-                          const id = usuario.idUsuarios || usuario.idusuarios || index;
+                          const id = usuario.idusuario || index;
                           const rol = usuario.rol || usuario.ROL || "";
                           return (
                             <option key={`${id}-${index}`} value={nombre}>
@@ -779,7 +812,7 @@
 
                     <div className="umm-grid-codigo umm-field-block">
                       <label className="umm-label ml-1">
-                        Código pendiente ({registrosPendientes.length})
+                        Registro pendiente ({registrosPendientes.length})
                       </label>
                       <div className="relative group">
                         <input
@@ -787,15 +820,15 @@
                           list="lista-codigos-ubicaciones-maxmin"
                           className="umm-form-input umm-mono uppercase"
                           disabled={cargando || guardando}
-                          placeholder={cargando ? "Cargando ubicaciones..." : "Selecciona código pendiente"}
-                          value={form.codigo}
-                          onChange={event => actualizarCodigo_(event.target.value)}
+                          placeholder={cargando ? "Cargando ubicaciones..." : "Código · bodega · ubicación"}
+                          value={form.seleccion}
+                          onChange={event => actualizarSeleccion_(event.target.value)}
                         />
                         <datalist id="lista-codigos-ubicaciones-maxmin">
                           {registrosPendientes.map(registro => (
                             <option
-                              key={`${registro.numFila}-${registro.codigo}`}
-                              value={registro.codigo}
+                              key={construirClaveSeleccion_(registro)}
+                              value={construirEtiquetaSeleccion_(registro)}
                             >
                               {registro.descripcion || "SIN DESCRIPCIÓN"}
                             </option>
@@ -1014,7 +1047,8 @@
                           ["Zona bodega", registroSeleccionado.zonaBodega],
                           ["Zona abastecimiento", registroSeleccionado.zonaAbastecimiento],
                           ["Zona nivel", registroSeleccionado.zonaNivel],
-                          ["Mínimo configurado", registroSeleccionado.minimo]
+                          ["Mínimo configurado", registroSeleccionado.minimo],
+                          ["Fila física", registroSeleccionado.numFila]
                         ].map(([label, value]) => (
                           <div className="umm-detail-item" key={label}>
                             <div className="umm-detail-label">{label}</div>
