@@ -284,7 +284,8 @@ const UBICACIONES_MAXMIN_HEADERS = Object.freeze([
   "ZONA_NIVEL",
   "FECHA",
   "HORA",
-  "USUARIO"
+  "USUARIO",
+  "VALIDACION"
 ]);
 
 /**
