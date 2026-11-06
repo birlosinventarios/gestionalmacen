@@ -14,7 +14,7 @@
    * - Cargar usuarios y registros pendientes desde el Controller.
    * - Permitir seleccionar cualquier usuario, sin filtrar por rol.
    * - Mostrar únicamente filas cuya captura inicial está pendiente.
-   * - Distinguir códigos repetidos mediante numFila, bodega y ubicación.
+   * - Mostrar el código como valor principal y la descripción como texto auxiliar.
    * - Capturar EXISTENCIA y PORCENTAJE de ocupación.
    * - Calcular MAXIMO cuando PORCENTAJE es menor que 100.
    * - Habilitar MAXIMO cuando PORCENTAJE es igual a 100.
@@ -30,7 +30,9 @@
    * - El signo de porcentaje es visual y no puede borrarse.
    * - FECHA y HORA se generan en el servidor.
    * - USUARIO se selecciona en la vista y se valida en el servidor.
-   * - La selección técnica utiliza numFila, no CODIGO como identidad única.
+   * - La lista desplegable muestra únicamente CODIGO y DESCRIPCION.
+   * - Si un código tiene varias filas pendientes, se selecciona de forma
+   *   determinista la fila física menor; el guardado continúa usando numFila.
    *
    * DEPENDENCIAS GLOBALES
    * - React y ReactDOM.
@@ -49,7 +51,7 @@
    * - window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__.
    *
    * @author Sigifredo de la Cruz Ramos
-   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-06-03
+   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-06-04
    */
 </script>
 
@@ -507,7 +509,7 @@
 
     const FORM_INICIAL = Object.freeze({
       usuario: "",
-      seleccion: "",
+      codigo: "",
       existencia: "",
       porcentaje: "",
       maximo: ""
@@ -522,40 +524,49 @@
       const codigoInputRef = useRef(null);
 
       /**
-       * Construye identidades de selección estables para códigos repetidos.
-       * La fila física es la identidad técnica de esta captura.
+       * Ordena y deduplica los códigos pendientes para construir un datalist
+       * equivalente al utilizado por FormularioEtiquetasIdentificadoras.
+       *
+       * El valor visible de cada opción es CODIGO y el contenido auxiliar es
+       * DESCRIPCION. Cuando existen varias filas para el mismo código se conserva
+       * la fila física menor, manteniendo numFila para la actualización.
        */
-      const construirClaveSeleccion_ = registro => {
-        const claveServidor = String(registro?.claveSeleccion || "").trim();
-        return claveServidor || [
-          Number(registro?.numFila || 0),
-          normalizarTexto_(registro?.codigo),
-          normalizarTexto_(registro?.bodega),
-          normalizarTexto_(registro?.ubicacion)
-        ].join("|");
-      };
+      const codigosDisponibles = useMemo(() => {
+        const porCodigo = registrosPendientes
+          .slice()
+          .sort((a, b) => {
+            const comparacionCodigo = normalizarTexto_(a?.codigo).localeCompare(
+              normalizarTexto_(b?.codigo),
+              "es",
+              { numeric: true, sensitivity: "base" }
+            );
 
-      const construirEtiquetaSeleccion_ = registro => [
-        normalizarTexto_(registro?.codigo),
-        normalizarTexto_(registro?.bodega),
-        normalizarTexto_(registro?.ubicacion),
-        `FILA ${Number(registro?.numFila || 0)}`
-      ].filter(Boolean).join(" · ");
+            if (comparacionCodigo !== 0) return comparacionCodigo;
+            return Number(a?.numFila || 0) - Number(b?.numFila || 0);
+          })
+          .reduce((mapa, registro) => {
+            const codigo = normalizarTexto_(registro?.codigo);
+            if (codigo && !mapa[codigo]) {
+              mapa[codigo] = registro;
+            }
+            return mapa;
+          }, {});
 
-      const mapaRegistros = useMemo(() => {
-        return registrosPendientes.reduce((mapa, registro) => {
-          const etiqueta = construirEtiquetaSeleccion_(registro);
-          if (etiqueta) {
-            mapa[normalizarTexto_(etiqueta)] = registro;
-          }
-          return mapa;
-        }, {});
+        return Object.values(porCodigo);
       }, [registrosPendientes]);
 
-      const registroSeleccionado = useMemo(() => {
-        return mapaRegistros[normalizarTexto_(form.seleccion)] || null;
-      }, [mapaRegistros, form.seleccion]);
+      /** Mapa de acceso O(1) por código normalizado. */
+      const mapaRegistros = useMemo(() => {
+        return codigosDisponibles.reduce((mapa, registro) => {
+          const codigo = normalizarTexto_(registro?.codigo);
+          if (codigo) mapa[codigo] = registro;
+          return mapa;
+        }, {});
+      }, [codigosDisponibles]);
 
+      const registroSeleccionado = useMemo(() => {
+        return mapaRegistros[normalizarTexto_(form.codigo)] || null;
+      }, [mapaRegistros, form.codigo]);
       const existencia = toNumberSafe_(form.existencia);
       const porcentaje = toNumberSafe_(form.porcentaje);
       const maximoEditable = porcentaje === 100;
@@ -587,12 +598,9 @@
       const hidratarBootstrap_ = data => {
         const listaUsuarios = Array.isArray(data?.usuarios) ? data.usuarios : [];
         const listaPendientes = Array.isArray(data?.registrosPendientes)
-          ? data.registrosPendientes
-              .filter(item => Number(item?.numFila || 0) >= 2)
-              .map(item => ({
-                ...item,
-                claveSeleccion: construirClaveSeleccion_(item)
-              }))
+          ? data.registrosPendientes.filter(
+              item => Number(item?.numFila || 0) >= 2
+            )
           : [];
         setUsuarios(listaUsuarios);
         setRegistrosPendientes(listaPendientes);
@@ -668,10 +676,10 @@
         };
       }, []);
 
-      const actualizarSeleccion_ = value => {
+      const actualizarCodigo_ = value => {
         setForm(previous => ({
           ...previous,
-          seleccion: value,
+          codigo: normalizarTexto_(value),
           existencia: "",
           porcentaje: "",
           maximo: ""
@@ -693,7 +701,7 @@
       const validarForm_ = () => {
         if (!form.usuario) return "Selecciona un usuario responsable.";
         if (!registroSeleccionado) {
-          return "Selecciona un registro pendiente válido de la lista.";
+          return "Selecciona un código pendiente válido de la lista.";
         }
         if (form.existencia === "") return "Captura la existencia actual.";
         if (existencia < 0) return "La existencia no puede ser negativa.";
@@ -812,7 +820,7 @@
 
                     <div className="umm-grid-codigo umm-field-block">
                       <label className="umm-label ml-1">
-                        Código pendiente ({registrosPendientes.length})
+                        Código pendiente ({codigosDisponibles.length})
                       </label>
                       <div className="relative group">
                         <input
@@ -820,15 +828,17 @@
                           list="lista-codigos-ubicaciones-maxmin"
                           className="umm-form-input umm-mono uppercase"
                           disabled={cargando || guardando}
-                          placeholder={cargando ? "Cargando ubicaciones..." : "Código · bodega · ubicación"}
-                          value={form.seleccion}
-                          onChange={event => actualizarSeleccion_(event.target.value)}
+                          placeholder={cargando ? "Cargando códigos..." : "Selecciona un código"}
+                          value={form.codigo}
+                          onChange={event => actualizarCodigo_(event.target.value)}
+                          autoComplete="off"
+                          aria-describedby="umm-ayuda-codigo"
                         />
                         <datalist id="lista-codigos-ubicaciones-maxmin">
-                          {registrosPendientes.map(registro => (
+                          {codigosDisponibles.map((registro, index) => (
                             <option
-                              key={construirClaveSeleccion_(registro)}
-                              value={construirEtiquetaSeleccion_(registro)}
+                              key={`${registro.codigo}-${registro.numFila}-${index}`}
+                              value={registro.codigo}
                             >
                               {registro.descripcion || "SIN DESCRIPCIÓN"}
                             </option>
@@ -840,8 +850,9 @@
                           </div>
                         )}
                       </div>
-                      <span className="umm-helper">
-                        Solo se muestran filas cuya captura de FECHA, HORA y USUARIO está pendiente.
+                      <span id="umm-ayuda-codigo" className="umm-helper">
+                        La lista muestra el código y su descripción. Solo aparecen
+                        códigos con captura inicial pendiente.
                       </span>
                     </div>
 

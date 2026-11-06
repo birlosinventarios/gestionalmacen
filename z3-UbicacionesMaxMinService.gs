@@ -20,6 +20,8 @@
  * - Calcular MAXIMO cuando PORCENTAJE es menor que 100.
  * - Usar EXISTENCIA como MAXIMO cuando PORCENTAJE es 100 y MAXIMO está vacío.
  * - Delegar la persistencia y el control de concurrencia al Repository.
+ * - Construir el bootstrap específico del formulario desde los repositorios.
+ * - Entregar usuarios y códigos pendientes con CODIGO y DESCRIPCION.
  * - Entregar respuestas planas y serializables al Controller.
  *
  * REGLAS DE DOMINIO
@@ -43,6 +45,7 @@
  * - Confiar en FECHA u HORA enviadas por el navegador.
  * - Filtrar usuarios por rol.
  * - Exponer IDs de Spreadsheet ni objetos de Google Apps Script.
+ * - Depender de BootstrapServices para cargar usuarios o códigos pendientes.
  *
  * DEPENDENCIAS GLOBALES
  * - CatalogoRepository.
@@ -52,7 +55,7 @@
  * - toStr_(value) y toStrUpper_(value).
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-SERVICE-2026-11-06-02
+ * @version FORMULARIO-UBICACIONES-MAXMIN-SERVICE-2026-11-06-03
  */
 const FormularioUbicacionesMaxMinService = (() => {
   "use strict";
@@ -64,7 +67,12 @@ const FormularioUbicacionesMaxMinService = (() => {
     MIN_PERCENTAGE: 1,
     MAX_PERCENTAGE: 100,
     ROUNDING_MULTIPLE: 10,
-    FIRST_DATA_ROW: 2
+    FIRST_DATA_ROW: 2,
+    COMPLETE_CAPTURE_FIELDS: Object.freeze([
+      "fecha",
+      "hora",
+      "usuario"
+    ])
   });
 
   // ===========================================================================
@@ -533,6 +541,122 @@ const FormularioUbicacionesMaxMinService = (() => {
     };
   }
 
+  /**
+   * Determina si la captura inicial de una fila ya está completa.
+   *
+   * VALIDACION no interviene en esta etapa. Una fila deja de estar pendiente
+   * únicamente cuando FECHA, HORA y USUARIO tienen contenido.
+   *
+   * @param {!Object} record Registro normalizado del Repository.
+   * @return {boolean} true cuando la captura está completa.
+   * @private
+   */
+  function _isInitialCaptureComplete_(record) {
+    return CFG.COMPLETE_CAPTURE_FIELDS.every(function(fieldName) {
+      return Boolean(toStr_(record && record[fieldName]));
+    });
+  }
+
+  /**
+   * Proyecta un usuario al contrato estable consumido por la vista.
+   *
+   * No aplica filtro por rol.
+   *
+   * @param {!Object} user Usuario normalizado.
+   * @return {!Object} Usuario serializable.
+   * @private
+   */
+  function _projectUser_(user) {
+    return {
+      idusuario: Number(user && user.idusuario || 0),
+      nombre: toStrUpper_(user && user.nombre),
+      rol: toStrUpper_(user && user.rol)
+    };
+  }
+
+  /**
+   * Proyecta una fila pendiente con los datos requeridos por la vista.
+   *
+   * CODIGO y DESCRIPCION alimentan el datalist. numFila permanece como identidad
+   * técnica para actualizar la fila correcta sin exponerla en el texto visible.
+   *
+   * @param {!Object} record Registro normalizado.
+   * @return {!Object} Registro serializable.
+   * @private
+   */
+  function _projectPendingRecord_(record) {
+    return {
+      numFila: Number(record && record.numFila || 0),
+      codigo: toStrUpper_(record && record.codigo),
+      descripcion: toStrUpper_(record && record.descripcion),
+      bodega: toStrUpper_(record && record.bodega),
+      ubicacion: toStrUpper_(record && record.ubicacion),
+      existencia: Number(record && record.existencia || 0),
+      porcentaje: Number(record && record.porcentaje || 0),
+      maximo: Number(record && record.maximo || 0),
+      minimo: Number(record && record.minimo || 0),
+      zonaBodega: toStrUpper_(record && record.zonaBodega),
+      zonaAbastecimiento: toStrUpper_(record && record.zonaAbastecimiento),
+      zonaNivel: toStrUpper_(record && record.zonaNivel),
+      fecha: toStr_(record && record.fecha),
+      hora: toStr_(record && record.hora),
+      usuario: toStrUpper_(record && record.usuario),
+      validacion: toStrUpper_(record && record.validacion)
+    };
+  }
+
+  /**
+   * Ordena registros pendientes por CODIGO y después por numFila.
+   *
+   * Este orden permite que la vista seleccione de manera determinista la fila
+   * física menor cuando un código aparece más de una vez.
+   *
+   * @param {!Object} a Primer registro.
+   * @param {!Object} b Segundo registro.
+   * @return {number} Resultado de comparación.
+   * @private
+   */
+  function _comparePendingRecords_(a, b) {
+    const codeComparison = toStrUpper_(a && a.codigo).localeCompare(
+      toStrUpper_(b && b.codigo),
+      "es-MX",
+      { numeric: true, sensitivity: "base" }
+    );
+
+    return codeComparison !== 0
+      ? codeComparison
+      : Number(a && a.numFila || 0) - Number(b && b.numFila || 0);
+  }
+
+  /**
+   * Construye la lista única de códigos visibles en el datalist.
+   *
+   * Cada elemento contiene únicamente CODIGO y DESCRIPCION. Si existen varias
+   * filas pendientes con el mismo código, se conserva la descripción de la fila
+   * física menor, consistente con la selección determinista de la vista.
+   *
+   * @param {!Array<!Object>} pendingRecords Registros pendientes ordenados.
+   * @return {!Array<!Object>} Códigos únicos para presentación.
+   * @private
+   */
+  function _buildPendingCodes_(pendingRecords) {
+    const seen = new Set();
+    const result = [];
+
+    pendingRecords.forEach(function(record) {
+      const code = toStrUpper_(record && record.codigo);
+      if (!code || seen.has(code)) return;
+
+      seen.add(code);
+      result.push({
+        codigo: code,
+        descripcion: toStrUpper_(record && record.descripcion)
+      });
+    });
+
+    return result;
+  }
+
   // ===========================================================================
   // API DE CONSULTA
   // ===========================================================================
@@ -540,10 +664,11 @@ const FormularioUbicacionesMaxMinService = (() => {
   /**
    * Entrega la configuración técnica del formulario.
    *
-   * Los usuarios y registros pendientes se componen en el Controller a partir de
-   * BootstrapServices. Este método valida además que la hoja física cumpla A:O.
+   * Consulta directamente UsuariosRepository y UbicacionesMaxMinRepository.
+   * Devuelve usuarios, registros pendientes y códigos visibles con CODIGO y
+   * DESCRIPCION, sin depender del bootstrap general de APPALMACEN.
    *
-   * @return {!Object} Bootstrap técnico serializable.
+   * @return {!Object} Bootstrap completo y serializable del formulario.
    */
   function getBootstrap() {
     _validateDependencies_();
@@ -553,14 +678,70 @@ const FormularioUbicacionesMaxMinService = (() => {
       "UbicacionesMaxMinRepository",
       "validarContrato"
     );
+    const getUsers = _requireMethod_(
+      UsuariosRepository,
+      "UsuariosRepository",
+      "getAll"
+    );
+    const getRecords = _requireMethod_(
+      UbicacionesMaxMinRepository,
+      "UbicacionesMaxMinRepository",
+      "getAll"
+    );
+
     const contract = validateContract.call(UbicacionesMaxMinRepository);
+    const rawUsers = getUsers.call(UsuariosRepository);
+    const rawRecords = getRecords.call(UbicacionesMaxMinRepository);
+
+    if (!Array.isArray(rawUsers)) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} UsuariosRepository.getAll no devolvió un arreglo.`
+      );
+    }
+    if (!Array.isArray(rawRecords)) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} UbicacionesMaxMinRepository.getAll no devolvió un arreglo.`
+      );
+    }
+
+    const usuarios = rawUsers
+      .map(_projectUser_)
+      .filter(function(user) {
+        return Boolean(user.nombre);
+      })
+      .sort(function(a, b) {
+        return a.nombre.localeCompare(b.nombre, "es-MX", {
+          numeric: true,
+          sensitivity: "base"
+        });
+      });
+
+    const registrosPendientes = rawRecords
+      .filter(function(record) {
+        return Number(record && record.numFila || 0) >= CFG.FIRST_DATA_ROW;
+      })
+      .filter(function(record) {
+        return !_isInitialCaptureComplete_(record);
+      })
+      .map(_projectPendingRecord_)
+      .filter(function(record) {
+        return Boolean(record.codigo);
+      })
+      .sort(_comparePendingRecords_);
+
+    const codigosPendientes = _buildPendingCodes_(registrosPendientes);
 
     return {
       version: UBICACIONES_MAXMIN_CONFIG.VERSION,
+      usuarios,
+      registrosPendientes,
+      codigosPendientes,
       identityFields: UBICACIONES_MAXMIN_CONFIG.IDENTITY_FIELDS.slice(),
       serverManagedFields:
         UBICACIONES_MAXMIN_CONFIG.SERVER_MANAGED_FIELDS.slice(),
       rules: {
+        listaMuestraCodigoDescripcion: true,
+        seleccionDeterministaPorFilaMenor: true,
         porcentajeCapturadoPorUsuario: true,
         porcentajeMinimo: CFG.MIN_PERCENTAGE,
         porcentajeMaximo: CFG.MAX_PERCENTAGE,
@@ -580,6 +761,12 @@ const FormularioUbicacionesMaxMinService = (() => {
         headers: Array.isArray(contract.headers)
           ? contract.headers.slice()
           : []
+      },
+      diagnostics: {
+        totalUsuarios: usuarios.length,
+        totalRegistros: rawRecords.length,
+        totalPendientes: registrosPendientes.length,
+        totalCodigosPendientes: codigosPendientes.length
       }
     };
   }
@@ -692,11 +879,23 @@ const FormularioUbicacionesMaxMinService = (() => {
       "actualizar"
     );
 
-    return update.call(
+    const updatedRecord = update.call(
       UbicacionesMaxMinRepository,
       command.rowNumber,
       command.record
     );
+
+    if (typeof clearUbicacionesMaxMinCaches_ === "function") {
+      clearUbicacionesMaxMinCaches_();
+    } else if (
+      typeof APPALMACENCache !== "undefined" &&
+      APPALMACENCache &&
+      typeof APPALMACENCache.clearUbicacionesMaxMin === "function"
+    ) {
+      APPALMACENCache.clearUbicacionesMaxMin();
+    }
+
+    return updatedRecord;
   }
 
   // ===========================================================================
