@@ -28,7 +28,7 @@
  * - Un ID de Spreadsheet corresponde al segmento entre `/d/` y `/edit` en su URL.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-2026-10-26-01
+ * @version APPALMACEN-2026-11-06-01
  */
 
 /**
@@ -45,8 +45,7 @@ const FILES = Object.freeze({
   GESTION1: "1xPMnPg_-m7yQQoMq6ku1iwyXRlZC-RjypGpC_2gv4xE",
   GESTION2: "1hXRyADfhVn_teWydRvCisNBEQnqh6U-9wue9A5_zpeo",
   GESTION3: "102KnS9dsTzVxr3XX983MopCGpaGmST9ccf0n_KhYbqc",
-  GESTION4:
-  "1PI4JkHcIl6mHKM9uCtolBGx0olIYdGhZO-ao3_QaT4Q",
+  GESTION4: "1PI4JkHcIl6mHKM9uCtolBGx0olIYdGhZO-ao3_QaT4Q",
   PEDIDOS: "1PJh2JaMH2FVDNOzZ7vTcKlFSJ48R5rYGjsF_HyjMWO0"
 });
 
@@ -84,8 +83,11 @@ const SHEETS = Object.freeze({
   MAT_DOCUMENTOS: Object.freeze({ file: "GESTION3", name: "MAT_DOCUMENTOS" }),
   MAT_DOCUMENTODETALLE: Object.freeze({ file: "GESTION3", name: "MAT_DOCUMENTODETALLE" }),
 
-  /** Maximos y minimos de almacen. Todas estas hojas viven en GESTION4. */
-  UBICACIONES_MAXMIN: Object.freeze({ file: "GESTION4", name: "UBICACIONES_MAXMIN" })
+  /** Ubicaciones, existencias y parámetros de máximos y mínimos. Vive en GESTION4. */
+  UBICACIONES_MAXMIN: Object.freeze({
+    file: "GESTION4",
+    name: "UBICACIONES_MAXMIN"
+  })
 });
 
 /**
@@ -119,6 +121,27 @@ const COL = Object.freeze({
   SINCRONIZACION_EXISTENCIAS: Object.freeze({ CLAVE: 0, IDUNICO: 1, TIPOMOVIMIENTO: 2, IDPRODUCTO: 3, CODIGO: 4, BODEGA_SALIDA: 5, BODEGA_ENTRADA: 6, CANTIDAD: 7, FECHA_APLICACION: 8, RESULTADO: 9 }),
   
   MAXMIN: Object.freeze({ CODIGO: 0, MINIMO: 1, MAXIMO: 2 }),
+
+  /**
+   * Contrato físico de la hoja UBICACIONES_MAXMIN, rango A:N.
+   * Los índices utilizan base cero y deben coincidir con la fila de encabezados.
+   */
+  UBICACIONES_MAXMIN: Object.freeze({
+    CODIGO: 0,
+    DESCRIPCION: 1,
+    BODEGA: 2,
+    UBICACION: 3,
+    EXISTENCIA: 4,
+    PORCENTAJE: 5,
+    MAXIMO: 6,
+    MINIMO: 7,
+    ZONA_BODEGA: 8,
+    ZONA_ABASTECIMIENTO: 9,
+    ZONA_NIVEL: 10,
+    FECHA: 11,
+    HORA: 12,
+    USUARIO: 13
+  }),
   
   AUDITORIA_EXCEDENTES: Object.freeze({ IDAUDITORIA: 0, FECHA: 1, HORAINICIO: 2, HORAFIN: 3, DURACIONMIN: 4, AUDITOR: 5, TIPOAUDITORIA: 6, BODEGAOBJETIVO: 7, ESTATUS: 8, UBICACIONESAUDITADAS: 9, UBICACIONESCONDIFERENCIA: 10, IDUNICOS_ESPERADOS_TOTALES: 11, IDUNICOS_ESCANEADOS_TOTALES: 12, IDUNICOS_CORRECTOS_TOTALES: 13, IDUNICOS_FALTANTES_TOTALES: 14, IDUNICOS_SOBRANTES_TOTALES: 15, CONFIABILIDAD_TOTAL: 16, OBSERVACIONES: 17 }),
   
@@ -234,6 +257,106 @@ const COL = Object.freeze({
     VERIFICADO_UBICACIONHORA: 15,
     EMPAQUE_CONTENEDORTIPO: 16,
     EMPAQUE_CONTENEDORIDENTIFICADOR: 17
+  })
+});
+
+/**
+ * Encabezados físicos de la hoja UBICACIONES_MAXMIN.
+ *
+ * El orden debe coincidir exactamente con COL.UBICACIONES_MAXMIN y con la fila 1
+ * de la hoja física. Cualquier cambio requiere una migración coordinada de datos,
+ * repositorio, servicio y vista.
+ *
+ * @readonly
+ * @type {ReadonlyArray<string>}
+ */
+const UBICACIONES_MAXMIN_HEADERS = Object.freeze([
+  "CODIGO",
+  "DESCRIPCION",
+  "BODEGA",
+  "UBICACION",
+  "EXISTENCIA",
+  "PORCENTAJE",
+  "MAXIMO",
+  "MINIMO",
+  "ZONA_BODEGA",
+  "ZONA_ABASTECIMIENTO",
+  "ZONA_NIVEL",
+  "FECHA",
+  "HORA",
+  "USUARIO"
+]);
+
+/**
+ * Ancho esperado de UBICACIONES_MAXMIN, derivado del contrato de encabezados.
+ * El resultado esperado es 14 columnas, correspondientes al rango A:N.
+ *
+ * @readonly
+ * @type {number}
+ */
+const UBICACIONES_MAXMIN_EXPECTED_WIDTH =
+  UBICACIONES_MAXMIN_HEADERS.length;
+
+/**
+ * Configuración declarativa del módulo FormularioUbicacionesMaxMin.
+ *
+ * Este objeto no contiene lógica de negocio. El Repository validará el contrato
+ * físico de la hoja y el Service aplicará las reglas, límites y códigos de error.
+ *
+ * IDENTIDAD FUNCIONAL PROPUESTA
+ * - CODIGO + BODEGA + UBICACION identifica un registro lógico.
+ *
+ * CAMPOS ADMINISTRADOS POR EL SERVIDOR
+ * - FECHA, HORA y USUARIO no deben aceptarse como valores autoritativos enviados
+ *   por el navegador. Deben generarse al persistir la operación.
+ *
+ * @readonly
+ */
+const UBICACIONES_MAXMIN_CONFIG = Object.freeze({
+  VERSION: "UBICACIONES-MAXMIN-2026-11-06-01",
+  SHEET_KEY: "UBICACIONES_MAXMIN",
+
+  IDENTITY_FIELDS: Object.freeze([
+    "CODIGO",
+    "BODEGA",
+    "UBICACION"
+  ]),
+
+  SERVER_MANAGED_FIELDS: Object.freeze([
+    "FECHA",
+    "HORA",
+    "USUARIO"
+  ]),
+
+  LIMITS: Object.freeze({
+    CODIGO_MAX_LENGTH: 100,
+    DESCRIPCION_MAX_LENGTH: 500,
+    BODEGA_MAX_LENGTH: 150,
+    UBICACION_MAX_LENGTH: 150,
+    ZONA_MAX_LENGTH: 150,
+    USUARIO_MAX_LENGTH: 250,
+    PORCENTAJE_MINIMO: 0,
+    PORCENTAJE_MAXIMO: 100,
+    MAX_REGISTROS_POR_LOTE: 1000,
+    LOCK_TIMEOUT_MS: 30000
+  }),
+
+  ERROR_CODES: Object.freeze({
+    PAYLOAD_INVALIDO: "UBMAXMIN_PAYLOAD_INVALIDO",
+    CODIGO_REQUERIDO: "UBMAXMIN_CODIGO_REQUERIDO",
+    BODEGA_REQUERIDA: "UBMAXMIN_BODEGA_REQUERIDA",
+    UBICACION_REQUERIDA: "UBMAXMIN_UBICACION_REQUERIDA",
+    EXISTENCIA_INVALIDA: "UBMAXMIN_EXISTENCIA_INVALIDA",
+    MAXIMO_INVALIDO: "UBMAXMIN_MAXIMO_INVALIDO",
+    MINIMO_INVALIDO: "UBMAXMIN_MINIMO_INVALIDO",
+    RANGO_INVALIDO: "UBMAXMIN_RANGO_INVALIDO",
+    PORCENTAJE_INVALIDO: "UBMAXMIN_PORCENTAJE_INVALIDO",
+    ENCABEZADOS_INVALIDOS: "UBMAXMIN_ENCABEZADOS_INVALIDOS",
+    ANCHO_INVALIDO: "UBMAXMIN_ANCHO_INVALIDO",
+    REGISTRO_DUPLICADO: "UBMAXMIN_REGISTRO_DUPLICADO",
+    REGISTRO_NO_ENCONTRADO: "UBMAXMIN_REGISTRO_NO_ENCONTRADO",
+    LOTE_EXCEDIDO: "UBMAXMIN_LOTE_EXCEDIDO",
+    LOCK_TIMEOUT: "UBMAXMIN_LOCK_TIMEOUT"
   })
 });
 
@@ -748,7 +871,8 @@ const APPALMACEN_ROUTING = Object.freeze({
     "FormularioEtiquetasExcedentes", "FormularioEtiquetasExcedentesReimpresion",
     "GestorExcedentes", "ConsultaExcedentes", "NegativosBirlos",
     "MonitorReabastecimiento", "AuditoriaExcedentes", "AuditoriaExcedentesCaptura",
-    "AuditoriaExcedentesDetalle", "PrototipoExcedentes", "FormularioDetallesProducto"
+    "AuditoriaExcedentesDetalle", "PrototipoExcedentes", "FormularioDetallesProducto",
+    "FormularioUbicacionesMaxMin"
   ]),
   PRINT_PAGES: Object.freeze(["imprimir", "EtiquetaExcedentesImpresa"]),
   TEST_PAGE: "Pruebas",
