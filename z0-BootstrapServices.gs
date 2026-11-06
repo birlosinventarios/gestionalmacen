@@ -5,7 +5,8 @@
  * APPALMACEN.
  *
  * Responsabilidades:
- * - Consultar usuarios, ubicaciones de excedentes, catálogo y etiquetas.
+ * - Consultar usuarios, ubicaciones de excedentes, catálogo, etiquetas y
+ *   ubicaciones MaxMin.
  * - Normalizar códigos, descripciones, bodegas y ubicaciones.
  * - Construir mapas de acceso rápido para el cliente.
  * - Eliminar códigos duplicados mediante conjuntos.
@@ -19,6 +20,7 @@
  * - UbicacionesExcedentesRepository.
  * - CatalogoRepository.
  * - EtiquetasRepository.
+ * - UbicacionesMaxMinRepository.
  * - APPALMACENCache, opcional.
  *
  * Contrato público:
@@ -32,6 +34,9 @@
  * - mapaCatalogo: producto indexado por código.
  * - mapaMedidas: dimensiones de etiqueta indexadas por nombre.
  * - nombresEtiquetas: nombres de etiqueta ordenados.
+ * - registrosUbicacionesMaxMin: registros normalizados de GESTION4.
+ * - registrosPendientesUbicacionesMaxMin: registros sin captura completa.
+ * - codigosPendientesUbicacionesMaxMin: códigos pendientes únicos y ordenados.
  *
  * Invariantes:
  * - Los códigos, descripciones, bodegas y ubicaciones se normalizan según el
@@ -40,6 +45,11 @@
  *   existen duplicados en la fuente.
  * - El fallback de error mantiene siempre todas las propiedades del contrato.
  * - forceRefresh solo se considera verdadero cuando su valor es true.
+ * - Un registro MaxMin se considera concluido cuando FECHA, HORA y USUARIO
+ *   contienen valores no vacíos. VALIDACION pertenece a un flujo posterior.
+ *
+ * @author Sigifredo de la Cruz Ramos
+ * @version BOOTSTRAP-SERVICES-2026-11-06-02
  */
 
 const BootstrapServices = (() => {
@@ -154,6 +164,75 @@ const BootstrapServices = (() => {
   }
 
   /**
+   * Proyecta un registro de UBICACIONES_MAXMIN a un contrato estable para las
+   * vistas sin exponer arreglos físicos ni referencias internas.
+   *
+   * @param {Object} item Registro normalizado por el repositorio.
+   * @return {Object} Copia serializable.
+   * @private
+   */
+  function proyectarUbicacionMaxMin_(item) {
+    return {
+      numFila: Number(item.numFila || 0),
+      codigo: String(item.codigo || "").trim().toUpperCase(),
+      descripcion: String(item.descripcion || "").trim().toUpperCase(),
+      bodega: String(item.bodega || "").trim().toUpperCase(),
+      ubicacion: String(item.ubicacion || "").trim().toUpperCase(),
+      existencia: Number(item.existencia || 0),
+      porcentaje: Number(item.porcentaje || 0),
+      maximo: Number(item.maximo || 0),
+      minimo: Number(item.minimo || 0),
+      zonaBodega: String(item.zonaBodega || "").trim().toUpperCase(),
+      zonaAbastecimiento: String(item.zonaAbastecimiento || "").trim().toUpperCase(),
+      zonaNivel: String(item.zonaNivel || "").trim().toUpperCase(),
+      fecha: String(item.fecha || "").trim(),
+      hora: String(item.hora || "").trim(),
+      usuario: String(item.usuario || "").trim(),
+      validacion: String(item.validacion || "").trim().toUpperCase()
+    };
+  }
+
+  /**
+   * Indica si la captura inicial de una ubicación MaxMin está completa.
+   * VALIDACION no participa en este filtro porque corresponde a otra etapa.
+   *
+   * @param {Object} item Registro proyectado.
+   * @return {boolean}
+   * @private
+   */
+  function estaCapturaMaxMinCompleta_(item) {
+    return Boolean(item.fecha && item.hora && item.usuario);
+  }
+
+  /**
+   * Normaliza, ordena y segmenta UBICACIONES_MAXMIN.
+   *
+   * @param {Array<Object>} registros Datos del repositorio.
+   * @return {{registros:Array<Object>,pendientes:Array<Object>,codigosPendientes:Array<string>}}
+   * @private
+   */
+  function procesarUbicacionesMaxMin_(registros) {
+    const normalizados = (Array.isArray(registros) ? registros : [])
+      .map(proyectarUbicacionMaxMin_)
+      .filter(item => item.codigo)
+      .sort((a, b) =>
+        a.codigo.localeCompare(b.codigo, "es-MX", { numeric: true }) ||
+        a.bodega.localeCompare(b.bodega, "es-MX", { numeric: true }) ||
+        a.ubicacion.localeCompare(b.ubicacion, "es-MX", { numeric: true })
+      );
+
+    const pendientes = normalizados.filter(
+      item => !estaCapturaMaxMinCompleta_(item)
+    );
+
+    const codigosPendientes = [...new Set(
+      pendientes.map(item => item.codigo).filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, "es-MX", { numeric: true }));
+
+    return { registros: normalizados, pendientes, codigosPendientes };
+  }
+
+  /**
    * Devuelve una copia de los usuarios ordenada por nombre visible.
    *
    * @param {Array<Object>} usuarios Usuarios obtenidos del repositorio.
@@ -207,6 +286,16 @@ const BootstrapServices = (() => {
       logDuracion_("EtiquetasRepository.getAll", t, { total: etiquetas.length });
 
       t = Date.now();
+      const ubicacionesMaxMin =
+        typeof UbicacionesMaxMinRepository !== "undefined" &&
+        typeof UbicacionesMaxMinRepository.getAll === "function"
+          ? UbicacionesMaxMinRepository.getAll()
+          : [];
+      logDuracion_("UbicacionesMaxMinRepository.getAll", t, {
+        total: ubicacionesMaxMin.length
+      });
+
+      t = Date.now();
       const usuariosOrdenados = usuariosOrdenados_(usuarios);
       logDuracion_("usuariosOrdenados_", t, { total: usuariosOrdenados.length });
 
@@ -244,6 +333,18 @@ const BootstrapServices = (() => {
       });
 
       t = Date.now();
+      const {
+        registros: registrosUbicacionesMaxMin,
+        pendientes: registrosPendientesUbicacionesMaxMin,
+        codigosPendientes: codigosPendientesUbicacionesMaxMin
+      } = procesarUbicacionesMaxMin_(ubicacionesMaxMin);
+      logDuracion_("procesarUbicacionesMaxMin_", t, {
+        registros: registrosUbicacionesMaxMin.length,
+        pendientes: registrosPendientesUbicacionesMaxMin.length,
+        codigosPendientes: codigosPendientesUbicacionesMaxMin.length
+      });
+
+      t = Date.now();
       const resultado = {
         usuarios: usuariosOrdenados,
         bodegas,
@@ -251,7 +352,10 @@ const BootstrapServices = (() => {
         codigos,
         mapaCatalogo,
         mapaMedidas,
-        nombresEtiquetas
+        nombresEtiquetas,
+        registrosUbicacionesMaxMin,
+        registrosPendientesUbicacionesMaxMin,
+        codigosPendientesUbicacionesMaxMin
       };
 
       logDuracion_("Construcción payload final", t);
@@ -270,7 +374,10 @@ const BootstrapServices = (() => {
         codigos: [],
         mapaCatalogo: {},
         mapaMedidas: {},
-        nombresEtiquetas: []
+        nombresEtiquetas: [],
+        registrosUbicacionesMaxMin: [],
+        registrosPendientesUbicacionesMaxMin: [],
+        codigosPendientesUbicacionesMaxMin: []
       };
     }
   }
