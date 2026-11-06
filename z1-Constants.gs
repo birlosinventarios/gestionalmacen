@@ -28,7 +28,7 @@
  * - Un ID de Spreadsheet corresponde al segmento entre `/d/` y `/edit` en su URL.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-2026-11-06-01
+ * @version APPALMACEN-2026-11-06-02
  */
 
 /**
@@ -123,7 +123,7 @@ const COL = Object.freeze({
   MAXMIN: Object.freeze({ CODIGO: 0, MINIMO: 1, MAXIMO: 2 }),
 
   /**
-   * Contrato físico de la hoja UBICACIONES_MAXMIN, rango A:N.
+   * Contrato físico de la hoja UBICACIONES_MAXMIN, rango A:O.
    * Los índices utilizan base cero y deben coincidir con la fila de encabezados.
    */
   UBICACIONES_MAXMIN: Object.freeze({
@@ -140,7 +140,8 @@ const COL = Object.freeze({
     ZONA_NIVEL: 10,
     FECHA: 11,
     HORA: 12,
-    USUARIO: 13
+    USUARIO: 13,
+    VALIDACION: 14
   }),
   
   AUDITORIA_EXCEDENTES: Object.freeze({ IDAUDITORIA: 0, FECHA: 1, HORAINICIO: 2, HORAFIN: 3, DURACIONMIN: 4, AUDITOR: 5, TIPOAUDITORIA: 6, BODEGAOBJETIVO: 7, ESTATUS: 8, UBICACIONESAUDITADAS: 9, UBICACIONESCONDIFERENCIA: 10, IDUNICOS_ESPERADOS_TOTALES: 11, IDUNICOS_ESCANEADOS_TOTALES: 12, IDUNICOS_CORRECTOS_TOTALES: 13, IDUNICOS_FALTANTES_TOTALES: 14, IDUNICOS_SOBRANTES_TOTALES: 15, CONFIABILIDAD_TOTAL: 16, OBSERVACIONES: 17 }),
@@ -290,7 +291,7 @@ const UBICACIONES_MAXMIN_HEADERS = Object.freeze([
 
 /**
  * Ancho esperado de UBICACIONES_MAXMIN, derivado del contrato de encabezados.
- * El resultado esperado es 14 columnas, correspondientes al rango A:N.
+ * El resultado esperado es 15 columnas, correspondientes al rango A:O.
  *
  * @readonly
  * @type {number}
@@ -308,13 +309,14 @@ const UBICACIONES_MAXMIN_EXPECTED_WIDTH =
  * - CODIGO + BODEGA + UBICACION identifica un registro lógico.
  *
  * CAMPOS ADMINISTRADOS POR EL SERVIDOR
- * - FECHA, HORA y USUARIO no deben aceptarse como valores autoritativos enviados
- *   por el navegador. Deben generarse al persistir la operación.
+ * - FECHA, HORA, USUARIO y VALIDACION no deben aceptarse como valores
+ *   autoritativos enviados por el navegador. Deben resolverse al persistir la
+ *   operación conforme al flujo de captura y validación.
  *
  * @readonly
  */
 const UBICACIONES_MAXMIN_CONFIG = Object.freeze({
-  VERSION: "UBICACIONES-MAXMIN-2026-11-06-01",
+  VERSION: "UBICACIONES-MAXMIN-2026-11-06-02",
   SHEET_KEY: "UBICACIONES_MAXMIN",
 
   IDENTITY_FIELDS: Object.freeze([
@@ -326,7 +328,8 @@ const UBICACIONES_MAXMIN_CONFIG = Object.freeze({
   SERVER_MANAGED_FIELDS: Object.freeze([
     "FECHA",
     "HORA",
-    "USUARIO"
+    "USUARIO",
+    "VALIDACION"
   ]),
 
   LIMITS: Object.freeze({
@@ -352,6 +355,7 @@ const UBICACIONES_MAXMIN_CONFIG = Object.freeze({
     MINIMO_INVALIDO: "UBMAXMIN_MINIMO_INVALIDO",
     RANGO_INVALIDO: "UBMAXMIN_RANGO_INVALIDO",
     PORCENTAJE_INVALIDO: "UBMAXMIN_PORCENTAJE_INVALIDO",
+    VALIDACION_INVALIDA: "UBMAXMIN_VALIDACION_INVALIDA",
     ENCABEZADOS_INVALIDOS: "UBMAXMIN_ENCABEZADOS_INVALIDOS",
     ANCHO_INVALIDO: "UBMAXMIN_ANCHO_INVALIDO",
     REGISTRO_DUPLICADO: "UBMAXMIN_REGISTRO_DUPLICADO",

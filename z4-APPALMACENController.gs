@@ -65,6 +65,7 @@ var APPALMACEN_VISTAS_PERMITIDAS = Object.freeze([
   "PrototipoTraspasos",
   "ConciliacionSaldo",
   "VerificacionEntrada",
+  "FormularioUbicacionesMaxMin",
 
   // Vistas ocultas o utilizadas por navegación interna.
   "AuditoriaExcedentesDetalle",

@@ -1150,6 +1150,23 @@
         category: "Catálogo",
         header: { showIdentity: true },
         printing: { showControls: false }
+      },
+      /**
+       * Herramienta de parametrización física de ubicaciones.
+       *
+       * La vista registra existencia, porcentaje ocupado y capacidad máxima de
+       * los contenedores definidos en UBICACIONES_MAXMIN. Se mantiene dentro de
+       * la categoría Catálogo porque completa datos maestros operativos y no
+       * ejecuta movimientos de inventario.
+       */
+      {
+        id: "FormularioUbicacionesMaxMin",
+        name: "Ubicaciones MaxMin",
+        description: "Captura existencia, ocupación y capacidad máxima por ubicación",
+        icon: "warehouse",
+        category: "Catálogo",
+        header: { showIdentity: true },
+        printing: { showControls: false }
       }
     ];
 
@@ -1316,6 +1333,7 @@
       "__CONCILIACION_SALDO_ROOT__",
       "__VERIFICACION_ENTRADA_ROOT__",
       "__FORMULARIO_DETALLES_PRODUCTO_ROOT__",
+      "__FORMULARIO_UBICACIONES_MAXMIN_ROOT__",
       "__FORMULARIO_ETIQUETAS_EXCEDENTES_ROOT__",
       "__FORMULARIO_ETIQUETAS_EXCEDENTES_REIMPRESION_ROOT__",
       "__FORMULARIO_ETIQUETAS_IDENTIFICADORAS_ROOT__"
