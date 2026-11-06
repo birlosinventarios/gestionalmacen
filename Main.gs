@@ -10,6 +10,10 @@
  * - Aplicar los recursos comunes a las plantillas HTML.
  * - Abrir la aplicación web y conservar accesos históricos desde el Spreadsheet.
  * - Proporcionar helpers para incluir parciales HTML y datos de respaldo.
+ * - Normalizar parámetros HTTP antes de consultar APPALMACEN_ROUTING.
+ * - Utilizar la zona horaria configurada en el proyecto para fechas de impresión.
+ * - Mantener FormularioUbicacionesMaxMin accesible mediante la lista declarativa
+ *   APPALMACEN_ROUTING.PAGES_ALLOWED, sin crear rutas especiales.
  *
  * Dependencias globales:
  * - SpreadsheetApp
@@ -30,6 +34,15 @@
  * Compatibilidad histórica:
  * Las funciones abrir* adicionales se conservan porque pueden estar asociadas
  * con menús, botones, macros o accesos directos existentes.
+ *
+ * Seguridad:
+ * - Las páginas se validan contra APPALMACEN_ROUTING.PAGES_ALLOWED.
+ * - Las salidas de error escapan contenido dinámico.
+ * - Los nombres de parciales incluidos se restringen a identificadores seguros.
+ * - Las URL insertadas en JavaScript se serializan como JSON escapado.
+ *
+ * @author Sigifredo de la Cruz Ramos
+ * @version APPALMACEN-MAIN-2026-11-06-02
  */
 
 /** Nombre del menú personalizado visible en el Spreadsheet. */
@@ -43,6 +56,50 @@ const APPALMACEN_DIALOG_SIZE_ = Object.freeze({
   WIDTH: 1400,
   HEIGHT: 1200
 });
+
+/** Configuración técnica privada del punto de entrada. */
+const APPALMACEN_MAIN_CONFIG_ = Object.freeze({
+  SAFE_FILE_NAME_PATTERN: /^[A-Za-z0-9_-]+$/,
+  MAX_FILE_NAME_LENGTH: 100,
+  PRINT_DATE_FORMAT: "dd/MM/yyyy hh:mm a",
+  ERROR_TITLE: "Error de carga"
+});
+
+/**
+ * Normaliza un parámetro recibido desde una solicitud HTTP o helper interno.
+ *
+ * @param {*} value Valor original.
+ * @return {string} Texto sin espacios exteriores.
+ * @private
+ */
+function APPALMACEN_toStr_(value) {
+  return String(value == null ? "" : value).trim();
+}
+
+/**
+ * Valida un nombre lógico de plantilla o parcial.
+ *
+ * Se rechazan extensiones, puntos, rutas, espacios y separadores. La autorización
+ * funcional de páginas continúa en APPALMACEN_ROUTING.PAGES_ALLOWED.
+ *
+ * @param {*} fileName Nombre lógico sin extensión.
+ * @return {string} Nombre normalizado.
+ * @throws {Error} Si el nombre tiene un formato inseguro.
+ * @private
+ */
+function APPALMACEN_requireSafeFileName_(fileName) {
+  var normalizedName = APPALMACEN_toStr_(fileName);
+  if (!normalizedName) {
+    throw new Error("El nombre del archivo es obligatorio.");
+  }
+  if (
+    normalizedName.length > APPALMACEN_MAIN_CONFIG_.MAX_FILE_NAME_LENGTH ||
+    !APPALMACEN_MAIN_CONFIG_.SAFE_FILE_NAME_PATTERN.test(normalizedName)
+  ) {
+    throw new Error("El nombre del archivo contiene caracteres no permitidos.");
+  }
+  return normalizedName;
+}
 
 /**
  * Escapa un valor antes de insertarlo en contenido HTML generado manualmente.
@@ -104,8 +161,10 @@ function APPALMACEN_buildErrorOutput_(title, error) {
  * @private
  */
 function APPALMACEN_renderPage_(fileName, pageName, title) {
-  var template = HtmlService.createTemplateFromFile(fileName);
-  APPALMACEN_applyTemplateImports_(template, pageName);
+  var safeFileName = APPALMACEN_requireSafeFileName_(fileName);
+  var safePageName = APPALMACEN_requireSafeFileName_(pageName);
+  var template = HtmlService.createTemplateFromFile(safeFileName);
+  APPALMACEN_applyTemplateImports_(template, safePageName);
 
   return template
     .evaluate()
@@ -127,13 +186,19 @@ function APPALMACEN_renderPage_(fileName, pageName, title) {
  * @private
  */
 function APPALMACEN_openModal_(fileName, dialogTitle, width, height) {
+  var safeFileName = APPALMACEN_requireSafeFileName_(fileName);
+  var finalWidth = Number(width) || APPALMACEN_DIALOG_SIZE_.WIDTH;
+  var finalHeight = Number(height) || APPALMACEN_DIALOG_SIZE_.HEIGHT;
   var html = HtmlService
-    .createTemplateFromFile(fileName)
+    .createTemplateFromFile(safeFileName)
     .evaluate()
-    .setWidth(width || APPALMACEN_DIALOG_SIZE_.WIDTH)
-    .setHeight(height || APPALMACEN_DIALOG_SIZE_.HEIGHT);
+    .setWidth(finalWidth)
+    .setHeight(finalHeight);
 
-  SpreadsheetApp.getUi().showModalDialog(html, dialogTitle);
+  SpreadsheetApp.getUi().showModalDialog(
+    html,
+    APPALMACEN_toStr_(dialogTitle) || "APPALMACEN"
+  );
 }
 
 /**
@@ -184,7 +249,8 @@ function doGet(e) {
     }
   }
 
-  var pagina = parameters.p || APPALMACEN_TEMPLATE.DEFAULT_PAGE;
+  var pagina = APPALMACEN_toStr_(parameters.p) ||
+    APPALMACEN_TEMPLATE.DEFAULT_PAGE;
 
   if (APPALMACEN_ROUTING.PRINT_PAGES.indexOf(pagina) !== -1) {
     try {
@@ -197,8 +263,8 @@ function doGet(e) {
         : [];
       printTemplate.fechaHora = Utilities.formatDate(
         new Date(),
-        "GMT-6",
-        "dd/MM/yyyy hh:mm a"
+        Session.getScriptTimeZone(),
+        APPALMACEN_MAIN_CONFIG_.PRINT_DATE_FORMAT
       );
 
       return printTemplate
@@ -232,7 +298,10 @@ function doGet(e) {
       APPALMACEN_BRAND.DOCUMENT_TITLE
     );
   } catch (error) {
-    return APPALMACEN_buildErrorOutput_("Error de carga", error);
+    return APPALMACEN_buildErrorOutput_(
+      APPALMACEN_MAIN_CONFIG_.ERROR_TITLE,
+      error
+    );
   }
 }
 
@@ -324,7 +393,8 @@ function abrirFormularioTraspasos() {
  * @return {void}
  */
 function abrirAppAlmacen() {
-  var template = HtmlService.createTemplateFromFile("APPALMACEN");
+  var shellFileName = APPALMACEN_requireSafeFileName_("APPALMACEN");
+  var template = HtmlService.createTemplateFromFile(shellFileName);
   APPALMACEN_applyTemplateImports_(
     template,
     APPALMACEN_TEMPLATE.DEFAULT_PAGE
@@ -388,11 +458,7 @@ function abrirFormularioMonitorTraspasos() {
  * @return {string} Contenido HTML evaluado.
  */
 function incluir(nombreArchivo) {
-  var fileName = String(nombreArchivo || "").trim();
-
-  if (!fileName) {
-    throw new Error("incluir: el nombre del archivo es obligatorio.");
-  }
+  var fileName = APPALMACEN_requireSafeFileName_(nombreArchivo);
 
   return HtmlService
     .createTemplateFromFile(fileName)

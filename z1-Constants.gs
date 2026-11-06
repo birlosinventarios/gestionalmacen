@@ -28,7 +28,7 @@
  * - Un ID de Spreadsheet corresponde al segmento entre `/d/` y `/edit` en su URL.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-2026-11-06-02
+ * @version APPALMACEN-2026-11-06-03
  */
 
 /**
@@ -308,15 +308,26 @@ const UBICACIONES_MAXMIN_EXPECTED_WIDTH =
  * IDENTIDAD FUNCIONAL PROPUESTA
  * - CODIGO + BODEGA + UBICACION identifica un registro lógico.
  *
- * CAMPOS ADMINISTRADOS POR EL SERVIDOR
- * - FECHA, HORA, USUARIO y VALIDACION no deben aceptarse como valores
- *   autoritativos enviados por el navegador. Deben resolverse al persistir la
- *   operación conforme al flujo de captura y validación.
+ * AUTORIDAD DE CAMPOS
+ * - FECHA y HORA son generadas exclusivamente por el servidor.
+ * - USUARIO es seleccionado por el cliente y validado por el Service contra
+ *   UsuariosRepository antes de persistirse.
+ * - VALIDACION pertenece a un flujo posterior y se conserva durante la captura
+ *   inicial; el navegador no puede sobrescribirla.
+ * - CODIGO, BODEGA, UBICACION, MINIMO y zonas se recuperan de la fila física
+ *   autoritativa cuando se actualiza mediante numFila.
+ *
+ * REGLAS DE CAPTURA
+ * - EXISTENCIA admite enteros mayores o iguales a cero.
+ * - PORCENTAJE admite enteros entre 1 y 100.
+ * - Si PORCENTAJE es menor que 100, MAXIMO se calcula en el Service y se redondea
+ *   al múltiplo de diez más cercano.
+ * - Si PORCENTAJE es 100, MAXIMO puede capturarse; vacío equivale a EXISTENCIA.
  *
  * @readonly
  */
 const UBICACIONES_MAXMIN_CONFIG = Object.freeze({
-  VERSION: "UBICACIONES-MAXMIN-2026-11-06-02",
+  VERSION: "UBICACIONES-MAXMIN-2026-11-06-03",
   SHEET_KEY: "UBICACIONES_MAXMIN",
 
   IDENTITY_FIELDS: Object.freeze([
@@ -325,12 +336,41 @@ const UBICACIONES_MAXMIN_CONFIG = Object.freeze({
     "UBICACION"
   ]),
 
+  /** Campos generados directamente por el servidor. */
   SERVER_MANAGED_FIELDS: Object.freeze([
     "FECHA",
-    "HORA",
-    "USUARIO",
+    "HORA"
+  ]),
+
+  /** Campos seleccionados en cliente y autorizados por el Service. */
+  SERVER_VALIDATED_FIELDS: Object.freeze([
+    "USUARIO"
+  ]),
+
+  /** Campos protegidos que la captura inicial debe conservar. */
+  PROTECTED_FIELDS: Object.freeze([
     "VALIDACION"
   ]),
+
+  /** Campos recuperados desde la fila física autoritativa. */
+  ROW_AUTHORITATIVE_FIELDS: Object.freeze([
+    "CODIGO",
+    "BODEGA",
+    "UBICACION",
+    "MINIMO",
+    "ZONA_BODEGA",
+    "ZONA_ABASTECIMIENTO",
+    "ZONA_NIVEL"
+  ]),
+
+  CAPTURE_RULES: Object.freeze({
+    EXISTENCIA_MINIMA: 0,
+    PORCENTAJE_MINIMO: 1,
+    PORCENTAJE_MAXIMO: 100,
+    MAXIMO_EDITABLE_AL_CIEN: true,
+    MAXIMO_VACIO_AL_CIEN_USA_EXISTENCIA: true,
+    REDONDEO_MAXIMO_MULTIPLO: 10
+  }),
 
   LIMITS: Object.freeze({
     CODIGO_MAX_LENGTH: 100,
@@ -339,7 +379,7 @@ const UBICACIONES_MAXMIN_CONFIG = Object.freeze({
     UBICACION_MAX_LENGTH: 150,
     ZONA_MAX_LENGTH: 150,
     USUARIO_MAX_LENGTH: 250,
-    PORCENTAJE_MINIMO: 0,
+    PORCENTAJE_MINIMO: 1,
     PORCENTAJE_MAXIMO: 100,
     MAX_REGISTROS_POR_LOTE: 1000,
     LOCK_TIMEOUT_MS: 30000
@@ -347,6 +387,9 @@ const UBICACIONES_MAXMIN_CONFIG = Object.freeze({
 
   ERROR_CODES: Object.freeze({
     PAYLOAD_INVALIDO: "UBMAXMIN_PAYLOAD_INVALIDO",
+    USUARIO_REQUERIDO: "UBMAXMIN_USUARIO_REQUERIDO",
+    USUARIO_NO_ENCONTRADO: "UBMAXMIN_USUARIO_NO_ENCONTRADO",
+    USUARIO_DUPLICADO: "UBMAXMIN_USUARIO_DUPLICADO",
     CODIGO_REQUERIDO: "UBMAXMIN_CODIGO_REQUERIDO",
     BODEGA_REQUERIDA: "UBMAXMIN_BODEGA_REQUERIDA",
     UBICACION_REQUERIDA: "UBMAXMIN_UBICACION_REQUERIDA",

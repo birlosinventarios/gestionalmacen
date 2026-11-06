@@ -12,6 +12,8 @@
  * - Evaluar plantillas HTML que puedan contener scriptlets controlados.
  * - Registrar tiempos de ejecución y errores con un formato uniforme.
  * - Propagar errores públicos sin exponer detalles internos innecesarios.
+ * - Autorizar explícitamente FormularioUbicacionesMaxMin como archivo lógico.
+ * - Conservar códigos funcionales de error cuando estén disponibles.
  *
  * Dependencias globales:
  * - BootstrapServices.getInfoInicial().
@@ -29,6 +31,7 @@
  * - APPALMACENController_obtenerContenidoVista(nombreArchivo).
  *
  * @author Sigifredo de la Cruz Ramos
+ * @version APPALMACEN-CONTROLLER-2026-11-06-02
  */
 
 "use strict";
@@ -38,7 +41,13 @@ var APPALMACEN_CONTROLLER_CONFIG = Object.freeze({
   LOG_PREFIX: "[APPALMACEN][CONTROLLER]",
   VIEW_NAME_PATTERN: /^[A-Za-z0-9_-]+$/,
   BOOTSTRAP_OPERATION: "APPALMACENController_getBootstrap",
-  VIEW_OPERATION: "APPALMACENController_obtenerContenidoVista"
+  VIEW_OPERATION: "APPALMACENController_obtenerContenidoVista",
+  MAX_VIEW_NAME_LENGTH: 80,
+  MAX_HTML_CHARS: 5000000,
+  PUBLIC_MESSAGES: Object.freeze({
+    BOOTSTRAP_FAILED: "No se pudo inicializar APPALMACEN.",
+    VIEW_FAILED: "No se pudo cargar la vista solicitada."
+  })
 });
 
 /**
@@ -57,6 +66,7 @@ var APPALMACEN_VISTAS_PERMITIDAS = Object.freeze([
   "FormularioEtiquetasExcedentes",
   "FormularioEtiquetasExcedentesReimpresion",
   "FormularioDetallesProducto",
+  "FormularioUbicacionesMaxMin",
   "HistorialTraspasos",
   "GestorExcedentes",
   "NegativosBirlos",
@@ -143,7 +153,11 @@ function _appalmacen_toStr_(value) {
  */
 function _appalmacen_nombreVistaValido_(nombreArchivo) {
   var normalizedName = _appalmacen_toStr_(nombreArchivo);
-  return APPALMACEN_CONTROLLER_CONFIG.VIEW_NAME_PATTERN.test(normalizedName);
+  return Boolean(
+    normalizedName &&
+    normalizedName.length <= APPALMACEN_CONTROLLER_CONFIG.MAX_VIEW_NAME_LENGTH &&
+    APPALMACEN_CONTROLLER_CONFIG.VIEW_NAME_PATTERN.test(normalizedName)
+  );
 }
 
 /**
@@ -187,6 +201,24 @@ function _appalmacen_assertVistaPermitida_(nombreArchivo) {
 function _appalmacen_errorMessage_(error, fallbackMessage) {
   var message = _appalmacen_toStr_(error && error.message);
   return message || fallbackMessage;
+}
+
+/**
+ * Crea un error público serializable y conserva el código funcional original.
+ *
+ * @param {*} error Error capturado.
+ * @param {string} fallbackMessage Mensaje de respaldo.
+ * @return {!Error} Error apto para google.script.run.
+ * @private
+ */
+function _appalmacen_publicError_(error, fallbackMessage) {
+  var publicError = new Error(
+    _appalmacen_errorMessage_(error, fallbackMessage)
+  );
+  if (error && error.code) {
+    publicError.code = String(error.code);
+  }
+  return publicError;
 }
 
 /**
@@ -265,13 +297,13 @@ function _appalmacen_logError_(operation, error, startedAt, metadata) {
  * @return {!Object} Contrato inicial de la aplicación.
  * @throws {Error} Si el servicio de bootstrap no está disponible o falla.
  */
-function APPALMACENController_getBootstrap() {
+function APPALMACENController_getBootstrap(forceRefresh) {
   var operation = APPALMACEN_CONTROLLER_CONFIG.BOOTSTRAP_OPERATION;
   var startedAt = _appalmacen_logStart_(operation);
 
   try {
     _appalmacen_assertDependencies_(false);
-    var result = BootstrapServices.getInfoInicial();
+    var result = BootstrapServices.getInfoInicial(forceRefresh === true);
 
     if (!result || typeof result !== "object") {
       throw new Error("El servicio de inicialización devolvió un resultado inválido.");
@@ -281,7 +313,10 @@ function APPALMACENController_getBootstrap() {
     return result;
   } catch (error) {
     _appalmacen_logError_(operation, error, startedAt);
-    throw error;
+    throw _appalmacen_publicError_(
+      error,
+      APPALMACEN_CONTROLLER_CONFIG.PUBLIC_MESSAGES.BOOTSTRAP_FAILED
+    );
   }
 }
 
@@ -313,6 +348,12 @@ function APPALMACENController_obtenerContenidoVista(nombreArchivo) {
         "La vista autorizada no generó contenido HTML: " + normalizedView
       );
     }
+    if (String(html).length > APPALMACEN_CONTROLLER_CONFIG.MAX_HTML_CHARS) {
+      throw new Error(
+        "La vista autorizada excede el tamaño máximo permitido: " +
+        normalizedView
+      );
+    }
 
     _appalmacen_logSuccess_(operation, startedAt, {
       view: normalizedView,
@@ -326,11 +367,9 @@ function APPALMACENController_obtenerContenidoVista(nombreArchivo) {
       normalizedView: normalizedView
     });
 
-    throw new Error(
-      _appalmacen_errorMessage_(
-        error,
-        "No se pudo cargar la vista solicitada."
-      )
+    throw _appalmacen_publicError_(
+      error,
+      APPALMACEN_CONTROLLER_CONFIG.PUBLIC_MESSAGES.VIEW_FAILED
     );
   }
 }

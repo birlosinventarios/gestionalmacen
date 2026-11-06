@@ -1439,7 +1439,7 @@ function clearUbicacionesMaxMinCaches_() {
       APPALMACENCache &&
       typeof APPALMACENCache.clearOperational === "function"
     ) {
-      APPALMACENCache.clearOperational();
+      APPALMACENCache.clearUbicacionesMaxMin();
     }
 
     console.log("[CACHE] clearUbicacionesMaxMinCaches_ :: OK");

@@ -13,6 +13,7 @@
  * - Exponer operaciones especializadas para bootstrap, folios del prototipo,
  *   gestor de excedentes, negativos y reabastecimiento.
  * - Proporcionar limpiezas operativas y diagnósticos controlados.
+ * - Invalidar específicamente el bootstrap de FormularioUbicacionesMaxMin.
  *
  * Reglas de seguridad y consistencia:
  * - CacheService es una optimización y nunca sustituye la persistencia.
@@ -26,9 +27,9 @@
  *
  * Política de tamaño:
  * - Los payloads serializados mayores a 90,000 caracteres se rechazan.
- * - rememberBootstrap() y rememberPrototipoFolios() conservan el bypass
- *   existente: consultan caché, pero no intentan guardar reconstrucciones que
- *   históricamente pueden exceder el límite disponible.
+ * - rememberBootstrap() utiliza remember(): si la escritura falla por tamaño,
+ *   devuelve el dato recién construido y registra una advertencia.
+ * - rememberPrototipoFolios() conserva su bypass histórico.
  *
  * Dependencias:
  * - CacheService, Session y Utilities.
@@ -36,12 +37,15 @@
  * API pública:
  * - Genérica: get(), put(), remove(), remember().
  * - Bootstrap: getBootstrap(), putBootstrap(), rememberBootstrap(),
- *   clearBootstrap().
+ *   clearBootstrap(), clearUbicacionesMaxMin().
  * - Prototipo: getPrototipoFolios(), putPrototipoFolios(),
  *   rememberPrototipoFolios(), clearPrototipoFolios().
  * - Gestor, negativos y reabastecimiento: get/put/remember/clear.
  * - Limpieza: clearOperational(), clearAll().
  * - Diagnóstico: debugGetRaw(), debugKeys().
+ *
+ * @author Sigifredo de la Cruz Ramos
+ * @version APPALMACEN-CACHE-2026-11-06-02
  */
 const APPALMACENCache = (() => {
   "use strict";
@@ -63,7 +67,7 @@ const APPALMACENCache = (() => {
 
   /** Nombres lógicos inmutables de los datasets administrados. */
   const KEYS = Object.freeze({
-    BOOTSTRAP: "BOOTSTRAP",
+    BOOTSTRAP: "BOOTSTRAP_V2",
     PROTOTIPO_FOLIOS: "PROTOTIPO_FOLIOS",
     GESTOR_EXCEDENTES: "GESTOR_EXCEDENTES",
     NEGATIVOS: "NEGATIVOS",
@@ -154,7 +158,17 @@ const APPALMACENCache = (() => {
   function _putRaw_(name, data, ttlSeconds) {
     const cache = CacheService.getScriptCache();
     const payload = _wrap_(name, data);
-    const json = JSON.stringify(payload);
+    let json;
+
+    try {
+      json = JSON.stringify(payload);
+    } catch (error) {
+      throw new Error(
+        "[APPALMACENCache] No se pudo serializar el payload. key=" + name +
+        " message=" +
+        (error && error.message ? error.message : String(error || ""))
+      );
+    }
 
     if (json.length > CFG.MAX_CACHE_CHARS) {
       throw new Error(
@@ -165,7 +179,12 @@ const APPALMACENCache = (() => {
       );
     }
 
-    cache.put(_safeKey_(name), json, ttlSeconds || 60);
+    const ttl = Number(ttlSeconds);
+    const effectiveTtl = Number.isFinite(ttl) && ttl > 0
+      ? Math.floor(ttl)
+      : 60;
+
+    cache.put(_safeKey_(name), json, effectiveTtl);
 
     return data;
   }
@@ -265,44 +284,43 @@ const APPALMACENCache = (() => {
   }
 
   /** Recupera bootstrap o ejecuta el builder sin persistir el resultado. */
-  function rememberBootstrap(
-    builder,
-    options
-  ) {
-    const config =
-      options || {};
-
-    if (
-      config.forceRefresh !==
-      true
-    ) {
-      const cached =
-        getBootstrap();
-
-      if (
-        cached != null
-      ) {
-        console.log(
-          "[APPALMACENCache] HIT: " +
-          KEYS.BOOTSTRAP
-        );
-
-        return cached;
-      }
-    }
-
-    console.log(
-      "[APPALMACENCache] " +
-      "BYPASS_TOO_LARGE: " +
-      KEYS.BOOTSTRAP
+  /**
+   * Devuelve el bootstrap vigente o ejecuta su builder.
+   *
+   * Si el resultado supera MAX_CACHE_CHARS, remember() conserva el valor recién
+   * construido, registra la advertencia y omite únicamente la escritura.
+   *
+   * @param {Function} builder Constructor síncrono del bootstrap.
+   * @param {Object=} options Opciones; forceRefresh=true omite la lectura.
+   * @return {*} Bootstrap cacheado o recién construido.
+   */
+  function rememberBootstrap(builder, options) {
+    return remember(
+      KEYS.BOOTSTRAP,
+      CFG.TTL.BOOTSTRAP,
+      builder,
+      options || {}
     );
-
-    return builder();
   }
 
   /** Elimina el bootstrap general. */
   function clearBootstrap() {
     return remove(KEYS.BOOTSTRAP);
+  }
+
+  /**
+   * Invalida el bootstrap utilizado por FormularioUbicacionesMaxMin.
+   *
+   * Los usuarios y registros pendientes del formulario forman parte del
+   * bootstrap general. Debe ejecutarse después de una escritura confirmada para
+   * evitar listas obsoletas. Es idempotente y no modifica Google Sheets.
+   *
+   * @return {boolean} true cuando la invalidación concluye.
+   */
+  function clearUbicacionesMaxMin() {
+    clearBootstrap();
+    console.log("[APPALMACENCache] clearUbicacionesMaxMin :: OK");
+    return true;
   }
 
   // =========================================================
@@ -451,7 +469,10 @@ const APPALMACENCache = (() => {
   // LIMPIEZAS
   // =========================================================
 
-  /** Invalida todos los datasets operativos, excepto bootstrap. */
+  /**
+   * Invalida datasets operativos de corta duración, excepto bootstrap.
+   * Para UBICACIONES_MAXMIN debe utilizarse clearUbicacionesMaxMin().
+   */
   function clearOperational() {
     clearPrototipoFolios();
     clearGestorExcedentes();
@@ -506,6 +527,7 @@ const APPALMACENCache = (() => {
     putBootstrap,
     rememberBootstrap,
     clearBootstrap,
+    clearUbicacionesMaxMin,
 
     getPrototipoFolios,
     putPrototipoFolios,

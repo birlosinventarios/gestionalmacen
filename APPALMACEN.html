@@ -11,6 +11,8 @@
   - Centralizar notificaciones, modales, telemetría, manejo de errores y medición de rendimiento.
   - Exponer el envoltorio APPALMACEN_ACTIONS para operaciones basadas en google.script.run.
   - Administrar los controles globales de impresión LOCAL y ONLINE.
+  - Registrar FormularioUbicacionesMaxMin y desmontar su raíz React al navegar.
+  - Mantener utilidades de caché cliente por alcance funcional.
 
   Contratos globales expuestos:
   - window.DATA_ALMACEN_CACHE
@@ -23,6 +25,7 @@
   - window.notificar / window.lanzarNotificacion
   - window.modalSistema / window.confirmarSistema
   - window.irAVistaShell
+  - window.APPALMACEN_CACHE_ACTIONS
   - window.initVista, asignado por cada vista dinámica
 
   Dependencias principales:
@@ -39,6 +42,8 @@
   - Los errores de caché, telemetría o diagnóstico no deben sustituir el error operativo original.
   - Los scripts externos y los módulos embebidos en vistas dinámicas no se ejecutan nuevamente.
   - La configuración servidor-cliente debe existir antes de montar la aplicación React.
+
+  Versión: APPALMACEN-SHELL-2026-11-06-02
 
   Nota:
   Este archivo combina plantilla HTML de Apps Script, CSS y JavaScript del navegador.
@@ -488,6 +493,23 @@
     window.bodegasGlobal = window.bodegasGlobal || [];
     window.mapaUbicacionesGlobal = window.mapaUbicacionesGlobal || [];
     window.catalogoGlobal = window.catalogoGlobal || [];
+
+    /**
+     * Operaciones de caché cliente segmentadas por módulo.
+     * La invalidación del servidor permanece en Services y Repositories.
+     */
+    window.APPALMACEN_CACHE_ACTIONS =
+      window.APPALMACEN_CACHE_ACTIONS || Object.freeze({
+        /** Elimina únicamente las proyecciones de UBICACIONES_MAXMIN. */
+        clearUbicacionesMaxMin() {
+          const cache = window.DATA_ALMACEN_CACHE;
+          if (!cache || typeof cache !== "object") return;
+          delete cache.ubicacionesMaxMinBootstrap;
+          delete cache.registrosUbicacionesMaxMin;
+          delete cache.registrosPendientesUbicacionesMaxMin;
+          delete cache.codigosPendientesUbicacionesMaxMin;
+        }
+      });
 
     const APPALMACEN_DEBUG = Object.freeze({
       enabled: window.APPALMACEN_TESTING?.DEBUG === true,
@@ -1144,6 +1166,7 @@
       },
       {
         id: "FormularioDetallesProducto",
+        fileName: "FormularioDetallesProducto",
         name: "Detalles de productos",
         description: "Consulta y registra características físicas de los productos",
         icon: "ruler",
@@ -1155,12 +1178,14 @@
        * Herramienta de parametrización física de ubicaciones.
        *
        * La vista registra existencia, porcentaje ocupado y capacidad máxima de
-       * los contenedores definidos en UBICACIONES_MAXMIN. Se mantiene dentro de
-       * la categoría Catálogo porque completa datos maestros operativos y no
-       * ejecuta movimientos de inventario.
+       * filas previamente creadas en UBICACIONES_MAXMIN. El nombre lógico del
+       * archivo se declara sin la extensión .html, como exige HtmlService.
+       * Se mantiene dentro de Catálogo porque completa datos maestros operativos
+       * y no ejecuta movimientos de inventario.
        */
       {
         id: "FormularioUbicacionesMaxMin",
+        fileName: "FormularioUbicacionesMaxMin",
         name: "Ubicaciones MaxMin",
         description: "Captura existencia, ocupación y capacidad máxima por ubicación",
         icon: "warehouse",
@@ -1657,9 +1682,32 @@
             });
 
             window.DATA_ALMACEN_CACHE = finalData;
-            window.usuariosGlobal = finalData.usuarios || [];
-            window.bodegasGlobal = finalData.bodegas || [];
-            perfMark_(traceId, "CLIENT_GLOBALS_ASSIGNED");
+            window.usuariosGlobal = Array.isArray(finalData.usuarios)
+              ? finalData.usuarios
+              : [];
+            window.bodegasGlobal = Array.isArray(finalData.bodegas)
+              ? finalData.bodegas
+              : [];
+            window.mapaUbicacionesGlobal = Array.isArray(
+              finalData.mapaUbicacionesExcedentes
+            )
+              ? finalData.mapaUbicacionesExcedentes
+              : [];
+            window.catalogoGlobal = finalData.mapaCatalogo &&
+              typeof finalData.mapaCatalogo === "object"
+              ? finalData.mapaCatalogo
+              : {};
+            perfMark_(traceId, "CLIENT_GLOBALS_ASSIGNED", {
+              usuarios: window.usuariosGlobal.length,
+              bodegas: window.bodegasGlobal.length,
+              ubicaciones: window.mapaUbicacionesGlobal.length,
+              productos: Object.keys(window.catalogoGlobal).length,
+              pendientesMaxMin: Array.isArray(
+                finalData.registrosPendientesUbicacionesMaxMin
+              )
+                ? finalData.registrosPendientesUbicacionesMaxMin.length
+                : 0
+            });
             perfEnd_(traceId, "ok");
             bootstrapTraceRef.current = null;
 
