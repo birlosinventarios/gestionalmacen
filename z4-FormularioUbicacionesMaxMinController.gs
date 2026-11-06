@@ -38,7 +38,7 @@
  * - FormularioUbicacionesMaxMinController_diagnosticar().
  *
  * DEPENDENCIAS GLOBALES
- * - execController_(operationName, callback).
+ * - execController_(executor, operationName).
  * - BootstrapServices.getInfoInicial(forceRefresh).
  * - FormularioUbicacionesMaxMinService.
  *
@@ -48,7 +48,7 @@
  * del servidor.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-02
+ * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-03
  */
 "use strict";
 
@@ -60,7 +60,7 @@
  */
 const FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG = Object.freeze({
   NAME: "FormularioUbicacionesMaxMinController",
-  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-02",
+  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-03",
   LOG_PREFIX: "[FormularioUbicacionesMaxMinController]",
   MIN_DATA_ROW: 2,
   OPERATIONS: Object.freeze({
@@ -156,11 +156,19 @@ function FormularioUbicacionesMaxMinController_execute_(
     );
   }
 
-  return execController_(
+  const qualifiedOperation =
     `${FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.NAME}.` +
-      `${operationName}`,
-    callback
-  );
+    `${operationName}`;
+
+  /*
+   * CONTRATO REAL DE execController_
+   * El primer argumento debe ser la función ejecutora. El segundo argumento es
+   * el nombre de la operación utilizado para diagnóstico y trazabilidad.
+   *
+   * Pasar qualifiedOperation como primer argumento provoca:
+   * "Error: executor is not a function".
+   */
+  return execController_(callback, qualifiedOperation);
 }
 
 /**

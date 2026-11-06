@@ -2,316 +2,507 @@
   /**
    * FormularioUbicacionesMaxMin.html
    *
-   * Vista operativa para completar la parametrización física de productos en
-   * UBICACIONES_MAXMIN.
+   * @fileoverview Vista de captura de existencia y capacidad física para los
+   * registros pendientes de UBICACIONES_MAXMIN.
    *
-   * FLUJO
-   * 1. El usuario selecciona a la persona responsable, sin filtrar por rol.
-   * 2. Selecciona un código pendiente desde un datalist.
-   * 3. El sistema carga la descripción y el contexto de ubicación.
-   * 4. Captura EXISTENCIA y PORCENTAJE de ocupación.
-   * 5. Si PORCENTAJE es 100, MAXIMO se habilita; si queda vacío, adopta EXISTENCIA.
-   * 6. Si PORCENTAJE es menor a 100, MAXIMO se calcula como:
-   *      (EXISTENCIA / PORCENTAJE) * 100
-   *    y se redondea a la decena más cercana.
-   * 7. El servidor registra FECHA, HORA y el USUARIO seleccionado.
+   * La composición visual, jerarquía, distribución, estados vacíos, tarjetas,
+   * tipografía, controles, montaje React y comportamiento responsivo siguen el
+   * patrón de FormularioDetallesProducto para conservar una experiencia uniforme
+   * dentro de APPALMACEN.
    *
-   * CONTRATO DE BOOTSTRAP ESPERADO
-   * {
-   *   usuarios: [{ idUsuarios, nombre, rol }],
-   *   registrosPendientes: [{
-   *     numFila, codigo, descripcion, bodega, ubicacion, existencia, porcentaje,
-   *     maximo, minimo, zonaBodega, zonaAbastecimiento, zonaNivel
-   *   }]
-   * }
+   * RESPONSABILIDADES
+   * - Cargar usuarios y registros pendientes desde el Controller.
+   * - Permitir seleccionar cualquier usuario, sin filtrar por rol.
+   * - Mostrar únicamente códigos cuya captura inicial está pendiente.
+   * - Capturar EXISTENCIA y PORCENTAJE de ocupación.
+   * - Calcular MAXIMO cuando PORCENTAJE es menor que 100.
+   * - Habilitar MAXIMO cuando PORCENTAJE es igual a 100.
+   * - Actualizar la fila física seleccionada mediante el Controller.
+   * - Retirar de la lista local el registro guardado correctamente.
+   * - Administrar el montaje y desmontaje seguro de la raíz React.
    *
-   * CONTROLADORES
+   * REGLAS FUNCIONALES
+   * - PORCENTAJE admite enteros entre 1 y 100.
+   * - Si PORCENTAJE = 100 y MAXIMO está vacío, MAXIMO = EXISTENCIA.
+   * - Si PORCENTAJE < 100:
+   *     MAXIMO = redondearADecena((EXISTENCIA / PORCENTAJE) * 100).
+   * - El signo de porcentaje es visual y no puede borrarse.
+   * - FECHA, HORA y USUARIO seleccionado se resuelven en el servidor.
+   *
+   * DEPENDENCIAS GLOBALES
+   * - React y ReactDOM.
+   * - Lucide.
+   * - google.script.run.
+   * - window.DATA_ALMACEN_CACHE.
+   * - window.notificar o window.lanzarNotificacion.
+   *
+   * CONTROLADORES CONSUMIDOS
    * - FormularioUbicacionesMaxMinController_getBootstrap().
-   * - FormularioUbicacionesMaxMinController_guardar(payload).
+   * - FormularioUbicacionesMaxMinController_actualizar(numFila, payload).
    *
-   * CONTRATOS GLOBALES
+   * CONTRATOS GLOBALES EXPUESTOS
    * - window.cargar_FormularioUbicacionesMaxMin().
    * - window.initVista.
    * - window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__.
    *
    * @author Sigifredo de la Cruz Ramos
-   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-06-01
+   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-06-02
    */
 </script>
 
 <style>
+  /* =========================================================
+     1. TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+     ========================================================= */
   #render-ubicaciones-maxmin {
     --umm-primary: #d93025;
     --umm-primary-dark: #a50e0e;
     --umm-border: #dadce0;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden !important;
+  }
+
+  #render-ubicaciones-maxmin,
+  #render-ubicaciones-maxmin * {
+    box-sizing: border-box;
+  }
+
+  #render-ubicaciones-maxmin .font-mono,
+  #render-ubicaciones-maxmin .umm-mono {
+    font-family: "JetBrains Mono", monospace;
+    letter-spacing: 0.04em;
+  }
+
+  #render-ubicaciones-maxmin .fade-in {
+    animation: fadeInUbicacionesMaxMin 0.3s ease-out;
+  }
+
+  @keyframes fadeInUbicacionesMaxMin {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* =========================================================
+     2. ESTRUCTURA Y CONTROL DE DESBORDAMIENTO
+     ========================================================= */
+  #render-ubicaciones-maxmin .umm-app-shell {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     min-width: 0;
     min-height: 0;
-    overflow: hidden;
-    background: #f8f9fa;
+    overflow: hidden !important;
   }
 
-  #render-ubicaciones-maxmin * { box-sizing: border-box; }
-  #render-ubicaciones-maxmin .umm-mono {
-    font-family: "JetBrains Mono", monospace;
-    letter-spacing: 0.035em;
-  }
-  #render-ubicaciones-maxmin .umm-shell {
-    height: 100%;
-    display: grid;
-    grid-template-columns: minmax(620px, 760px) minmax(0, 1fr);
-    overflow: hidden;
-  }
-  #render-ubicaciones-maxmin .umm-form-panel {
-    height: 100%;
-    overflow-y: auto;
-    padding: 22px 26px 34px;
-    background: #fff;
-    border-right: 1px solid var(--umm-border);
-  }
-  #render-ubicaciones-maxmin .umm-context-panel {
+  #render-ubicaciones-maxmin .umm-main-layout {
+    display: flex;
+    width: 100%;
     height: 100%;
     min-width: 0;
-    overflow-y: auto;
-    padding: 24px;
-    background: #f8f9fa;
+    min-height: 0;
+    overflow: hidden !important;
   }
-  #render-ubicaciones-maxmin .umm-title {
-    font-size: 20px;
-    font-weight: 950;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: #111827;
+
+  #render-ubicaciones-maxmin .umm-left-panel {
+    width: clamp(680px, 44vw, 820px) !important;
+    min-width: 680px;
+    max-width: 820px;
+    height: 100%;
+    min-height: 0;
+    flex: 0 0 auto;
+    overflow: hidden !important;
   }
-  #render-ubicaciones-maxmin .umm-subtitle {
-    margin-top: 6px;
-    color: #6b7280;
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: .08em;
-    text-transform: uppercase;
+
+  #render-ubicaciones-maxmin .umm-left-panel-inner {
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-right: 4px;
+    overscroll-behavior: contain;
   }
-  #render-ubicaciones-maxmin .umm-grid {
-    margin-top: 22px;
+
+  #render-ubicaciones-maxmin .umm-right-panel {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important;
+    background: #ffffff;
+  }
+
+  #render-ubicaciones-maxmin .umm-right-scroll {
+    flex: 1 1 auto;
+    height: 0;
+    min-height: 0;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-bottom: 96px;
+    overscroll-behavior: contain;
+  }
+
+  #render-ubicaciones-maxmin .umm-left-panel-inner::-webkit-scrollbar,
+  #render-ubicaciones-maxmin .umm-right-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  #render-ubicaciones-maxmin .umm-left-panel-inner::-webkit-scrollbar-thumb,
+  #render-ubicaciones-maxmin .umm-right-scroll::-webkit-scrollbar-thumb {
+    background: #dadce0;
+    border-radius: 10px;
+  }
+
+  /* =========================================================
+     3. FORMULARIO Y CAMPOS
+     ========================================================= */
+  #render-ubicaciones-maxmin .umm-form-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px 24px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "usuario usuario"
+      "codigo codigo"
+      "producto producto"
+      "existencia porcentaje"
+      "maximo maximo"
+      "resumen resumen"
+      "accion accion";
+    column-gap: 34px;
+    row-gap: 18px;
+    align-items: start;
   }
-  #render-ubicaciones-maxmin .umm-span-2 { grid-column: span 2; }
-  #render-ubicaciones-maxmin .umm-field {
+
+  #render-ubicaciones-maxmin .umm-grid-usuario { grid-area: usuario; }
+  #render-ubicaciones-maxmin .umm-grid-codigo { grid-area: codigo; }
+  #render-ubicaciones-maxmin .umm-grid-producto { grid-area: producto; }
+  #render-ubicaciones-maxmin .umm-grid-existencia { grid-area: existencia; }
+  #render-ubicaciones-maxmin .umm-grid-porcentaje { grid-area: porcentaje; }
+  #render-ubicaciones-maxmin .umm-grid-maximo { grid-area: maximo; }
+  #render-ubicaciones-maxmin .umm-grid-resumen { grid-area: resumen; }
+  #render-ubicaciones-maxmin .umm-grid-accion { grid-area: accion; }
+
+  #render-ubicaciones-maxmin .umm-field-block {
     display: flex;
     flex-direction: column;
     gap: 8px;
     min-width: 0;
   }
+
   #render-ubicaciones-maxmin .umm-label {
-    font-size: 11px;
-    font-weight: 950;
-    letter-spacing: .16em;
+    min-height: 18px;
+    display: flex;
+    align-items: center;
     color: #6b7280;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
   }
-  #render-ubicaciones-maxmin .umm-input,
-  #render-ubicaciones-maxmin .umm-select {
+
+  #render-ubicaciones-maxmin .umm-form-input {
     width: 100%;
     min-height: 56px;
     padding: 0 16px;
     border: 1px solid var(--umm-border);
-    border-radius: 14px;
+    border-radius: 0.75rem;
     background: #f9fafb;
     color: #111827;
     outline: none;
+    font-family: "Inter", system-ui, sans-serif;
     font-size: 15px;
-    font-weight: 850;
-    transition: .18s ease;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    transition: all 0.18s ease;
   }
-  #render-ubicaciones-maxmin .umm-input:focus,
-  #render-ubicaciones-maxmin .umm-select:focus {
-    background: #fff;
+
+  #render-ubicaciones-maxmin .umm-form-input:focus {
+    background: #ffffff;
     border-color: var(--umm-primary);
-    box-shadow: 0 0 0 3px rgba(217, 48, 37, .10);
+    box-shadow: 0 0 0 3px rgba(217, 48, 37, 0.10);
   }
-  #render-ubicaciones-maxmin .umm-input:disabled,
-  #render-ubicaciones-maxmin .umm-input[readonly],
-  #render-ubicaciones-maxmin .umm-select:disabled {
-    background: #eceff3;
+
+  #render-ubicaciones-maxmin .umm-form-input:disabled,
+  #render-ubicaciones-maxmin .umm-form-input[readonly] {
+    background: #e5e7eb;
     color: #6b7280;
+    border-color: #d1d5db;
     cursor: not-allowed;
   }
-  #render-ubicaciones-maxmin .umm-percent-wrap { position: relative; }
-  #render-ubicaciones-maxmin .umm-percent-wrap .umm-input { padding-right: 48px; }
+
+  #render-ubicaciones-maxmin .umm-form-input::placeholder {
+    color: #9ca3af;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  #render-ubicaciones-maxmin .umm-percent-wrap {
+    position: relative;
+  }
+
+  #render-ubicaciones-maxmin .umm-percent-wrap .umm-form-input {
+    padding-right: 52px;
+  }
+
   #render-ubicaciones-maxmin .umm-percent-sign {
     position: absolute;
-    right: 16px;
     top: 50%;
+    right: 18px;
     transform: translateY(-50%);
-    font-size: 18px;
-    font-weight: 950;
     color: #374151;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 18px;
+    font-weight: 900;
     pointer-events: none;
   }
+
   #render-ubicaciones-maxmin .umm-helper {
     color: #9ca3af;
     font-size: 11px;
-    font-weight: 750;
-    line-height: 1.4;
+    font-weight: 700;
+    line-height: 1.45;
   }
-  #render-ubicaciones-maxmin .umm-btn {
-    width: 100%;
-    min-height: 62px;
-    border: 0;
-    border-radius: 14px;
-    background: var(--umm-primary);
-    color: #fff;
-    font-size: 14px;
-    font-weight: 950;
+
+  /* =========================================================
+     4. TARJETAS Y RESUMEN
+     ========================================================= */
+  #render-ubicaciones-maxmin .umm-product-card {
+    padding: 14px;
+    border: 1px solid #1f2937;
+    border-radius: 1rem;
+    background: #1c1d1f;
+    box-shadow: 0 12px 28px rgba(17, 24, 39, 0.16);
+  }
+
+  #render-ubicaciones-maxmin .umm-product-placeholder {
+    min-height: 132px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    color: #c0c4cc;
+    text-align: center;
+    border: 1px dashed #e5e7eb;
+    border-radius: 1rem;
+    background: #fafafa;
+  }
+
+  #render-ubicaciones-maxmin .umm-summary-card {
+    min-height: 112px;
+    padding: 16px;
+    color: #ffffff;
+    border: 1px solid #111827;
+    border-radius: 1rem;
+    background: linear-gradient(135deg, #1c1d1f 0%, #111827 100%);
+    box-shadow: 0 12px 28px rgba(17, 24, 39, 0.16);
+  }
+
+  #render-ubicaciones-maxmin .umm-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  #render-ubicaciones-maxmin .umm-summary-label {
+    display: block;
+    color: #9ca3af;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    letter-spacing: .17em;
-    cursor: pointer;
-    box-shadow: 0 12px 26px rgba(217, 48, 37, .18);
-    transition: .18s ease;
   }
-  #render-ubicaciones-maxmin .umm-btn:hover:not(:disabled) {
+
+  #render-ubicaciones-maxmin .umm-summary-value {
+    display: block;
+    margin-top: 4px;
+    color: #ffffff;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 20px;
+    font-weight: 900;
+  }
+
+  #render-ubicaciones-maxmin .umm-action-btn {
+    width: 100%;
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: #ffffff;
+    border: 0;
+    border-radius: 0.75rem;
+    background: var(--umm-primary);
+    box-shadow: 0 10px 20px rgba(217, 48, 37, 0.18);
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    transition: all 0.18s ease;
+  }
+
+  #render-ubicaciones-maxmin .umm-action-btn:hover:not(:disabled) {
     background: var(--umm-primary-dark);
     transform: translateY(-1px);
   }
-  #render-ubicaciones-maxmin .umm-btn:disabled {
-    opacity: .5;
+
+  #render-ubicaciones-maxmin .umm-action-btn:disabled {
+    opacity: 0.5;
     cursor: not-allowed;
     box-shadow: none;
   }
-  #render-ubicaciones-maxmin .umm-card {
-    border: 1px solid #e5e7eb;
-    border-radius: 20px;
-    background: #fff;
-    box-shadow: 0 10px 28px rgba(17, 24, 39, .06);
+
+  /* =========================================================
+     5. PANEL DERECHO Y ESTADOS
+     ========================================================= */
+  #render-ubicaciones-maxmin .umm-toolbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  #render-ubicaciones-maxmin .umm-empty-state {
+    min-height: 420px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 32px;
+    color: #9ca3af;
+    text-align: center;
+  }
+
+  #render-ubicaciones-maxmin .umm-detail-card {
     overflow: hidden;
+    background: #ffffff;
+    border: 1px solid #dadce0;
+    border-radius: 1.5rem;
+    box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
   }
-  #render-ubicaciones-maxmin .umm-card-head {
-    padding: 20px 22px;
-    background: linear-gradient(135deg, #1c1d1f 0%, #111827 100%);
-    color: #fff;
-  }
-  #render-ubicaciones-maxmin .umm-code {
-    font-size: 24px;
-    font-weight: 950;
-    overflow-wrap: anywhere;
-  }
-  #render-ubicaciones-maxmin .umm-description {
-    margin-top: 8px;
-    color: #d1d5db;
-    font-size: 13px;
-    font-weight: 750;
-    text-transform: uppercase;
-  }
-  #render-ubicaciones-maxmin .umm-card-body {
-    padding: 20px 22px;
+
+  #render-ubicaciones-maxmin .umm-detail-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
+    gap: 16px;
+    padding: 24px;
   }
-  #render-ubicaciones-maxmin .umm-stat {
-    padding: 14px;
-    border: 1px solid #e5e7eb;
-    border-radius: 14px;
-    background: #f9fafb;
+
+  #render-ubicaciones-maxmin .umm-detail-item {
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
   }
-  #render-ubicaciones-maxmin .umm-stat-label {
-    color: #9ca3af;
+
+  #render-ubicaciones-maxmin .umm-detail-label {
+    color: #94a3b8;
     font-size: 10px;
-    font-weight: 950;
+    font-weight: 900;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-    letter-spacing: .13em;
   }
-  #render-ubicaciones-maxmin .umm-stat-value {
-    margin-top: 6px;
+
+  #render-ubicaciones-maxmin .umm-detail-value {
+    margin-top: 8px;
     color: #111827;
     font-size: 15px;
     font-weight: 900;
     overflow-wrap: anywhere;
   }
-  #render-ubicaciones-maxmin .umm-empty {
-    min-height: 360px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    color: #9ca3af;
-    border: 1px dashed #d1d5db;
-    border-radius: 20px;
-    background: rgba(255,255,255,.65);
-    padding: 30px;
-  }
-  #render-ubicaciones-maxmin .umm-empty strong {
-    color: #6b7280;
-    font-size: 13px;
-    letter-spacing: .18em;
-    text-transform: uppercase;
-  }
-  #render-ubicaciones-maxmin .umm-metric {
-    margin-top: 18px;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-  }
-  #render-ubicaciones-maxmin .umm-metric > div {
-    padding: 14px;
-    border-radius: 14px;
-    text-align: center;
-  }
-  #render-ubicaciones-maxmin .umm-metric span {
-    display: block;
-    font-size: 10px;
-    font-weight: 950;
-    text-transform: uppercase;
-    letter-spacing: .12em;
-  }
-  #render-ubicaciones-maxmin .umm-metric b {
-    display: block;
-    margin-top: 5px;
-    font-size: 22px;
-    font-family: "JetBrains Mono", monospace;
-  }
+
   @media (max-width: 1100px) {
-    #render-ubicaciones-maxmin { overflow-y: auto; }
-    #render-ubicaciones-maxmin .umm-shell {
+    #render-ubicaciones-maxmin { overflow-y: auto !important; }
+    #render-ubicaciones-maxmin .umm-app-shell { position: relative; height: auto; }
+    #render-ubicaciones-maxmin .umm-main-layout { display: block; height: auto; }
+    #render-ubicaciones-maxmin .umm-left-panel {
+      width: 100% !important;
+      min-width: 0;
+      max-width: none;
       height: auto;
-      min-height: 100%;
-      grid-template-columns: 1fr;
-      overflow: visible;
     }
-    #render-ubicaciones-maxmin .umm-form-panel,
-    #render-ubicaciones-maxmin .umm-context-panel { height: auto; overflow: visible; }
+    #render-ubicaciones-maxmin .umm-left-panel-inner,
+    #render-ubicaciones-maxmin .umm-right-panel,
+    #render-ubicaciones-maxmin .umm-right-scroll {
+      height: auto;
+      overflow: visible !important;
+    }
   }
+
   @media (max-width: 680px) {
-    #render-ubicaciones-maxmin .umm-grid,
-    #render-ubicaciones-maxmin .umm-card-body { grid-template-columns: 1fr; }
-    #render-ubicaciones-maxmin .umm-span-2 { grid-column: span 1; }
+    #render-ubicaciones-maxmin .umm-form-grid {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "usuario"
+        "codigo"
+        "producto"
+        "existencia"
+        "porcentaje"
+        "maximo"
+        "resumen"
+        "accion";
+    }
+    #render-ubicaciones-maxmin .umm-summary-grid,
+    #render-ubicaciones-maxmin .umm-detail-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
 
-<div id="render-ubicaciones-maxmin"></div>
+<div
+  id="render-ubicaciones-maxmin"
+  class="h-full w-full flex flex-col bg-[#f8f9fa] overflow-hidden"
+></div>
 
 <script type="text/babel">
   window.cargar_FormularioUbicacionesMaxMin = () => {
     const { useEffect, useMemo, useRef, useState } = React;
 
-    const notify = (message, type = "info", timer = 2600, options = {}) => {
+    const notify_ = (message, type = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
       if (typeof fn === "function") fn(message, type, timer, options);
     };
 
-    const textUpper = value => String(value ?? "").trim().toUpperCase();
-    const integerText = value => String(value ?? "").replace(/[^0-9]/g, "");
-    const numberOrZero = value => {
+    const LocalIcon = ({ name, size = 18, className = "" }) => {
+      const iconRef = useRef(null);
+      useEffect(() => {
+        if (!window.lucide || !iconRef.current) return;
+        iconRef.current.innerHTML = "";
+        const icon = document.createElement("i");
+        icon.setAttribute("data-lucide", String(name || "circle").toLowerCase());
+        icon.style.width = `${size}px`;
+        icon.style.height = `${size}px`;
+        if (className) icon.className = className;
+        iconRef.current.appendChild(icon);
+        window.lucide.createIcons();
+      }, [name, size, className]);
+      return <span ref={iconRef} className="inline-flex items-center justify-center"></span>;
+    };
+
+    const normalizarTexto_ = value => String(value ?? "").trim().toUpperCase();
+    const limpiarEntero_ = value => String(value ?? "").replace(/[^0-9]/g, "");
+    const toNumberSafe_ = value => {
       const number = Number(value);
       return Number.isFinite(number) ? number : 0;
     };
-    const roundToTen = value => Math.round(Number(value || 0) / 10) * 10;
+    const redondearADecena_ = value => Math.round(toNumberSafe_(value) / 10) * 10;
 
-    const initialForm = Object.freeze({
+    const FORM_INICIAL = Object.freeze({
       usuario: "",
       codigo: "",
       existencia: "",
@@ -319,109 +510,174 @@
       maximo: ""
     });
 
-    const FormularioUbicacionesMaxMin = () => {
-      const [loading, setLoading] = useState(true);
-      const [saving, setSaving] = useState(false);
-      const [users, setUsers] = useState([]);
-      const [pendingRecords, setPendingRecords] = useState([]);
-      const [form, setForm] = useState({ ...initialForm });
-      const codeInputRef = useRef(null);
+    const VistaUbicacionesMaxMin = () => {
+      const [cargando, setCargando] = useState(true);
+      const [guardando, setGuardando] = useState(false);
+      const [usuarios, setUsuarios] = useState([]);
+      const [registrosPendientes, setRegistrosPendientes] = useState([]);
+      const [form, setForm] = useState({ ...FORM_INICIAL });
+      const codigoInputRef = useRef(null);
 
-      const recordMap = useMemo(() => {
-        return pendingRecords.reduce((map, item) => {
-          const code = textUpper(item.codigo);
-          if (code && !map[code]) map[code] = item;
-          return map;
+      const mapaRegistros = useMemo(() => {
+        return registrosPendientes.reduce((mapa, registro) => {
+          const codigo = normalizarTexto_(registro.codigo);
+          if (codigo && !mapa[codigo]) mapa[codigo] = registro;
+          return mapa;
         }, {});
-      }, [pendingRecords]);
+      }, [registrosPendientes]);
 
-      const selectedRecord = useMemo(
-        () => recordMap[textUpper(form.codigo)] || null,
-        [recordMap, form.codigo]
-      );
+      const registroSeleccionado = useMemo(() => {
+        return mapaRegistros[normalizarTexto_(form.codigo)] || null;
+      }, [mapaRegistros, form.codigo]);
 
-      const percentage = numberOrZero(form.porcentaje);
-      const existence = numberOrZero(form.existencia);
-      const maximumEditable = percentage === 100;
+      const existencia = toNumberSafe_(form.existencia);
+      const porcentaje = toNumberSafe_(form.porcentaje);
+      const maximoEditable = porcentaje === 100;
 
-      const calculatedMaximum = useMemo(() => {
-        if (!existence || !percentage) return 0;
-        if (percentage === 100) {
-          return form.maximo === "" ? existence : numberOrZero(form.maximo);
+      const maximoCalculado = useMemo(() => {
+        if (form.existencia === "" || form.porcentaje === "") return 0;
+        if (porcentaje === 100) {
+          return form.maximo === "" ? existencia : toNumberSafe_(form.maximo);
         }
-        if (percentage > 0 && percentage < 100) {
-          return roundToTen((existence / percentage) * 100);
+        if (porcentaje > 0 && porcentaje < 100) {
+          return redondearADecena_((existencia / porcentaje) * 100);
         }
         return 0;
-      }, [existence, percentage, form.maximo]);
+      }, [existencia, porcentaje, form.existencia, form.porcentaje, form.maximo]);
+
+      const resumen = useMemo(() => ({
+        pendientes: registrosPendientes.length,
+        usuarios: usuarios.length,
+        maximo: maximoCalculado
+      }), [registrosPendientes.length, usuarios.length, maximoCalculado]);
+
+      const enfocarCodigo_ = () => {
+        setTimeout(() => {
+          codigoInputRef.current?.focus();
+          codigoInputRef.current?.select?.();
+        }, 0);
+      };
+
+      const hidratarBootstrap_ = data => {
+        const listaUsuarios = Array.isArray(data?.usuarios) ? data.usuarios : [];
+        const listaPendientes = Array.isArray(data?.registrosPendientes)
+          ? data.registrosPendientes
+          : [];
+        setUsuarios(listaUsuarios);
+        setRegistrosPendientes(listaPendientes);
+        window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+        window.DATA_ALMACEN_CACHE.ubicacionesMaxMinBootstrap = {
+          usuarios: listaUsuarios,
+          registrosPendientes: listaPendientes
+        };
+      };
 
       useEffect(() => {
-        setLoading(true);
-        google.script.run
-          .withSuccessHandler(data => {
-            const source = data || {};
-            setUsers(Array.isArray(source.usuarios) ? source.usuarios : []);
-            setPendingRecords(
-              Array.isArray(source.registrosPendientes)
-                ? source.registrosPendientes
-                : []
-            );
-            setLoading(false);
-            setTimeout(() => codeInputRef.current?.focus(), 0);
-          })
-          .withFailureHandler(error => {
-            console.error("Error inicializando FormularioUbicacionesMaxMin:", error);
-            setLoading(false);
-            notify(
-              error?.message || "No se pudo cargar el formulario.",
-              "error",
-              4800,
-              { title: "Error de carga", sound: true }
-            );
-          })
-          .FormularioUbicacionesMaxMinController_getBootstrap();
+        try {
+          notify_("Inicializando ubicaciones MaxMin...", "info", 1600, {
+            title: "Cargando vista",
+            sound: false
+          });
+
+          const cache = window.DATA_ALMACEN_CACHE?.ubicacionesMaxMinBootstrap || null;
+          if (cache) {
+            hidratarBootstrap_(cache);
+            setCargando(false);
+            enfocarCodigo_();
+            return;
+          }
+
+          google.script.run
+            .withSuccessHandler(data => {
+              hidratarBootstrap_(data || {});
+              setCargando(false);
+              notify_("Ubicaciones MaxMin cargadas correctamente.", "success", 1800, {
+                title: "Sistema listo",
+                sound: false
+              });
+              enfocarCodigo_();
+            })
+            .withFailureHandler(error => {
+              console.error("Error cargando FormularioUbicacionesMaxMin:", error);
+              setCargando(false);
+              notify_(
+                error?.message || "No se pudo cargar la base de ubicaciones MaxMin.",
+                "error",
+                4600,
+                { title: "Error de carga", sound: true }
+              );
+            })
+            .FormularioUbicacionesMaxMinController_getBootstrap();
+        } catch (error) {
+          console.error("Error inesperado inicializando Ubicaciones MaxMin:", error);
+          setCargando(false);
+          notify_("No se pudo inicializar la vista.", "error", 4200, {
+            title: "Error inesperado",
+            sound: true
+          });
+        }
       }, []);
 
-      const handleCode = value => {
-        const code = textUpper(value);
+      useEffect(() => {
+        const root = document.getElementById("render-ubicaciones-maxmin");
+        const parent = root?.parentElement;
+        if (!parent) return;
+        const previous = {
+          overflow: parent.style.overflow,
+          minHeight: parent.style.minHeight,
+          height: parent.style.height
+        };
+        parent.style.overflow = "hidden";
+        parent.style.minHeight = "0";
+        if (!parent.style.height) parent.style.height = "100%";
+        return () => {
+          parent.style.overflow = previous.overflow;
+          parent.style.minHeight = previous.minHeight;
+          parent.style.height = previous.height;
+        };
+      }, []);
+
+      const actualizarCodigo_ = value => {
         setForm(previous => ({
           ...previous,
-          codigo: code,
+          codigo: normalizarTexto_(value),
           existencia: "",
           porcentaje: "",
           maximo: ""
         }));
       };
 
-      const handlePercentage = value => {
-        const clean = integerText(value).slice(0, 3);
-        const limited = clean === "" ? "" : String(Math.min(100, Number(clean)));
+      const actualizarPorcentaje_ = value => {
+        const limpio = limpiarEntero_(value).slice(0, 3);
+        const limitado = limpio === ""
+          ? ""
+          : String(Math.min(100, Number(limpio)));
         setForm(previous => ({
           ...previous,
-          porcentaje: limited,
-          maximo: Number(limited) === 100 ? previous.maximo : ""
+          porcentaje: limitado,
+          maximo: Number(limitado) === 100 ? previous.maximo : ""
         }));
       };
 
-      const validate = () => {
+      const validarForm_ = () => {
         if (!form.usuario) return "Selecciona un usuario responsable.";
-        if (!selectedRecord) return "Selecciona un código pendiente válido.";
+        if (!registroSeleccionado) return "Selecciona un código pendiente válido.";
         if (form.existencia === "") return "Captura la existencia actual.";
-        if (existence < 0) return "La existencia no puede ser negativa.";
-        if (!percentage || percentage < 1 || percentage > 100) {
+        if (existencia < 0) return "La existencia no puede ser negativa.";
+        if (!porcentaje || porcentaje < 1 || porcentaje > 100) {
           return "El porcentaje debe estar entre 1 y 100.";
         }
-        if (!calculatedMaximum || calculatedMaximum < existence) {
-          return "El máximo calculado debe ser mayor o igual a la existencia.";
+        if (maximoCalculado < existencia) {
+          return "El máximo debe ser mayor o igual a la existencia.";
         }
         return "";
       };
 
-      const save = event => {
+      const guardar_ = event => {
         event.preventDefault();
-        const validation = validate();
-        if (validation) {
-          notify(validation, "warning", 3600, {
+        const error = validarForm_();
+        if (error) {
+          notify_(error, "warning", 3600, {
             title: "Validación pendiente",
             sound: true
           });
@@ -429,39 +685,54 @@
         }
 
         const payload = {
-          numFila: selectedRecord.numFila,
+          numFila: registroSeleccionado.numFila,
           usuario: form.usuario,
-          codigo: selectedRecord.codigo,
-          descripcion: selectedRecord.descripcion,
-          bodega: selectedRecord.bodega,
-          ubicacion: selectedRecord.ubicacion,
-          existencia: existence,
-          porcentaje: percentage,
-          maximo: calculatedMaximum,
-          minimo: numberOrZero(selectedRecord.minimo),
-          zonaBodega: selectedRecord.zonaBodega || "",
-          zonaAbastecimiento: selectedRecord.zonaAbastecimiento || "",
-          zonaNivel: selectedRecord.zonaNivel || ""
+          codigo: registroSeleccionado.codigo,
+          descripcion: registroSeleccionado.descripcion,
+          bodega: registroSeleccionado.bodega,
+          ubicacion: registroSeleccionado.ubicacion,
+          existencia,
+          porcentaje,
+          maximo: maximoCalculado,
+          minimo: toNumberSafe_(registroSeleccionado.minimo),
+          zonaBodega: registroSeleccionado.zonaBodega || "",
+          zonaAbastecimiento: registroSeleccionado.zonaAbastecimiento || "",
+          zonaNivel: registroSeleccionado.zonaNivel || "",
+          validacion: registroSeleccionado.validacion || ""
         };
 
-        setSaving(true);
+        setGuardando(true);
+        notify_("Guardando parametrización...", "info", 1500, {
+          title: "Procesando",
+          sound: false
+        });
+
         google.script.run
           .withSuccessHandler(() => {
-            setSaving(false);
-            setPendingRecords(previous =>
-              previous.filter(item => item.numFila !== selectedRecord.numFila)
+            setGuardando(false);
+            const restantes = registrosPendientes.filter(
+              item => item.numFila !== registroSeleccionado.numFila
             );
-            setForm(previous => ({ ...initialForm, usuario: previous.usuario }));
-            notify("Ubicación parametrizada correctamente.", "success", 2800, {
-              title: "Registro guardado",
+            setRegistrosPendientes(restantes);
+            window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+            window.DATA_ALMACEN_CACHE.ubicacionesMaxMinBootstrap = {
+              usuarios,
+              registrosPendientes: restantes
+            };
+            setForm(previous => ({
+              ...FORM_INICIAL,
+              usuario: previous.usuario
+            }));
+            notify_("Ubicación parametrizada correctamente.", "success", 2400, {
+              title: "Registro actualizado",
               sound: true
             });
-            setTimeout(() => codeInputRef.current?.focus(), 0);
+            enfocarCodigo_();
           })
           .withFailureHandler(error => {
-            console.error("Error guardando ubicación MaxMin:", error);
-            setSaving(false);
-            notify(
+            console.error("Error guardando Ubicaciones MaxMin:", error);
+            setGuardando(false);
+            notify_(
               error?.message || "No se pudo guardar el registro.",
               "error",
               5200,
@@ -469,205 +740,304 @@
             );
           })
           .FormularioUbicacionesMaxMinController_actualizar(
-            selectedRecord.numFila,
+            registroSeleccionado.numFila,
             payload
           );
       };
 
       return (
-        <div className="umm-shell">
-          <section className="umm-form-panel">
-            <header>
-              <div className="umm-title">Ubicaciones MaxMin</div>
-              <div className="umm-subtitle">
-                Captura de existencia y capacidad física del contenedor
-              </div>
-            </header>
-
-            <form className="umm-grid" onSubmit={save}>
-              <div className="umm-field umm-span-2">
-                <label className="umm-label">Usuario responsable</label>
-                <select
-                  className="umm-select"
-                  disabled={loading || saving}
-                  value={form.usuario}
-                  onChange={event =>
-                    setForm(previous => ({
-                      ...previous,
-                      usuario: event.target.value
-                    }))
-                  }
-                >
-                  <option value="">Selecciona un usuario</option>
-                  {users.map((user, index) => {
-                    const name = user.nombre || user.NOMBRE || "";
-                    const id = user.idUsuarios || user.idusuarios || user.IDUSUARIOS || "";
-                    const role = user.rol || user.ROL || "";
-                    return (
-                      <option key={`${id}-${index}`} value={name}>
-                        {name}{role ? ` · ${role}` : ""}
-                      </option>
-                    );
-                  })}
-                </select>
-                <span className="umm-helper">
-                  Se muestran todos los usuarios, independientemente de su rol.
-                </span>
-              </div>
-
-              <div className="umm-field umm-span-2">
-                <label className="umm-label">
-                  Código pendiente ({pendingRecords.length})
-                </label>
-                <input
-                  ref={codeInputRef}
-                  className="umm-input umm-mono"
-                  list="umm-codigos-pendientes"
-                  disabled={loading || saving}
-                  value={form.codigo}
-                  placeholder={loading ? "Cargando códigos..." : "Selecciona un código"}
-                  onChange={event => handleCode(event.target.value)}
-                />
-                <datalist id="umm-codigos-pendientes">
-                  {pendingRecords.map(item => (
-                    <option
-                      key={`${item.numFila}-${item.codigo}`}
-                      value={item.codigo}
-                    >
-                      {item.descripcion || "SIN DESCRIPCIÓN"}
-                    </option>
-                  ))}
-                </datalist>
-                <span className="umm-helper">
-                  Solo aparecen registros que no tienen completos FECHA, HORA y USUARIO.
-                </span>
-              </div>
-
-              <div className="umm-field">
-                <label className="umm-label">Existencia actual</label>
-                <input
-                  className="umm-input umm-mono"
-                  inputMode="numeric"
-                  disabled={!selectedRecord || saving}
-                  value={form.existencia}
-                  placeholder="Ej. 250"
-                  onChange={event =>
-                    setForm(previous => ({
-                      ...previous,
-                      existencia: integerText(event.target.value),
-                      maximo:
-                        numberOrZero(previous.porcentaje) === 100
-                          ? previous.maximo
-                          : ""
-                    }))
-                  }
-                />
-              </div>
-
-              <div className="umm-field">
-                <label className="umm-label">Capacidad ocupada estimada</label>
-                <div className="umm-percent-wrap">
-                  <input
-                    className="umm-input umm-mono"
-                    inputMode="numeric"
-                    disabled={!selectedRecord || saving}
-                    value={form.porcentaje}
-                    placeholder="1 a 100"
-                    onChange={event => handlePercentage(event.target.value)}
-                  />
-                  <span className="umm-percent-sign">%</span>
-                </div>
-              </div>
-
-              <div className="umm-field umm-span-2">
-                <label className="umm-label">Máximo estimado</label>
-                <input
-                  className="umm-input umm-mono"
-                  inputMode="numeric"
-                  disabled={!selectedRecord || saving || !maximumEditable}
-                  readOnly={!maximumEditable}
-                  value={
-                    maximumEditable
-                      ? form.maximo
-                      : calculatedMaximum || ""
-                  }
-                  placeholder={
-                    maximumEditable
-                      ? "Opcional: vacío toma la existencia"
-                      : "Calculado automáticamente"
-                  }
-                  onChange={event =>
-                    setForm(previous => ({
-                      ...previous,
-                      maximo: integerText(event.target.value)
-                    }))
-                  }
-                />
-                <span className="umm-helper">
-                  {maximumEditable
-                    ? "Con 100%, puedes capturar el máximo. Si queda vacío se usará la existencia."
-                    : "Con menos de 100%, el máximo se calcula y redondea a la decena más cercana."}
-                </span>
-              </div>
-
-              <div className="umm-span-2">
-                <button className="umm-btn" disabled={loading || saving || !selectedRecord}>
-                  {saving ? "Guardando..." : "Guardar parametrización"}
-                </button>
-              </div>
-            </form>
-          </section>
-
-          <aside className="umm-context-panel">
-            {!selectedRecord ? (
-              <div className="umm-empty">
-                <strong>Selecciona un código pendiente</strong>
-                <p>Se mostrarán la ubicación y los parámetros físicos actuales.</p>
-              </div>
-            ) : (
-              <div className="umm-card">
-                <div className="umm-card-head">
-                  <div className="umm-code umm-mono">{selectedRecord.codigo}</div>
-                  <div className="umm-description">
-                    {selectedRecord.descripcion || "SIN DESCRIPCIÓN"}
-                  </div>
-                </div>
-                <div className="umm-card-body">
-                  {[
-                    ["Bodega", selectedRecord.bodega],
-                    ["Ubicación", selectedRecord.ubicacion],
-                    ["Zona bodega", selectedRecord.zonaBodega],
-                    ["Zona abastecimiento", selectedRecord.zonaAbastecimiento],
-                    ["Zona nivel", selectedRecord.zonaNivel],
-                    ["Mínimo actual", selectedRecord.minimo]
-                  ].map(([label, value]) => (
-                    <div className="umm-stat" key={label}>
-                      <div className="umm-stat-label">{label}</div>
-                      <div className="umm-stat-value">{value || "SIN DATO"}</div>
+        <div className="umm-app-shell flex flex-col h-full w-full relative">
+          <div className="umm-main-layout">
+            <div className="umm-left-panel border-r border-[#dadce0] bg-white px-6 pt-4 pb-6 shrink-0 z-10">
+              <div className="umm-left-panel-inner">
+                <form onSubmit={guardar_} className="min-h-full flex flex-col">
+                  <div className="umm-form-grid">
+                    <div className="umm-grid-usuario umm-field-block">
+                      <label className="umm-label ml-1">Usuario responsable</label>
+                      <select
+                        className="umm-form-input uppercase"
+                        disabled={cargando || guardando}
+                        value={form.usuario}
+                        onChange={event => setForm(previous => ({
+                          ...previous,
+                          usuario: event.target.value
+                        }))}
+                      >
+                        <option value="">Selecciona un usuario</option>
+                        {usuarios.map((usuario, index) => {
+                          const nombre = usuario.nombre || usuario.NOMBRE || "";
+                          const id = usuario.idUsuarios || usuario.idusuarios || index;
+                          const rol = usuario.rol || usuario.ROL || "";
+                          return (
+                            <option key={`${id}-${index}`} value={nombre}>
+                              {nombre}{rol ? ` · ${rol}` : ""}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </div>
-                  ))}
+
+                    <div className="umm-grid-codigo umm-field-block">
+                      <label className="umm-label ml-1">
+                        Código pendiente ({registrosPendientes.length})
+                      </label>
+                      <div className="relative group">
+                        <input
+                          ref={codigoInputRef}
+                          list="lista-codigos-ubicaciones-maxmin"
+                          className="umm-form-input umm-mono uppercase"
+                          disabled={cargando || guardando}
+                          placeholder={cargando ? "Cargando ubicaciones..." : "Selecciona código pendiente"}
+                          value={form.codigo}
+                          onChange={event => actualizarCodigo_(event.target.value)}
+                        />
+                        <datalist id="lista-codigos-ubicaciones-maxmin">
+                          {registrosPendientes.map(registro => (
+                            <option
+                              key={`${registro.numFila}-${registro.codigo}`}
+                              value={registro.codigo}
+                            >
+                              {registro.descripcion || "SIN DESCRIPCIÓN"}
+                            </option>
+                          ))}
+                        </datalist>
+                        {registroSeleccionado && (
+                          <div className="absolute right-3 top-3 text-green-500 animate-pulse">
+                            <LocalIcon name="check-circle" size={16} />
+                          </div>
+                        )}
+                      </div>
+                      <span className="umm-helper">
+                        Solo se muestran filas cuya captura de FECHA, HORA y USUARIO está pendiente.
+                      </span>
+                    </div>
+
+                    <div className="umm-grid-producto">
+                      {registroSeleccionado ? (
+                        <div className="umm-product-card fade-in space-y-3">
+                          <div className="flex items-start gap-2.5">
+                            <div className="p-1.5 bg-gray-800 rounded-lg">
+                              <LocalIcon name="tag" size={15} className="text-red-500" />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[12px] font-black text-gray-500 uppercase tracking-[0.18em]">
+                                Producto vinculado
+                              </span>
+                              <span className="text-white umm-mono text-[17px] font-black mt-1 break-all">
+                                {registroSeleccionado.codigo}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2.5 border-t border-gray-800 pt-2.5">
+                            <div className="p-1.5 bg-gray-800 rounded-lg">
+                              <LocalIcon name="file-text" size={15} className="text-red-500" />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[12px] font-black text-gray-500 uppercase tracking-[0.18em]">
+                                Descripción
+                              </span>
+                              <span className="text-gray-300 text-[15px] font-bold leading-snug uppercase italic mt-1 break-words">
+                                {registroSeleccionado.descripcion || "SIN DESCRIPCIÓN"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="umm-product-placeholder">
+                          <div className="text-[11px] font-black uppercase tracking-[0.18em]">
+                            Esperando producto
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="umm-grid-existencia umm-field-block">
+                      <label className="umm-label ml-1">Existencia actual</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        className="umm-form-input umm-mono"
+                        disabled={!registroSeleccionado || guardando}
+                        placeholder="Ej: 250"
+                        value={form.existencia}
+                        onChange={event => setForm(previous => ({
+                          ...previous,
+                          existencia: limpiarEntero_(event.target.value)
+                        }))}
+                      />
+                    </div>
+
+                    <div className="umm-grid-porcentaje umm-field-block">
+                      <label className="umm-label ml-1">Capacidad ocupada</label>
+                      <div className="umm-percent-wrap">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          className="umm-form-input umm-mono"
+                          disabled={!registroSeleccionado || guardando}
+                          placeholder="1 a 100"
+                          value={form.porcentaje}
+                          onChange={event => actualizarPorcentaje_(event.target.value)}
+                        />
+                        <span className="umm-percent-sign">%</span>
+                      </div>
+                    </div>
+
+                    <div className="umm-grid-maximo umm-field-block">
+                      <label className="umm-label ml-1">Máximo estimado</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        className="umm-form-input umm-mono"
+                        disabled={!registroSeleccionado || guardando || !maximoEditable}
+                        readOnly={!maximoEditable}
+                        placeholder={
+                          maximoEditable
+                            ? "Vacío toma la existencia"
+                            : "Calculado automáticamente"
+                        }
+                        value={maximoEditable ? form.maximo : (maximoCalculado || "")}
+                        onChange={event => setForm(previous => ({
+                          ...previous,
+                          maximo: limpiarEntero_(event.target.value)
+                        }))}
+                      />
+                      <span className="umm-helper">
+                        {maximoEditable
+                          ? "Con 100%, el máximo puede capturarse. Si queda vacío se usará la existencia."
+                          : "Con menos de 100%, el máximo se calcula y redondea a la decena más cercana."}
+                      </span>
+                    </div>
+
+                    <div className="umm-grid-resumen">
+                      <div className="umm-summary-card">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="inline-flex rounded-full px-3 py-1 text-[10px] font-black tracking-[0.14em] uppercase bg-white/10 border border-white/10">
+                            Cálculo automático
+                          </span>
+                          <LocalIcon name="calculator" size={18} />
+                        </div>
+                        <div className="umm-summary-grid">
+                          <div>
+                            <span className="umm-summary-label">Existencia</span>
+                            <span className="umm-summary-value">{existencia || 0}</span>
+                          </div>
+                          <div>
+                            <span className="umm-summary-label">Ocupación</span>
+                            <span className="umm-summary-value">{porcentaje || 0}%</span>
+                          </div>
+                          <div>
+                            <span className="umm-summary-label">Máximo</span>
+                            <span className="umm-summary-value">{maximoCalculado || 0}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="umm-grid-accion">
+                      <button
+                        type="submit"
+                        className="umm-action-btn"
+                        disabled={cargando || guardando || !registroSeleccionado}
+                      >
+                        <LocalIcon
+                          name={guardando ? "loader-2" : "save"}
+                          size={25}
+                          className={guardando ? "animate-spin" : ""}
+                        />
+                        {guardando ? "Guardando..." : "Guardar parametrización"}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div className="umm-right-panel min-w-0">
+              <div className="umm-toolbar">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#1c1d1f] text-white flex items-center justify-center shadow-md shrink-0">
+                    <LocalIcon name="warehouse" size={22} />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400">
+                      Ubicación del producto seleccionado
+                    </span>
+                    <span className="text-[15px] font-black uppercase tracking-[0.08em] text-gray-900 truncate">
+                      {registroSeleccionado?.codigo || "Sin producto seleccionado"}
+                    </span>
+                  </div>
                 </div>
-                <div className="umm-metric" style={{ padding: "0 22px 22px" }}>
-                  <div style={{ background: "#eff6ff", color: "#1d4ed8" }}>
-                    <span>Existencia</span><b>{existence || 0}</b>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="px-3 py-2 rounded-xl bg-red-50 border border-red-100 text-red-700">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.16em]">Pendientes</span>
+                    <span className="block text-[18px] font-black font-mono leading-none">{resumen.pendientes}</span>
                   </div>
-                  <div style={{ background: "#fff7ed", color: "#c2410c" }}>
-                    <span>Ocupación</span><b>{percentage || 0}%</b>
-                  </div>
-                  <div style={{ background: "#ecfdf5", color: "#047857" }}>
-                    <span>Máximo</span><b>{calculatedMaximum || 0}</b>
+                  <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700">
+                    <span className="block text-[10px] font-black uppercase tracking-[0.16em]">Usuarios</span>
+                    <span className="block text-[18px] font-black font-mono leading-none">{resumen.usuarios}</span>
                   </div>
                 </div>
               </div>
-            )}
-          </aside>
+
+              <div className="umm-right-scroll">
+                {!registroSeleccionado ? (
+                  <div className="umm-empty-state">
+                    <LocalIcon name="mouse-pointer-click" size={52} />
+                    <p className="text-[13px] font-black uppercase tracking-[0.32em] text-gray-400">
+                      Selecciona un producto
+                    </p>
+                    <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-gray-300">
+                      El panel mostrará la ubicación y parámetros del código seleccionado
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-6 fade-in">
+                    <div className="umm-detail-card">
+                      <div className="bg-[#1c1d1f] px-6 py-5 text-white">
+                        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400 mb-2">
+                          Registro pendiente
+                        </div>
+                        <div className="umm-mono text-[26px] font-black leading-none break-all">
+                          {registroSeleccionado.codigo}
+                        </div>
+                        <div className="mt-3 text-[14px] font-bold uppercase text-gray-300 leading-snug">
+                          {registroSeleccionado.descripcion || "SIN DESCRIPCIÓN"}
+                        </div>
+                      </div>
+
+                      <div className="umm-detail-grid">
+                        {[
+                          ["Bodega", registroSeleccionado.bodega],
+                          ["Ubicación", registroSeleccionado.ubicacion],
+                          ["Zona bodega", registroSeleccionado.zonaBodega],
+                          ["Zona abastecimiento", registroSeleccionado.zonaAbastecimiento],
+                          ["Zona nivel", registroSeleccionado.zonaNivel],
+                          ["Mínimo configurado", registroSeleccionado.minimo]
+                        ].map(([label, value]) => (
+                          <div className="umm-detail-item" key={label}>
+                            <div className="umm-detail-label">{label}</div>
+                            <div className="umm-detail-value">{value || "SIN DATO"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       );
     };
 
-    const rootElement = document.getElementById("render-ubicaciones-maxmin");
-    if (!rootElement) {
-      console.error("No se encontró #render-ubicaciones-maxmin.");
+    const rootDiv = document.getElementById("render-ubicaciones-maxmin");
+    if (!rootDiv) {
+      notify_("No se encontró el contenedor de Ubicaciones MaxMin.", "error", 4200, {
+        title: "Error de interfaz",
+        sound: true
+      });
       return;
     }
 
@@ -675,14 +1045,23 @@
       try {
         window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__.unmount();
       } catch (error) {
-        console.warn("No se pudo desmontar la raíz anterior:", error);
+        console.warn("No se pudo desmontar la raíz previa de Ubicaciones MaxMin:", error);
       }
+      window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__ = null;
     }
 
-    window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__ = ReactDOM.createRoot(rootElement);
-    window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__.render(
-      <FormularioUbicacionesMaxMin />
-    );
+    try {
+      window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__ = ReactDOM.createRoot(rootDiv);
+      window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__.render(
+        <VistaUbicacionesMaxMin />
+      );
+    } catch (error) {
+      console.error("Error montando FormularioUbicacionesMaxMin:", error);
+      notify_("Ocurrió un error al montar la vista.", "error", 4200, {
+        title: "Error de montaje",
+        sound: true
+      });
+    }
   };
 
   window.initVista = window.cargar_FormularioUbicacionesMaxMin;
