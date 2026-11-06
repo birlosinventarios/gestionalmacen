@@ -32,6 +32,8 @@
  * RESPONSABILIDADES
  * - Validar dependencias, columnas, ancho y encabezados físicos.
  * - Leer y normalizar registros sin exponer arreglos físicos.
+ * - Tolerar celdas numéricas vacías o marcadores operativos durante la lectura.
+ * - Mantener validación numérica estricta antes de cualquier escritura.
  * - Mantener una caché local durante la ejecución actual.
  * - Entregar copias defensivas a los consumidores.
  * - Insertar, actualizar y realizar upsert bajo ScriptLock.
@@ -45,6 +47,7 @@
  * - Resolver usuarios. El Service entrega USUARIO previamente validado.
  * - Sobrescribir VALIDACION durante la captura inicial.
  * - Calcular PORCENTAJE. El Service debe entregar el valor ya validado.
+ * - Ocultar la fila física cuando una celda numérica histórica es inválida.
  * - Usar el número de fila como identidad funcional del registro.
  *
  * DEPENDENCIAS GLOBALES
@@ -54,7 +57,7 @@
  * - LockService, SpreadsheetApp, Session y Utilities.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version UBICACIONES-MAXMIN-REPOSITORY-2026-11-06-02
+ * @version UBICACIONES-MAXMIN-REPOSITORY-2026-11-06-03
  */
 const UbicacionesMaxMinRepository = (() => {
   "use strict";
@@ -338,25 +341,86 @@ const UbicacionesMaxMinRepository = (() => {
   // NORMALIZACIÓN Y PROYECCIÓN
   // ===========================================================================
 
+  /** @private @const {!Set<string>} */
+  const EMPTY_NUMERIC_MARKERS = new Set([
+    "",
+    "-",
+    "N/A",
+    "NA",
+    "PENDIENTE",
+    "SIN DATO"
+  ]);
+
   /**
-   * Convierte un valor a número finito sin ocultar entradas inválidas.
+   * Convierte una celda numérica leída desde la hoja a un número finito.
    *
-   * @param {*} value Valor original.
-   * @param {string} fieldName Campo asociado al error.
-   * @return {number} Valor numérico finito.
+   * Las filas pendientes pueden contener una celda vacía o un marcador operativo.
+   * Esos valores se interpretan como cero exclusivamente durante la lectura. Los
+   * separadores de miles y espacios se eliminan antes de convertir.
+   *
+   * La función no oculta errores reales: cualquier texto no reconocido produce un
+   * error que incluye campo, fila física y valor recibido.
+   *
+   * @param {*} value Valor leído desde Google Sheets.
+   * @param {string} fieldName Campo asociado.
+   * @param {number} sheetRow Número físico de fila.
+   * @return {number} Valor finito normalizado.
+   * @throws {TypeError} Si la celda no es convertible.
+   * @private
+   */
+  function _toReadNumber_(value, fieldName, sheetRow) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    const normalized = String(value == null ? "" : value)
+      .trim()
+      .toUpperCase();
+
+    if (EMPTY_NUMERIC_MARKERS.has(normalized)) {
+      return 0;
+    }
+
+    const numericText = normalized
+      .replace(/,/g, "")
+      .replace(/\s+/g, "");
+    const number = Number(numericText);
+
+    if (!Number.isFinite(number)) {
+      throw new TypeError(
+        `${CFG.LOG_PREFIX} El campo ${fieldName} contiene un número inválido ` +
+        `en la fila ${sheetRow}: "${normalized}".`
+      );
+    }
+
+    return number;
+  }
+
+  /**
+   * Convierte un valor de escritura a un número finito.
+   *
+   * A diferencia de la lectura, esta función no acepta marcadores operativos ni
+   * texto con formato. El Service debe entregar números o cadenas numéricas
+   * válidas. Los vacíos se normalizan a cero para campos opcionales.
+   *
+   * @param {*} value Valor recibido desde el Service.
+   * @param {string} fieldName Campo asociado.
+   * @return {number} Valor finito normalizado.
    * @throws {TypeError} Si el valor no representa un número finito.
    * @private
    */
-  function _toFiniteNumber_(value, fieldName) {
+  function _toWriteNumber_(value, fieldName) {
     if (value === "" || value === null || value === undefined) {
       return 0;
     }
+
     const number = Number(value);
     if (!Number.isFinite(number)) {
       throw new TypeError(
-        `${CFG.LOG_PREFIX} El campo ${fieldName} contiene un número inválido.`
+        `${CFG.LOG_PREFIX} El campo ${fieldName} debe contener un número válido.`
       );
     }
+
     return number;
   }
 
@@ -411,10 +475,10 @@ const UbicacionesMaxMinRepository = (() => {
       descripcion: toStr_(row[columns.DESCRIPCION]),
       bodega: bodega,
       ubicacion: ubicacion,
-      existencia: _toFiniteNumber_(row[columns.EXISTENCIA], "EXISTENCIA"),
-      porcentaje: _toFiniteNumber_(row[columns.PORCENTAJE], "PORCENTAJE"),
-      maximo: _toFiniteNumber_(row[columns.MAXIMO], "MAXIMO"),
-      minimo: _toFiniteNumber_(row[columns.MINIMO], "MINIMO"),
+      existencia: _toReadNumber_(row[columns.EXISTENCIA], "EXISTENCIA", sheetRow),
+      porcentaje: _toReadNumber_(row[columns.PORCENTAJE], "PORCENTAJE", sheetRow),
+      maximo: _toReadNumber_(row[columns.MAXIMO], "MAXIMO", sheetRow),
+      minimo: _toReadNumber_(row[columns.MINIMO], "MINIMO", sheetRow),
       zonaBodega: toStrUpper_(row[columns.ZONA_BODEGA]),
       zonaAbastecimiento: toStrUpper_(row[columns.ZONA_ABASTECIMIENTO]),
       zonaNivel: toStrUpper_(row[columns.ZONA_NIVEL]),
@@ -734,10 +798,10 @@ const UbicacionesMaxMinRepository = (() => {
       descripcion: toStr_(payload.descripcion),
       bodega: bodega,
       ubicacion: ubicacion,
-      existencia: _toFiniteNumber_(payload.existencia, "EXISTENCIA"),
-      porcentaje: _toFiniteNumber_(payload.porcentaje, "PORCENTAJE"),
-      maximo: _toFiniteNumber_(payload.maximo, "MAXIMO"),
-      minimo: _toFiniteNumber_(payload.minimo, "MINIMO"),
+      existencia: _toWriteNumber_(payload.existencia, "EXISTENCIA"),
+      porcentaje: _toWriteNumber_(payload.porcentaje, "PORCENTAJE"),
+      maximo: _toWriteNumber_(payload.maximo, "MAXIMO"),
+      minimo: _toWriteNumber_(payload.minimo, "MINIMO"),
       zonaBodega: toStrUpper_(payload.zonaBodega),
       zonaAbastecimiento: toStrUpper_(payload.zonaAbastecimiento),
       zonaNivel: toStrUpper_(payload.zonaNivel),
@@ -955,6 +1019,48 @@ const UbicacionesMaxMinRepository = (() => {
     });
   }
 
+  /**
+   * Diagnostica celdas numéricas no convertibles sin interrumpir en el primer error.
+   *
+   * Esta operación es de solo lectura y no devuelve IDs de Spreadsheet. Resulta
+   * útil para localizar datos históricos incompatibles en EXISTENCIA, PORCENTAJE,
+   * MAXIMO o MINIMO.
+   *
+   * @return {!Array<!Object>} Hallazgos con fila, campo y valor visible.
+   */
+  function diagnosticarCeldasNumericas() {
+    _validateDependencies_();
+    _validateSheetContract_();
+
+    const rows = getRowsByKey_(CFG.SOURCE_KEY);
+    const columns = _getColumns_();
+    const fields = [
+      ["EXISTENCIA", columns.EXISTENCIA],
+      ["PORCENTAJE", columns.PORCENTAJE],
+      ["MAXIMO", columns.MAXIMO],
+      ["MINIMO", columns.MINIMO]
+    ];
+    const findings = [];
+
+    rows.forEach(function(row, index) {
+      const sheetRow = CFG.FIRST_DATA_ROW + index;
+      fields.forEach(function(field) {
+        try {
+          _toReadNumber_(row[field[1]], field[0], sheetRow);
+        } catch (error) {
+          findings.push({
+            fila: sheetRow,
+            campo: field[0],
+            valor: String(row[field[1]] == null ? "" : row[field[1]]).trim(),
+            mensaje: error.message
+          });
+        }
+      });
+    });
+
+    return findings;
+  }
+
   // ===========================================================================
   // API PÚBLICA
   // ===========================================================================
@@ -969,6 +1075,7 @@ const UbicacionesMaxMinRepository = (() => {
     insertar,
     actualizar,
     upsert,
-    clearCache
+    clearCache,
+    diagnosticarCeldasNumericas
   });
 })();

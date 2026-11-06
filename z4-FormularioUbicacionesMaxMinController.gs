@@ -10,8 +10,9 @@
  * RESPONSABILIDADES
  * - Publicar endpoints globales invocables mediante google.script.run.
  * - Validar la estructura mínima de los argumentos recibidos.
- * - Componer el bootstrap específico de la vista con usuarios y registros
- *   pendientes de UBICACIONES_MAXMIN.
+ * - Delegar al Service la composición completa del bootstrap específico.
+ * - Entregar a la vista usuarios, registros pendientes y opciones con
+ *   CODIGO y DESCRIPCION.
  * - Delegar las reglas de negocio y la persistencia al Service.
  * - Mantener respuestas serializables y errores accionables.
  * - Evitar registrar payloads completos o valores personales.
@@ -39,7 +40,6 @@
  *
  * DEPENDENCIAS GLOBALES
  * - execController_(controllerName, label, executor).
- * - BootstrapServices.getInfoInicial(forceRefresh).
  * - FormularioUbicacionesMaxMinService.
  *
  * NOTA SOBRE GOOGLE APPS SCRIPT
@@ -48,7 +48,7 @@
  * del servidor.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-04
+ * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-05
  */
 "use strict";
 
@@ -60,7 +60,7 @@
  */
 const FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG = Object.freeze({
   NAME: "FormularioUbicacionesMaxMinController",
-  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-04",
+  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-05",
   LOG_PREFIX: "[FormularioUbicacionesMaxMinController]",
   MIN_DATA_ROW: 2,
   OPERATIONS: Object.freeze({
@@ -248,88 +248,6 @@ function FormularioUbicacionesMaxMinController_requireRowNumber_(numFila) {
   return rowNumber;
 }
 
-/**
- * Obtiene el bootstrap general desde BootstrapServices.
- *
- * @return {!Object} Bootstrap general o contrato vacío estable.
- * @private
- */
-function FormularioUbicacionesMaxMinController_getGeneralBootstrap_() {
-  if (
-    typeof BootstrapServices === "undefined" ||
-    !BootstrapServices ||
-    typeof BootstrapServices.getInfoInicial !== "function"
-  ) {
-    return {
-      usuarios: [],
-      registrosPendientesUbicacionesMaxMin: [],
-      codigosPendientesUbicacionesMaxMin: []
-    };
-  }
-
-  const bootstrap = BootstrapServices.getInfoInicial(false);
-  return bootstrap && typeof bootstrap === "object"
-    ? bootstrap
-    : {
-        usuarios: [],
-        registrosPendientesUbicacionesMaxMin: [],
-        codigosPendientesUbicacionesMaxMin: []
-      };
-}
-
-/**
- * Proyecta un usuario al contrato estable de la vista.
- *
- * No filtra por rol. Todos los usuarios obtenidos del repositorio permanecen
- * seleccionables, conforme al requisito funcional del formulario.
- *
- * @param {!Object} user Usuario de origen.
- * @return {!Object} Usuario serializable.
- * @private
- */
-function FormularioUbicacionesMaxMinController_projectUser_(user) {
-  return {
-    idUsuarios: String(
-      user.idUsuarios ||
-      user.idusuarios ||
-      user.IDUSUARIOS ||
-      ""
-    ).trim(),
-    nombre: String(user.nombre || user.NOMBRE || "").trim(),
-    rol: String(user.rol || user.ROL || "").trim()
-  };
-}
-
-/**
- * Proyecta un registro pendiente al contrato consumido por la vista.
- *
- * @param {!Object} item Registro de UBICACIONES_MAXMIN.
- * @return {!Object} Registro serializable.
- * @private
- */
-function FormularioUbicacionesMaxMinController_projectPendingRecord_(item) {
-  return {
-    numFila: Number(item.numFila || 0),
-    codigo: String(item.codigo || "").trim().toUpperCase(),
-    descripcion: String(item.descripcion || "").trim().toUpperCase(),
-    bodega: String(item.bodega || "").trim().toUpperCase(),
-    ubicacion: String(item.ubicacion || "").trim().toUpperCase(),
-    existencia: Number(item.existencia || 0),
-    porcentaje: Number(item.porcentaje || 0),
-    maximo: Number(item.maximo || 0),
-    minimo: Number(item.minimo || 0),
-    zonaBodega: String(item.zonaBodega || "").trim().toUpperCase(),
-    zonaAbastecimiento: String(item.zonaAbastecimiento || "")
-      .trim()
-      .toUpperCase(),
-    zonaNivel: String(item.zonaNivel || "").trim().toUpperCase(),
-    fecha: String(item.fecha || "").trim(),
-    hora: String(item.hora || "").trim(),
-    usuario: String(item.usuario || "").trim(),
-    validacion: String(item.validacion || "").trim().toUpperCase()
-  };
-}
-
 // =============================================================================
 // ENDPOINTS RPC GLOBALES
 // =============================================================================
@@ -337,66 +255,57 @@ function FormularioUbicacionesMaxMinController_projectPendingRecord_(item) {
 /**
  * Obtiene el bootstrap específico de FormularioUbicacionesMaxMin.
  *
- * Combina el contrato técnico del Service con usuarios y registros pendientes
- * del bootstrap general. El resultado coincide con lo esperado por la vista:
+ * El Service es la única capa responsable de consultar UsuariosRepository y
+ * UbicacionesMaxMinRepository, filtrar registros pendientes y construir las
+ * opciones visibles como CODIGO y DESCRIPCION. El Controller solamente valida
+ * que el contrato resultante sea serializable y delega la respuesta.
  *
+ * CONTRATO DE RESPUESTA
  * {
- *   usuarios: Array<Object>,
+ *   usuarios: Array<{idusuario:number,nombre:string,rol:string}>,
  *   registrosPendientes: Array<Object>,
- *   codigosPendientes: Array<string>,
- *   configuracion: Object
+ *   codigosPendientes: Array<{codigo:string,descripcion:string}>,
+ *   rules: Object,
+ *   source: Object,
+ *   diagnostics: Object
  * }
  *
- * @return {!Object} Bootstrap serializable de la vista.
+ * @return {!Object} Bootstrap completo y serializable de la vista.
+ * @throws {Error} Si el Service devuelve un contrato inválido.
  */
 function FormularioUbicacionesMaxMinController_getBootstrap() {
   return FormularioUbicacionesMaxMinController_execute_(
     FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.OPERATIONS.GET_BOOTSTRAP,
     function () {
-      const getModuleBootstrap =
+      const method =
         FormularioUbicacionesMaxMinController_requireServiceMethod_(
           "getBootstrap"
         );
-      const moduleBootstrap = getModuleBootstrap.call(
-        FormularioUbicacionesMaxMinService
-      );
-      const generalBootstrap =
-        FormularioUbicacionesMaxMinController_getGeneralBootstrap_();
+      const bootstrap = method.call(FormularioUbicacionesMaxMinService);
 
-      const usuarios = (Array.isArray(generalBootstrap.usuarios)
-        ? generalBootstrap.usuarios
-        : [])
-        .map(FormularioUbicacionesMaxMinController_projectUser_)
-        .filter(function (user) {
-          return Boolean(user.nombre);
-        });
+      if (!bootstrap || typeof bootstrap !== "object" || Array.isArray(bootstrap)) {
+        throw new Error(
+          `${FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.LOG_PREFIX} ` +
+          "El Service devolvió un bootstrap inválido."
+        );
+      }
 
-      const registrosPendientes = (
-        Array.isArray(
-          generalBootstrap.registrosPendientesUbicacionesMaxMin
-        )
-          ? generalBootstrap.registrosPendientesUbicacionesMaxMin
-          : []
-      )
-        .map(
-          FormularioUbicacionesMaxMinController_projectPendingRecord_
-        )
-        .filter(function (item) {
-          return Boolean(item.codigo && item.numFila >= 2);
-        });
+      const requiredArrays = [
+        "usuarios",
+        "registrosPendientes",
+        "codigosPendientes"
+      ];
 
-      const codigosPendientes = Array.isArray(
-        generalBootstrap.codigosPendientesUbicacionesMaxMin
-      )
-        ? generalBootstrap.codigosPendientesUbicacionesMaxMin.slice()
-        : [];
+      requiredArrays.forEach(function(fieldName) {
+        if (!Array.isArray(bootstrap[fieldName])) {
+          throw new Error(
+            `${FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.LOG_PREFIX} ` +
+            `El campo ${fieldName} del bootstrap debe ser un arreglo.`
+          );
+        }
+      });
 
-      return {
-        usuarios: usuarios,
-        registrosPendientes: registrosPendientes,
-        codigosPendientes: codigosPendientes,
-        configuracion: moduleBootstrap || {}
-      };
+      return bootstrap;
     }
   );
 }
@@ -506,7 +415,10 @@ function FormularioUbicacionesMaxMinController_obtenerPorIdentidad(
 }
 
 /**
- * Inserta o actualiza un registro por su identidad funcional.
+ * Guarda la captura sobre una fila física existente.
+ *
+ * Este formulario no inserta filas nuevas. El Service exige numFila y delega la
+ * actualización segura al Repository.
  *
  * @param {*} payload Datos del formulario.
  * @return {!Object} Resultado de persistencia.
@@ -581,10 +493,6 @@ function FormularioUbicacionesMaxMinController_diagnosticar() {
         },
         dependencies: {
           execController: typeof execController_ === "function",
-          bootstrapServices:
-            typeof BootstrapServices !== "undefined" &&
-            BootstrapServices !== null &&
-            typeof BootstrapServices.getInfoInicial === "function",
           service:
             typeof FormularioUbicacionesMaxMinService !== "undefined" &&
             FormularioUbicacionesMaxMinService !== null,
@@ -593,9 +501,11 @@ function FormularioUbicacionesMaxMinController_diagnosticar() {
             FormularioUbicacionesMaxMinService !== null &&
             typeof FormularioUbicacionesMaxMinService.getBootstrap ===
               "function",
-          repository:
-            typeof UbicacionesMaxMinRepository !== "undefined" &&
-            UbicacionesMaxMinRepository !== null
+          serviceUpdate:
+            typeof FormularioUbicacionesMaxMinService !== "undefined" &&
+            FormularioUbicacionesMaxMinService !== null &&
+            typeof FormularioUbicacionesMaxMinService.actualizar ===
+              "function"
         },
         generatedAt: new Date().toISOString()
       };
