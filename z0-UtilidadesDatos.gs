@@ -14,6 +14,7 @@
  * - Ejecutar operaciones críticas mediante ScriptLock.
  * - Estandarizar la ejecución y errores de Controllers.
  * - Invalidar cachés por alcance funcional.
+ * - Invalidar de forma específica las cachés de UBICACIONES_MAXMIN.
  * - Verificar contratos de hojas del módulo Verificación de entrada.
  * - Validar y normalizar contratos documentales de Gestión de Material.
  * - Administrar claves COTIZACION_NUM, identificadores y consecutivos diarios.
@@ -31,6 +32,10 @@
  * - La unicidad técnica se confirma bajo ScriptLock en el repositorio.
  * - Las trazas finalizadas no aceptan nuevas marcas.
  * - Las limpiezas de caché toleran dependencias opcionales ausentes.
+ * - Los Controllers utilizan execController_(controllerName, label, executor).
+ *
+ * @author Sigifredo de la Cruz Ramos
+ * @version APPALMACEN-UTILIDADES-DATOS-2026-11-06-02
  */
 
 // =========================================================
@@ -1208,44 +1213,69 @@ function withScriptLock_(label, executor, timeoutMs, trace) {
 // =========================================================
 // EJECUCIÓN ESTÁNDAR DE CONTROLLERS
 // =========================================================
-/** Wrapper genérico para controllers. */
+/**
+ * Ejecuta una operación de Controller con trazabilidad uniforme.
+ *
+ * CONTRATO
+ * execController_(controllerName, label, executor)
+ *
+ * El tercer argumento debe ser la función ejecutora. La validación ocurre antes
+ * de iniciar la traza para generar un error accionable cuando un Controller
+ * invierte el orden de los argumentos.
+ *
+ * SEGURIDAD
+ * - No registra argumentos ni payloads completos.
+ * - Registra nombre del Controller, operación, duración y error.
+ * - Conserva el código funcional del error cuando existe.
+ *
+ * @param {*} controllerName Nombre lógico del Controller.
+ * @param {*} label Nombre corto de la operación.
+ * @param {function(): *} executor Operación delegada.
+ * @return {*} Resultado serializable de la operación.
+ * @throws {TypeError} Si el contrato de invocación es inválido.
+ * @throws {Error} Si la operación delegada falla.
+ */
 function execController_(controllerName, label, executor) {
-  const t0 = Date.now();
+  const safeControllerName = String(controllerName || "").trim();
+  const safeLabel = String(label || "").trim();
+
+  if (!safeControllerName) {
+    throw new TypeError("execController_: controllerName es obligatorio.");
+  }
+  if (!safeLabel) {
+    throw new TypeError("execController_: label es obligatorio.");
+  }
+  if (typeof executor !== "function") {
+    throw new TypeError(
+      "execController_: executor debe ser una función. " +
+      "Firma esperada: execController_(controllerName, label, executor)."
+    );
+  }
+
+  const startedAt = Date.now();
+  const logPrefix = "[" + safeControllerName + "] " + safeLabel;
 
   try {
-    console.log("[" + controllerName + "] " + label + " :: INICIO");
-
+    console.log(logPrefix + " :: INICIO");
     const result = executor();
-
-    console.log(
-      "[" + controllerName + "] " + label + " :: OK",
-      {
-        durationMs: Date.now() - t0
-      }
-    );
-
+    console.log(logPrefix + " :: OK", {
+      durationMs: Date.now() - startedAt
+    });
     return result;
   } catch (error) {
-    console.error(
-      "[" + controllerName + "] " + label + " :: ERROR message",
-      error && error.message
-    );
+    console.error(logPrefix + " :: ERROR message", error && error.message);
+    console.error(logPrefix + " :: ERROR stack", error && error.stack);
+    console.error(logPrefix + " :: ERROR raw", error);
 
-    console.error(
-      "[" + controllerName + "] " + label + " :: ERROR stack",
-      error && error.stack
-    );
-
-    console.error(
-      "[" + controllerName + "] " + label + " :: ERROR raw",
-      error
-    );
-
-    throw new Error(
+    const wrappedError = new Error(
       error && error.message
         ? error.message
-        : "Error en " + controllerName + "." + label
+        : "Error en " + safeControllerName + "." + safeLabel
     );
+    if (error && error.code) {
+      wrappedError.code = error.code;
+    }
+    throw wrappedError;
   }
 }
 
@@ -1293,6 +1323,13 @@ function clearOperationalCaches_() {
       typeof MaxMinRepository.clearCache === "function"
     ) {
       MaxMinRepository.clearCache();
+    }
+    if (
+      typeof UbicacionesMaxMinRepository !== "undefined" &&
+      UbicacionesMaxMinRepository &&
+      typeof UbicacionesMaxMinRepository.clearCache === "function"
+    ) {
+      UbicacionesMaxMinRepository.clearCache();
     }
 
     if (
@@ -1373,6 +1410,47 @@ function clearOperationalCaches_() {
         : String(error || "")
     );
 
+    return false;
+  }
+}
+
+/**
+ * Limpia las cachés relacionadas con FormularioUbicacionesMaxMin.
+ *
+ * Debe invocarse después de una escritura confirmada para impedir que el
+ * bootstrap compartido vuelva a mostrar como pendiente una fila ya capturada.
+ * La función tolera dependencias opcionales ausentes y no propaga errores de
+ * limpieza porque la persistencia principal pudo haberse completado.
+ *
+ * @return {boolean} true cuando finaliza sin errores; false en caso contrario.
+ */
+function clearUbicacionesMaxMinCaches_() {
+  try {
+    if (
+      typeof UbicacionesMaxMinRepository !== "undefined" &&
+      UbicacionesMaxMinRepository &&
+      typeof UbicacionesMaxMinRepository.clearCache === "function"
+    ) {
+      UbicacionesMaxMinRepository.clearCache();
+    }
+
+    if (
+      typeof APPALMACENCache !== "undefined" &&
+      APPALMACENCache &&
+      typeof APPALMACENCache.clearOperational === "function"
+    ) {
+      APPALMACENCache.clearOperational();
+    }
+
+    console.log("[CACHE] clearUbicacionesMaxMinCaches_ :: OK");
+    return true;
+  } catch (error) {
+    console.warn(
+      "[CACHE] clearUbicacionesMaxMinCaches_ :: ERROR",
+      error && error.message
+        ? error.message
+        : String(error || "")
+    );
     return false;
   }
 }

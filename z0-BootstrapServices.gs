@@ -13,7 +13,8 @@
  * - Ordenar catálogos visibles de forma determinista.
  * - Medir la duración de cada etapa del proceso.
  * - Reutilizar APPALMACENCache cuando el módulo está disponible.
- * - Devolver un contrato vacío y estable si ocurre un error de composición.
+ * - Mantener contratos parciales disponibles cuando falla una fuente opcional.
+ * - Devolver siempre un contrato estable para evitar fallos en las vistas.
  *
  * Dependencias globales:
  * - UsuariosRepository.
@@ -43,13 +44,16 @@
  *   comportamiento original del servicio.
  * - Los mapas utilizan claves normalizadas y conservan el último registro si
  *   existen duplicados en la fuente.
+ * - Los registros MaxMin conservan numFila para distinguir códigos repetidos en
+ *   distintas bodegas o ubicaciones.
+ * - La selección técnica de MaxMin debe utilizar numFila, no únicamente CODIGO.
  * - El fallback de error mantiene siempre todas las propiedades del contrato.
  * - forceRefresh solo se considera verdadero cuando su valor es true.
  * - Un registro MaxMin se considera concluido cuando FECHA, HORA y USUARIO
  *   contienen valores no vacíos. VALIDACION pertenece a un flujo posterior.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version BOOTSTRAP-SERVICES-2026-11-06-02
+ * @version BOOTSTRAP-SERVICES-2026-11-06-03
  */
 
 const BootstrapServices = (() => {
@@ -76,6 +80,61 @@ const BootstrapServices = (() => {
   }
 
   /**
+   * Ejecuta una lectura de repositorio sin derribar el bootstrap completo.
+   *
+   * Las fuentes de APPALMACEN son funcionalmente independientes. Una falla en
+   * etiquetas o excedentes no debe impedir que FormularioUbicacionesMaxMin cargue
+   * usuarios y registros pendientes.
+   *
+   * @param {string} label Nombre estable de la lectura.
+   * @param {function(): *} executor Operación de consulta.
+   * @param {*} fallback Contrato de respaldo.
+   * @return {*} Resultado de la consulta o fallback.
+   * @private
+   */
+  function ejecutarLecturaSegura_(label, executor, fallback) {
+    const inicio = Date.now();
+    try {
+      if (typeof executor !== "function") {
+        throw new TypeError("executor debe ser una función.");
+      }
+      const result = executor();
+      logDuracion_(label, inicio, {
+        ok: true,
+        total: Array.isArray(result) ? result.length : undefined
+      });
+      return result;
+    } catch (error) {
+      console.warn(`[BOOT][SERVER] ${label} :: ERROR`, {
+        message: error && error.message ? error.message : String(error || "")
+      });
+      logDuracion_(label, inicio, { ok: false });
+      return fallback;
+    }
+  }
+
+  /**
+   * Crea el contrato vacío y estable del bootstrap.
+   *
+   * @return {!Object} Contrato sin datos.
+   * @private
+   */
+  function crearBootstrapVacio_() {
+    return {
+      usuarios: [],
+      bodegas: [],
+      mapaUbicacionesExcedentes: [],
+      codigos: [],
+      mapaCatalogo: {},
+      mapaMedidas: {},
+      nombresEtiquetas: [],
+      registrosUbicacionesMaxMin: [],
+      registrosPendientesUbicacionesMaxMin: [],
+      codigosPendientesUbicacionesMaxMin: []
+    };
+  }
+
+  /**
    * Normaliza el catálogo y construye sus índices para el navegador.
    *
    * @param {Array<Object>} catalogo Registros obtenidos del repositorio.
@@ -87,7 +146,7 @@ const BootstrapServices = (() => {
     const codigosUnicos = new Set();
 
     for (let i = 0; i < catalogo.length; i++) {
-      const item = catalogo[i];
+      const item = source[i];
       const codigo = String(item.codigo || "").trim().toUpperCase();
       if (!codigo) continue;
 
@@ -188,7 +247,13 @@ const BootstrapServices = (() => {
       fecha: String(item.fecha || "").trim(),
       hora: String(item.hora || "").trim(),
       usuario: String(item.usuario || "").trim(),
-      validacion: String(item.validacion || "").trim().toUpperCase()
+      validacion: String(item.validacion || "").trim().toUpperCase(),
+      claveSeleccion: [
+        Number(item.numFila || 0),
+        String(item.codigo || "").trim().toUpperCase(),
+        String(item.bodega || "").trim().toUpperCase(),
+        String(item.ubicacion || "").trim().toUpperCase()
+      ].join("|")
     };
   }
 
@@ -221,9 +286,9 @@ const BootstrapServices = (() => {
         a.ubicacion.localeCompare(b.ubicacion, "es-MX", { numeric: true })
       );
 
-    const pendientes = normalizados.filter(
-      item => !estaCapturaMaxMinCompleta_(item)
-    );
+    const pendientes = normalizados.filter(function(item) {
+      return item.numFila >= 2 && !estaCapturaMaxMinCompleta_(item);
+    });
 
     const codigosPendientes = [...new Set(
       pendientes.map(item => item.codigo).filter(Boolean)
@@ -240,9 +305,23 @@ const BootstrapServices = (() => {
    * @private
    */
   function usuariosOrdenados_(usuarios) {
-    return [...usuarios].sort((a, b) =>
-      String(a.nombre || "").localeCompare(String(b.nombre || ""))
-    );
+    return (Array.isArray(usuarios) ? usuarios : [])
+      .map(function(usuario) {
+        return {
+          idusuario: Number(usuario.idusuario || 0),
+          nombre: String(usuario.nombre || "").trim(),
+          rol: String(usuario.rol || "").trim()
+        };
+      })
+      .filter(function(usuario) {
+        return Boolean(usuario.nombre);
+      })
+      .sort(function(a, b) {
+        return a.nombre.localeCompare(b.nombre, "es-MX", {
+          sensitivity: "base",
+          numeric: true
+        });
+      });
   }
 
   /**
@@ -259,74 +338,83 @@ const BootstrapServices = (() => {
   // =========================================================
   function getInfoInicialFresh_() {
     const tTotal = Date.now();
+    console.log("[BOOT][SERVER] BootstrapServices.getInfoInicialFresh_ :: INICIO");
 
     try {
-      console.log("[BOOT][SERVER] BootstrapServices.getInfoInicialFresh_ :: INICIO");
+      const usuarios = ejecutarLecturaSegura_(
+        "UsuariosRepository.getAll",
+        function() {
+          return UsuariosRepository.getAll();
+        },
+        []
+      );
+
+      const ubicacionesExcedentes = ejecutarLecturaSegura_(
+        "UbicacionesExcedentesRepository.getAll",
+        function() {
+          return UbicacionesExcedentesRepository.getAll();
+        },
+        []
+      );
+
+      const catalogo = ejecutarLecturaSegura_(
+        "CatalogoRepository.getAll",
+        function() {
+          return typeof CatalogoRepository.getAllRaw === "function"
+            ? CatalogoRepository.getAllRaw()
+            : CatalogoRepository.getAll();
+        },
+        []
+      );
+
+      const etiquetas = ejecutarLecturaSegura_(
+        "EtiquetasRepository.getAll",
+        function() {
+          return EtiquetasRepository.getAll();
+        },
+        []
+      );
+
+      const ubicacionesMaxMin = ejecutarLecturaSegura_(
+        "UbicacionesMaxMinRepository.getAll",
+        function() {
+          if (
+            typeof UbicacionesMaxMinRepository === "undefined" ||
+            !UbicacionesMaxMinRepository ||
+            typeof UbicacionesMaxMinRepository.getAll !== "function"
+          ) {
+            return [];
+          }
+          return UbicacionesMaxMinRepository.getAll();
+        },
+        []
+      );
 
       let t = Date.now();
-      const usuarios = UsuariosRepository.getAll();
-      logDuracion_("UsuariosRepository.getAll", t, { total: usuarios.length });
-
-      t = Date.now();
-      const ubicacionesExcedentes = UbicacionesExcedentesRepository.getAll();
-      logDuracion_("UbicacionesExcedentesRepository.getAll", t, { total: ubicacionesExcedentes.length });
-
-      t = Date.now();
-      const catalogo =
-        typeof CatalogoRepository
-          .getAllRaw === "function"
-          ? CatalogoRepository
-              .getAllRaw()
-          : CatalogoRepository
-              .getAll();
-      logDuracion_("CatalogoRepository.getAll", t, { total: catalogo.length });
-
-      t = Date.now();
-      const etiquetas = EtiquetasRepository.getAll();
-      logDuracion_("EtiquetasRepository.getAll", t, { total: etiquetas.length });
-
-      t = Date.now();
-      const ubicacionesMaxMin =
-        typeof UbicacionesMaxMinRepository !== "undefined" &&
-        typeof UbicacionesMaxMinRepository.getAll === "function"
-          ? UbicacionesMaxMinRepository.getAll()
-          : [];
-      logDuracion_("UbicacionesMaxMinRepository.getAll", t, {
-        total: ubicacionesMaxMin.length
+      const usuariosNormalizados = usuariosOrdenados_(usuarios);
+      logDuracion_("usuariosOrdenados_", t, {
+        total: usuariosNormalizados.length
       });
-
-      t = Date.now();
-      const usuariosOrdenados = usuariosOrdenados_(usuarios);
-      logDuracion_("usuariosOrdenados_", t, { total: usuariosOrdenados.length });
 
       t = Date.now();
       const {
         mapaUbicacionesExcedentes,
         bodegas
       } = procesarUbicaciones_(ubicacionesExcedentes);
-
       logDuracion_("procesarUbicaciones_", t, {
         bodegas: bodegas.length,
         ubicaciones: mapaUbicacionesExcedentes.length
       });
 
       t = Date.now();
-      const {
-        mapaCatalogo,
-        codigos
-      } = procesarCatalogo_(catalogo);
-
+      const { mapaCatalogo, codigos } = procesarCatalogo_(catalogo);
       logDuracion_("procesarCatalogo_", t, {
         codigos: codigos.length,
         clavesMapaCatalogo: Object.keys(mapaCatalogo).length
       });
 
       t = Date.now();
-      const {
-        mapaMedidas,
-        nombresEtiquetas
-      } = procesarEtiquetas_(etiquetas);
-
+      const { mapaMedidas, nombresEtiquetas } = procesarEtiquetas_(etiquetas);
       logDuracion_("procesarEtiquetas_", t, {
         clavesMapaMedidas: Object.keys(mapaMedidas).length,
         nombresEtiquetas: nombresEtiquetas.length
@@ -344,9 +432,8 @@ const BootstrapServices = (() => {
         codigosPendientes: codigosPendientesUbicacionesMaxMin.length
       });
 
-      t = Date.now();
       const resultado = {
-        usuarios: usuariosOrdenados,
+        usuarios: usuariosNormalizados,
         bodegas,
         mapaUbicacionesExcedentes,
         codigos,
@@ -358,34 +445,29 @@ const BootstrapServices = (() => {
         codigosPendientesUbicacionesMaxMin
       };
 
-      logDuracion_("Construcción payload final", t);
-      logDuracion_("BootstrapServices.getInfoInicialFresh_ :: TOTAL", tTotal);
-
+      logDuracion_("BootstrapServices.getInfoInicialFresh_ :: TOTAL", tTotal, {
+        usuarios: resultado.usuarios.length,
+        codigos: resultado.codigos.length,
+        pendientesMaxMin:
+          resultado.registrosPendientesUbicacionesMaxMin.length
+      });
       return resultado;
-
     } catch (error) {
-      console.error("❌ ERROR BootstrapServices.getInfoInicialFresh_:", error);
-      logDuracion_("BootstrapServices.getInfoInicialFresh_ :: ERROR TOTAL", tTotal);
-
-      return {
-        usuarios: [],
-        bodegas: [],
-        mapaUbicacionesExcedentes: [],
-        codigos: [],
-        mapaCatalogo: {},
-        mapaMedidas: {},
-        nombresEtiquetas: [],
-        registrosUbicacionesMaxMin: [],
-        registrosPendientesUbicacionesMaxMin: [],
-        codigosPendientesUbicacionesMaxMin: []
-      };
+      console.error("[BOOT][SERVER] BootstrapServices.getInfoInicialFresh_ :: ERROR", {
+        message: error && error.message ? error.message : String(error || ""),
+        stack: error && error.stack ? error.stack : ""
+      });
+      logDuracion_(
+        "BootstrapServices.getInfoInicialFresh_ :: ERROR TOTAL",
+        tTotal
+      );
+      return crearBootstrapVacio_();
     }
   }
-
   // =========================================================
   // API PÚBLICA
   // =========================================================
-  return {
+  return Object.freeze({
     /**
      * Obtiene el bootstrap inicial, preferentemente desde la caché compartida.
      *
@@ -411,6 +493,5 @@ const BootstrapServices = (() => {
 
       return getInfoInicialFresh_();
     }
-  };
-
+  });
 })();

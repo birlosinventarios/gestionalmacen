@@ -1,47 +1,58 @@
 /**
  * z3-FormularioUbicacionesMaxMinService.gs
  *
- * @fileoverview Servicio de dominio para registrar y consultar ubicaciones,
- * existencias y parámetros máximos y mínimos por producto.
+ * @fileoverview Servicio de dominio para la captura inicial de existencias y
+ * capacidad física de los registros de UBICACIONES_MAXMIN.
  *
- * Este módulo coordina CatalogoRepository y UbicacionesMaxMinRepository. Resuelve
- * la identidad y descripción autoritativas del producto desde CATALOGO, valida el
- * contrato funcional del formulario, calcula el porcentaje de existencia respecto
- * al máximo y delega la persistencia transaccional al repositorio.
+ * Este módulo coordina CatalogoRepository, UsuariosRepository y
+ * UbicacionesMaxMinRepository. La vista proporciona la fila seleccionada, el
+ * usuario responsable, la existencia observada y el porcentaje estimado de
+ * ocupación. El servicio valida esos datos, resuelve las entidades autoritativas
+ * y calcula MAXIMO antes de delegar la escritura al repositorio.
  *
  * RESPONSABILIDADES
- * - Entregar el bootstrap requerido por FormularioUbicacionesMaxMin.
- * - Buscar productos activos por código.
- * - Consultar ubicaciones registradas por código.
- * - Validar y normalizar los datos de captura.
- * - Calcular PORCENTAJE en el servidor.
- * - Resolver DESCRIPCION desde CATALOGO.
- * - Delegar insertar, actualizar o upsert al repositorio.
- * - Entregar respuestas planas y estables para el Controller.
- *
- * ESTE SERVICIO NO DEBE
- * - Leer o escribir Google Sheets directamente.
- * - Confiar en DESCRIPCION, PORCENTAJE, FECHA, HORA o USUARIO enviados por el cliente.
- * - Adquirir ScriptLock. UbicacionesMaxMinRepository protege las escrituras.
- * - Exponer arreglos físicos, Spreadsheet IDs ni objetos de Apps Script.
+ * - Validar el contrato funcional del formulario.
+ * - Verificar que el producto exista y esté activo en CATALOGO.
+ * - Verificar que el usuario seleccionado exista en USUARIOS, sin filtrar por rol.
+ * - Obtener la fila autoritativa desde UbicacionesMaxMinRepository.
+ * - Conservar BODEGA, UBICACION, MINIMO, zonas y VALIDACION de la fila existente.
+ * - Aceptar PORCENTAJE como dato capturado por el usuario.
+ * - Calcular MAXIMO cuando PORCENTAJE es menor que 100.
+ * - Usar EXISTENCIA como MAXIMO cuando PORCENTAJE es 100 y MAXIMO está vacío.
+ * - Delegar la persistencia y el control de concurrencia al Repository.
+ * - Entregar respuestas planas y serializables al Controller.
  *
  * REGLAS DE DOMINIO
- * - CODIGO, BODEGA y UBICACION son obligatorios.
- * - EXISTENCIA, MINIMO y MAXIMO son números finitos no negativos.
- * - MINIMO no puede ser mayor que MAXIMO.
- * - PORCENTAJE = EXISTENCIA / MAXIMO * 100 cuando MAXIMO > 0; en otro caso 0.
- * - El porcentaje se redondea a dos decimales y puede superar 100 cuando la
- *   existencia rebasa el máximo configurado.
- * - CODIGO + BODEGA + UBICACION constituye la identidad funcional.
+ * - CODIGO, USUARIO y numFila son obligatorios para actualizar.
+ * - EXISTENCIA debe ser un entero no negativo.
+ * - PORCENTAJE debe ser un entero entre 1 y 100.
+ * - Si PORCENTAJE < 100:
+ *     MAXIMO = redondearADecena((EXISTENCIA / PORCENTAJE) * 100).
+ * - Si PORCENTAJE = 100:
+ *     MAXIMO = valor capturado; si está vacío, MAXIMO = EXISTENCIA.
+ * - MAXIMO debe ser un entero no negativo y no puede ser menor que EXISTENCIA.
+ * - USUARIO se valida por coincidencia exacta contra UsuariosRepository.
+ * - VALIDACION no se modifica durante esta captura.
+ * - FECHA y HORA son generadas por UbicacionesMaxMinRepository.
+ *
+ * ESTE SERVICIO NO DEBE
+ * - Leer ni escribir Google Sheets directamente.
+ * - Adquirir ScriptLock.
+ * - Confiar en DESCRIPCION, BODEGA, UBICACION, MINIMO, zonas o VALIDACION enviados
+ *   por el navegador durante una actualización por fila.
+ * - Confiar en FECHA u HORA enviadas por el navegador.
+ * - Filtrar usuarios por rol.
+ * - Exponer IDs de Spreadsheet ni objetos de Google Apps Script.
  *
  * DEPENDENCIAS GLOBALES
  * - CatalogoRepository.
+ * - UsuariosRepository.
  * - UbicacionesMaxMinRepository.
  * - UBICACIONES_MAXMIN_CONFIG.
- * - toStr_(value), toStrUpper_(value) y toNum_(value).
+ * - toStr_(value) y toStrUpper_(value).
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-SERVICE-2026-11-06-01
+ * @version FORMULARIO-UBICACIONES-MAXMIN-SERVICE-2026-11-06-02
  */
 const FormularioUbicacionesMaxMinService = (() => {
   "use strict";
@@ -49,19 +60,22 @@ const FormularioUbicacionesMaxMinService = (() => {
   /** @private @const {!Object} */
   const CFG = Object.freeze({
     LOG_PREFIX: "[FormularioUbicacionesMaxMinService]",
-    PERCENT_DECIMALS: 2,
-    PRODUCT_STATUS_ACTIVE: "ACTIVO"
+    PRODUCT_STATUS_ACTIVE: "ACTIVO",
+    MIN_PERCENTAGE: 1,
+    MAX_PERCENTAGE: 100,
+    ROUNDING_MULTIPLE: 10,
+    FIRST_DATA_ROW: 2
   });
 
   // ===========================================================================
-  // DEPENDENCIAS Y CONTRATOS
+  // DEPENDENCIAS Y ERRORES
   // ===========================================================================
 
   /**
-   * Verifica las dependencias funcionales del servicio.
+   * Verifica las dependencias funcionales obligatorias.
    *
    * @return {void}
-   * @throws {Error} Si falta una dependencia obligatoria.
+   * @throws {Error} Si falta una dependencia global.
    * @private
    */
   function _validateDependencies_() {
@@ -73,11 +87,11 @@ const FormularioUbicacionesMaxMinService = (() => {
     if (typeof toStrUpper_ !== "function") {
       missing.push("toStrUpper_");
     }
-    if (typeof toNum_ !== "function") {
-      missing.push("toNum_");
-    }
     if (typeof CatalogoRepository === "undefined" || !CatalogoRepository) {
       missing.push("CatalogoRepository");
+    }
+    if (typeof UsuariosRepository === "undefined" || !UsuariosRepository) {
+      missing.push("UsuariosRepository");
     }
     if (
       typeof UbicacionesMaxMinRepository === "undefined" ||
@@ -100,10 +114,10 @@ const FormularioUbicacionesMaxMinService = (() => {
   }
 
   /**
-   * Obtiene un método obligatorio de un objeto global.
+   * Obtiene un método obligatorio de una dependencia.
    *
    * @param {!Object} target Dependencia.
-   * @param {string} dependencyName Nombre lógico.
+   * @param {string} dependencyName Nombre lógico de la dependencia.
    * @param {string} methodName Método requerido.
    * @return {Function} Método disponible.
    * @throws {Error} Si el método no existe.
@@ -132,107 +146,103 @@ const FormularioUbicacionesMaxMinService = (() => {
     return error;
   }
 
+  /**
+   * Obtiene un código configurado o utiliza un respaldo estable.
+   *
+   * @param {string} key Clave de UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.
+   * @param {string} fallback Código de respaldo.
+   * @return {string} Código disponible.
+   * @private
+   */
+  function _errorCode_(key, fallback) {
+    return String(
+      UBICACIONES_MAXMIN_CONFIG.ERROR_CODES?.[key] || fallback
+    );
+  }
+
   // ===========================================================================
-  // NORMALIZACIÓN Y VALIDACIÓN
+  // NORMALIZACIÓN E IDENTIDADES AUTORITATIVAS
   // ===========================================================================
 
   /**
-   * Convierte un valor obligatorio a número finito no negativo.
+   * Valida un payload de entrada como objeto simple no vacío.
    *
-   * @param {*} value Valor de entrada.
-   * @param {string} fieldName Nombre del campo.
-   * @param {string} errorCode Código de error.
-   * @return {number} Número validado.
-   * @throws {Error} Si el valor es vacío, no finito o negativo.
+   * @param {*} payload Datos recibidos.
+   * @return {!Object} Mismo objeto validado.
+   * @throws {Error} Si el payload es inválido.
    * @private
    */
-  function _toNonNegativeNumber_(value, fieldName, errorCode) {
+  function _requirePayload_(payload) {
+    if (
+      !payload ||
+      typeof payload !== "object" ||
+      Array.isArray(payload) ||
+      Object.keys(payload).length === 0
+    ) {
+      throw _domainError_(
+        _errorCode_("PAYLOAD_INVALIDO", "UBMAXMIN_PAYLOAD_INVALIDO"),
+        "El payload debe ser un objeto válido y no puede estar vacío."
+      );
+    }
+    return payload;
+  }
+
+  /**
+   * Convierte un valor obligatorio a entero no negativo sin ocultar texto inválido.
+   *
+   * @param {*} value Valor original.
+   * @param {string} fieldName Nombre del campo.
+   * @param {string} errorCode Código de error.
+   * @return {number} Entero validado.
+   * @throws {Error} Si el valor está vacío, no es finito, no es entero o es negativo.
+   * @private
+   */
+  function _toNonNegativeInteger_(value, fieldName, errorCode) {
     if (value === "" || value === null || value === undefined) {
       throw _domainError_(errorCode, `${fieldName} es obligatorio.`);
     }
 
-    const number = toNum_(value);
-    if (!Number.isFinite(number) || number < 0) {
+    const number = Number(value);
+    if (!Number.isFinite(number) || !Number.isInteger(number) || number < 0) {
       throw _domainError_(
         errorCode,
-        `${fieldName} debe ser un número finito mayor o igual a cero.`
+        `${fieldName} debe ser un número entero mayor o igual a cero.`
       );
     }
     return number;
   }
 
   /**
-   * Limita y valida la longitud de un texto normalizado.
+   * Convierte y valida un número físico de fila.
    *
-   * @param {*} value Valor original.
-   * @param {string} fieldName Nombre del campo.
-   * @param {number} maxLength Longitud máxima.
-   * @param {boolean=} uppercase Convierte a mayúsculas.
-   * @return {string} Texto normalizado.
-   * @throws {Error} Si excede la longitud permitida.
+   * @param {*} value Número recibido.
+   * @return {number} Fila validada.
+   * @throws {Error} Si no corresponde a una fila de datos.
    * @private
    */
-  function _normalizeText_(value, fieldName, maxLength, uppercase = false) {
-    const normalized = uppercase ? toStrUpper_(value) : toStr_(value);
-    if (normalized.length > maxLength) {
+  function _requireRowNumber_(value) {
+    const rowNumber = Number(value);
+    if (!Number.isInteger(rowNumber) || rowNumber < CFG.FIRST_DATA_ROW) {
       throw _domainError_(
-        UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.PAYLOAD_INVALIDO,
-        `${fieldName} excede la longitud máxima de ${maxLength} caracteres.`
+        _errorCode_("REGISTRO_NO_ENCONTRADO", "UBMAXMIN_REGISTRO_NO_ENCONTRADO"),
+        "El número de fila es inválido."
       );
     }
-    return normalized;
+    return rowNumber;
   }
 
   /**
-   * Calcula el porcentaje de existencia respecto al máximo.
+   * Determina si un producto puede utilizarse en el formulario.
    *
-   * @param {number} existencia Existencia actual.
-   * @param {number} maximo Máximo configurado.
-   * @return {number} Porcentaje redondeado a dos decimales.
-   * @private
-   */
-  function _calculatePercentage_(existencia, maximo) {
-    if (maximo <= 0) {
-      return 0;
-    }
-    const factor = Math.pow(10, CFG.PERCENT_DECIMALS);
-    return Math.round((existencia / maximo) * 100 * factor) / factor;
-  }
-
-  /**
-   * Determina si un producto está activo.
+   * Un estado vacío se mantiene compatible con catálogos históricos.
    *
-   * Un status vacío se conserva como compatible con catálogos históricos.
-   *
-   * @param {!Object} product Producto normalizado por CatalogoRepository.
-   * @return {boolean} true si puede capturarse.
+   * @param {!Object} product Producto normalizado.
+   * @return {boolean} true cuando está activo o carece de estado.
    * @private
    */
   function _isActiveProduct_(product) {
     const status = toStrUpper_(product && product.status);
     return !status || status === CFG.PRODUCT_STATUS_ACTIVE;
-  }
-
-  /**
-   * Busca coincidencias exactas en el catálogo usando la API disponible.
-   *
-   * @param {string} codigo Código normalizado.
-   * @return {!Array<!Object>} Coincidencias de catálogo.
-   * @private
-   */
-  function _findCatalogProducts_(codigo) {
-    const getByCode = _requireMethod_(
-      CatalogoRepository,
-      "CatalogoRepository",
-      "getPorCodigo"
-    );
-    const result = getByCode.call(CatalogoRepository, codigo);
-    if (!Array.isArray(result)) {
-      throw new Error(
-        `${CFG.LOG_PREFIX} CatalogoRepository.getPorCodigo no devolvió un arreglo.`
-      );
-    }
-    return result;
   }
 
   /**
@@ -247,138 +257,279 @@ const FormularioUbicacionesMaxMinService = (() => {
     const normalizedCode = toStrUpper_(codigo);
     if (!normalizedCode) {
       throw _domainError_(
-        UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.CODIGO_REQUERIDO,
+        _errorCode_("CODIGO_REQUERIDO", "UBMAXMIN_CODIGO_REQUERIDO"),
         "CODIGO es obligatorio."
       );
     }
 
-    const matches = _findCatalogProducts_(normalizedCode);
+    const getByCode = _requireMethod_(
+      CatalogoRepository,
+      "CatalogoRepository",
+      "getPorCodigo"
+    );
+    const matches = getByCode.call(CatalogoRepository, normalizedCode);
+    if (!Array.isArray(matches)) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} CatalogoRepository.getPorCodigo no devolvió un arreglo.`
+      );
+    }
     if (matches.length === 0) {
       throw _domainError_(
-        UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.REGISTRO_NO_ENCONTRADO,
+        _errorCode_("REGISTRO_NO_ENCONTRADO", "UBMAXMIN_REGISTRO_NO_ENCONTRADO"),
         `El código ${normalizedCode} no existe en CATALOGO.`
       );
     }
 
-    const active = matches.filter(_isActiveProduct_);
-    if (active.length === 0) {
+    const activeMatches = matches.filter(_isActiveProduct_);
+    if (activeMatches.length === 0) {
       throw _domainError_(
-        UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.REGISTRO_NO_ENCONTRADO,
+        _errorCode_("REGISTRO_NO_ENCONTRADO", "UBMAXMIN_REGISTRO_NO_ENCONTRADO"),
         `El código ${normalizedCode} no está activo en CATALOGO.`
       );
     }
-    if (active.length > 1) {
+    if (activeMatches.length > 1) {
       throw _domainError_(
-        UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.PAYLOAD_INVALIDO,
-        `El código ${normalizedCode} tiene ${active.length} registros activos en CATALOGO.`
+        _errorCode_("PAYLOAD_INVALIDO", "UBMAXMIN_PAYLOAD_INVALIDO"),
+        `El código ${normalizedCode} tiene ${activeMatches.length} registros activos en CATALOGO.`
       );
     }
 
-    const product = active[0];
-    return {
-      idProducto: toStr_(product.idProducto || product.idproducto),
+    const product = activeMatches[0];
+    return Object.freeze({
+      idProducto: toStr_(product.idproducto || product.idProducto),
       codigo: toStrUpper_(product.codigo),
-      descripcion: toStr_(product.descripcion),
+      descripcion: toStrUpper_(product.descripcion),
       status: toStrUpper_(product.status)
-    };
+    });
   }
 
   /**
-   * Normaliza y valida el payload completo de captura.
+   * Resuelve un usuario único mediante coincidencia exacta de nombre.
    *
-   * @param {*} payload Datos del formulario.
-   * @return {!Object} Registro listo para el repositorio.
+   * No se aplica filtro por rol. El rol se conserva únicamente como dato
+   * descriptivo del catálogo de usuarios.
+   *
+   * @param {*} usuario Nombre seleccionado.
+   * @return {!Object} Usuario autoritativo.
+   * @throws {Error} Si no existe o está duplicado.
    * @private
    */
-  function _normalizeSavePayload_(payload) {
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+  function _resolveUser_(usuario) {
+    const normalizedName = toStrUpper_(usuario);
+    if (!normalizedName) {
       throw _domainError_(
-        UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.PAYLOAD_INVALIDO,
-        "El payload debe ser un objeto válido."
+        _errorCode_("PAYLOAD_INVALIDO", "UBMAXMIN_PAYLOAD_INVALIDO"),
+        "USUARIO es obligatorio."
       );
     }
 
-    const limits = UBICACIONES_MAXMIN_CONFIG.LIMITS;
-    const product = _resolveProduct_(payload.codigo);
-    const bodega = _normalizeText_(
-      payload.bodega,
-      "BODEGA",
-      limits.BODEGA_MAX_LENGTH,
-      true
+    const getByName = _requireMethod_(
+      UsuariosRepository,
+      "UsuariosRepository",
+      "getPorNombre"
     );
-    const ubicacion = _normalizeText_(
-      payload.ubicacion,
-      "UBICACION",
-      limits.UBICACION_MAX_LENGTH,
-      true
+    const matches = getByName.call(UsuariosRepository, normalizedName);
+    if (!Array.isArray(matches)) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} UsuariosRepository.getPorNombre no devolvió un arreglo.`
+      );
+    }
+    if (matches.length === 0) {
+      throw _domainError_(
+        _errorCode_("PAYLOAD_INVALIDO", "UBMAXMIN_PAYLOAD_INVALIDO"),
+        `El usuario ${normalizedName} no existe en USUARIOS.`
+      );
+    }
+    if (matches.length > 1) {
+      throw _domainError_(
+        _errorCode_("PAYLOAD_INVALIDO", "UBMAXMIN_PAYLOAD_INVALIDO"),
+        `El usuario ${normalizedName} está duplicado en USUARIOS.`
+      );
+    }
+
+    const user = matches[0];
+    return Object.freeze({
+      idusuario: Number(user.idusuario || 0),
+      nombre: toStrUpper_(user.nombre),
+      rol: toStrUpper_(user.rol)
+    });
+  }
+
+  /**
+   * Obtiene un registro autoritativo mediante su fila física.
+   *
+   * @param {*} numFila Número de fila.
+   * @return {!Object} Registro existente.
+   * @throws {Error} Si la fila no existe.
+   * @private
+   */
+  function _resolveExistingRow_(numFila) {
+    const rowNumber = _requireRowNumber_(numFila);
+    const getByRow = _requireMethod_(
+      UbicacionesMaxMinRepository,
+      "UbicacionesMaxMinRepository",
+      "getPorNumeroFila"
     );
-
-    if (!bodega) {
+    const current = getByRow.call(UbicacionesMaxMinRepository, rowNumber);
+    if (!current) {
       throw _domainError_(
-        UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.BODEGA_REQUERIDA,
-        "BODEGA es obligatoria."
+        _errorCode_("REGISTRO_NO_ENCONTRADO", "UBMAXMIN_REGISTRO_NO_ENCONTRADO"),
+        `No existe un registro en la fila ${rowNumber}.`
       );
     }
-    if (!ubicacion) {
+    return current;
+  }
+
+  // ===========================================================================
+  // CÁLCULOS DEL DOMINIO
+  // ===========================================================================
+
+  /**
+   * Valida el porcentaje de ocupación capturado.
+   *
+   * @param {*} value Porcentaje recibido.
+   * @return {number} Entero entre 1 y 100.
+   * @throws {Error} Si queda fuera del rango.
+   * @private
+   */
+  function _resolvePercentage_(value) {
+    const percentage = _toNonNegativeInteger_(
+      value,
+      "PORCENTAJE",
+      _errorCode_("PORCENTAJE_INVALIDO", "UBMAXMIN_PORCENTAJE_INVALIDO")
+    );
+    if (
+      percentage < CFG.MIN_PERCENTAGE ||
+      percentage > CFG.MAX_PERCENTAGE
+    ) {
       throw _domainError_(
-        UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.UBICACION_REQUERIDA,
-        "UBICACION es obligatoria."
+        _errorCode_("PORCENTAJE_INVALIDO", "UBMAXMIN_PORCENTAJE_INVALIDO"),
+        `PORCENTAJE debe estar entre ${CFG.MIN_PERCENTAGE} y ${CFG.MAX_PERCENTAGE}.`
       );
     }
+    return percentage;
+  }
 
-    const existencia = _toNonNegativeNumber_(
-      payload.existencia,
+  /**
+   * Redondea un valor a la decena más cercana.
+   *
+   * @param {number} value Valor finito.
+   * @return {number} Entero múltiplo de diez.
+   * @private
+   */
+  function _roundToNearestTen_(value) {
+    return Math.round(value / CFG.ROUNDING_MULTIPLE) * CFG.ROUNDING_MULTIPLE;
+  }
+
+  /**
+   * Calcula el máximo conforme al porcentaje capturado.
+   *
+   * @param {number} existencia Existencia observada.
+   * @param {number} porcentaje Porcentaje de ocupación.
+   * @param {*} maximoCapturado Máximo opcional cuando porcentaje es 100.
+   * @return {number} Máximo validado.
+   * @throws {Error} Si el máximo manual es inválido o menor que la existencia.
+   * @private
+   */
+  function _calculateMaximum_(existencia, porcentaje, maximoCapturado) {
+    let maximum;
+
+    if (porcentaje === CFG.MAX_PERCENTAGE) {
+      maximum =
+        maximoCapturado === "" ||
+        maximoCapturado === null ||
+        maximoCapturado === undefined
+          ? existencia
+          : _toNonNegativeInteger_(
+              maximoCapturado,
+              "MAXIMO",
+              _errorCode_("MAXIMO_INVALIDO", "UBMAXMIN_MAXIMO_INVALIDO")
+            );
+    } else {
+      maximum = _roundToNearestTen_((existencia / porcentaje) * 100);
+    }
+
+    if (!Number.isFinite(maximum) || !Number.isInteger(maximum) || maximum < 0) {
+      throw _domainError_(
+        _errorCode_("MAXIMO_INVALIDO", "UBMAXMIN_MAXIMO_INVALIDO"),
+        "MAXIMO no pudo calcularse como un entero no negativo."
+      );
+    }
+    if (maximum < existencia) {
+      throw _domainError_(
+        _errorCode_("RANGO_INVALIDO", "UBMAXMIN_RANGO_INVALIDO"),
+        "MAXIMO no puede ser menor que EXISTENCIA."
+      );
+    }
+    return maximum;
+  }
+
+  /**
+   * Comprueba que el código del payload corresponda a la fila seleccionada.
+   *
+   * @param {!Object} current Registro actual.
+   * @param {!Object} product Producto resuelto.
+   * @return {void}
+   * @throws {Error} Si la fila y el producto no coinciden.
+   * @private
+   */
+  function _assertRowProduct_(current, product) {
+    if (toStrUpper_(current.codigo) !== product.codigo) {
+      throw _domainError_(
+        _errorCode_("PAYLOAD_INVALIDO", "UBMAXMIN_PAYLOAD_INVALIDO"),
+        "El código enviado no corresponde a la fila seleccionada."
+      );
+    }
+  }
+
+  /**
+   * Construye el registro autorizado para actualizar una fila existente.
+   *
+   * Los datos estructurales se toman del Repository, no del navegador.
+   *
+   * @param {*} numFila Número físico de fila.
+   * @param {*} payload Datos de captura.
+   * @return {{rowNumber:number,record:!Object}} Registro listo para persistencia.
+   * @private
+   */
+  function _buildUpdateCommand_(numFila, payload) {
+    const source = _requirePayload_(payload);
+    const rowNumber = _requireRowNumber_(numFila);
+    const current = _resolveExistingRow_(rowNumber);
+    const product = _resolveProduct_(source.codigo || current.codigo);
+    const user = _resolveUser_(source.usuario);
+    const existence = _toNonNegativeInteger_(
+      source.existencia,
       "EXISTENCIA",
-      UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.EXISTENCIA_INVALIDA
+      _errorCode_("EXISTENCIA_INVALIDA", "UBMAXMIN_EXISTENCIA_INVALIDA")
     );
-    const maximo = _toNonNegativeNumber_(
-      payload.maximo,
-      "MAXIMO",
-      UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.MAXIMO_INVALIDO
-    );
-    const minimo = _toNonNegativeNumber_(
-      payload.minimo,
-      "MINIMO",
-      UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.MINIMO_INVALIDO
+    const percentage = _resolvePercentage_(source.porcentaje);
+    const maximum = _calculateMaximum_(
+      existence,
+      percentage,
+      source.maximo
     );
 
-    if (minimo > maximo) {
-      throw _domainError_(
-        UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.RANGO_INVALIDO,
-        "MINIMO no puede ser mayor que MAXIMO."
-      );
-    }
+    _assertRowProduct_(current, product);
 
     return {
-      numFila: Number.isInteger(Number(payload.numFila))
-        ? Number(payload.numFila)
-        : 0,
-      codigo: product.codigo,
-      descripcion: product.descripcion,
-      bodega: bodega,
-      ubicacion: ubicacion,
-      existencia: existencia,
-      porcentaje: _calculatePercentage_(existencia, maximo),
-      maximo: maximo,
-      minimo: minimo,
-      zonaBodega: _normalizeText_(
-        payload.zonaBodega,
-        "ZONA_BODEGA",
-        limits.ZONA_MAX_LENGTH,
-        true
-      ),
-      zonaAbastecimiento: _normalizeText_(
-        payload.zonaAbastecimiento,
-        "ZONA_ABASTECIMIENTO",
-        limits.ZONA_MAX_LENGTH,
-        true
-      ),
-      zonaNivel: _normalizeText_(
-        payload.zonaNivel,
-        "ZONA_NIVEL",
-        limits.ZONA_MAX_LENGTH,
-        true
-      )
+      rowNumber,
+      record: {
+        numFila: rowNumber,
+        codigo: current.codigo,
+        descripcion: product.descripcion,
+        bodega: current.bodega,
+        ubicacion: current.ubicacion,
+        existencia: existence,
+        porcentaje: percentage,
+        maximo: maximum,
+        minimo: Number(current.minimo || 0),
+        zonaBodega: current.zonaBodega,
+        zonaAbastecimiento: current.zonaAbastecimiento,
+        zonaNivel: current.zonaNivel,
+        usuario: user.nombre,
+        validacion: current.validacion
+      }
     };
   }
 
@@ -387,15 +538,16 @@ const FormularioUbicacionesMaxMinService = (() => {
   // ===========================================================================
 
   /**
-   * Entrega la configuración inicial del formulario.
+   * Entrega la configuración técnica del formulario.
    *
-   * No transporta el catálogo completo. La vista debe consultar el producto por
-   * código para reducir el tamaño de respuesta y evitar datos obsoletos.
+   * Los usuarios y registros pendientes se componen en el Controller a partir de
+   * BootstrapServices. Este método valida además que la hoja física cumpla A:O.
    *
-   * @return {!Object} Bootstrap serializable.
+   * @return {!Object} Bootstrap técnico serializable.
    */
   function getBootstrap() {
     _validateDependencies_();
+
     const validateContract = _requireMethod_(
       UbicacionesMaxMinRepository,
       "UbicacionesMaxMinRepository",
@@ -409,22 +561,33 @@ const FormularioUbicacionesMaxMinService = (() => {
       serverManagedFields:
         UBICACIONES_MAXMIN_CONFIG.SERVER_MANAGED_FIELDS.slice(),
       rules: {
-        porcentajeCalculadoEnServidor: true,
-        porcentajePuedeSuperarCien: true,
-        minimoNoMayorQueMaximo: true,
-        descripcionAutoritativaDesdeCatalogo: true
+        porcentajeCapturadoPorUsuario: true,
+        porcentajeMinimo: CFG.MIN_PERCENTAGE,
+        porcentajeMaximo: CFG.MAX_PERCENTAGE,
+        maximoCalculadoEnServidor: true,
+        maximoEditableAlCienPorCiento: true,
+        maximoVacioAlCienUsaExistencia: true,
+        redondeoMaximoMultiplo: CFG.ROUNDING_MULTIPLE,
+        usuarioValidadoContraCatalogo: true,
+        usuariosSinFiltroDeRol: true,
+        descripcionAutoritativaDesdeCatalogo: true,
+        datosEstructuralesAutoritativosDesdeFila: true,
+        validacionConservada: true
       },
       source: {
         sheetName: contract.sheetName,
-        width: contract.width
+        width: contract.width,
+        headers: Array.isArray(contract.headers)
+          ? contract.headers.slice()
+          : []
       }
     };
   }
 
   /**
-   * Busca un producto en CATALOGO y sus ubicaciones ya registradas.
+   * Busca un producto activo y devuelve sus ubicaciones registradas.
    *
-   * @param {*} codigo Código del producto.
+   * @param {*} codigo Código de producto.
    * @return {{producto:!Object,ubicaciones:!Array<!Object>}} Resultado.
    */
   function buscarProductoPorCodigo(codigo) {
@@ -441,16 +604,16 @@ const FormularioUbicacionesMaxMinService = (() => {
     );
 
     return {
-      producto: product,
+      producto: { ...product },
       ubicaciones: Array.isArray(locations) ? locations : []
     };
   }
 
   /**
-   * Obtiene todas las ubicaciones registradas para un código.
+   * Obtiene los registros asociados a un código.
    *
-   * @param {*} codigo Código del producto.
-   * @return {!Array<!Object>} Ubicaciones registradas.
+   * @param {*} codigo Código de producto.
+   * @return {!Array<!Object>} Registros encontrados.
    */
   function obtenerPorCodigo(codigo) {
     _validateDependencies_();
@@ -458,6 +621,7 @@ const FormularioUbicacionesMaxMinService = (() => {
     if (!normalizedCode) {
       return [];
     }
+
     const getByCode = _requireMethod_(
       UbicacionesMaxMinRepository,
       "UbicacionesMaxMinRepository",
@@ -498,27 +662,22 @@ const FormularioUbicacionesMaxMinService = (() => {
   // ===========================================================================
 
   /**
-   * Guarda un registro mediante upsert por CODIGO + BODEGA + UBICACION.
+   * Guarda un registro existente mediante la fila incluida en el payload.
    *
-   * @param {*} payload Datos del formulario.
-   * @return {{operation:string,record:!Object}} Resultado de persistencia.
+   * La captura de este formulario opera sobre filas previamente creadas en
+   * UBICACIONES_MAXMIN. Por seguridad, este método no realiza inserciones.
+   *
+   * @param {*} payload Datos del formulario con numFila.
+   * @return {!Object} Registro actualizado.
    */
   function guardar(payload) {
     _validateDependencies_();
-    const normalized = _normalizeSavePayload_(payload);
-    const upsert = _requireMethod_(
-      UbicacionesMaxMinRepository,
-      "UbicacionesMaxMinRepository",
-      "upsert"
-    );
-    return upsert.call(UbicacionesMaxMinRepository, normalized);
+    const source = _requirePayload_(payload);
+    return actualizar(source.numFila, source);
   }
 
   /**
-   * Actualiza explícitamente una fila existente.
-   *
-   * Este método se reserva para flujos donde la vista ya posee numFila. El
-   * repositorio vuelve a validar existencia y colisiones bajo ScriptLock.
+   * Actualiza una fila existente con datos de captura validados.
    *
    * @param {*} numFila Número físico de fila.
    * @param {*} payload Datos del formulario.
@@ -526,24 +685,17 @@ const FormularioUbicacionesMaxMinService = (() => {
    */
   function actualizar(numFila, payload) {
     _validateDependencies_();
-    const rowNumber = Number(numFila);
-    if (!Number.isInteger(rowNumber) || rowNumber < 2) {
-      throw _domainError_(
-        UBICACIONES_MAXMIN_CONFIG.ERROR_CODES.REGISTRO_NO_ENCONTRADO,
-        "El número de fila es inválido."
-      );
-    }
-
-    const normalized = _normalizeSavePayload_(payload);
+    const command = _buildUpdateCommand_(numFila, payload);
     const update = _requireMethod_(
       UbicacionesMaxMinRepository,
       "UbicacionesMaxMinRepository",
       "actualizar"
     );
+
     return update.call(
       UbicacionesMaxMinRepository,
-      rowNumber,
-      normalized
+      command.rowNumber,
+      command.record
     );
   }
 

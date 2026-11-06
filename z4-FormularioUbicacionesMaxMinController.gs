@@ -38,7 +38,7 @@
  * - FormularioUbicacionesMaxMinController_diagnosticar().
  *
  * DEPENDENCIAS GLOBALES
- * - execController_(executor, operationName).
+ * - execController_(controllerName, label, executor).
  * - BootstrapServices.getInfoInicial(forceRefresh).
  * - FormularioUbicacionesMaxMinService.
  *
@@ -48,7 +48,7 @@
  * del servidor.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-03
+ * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-04
  */
 "use strict";
 
@@ -60,7 +60,7 @@
  */
 const FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG = Object.freeze({
   NAME: "FormularioUbicacionesMaxMinController",
-  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-03",
+  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-04",
   LOG_PREFIX: "[FormularioUbicacionesMaxMinController]",
   MIN_DATA_ROW: 2,
   OPERATIONS: Object.freeze({
@@ -156,19 +156,23 @@ function FormularioUbicacionesMaxMinController_execute_(
     );
   }
 
-  const qualifiedOperation =
-    `${FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.NAME}.` +
-    `${operationName}`;
-
   /*
    * CONTRATO REAL DE execController_
-   * El primer argumento debe ser la función ejecutora. El segundo argumento es
-   * el nombre de la operación utilizado para diagnóstico y trazabilidad.
    *
-   * Pasar qualifiedOperation como primer argumento provoca:
-   * "Error: executor is not a function".
+   * execController_(controllerName, label, executor)
+   *
+   * - controllerName identifica el controlador que publica el endpoint.
+   * - label identifica la operación para trazabilidad y diagnóstico.
+   * - executor contiene el trabajo delegado al Service.
+   *
+   * El orden es obligatorio. Si el tercer argumento no es una función,
+   * execController_ genera el error "executor is not a function".
    */
-  return execController_(callback, qualifiedOperation);
+  return execController_(
+    FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.NAME,
+    operationName,
+    callback
+  );
 }
 
 /**

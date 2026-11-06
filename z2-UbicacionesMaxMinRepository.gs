@@ -25,7 +25,9 @@
  * CAMPOS ADMINISTRADOS POR EL SERVIDOR
  * - FECHA.
  * - HORA.
- * - USUARIO.
+ * - FECHA y HORA se generan en el servidor.
+ * - USUARIO debe llegar validado por el Service contra UsuariosRepository.
+ * - VALIDACION se conserva en actualizaciones y no se acepta como autoridad del cliente.
  *
  * RESPONSABILIDADES
  * - Validar dependencias, columnas, ancho y encabezados físicos.
@@ -39,7 +41,9 @@
  * ESTE REPOSITORIO NO DEBE
  * - Consultar CATALOGO ni resolver descripciones de producto.
  * - Aplicar reglas de interfaz o permisos de negocio.
- * - Confiar en FECHA, HORA o USUARIO enviados por el navegador.
+ * - Confiar directamente en datos enviados por el navegador.
+ * - Resolver usuarios. El Service entrega USUARIO previamente validado.
+ * - Sobrescribir VALIDACION durante la captura inicial.
  * - Calcular PORCENTAJE. El Service debe entregar el valor ya validado.
  * - Usar el número de fila como identidad funcional del registro.
  *
@@ -50,7 +54,7 @@
  * - LockService, SpreadsheetApp, Session y Utilities.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version UBICACIONES-MAXMIN-REPOSITORY-2026-11-06-01
+ * @version UBICACIONES-MAXMIN-REPOSITORY-2026-11-06-02
  */
 const UbicacionesMaxMinRepository = (() => {
   "use strict";
@@ -62,8 +66,7 @@ const UbicacionesMaxMinRepository = (() => {
     HEADER_ROW: 1,
     FIRST_DATA_ROW: 2,
     DATE_FORMAT: "dd/MM/yyyy",
-    TIME_FORMAT: "HH:mm:ss",
-    FALLBACK_USER: "USUARIO_NO_IDENTIFICADO"
+    TIME_FORMAT: "HH:mm"
   });
 
   /** @private @const {!Array<string>} */
@@ -81,7 +84,8 @@ const UbicacionesMaxMinRepository = (() => {
     "ZONA_NIVEL",
     "FECHA",
     "HORA",
-    "USUARIO"
+    "USUARIO",
+    "VALIDACION"
   ]);
 
   /**
@@ -347,7 +351,7 @@ const UbicacionesMaxMinRepository = (() => {
     if (value === "" || value === null || value === undefined) {
       return 0;
     }
-    const number = toNum_(value);
+    const number = Number(value);
     if (!Number.isFinite(number)) {
       throw new TypeError(
         `${CFG.LOG_PREFIX} El campo ${fieldName} contiene un número inválido.`
@@ -416,7 +420,8 @@ const UbicacionesMaxMinRepository = (() => {
       zonaNivel: toStrUpper_(row[columns.ZONA_NIVEL]),
       fecha: toStr_(row[columns.FECHA]),
       hora: toStr_(row[columns.HORA]),
-      usuario: toStr_(row[columns.USUARIO])
+      usuario: toStrUpper_(row[columns.USUARIO]),
+      validacion: toStrUpper_(row[columns.VALIDACION])
     });
   }
 
@@ -444,15 +449,16 @@ const UbicacionesMaxMinRepository = (() => {
       zonaNivel: item.zonaNivel,
       fecha: item.fecha,
       hora: item.hora,
-      usuario: item.usuario
+      usuario: item.usuario,
+      validacion: item.validacion
     };
   }
 
   /**
-   * Convierte una entidad normalizada al arreglo físico A:N.
+   * Convierte una entidad normalizada al arreglo físico A:O.
    *
    * @param {!Object} item Entidad lista para persistencia.
-   * @return {!Array<*>} Arreglo de 14 columnas.
+   * @return {!Array<*>} Arreglo de 15 columnas.
    * @private
    */
   function _toPhysicalRow_(item) {
@@ -473,6 +479,7 @@ const UbicacionesMaxMinRepository = (() => {
     row[columns.FECHA] = item.fecha;
     row[columns.HORA] = item.hora;
     row[columns.USUARIO] = item.usuario;
+    row[columns.VALIDACION] = item.validacion;
 
     return row;
   }
@@ -657,32 +664,13 @@ const UbicacionesMaxMinRepository = (() => {
   // ===========================================================================
 
   /**
-   * Obtiene el correo del usuario desde el contexto del servidor.
+   * Construye FECHA y HORA autoritativas del servidor.
    *
-   * @return {string} Correo o valor conservador de respaldo.
-   * @private
-   */
-  function _getServerUser_() {
-    let email = "";
-    try {
-      email = toStr_(Session.getActiveUser().getEmail());
-    } catch (error) {
-      email = "";
-    }
-    if (!email) {
-      try {
-        email = toStr_(Session.getEffectiveUser().getEmail());
-      } catch (error) {
-        email = "";
-      }
-    }
-    return email || CFG.FALLBACK_USER;
-  }
-
-  /**
-   * Construye fecha, hora y usuario autoritativos del servidor.
+   * USUARIO no se obtiene de Session porque el flujo funcional exige seleccionar
+   * un usuario operativo. El Service debe validar ese nombre contra
+   * UsuariosRepository antes de invocar este repositorio.
    *
-   * @return {{fecha:string,hora:string,usuario:string}} Metadatos de auditoría.
+   * @return {{fecha:string,hora:string}} Metadatos temporales.
    * @private
    */
   function _getServerAudit_() {
@@ -690,8 +678,7 @@ const UbicacionesMaxMinRepository = (() => {
     const timezone = Session.getScriptTimeZone();
     return {
       fecha: Utilities.formatDate(now, timezone, CFG.DATE_FORMAT),
-      hora: Utilities.formatDate(now, timezone, CFG.TIME_FORMAT),
-      usuario: _getServerUser_()
+      hora: Utilities.formatDate(now, timezone, CFG.TIME_FORMAT)
     };
   }
 
@@ -719,6 +706,7 @@ const UbicacionesMaxMinRepository = (() => {
     const codigo = toStrUpper_(payload.codigo);
     const bodega = toStrUpper_(payload.bodega);
     const ubicacion = toStrUpper_(payload.ubicacion);
+    const usuario = toStrUpper_(payload.usuario);
 
     if (!codigo) {
       const error = new Error(`${CFG.LOG_PREFIX} CODIGO es obligatorio.`);
@@ -755,7 +743,8 @@ const UbicacionesMaxMinRepository = (() => {
       zonaNivel: toStrUpper_(payload.zonaNivel),
       fecha: audit.fecha,
       hora: audit.hora,
-      usuario: audit.usuario
+      usuario: usuario,
+      validacion: ""
     };
   }
 
@@ -889,7 +878,11 @@ const UbicacionesMaxMinRepository = (() => {
         throw error;
       }
 
-      const physicalRow = _toPhysicalRow_(normalized);
+      const persisted = {
+        ...normalized,
+        validacion: current.validacion
+      };
+      const physicalRow = _toPhysicalRow_(persisted);
       sheet
         .getRange(rowNumber, 1, 1, UBICACIONES_MAXMIN_EXPECTED_WIDTH)
         .setValues([physicalRow]);
@@ -921,9 +914,13 @@ const UbicacionesMaxMinRepository = (() => {
       const existing = freshData.find(function (item) {
         return item.identidad === normalized.identidad;
       });
-      const physicalRow = _toPhysicalRow_(normalized);
 
       if (existing) {
+        const persisted = {
+          ...normalized,
+          validacion: existing.validacion
+        };
+        const existingPhysicalRow = _toPhysicalRow_(persisted);
         sheet
           .getRange(
             existing.numFila,
@@ -931,18 +928,19 @@ const UbicacionesMaxMinRepository = (() => {
             1,
             UBICACIONES_MAXMIN_EXPECTED_WIDTH
           )
-          .setValues([physicalRow]);
+          .setValues([existingPhysicalRow]);
         SpreadsheetApp.flush();
         clearCache();
         return {
           operation: "UPDATED",
           record: _copyItem_(
-            _normalizeRow_(physicalRow, existing.numFila)
+            _normalizeRow_(existingPhysicalRow, existing.numFila)
           )
         };
       }
 
       const targetRow = Math.max(sheet.getLastRow() + 1, CFG.FIRST_DATA_ROW);
+      const physicalRow = _toPhysicalRow_(normalized);
       sheet
         .getRange(targetRow, 1, 1, UBICACIONES_MAXMIN_EXPECTED_WIDTH)
         .setValues([physicalRow]);
