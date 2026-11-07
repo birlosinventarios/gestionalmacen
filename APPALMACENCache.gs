@@ -558,3 +558,369 @@ const APPALMACENCache = (() => {
     debugKeys
   });
 })();
+
+
+
+
+/**
+ * TEST-RegresionBootstrap.gs
+ *
+ * @fileoverview Pruebas manuales de regresión para el bootstrap general de
+ * APPALMACEN.
+ *
+ * PROPÓSITO
+ * - Limpiar la caché general antes de una prueba controlada.
+ * - Construir el bootstrap mediante APPALMACENController.
+ * - Verificar que el resultado conserve su contrato mínimo.
+ * - Mostrar métricas y diagnósticos sin exponer registros completos.
+ *
+ * SEGURIDAD
+ * - No escribe en Google Sheets.
+ * - No modifica inventarios.
+ * - No registra usuarios, productos, ubicaciones ni contenido de registros.
+ * - Solo elimina datos temporales de CacheService.
+ *
+ * USO
+ * 1. Ejecutar TEST_APPALMACEN_limpiarCacheBootstrap.
+ * 2. Ejecutar TEST_APPALMACEN_bootstrapFrio.
+ * 3. Ejecutar TEST_APPALMACEN_bootstrapCaliente.
+ *
+ * IMPORTANTE
+ * Este archivo es exclusivamente diagnóstico. Puede conservarse si las funciones
+ * mantienen el prefijo TEST_ y no son llamadas por las vistas productivas.
+ *
+ * @author Sigifredo de la Cruz Ramos
+ * @version TEST-APPALMACEN-BOOTSTRAP-2026-11-07-01
+ */
+
+
+/**
+ * Elimina la caché general de APPALMACEN.
+ *
+ * No modifica Google Sheets. Solamente elimina datos temporales administrados
+ * por APPALMACENCache.
+ *
+ * @return {!Object} Resultado serializable de la limpieza.
+ */
+function TEST_APPALMACEN_limpiarCacheBootstrap() {
+  const startedAt = Date.now();
+
+  if (
+    typeof APPALMACENCache === "undefined" ||
+    !APPALMACENCache ||
+    typeof APPALMACENCache.clearAll !== "function"
+  ) {
+    throw new Error(
+      "[TEST][APPALMACEN] APPALMACENCache.clearAll no está disponible."
+    );
+  }
+
+  APPALMACENCache.clearAll();
+
+  const result = {
+    ok: true,
+    operation: "CLEAR_ALL_CACHE",
+    elapsedMs: Date.now() - startedAt,
+    generatedAt: new Date().toISOString()
+  };
+
+  console.log(
+    "[TEST][APPALMACEN][CLEAR_CACHE]",
+    JSON.stringify(result)
+  );
+
+  return result;
+}
+
+
+/**
+ * Ejecuta una construcción fría del bootstrap general.
+ *
+ * forceRefresh=true evita reutilizar el bootstrap almacenado. Para una prueba
+ * completamente fría debe ejecutarse primero TEST_APPALMACEN_limpiarCacheBootstrap.
+ *
+ * @return {!Object} Resumen diagnóstico sin incluir datasets completos.
+ */
+function TEST_APPALMACEN_bootstrapFrio() {
+  return TEST_APPALMACEN_ejecutarBootstrap_(true, "COLD");
+}
+
+
+/**
+ * Ejecuta una consulta caliente del bootstrap general.
+ *
+ * Esta prueba debe ejecutarse después de TEST_APPALMACEN_bootstrapFrio para
+ * comprobar si la caché puede ser reutilizada.
+ *
+ * @return {!Object} Resumen diagnóstico sin incluir datasets completos.
+ */
+function TEST_APPALMACEN_bootstrapCaliente() {
+  return TEST_APPALMACEN_ejecutarBootstrap_(false, "WARM");
+}
+
+
+/**
+ * Ejecuta el Controller y valida el contrato del bootstrap.
+ *
+ * @param {boolean} forceRefresh true para forzar reconstrucción.
+ * @param {string} testType Tipo descriptivo de la prueba.
+ * @return {!Object} Resumen seguro de la ejecución.
+ * @throws {Error} Si faltan dependencias o el contrato es inválido.
+ * @private
+ */
+function TEST_APPALMACEN_ejecutarBootstrap_(
+  forceRefresh,
+  testType
+) {
+  const startedAt = Date.now();
+
+  if (
+    typeof APPALMACENController_getBootstrap !== "function"
+  ) {
+    throw new Error(
+      "[TEST][APPALMACEN] " +
+      "APPALMACENController_getBootstrap no está disponible."
+    );
+  }
+
+  console.log(
+    "[TEST][APPALMACEN][BOOTSTRAP] INICIO",
+    {
+      testType: testType,
+      forceRefresh: forceRefresh === true
+    }
+  );
+
+  try {
+    const bootstrap =
+      APPALMACENController_getBootstrap(
+        forceRefresh === true
+      );
+
+    TEST_APPALMACEN_validarContratoBootstrap_(
+      bootstrap
+    );
+
+    const elapsedMs =
+      Date.now() - startedAt;
+
+    const responseChars =
+      TEST_APPALMACEN_medirJson_(
+        bootstrap
+      );
+
+    const diagnostics =
+      bootstrap.diagnostics || {};
+
+    const result = {
+      ok: true,
+      testType: String(testType || ""),
+      forceRefresh: forceRefresh === true,
+      elapsedMs: elapsedMs,
+      responseChars: responseChars,
+
+      degraded:
+        diagnostics.degraded === true,
+
+      diagnosticsOk:
+        diagnostics.ok === true,
+
+      counts: {
+        usuarios:
+          Array.isArray(bootstrap.usuarios)
+            ? bootstrap.usuarios.length
+            : 0,
+
+        bodegas:
+          Array.isArray(bootstrap.bodegas)
+            ? bootstrap.bodegas.length
+            : 0,
+
+        ubicacionesExcedentes:
+          Array.isArray(
+            bootstrap.mapaUbicacionesExcedentes
+          )
+            ? bootstrap
+                .mapaUbicacionesExcedentes
+                .length
+            : 0,
+
+        codigos:
+          Array.isArray(bootstrap.codigos)
+            ? bootstrap.codigos.length
+            : 0,
+
+        nombresEtiquetas:
+          Array.isArray(
+            bootstrap.nombresEtiquetas
+          )
+            ? bootstrap.nombresEtiquetas.length
+            : 0,
+
+        registrosUbicacionesMaxMin:
+          Array.isArray(
+            bootstrap.registrosUbicacionesMaxMin
+          )
+            ? bootstrap
+                .registrosUbicacionesMaxMin
+                .length
+            : 0,
+
+        registrosPendientesMaxMin:
+          Array.isArray(
+            bootstrap
+              .registrosPendientesUbicacionesMaxMin
+          )
+            ? bootstrap
+                .registrosPendientesUbicacionesMaxMin
+                .length
+            : 0,
+
+        codigosPendientesMaxMin:
+          Array.isArray(
+            bootstrap
+              .codigosPendientesUbicacionesMaxMin
+          )
+            ? bootstrap
+                .codigosPendientesUbicacionesMaxMin
+                .length
+            : 0
+      },
+
+      sources:
+        diagnostics.sources || {},
+
+      generatedAt:
+        new Date().toISOString()
+    };
+
+    console.log(
+      "[TEST][APPALMACEN][BOOTSTRAP] OK",
+      JSON.stringify(result)
+    );
+
+    return result;
+  } catch (error) {
+    const failure = {
+      ok: false,
+      testType: String(testType || ""),
+      forceRefresh: forceRefresh === true,
+      elapsedMs:
+        Date.now() - startedAt,
+
+      message:
+        error && error.message
+          ? error.message
+          : String(error || ""),
+
+      generatedAt:
+        new Date().toISOString()
+    };
+
+    console.error(
+      "[TEST][APPALMACEN][BOOTSTRAP] ERROR",
+      JSON.stringify(failure)
+    );
+
+    throw error;
+  }
+}
+
+
+/**
+ * Verifica las propiedades mínimas del bootstrap.
+ *
+ * @param {*} bootstrap Resultado recibido del Controller.
+ * @return {void}
+ * @throws {TypeError} Si el contrato es inválido.
+ * @private
+ */
+function TEST_APPALMACEN_validarContratoBootstrap_(
+  bootstrap
+) {
+  if (
+    !bootstrap ||
+    typeof bootstrap !== "object" ||
+    Array.isArray(bootstrap)
+  ) {
+    throw new TypeError(
+      "[TEST][APPALMACEN] " +
+      "El bootstrap debe ser un objeto."
+    );
+  }
+
+  const arrayFields = [
+    "usuarios",
+    "bodegas",
+    "mapaUbicacionesExcedentes",
+    "codigos",
+    "nombresEtiquetas",
+    "registrosUbicacionesMaxMin",
+    "registrosPendientesUbicacionesMaxMin",
+    "codigosPendientesUbicacionesMaxMin"
+  ];
+
+  arrayFields.forEach(
+    function (fieldName) {
+      if (
+        !Array.isArray(
+          bootstrap[fieldName]
+        )
+      ) {
+        throw new TypeError(
+          "[TEST][APPALMACEN] " +
+          `El campo ${fieldName} debe ser un arreglo.`
+        );
+      }
+    }
+  );
+
+  const objectFields = [
+    "mapaCatalogo",
+    "mapaMedidas",
+    "diagnostics"
+  ];
+
+  objectFields.forEach(
+    function (fieldName) {
+      const value =
+        bootstrap[fieldName];
+
+      if (
+        !value ||
+        typeof value !== "object" ||
+        Array.isArray(value)
+      ) {
+        throw new TypeError(
+          "[TEST][APPALMACEN] " +
+          `El campo ${fieldName} debe ser un objeto.`
+        );
+      }
+    }
+  );
+}
+
+
+/**
+ * Calcula el tamaño aproximado de la respuesta JSON.
+ *
+ * @param {*} value Valor serializable.
+ * @return {number} Número de caracteres JSON.
+ * @throws {Error} Si el valor no es serializable.
+ * @private
+ */
+function TEST_APPALMACEN_medirJson_(value) {
+  try {
+    return JSON.stringify(value).length;
+  } catch (error) {
+    throw new Error(
+      "[TEST][APPALMACEN] " +
+      "El bootstrap no es serializable: " +
+      (
+        error && error.message
+          ? error.message
+          : String(error || "")
+      )
+    );
+  }
+}

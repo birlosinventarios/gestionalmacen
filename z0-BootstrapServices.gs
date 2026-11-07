@@ -157,34 +157,85 @@ const BootstrapServices = (() => {
   }
 
   /**
-   * Normaliza el catálogo y construye sus índices para el navegador.
-   *
-   * @param {Array<Object>} catalogo Registros obtenidos del repositorio.
-   * @return {{mapaCatalogo:Object,codigos:Array<string>}}
-   * @private
-   */
-  function procesarCatalogo_(catalogo) {
-    const mapaCatalogo = {};
-    const codigosUnicos = new Set();
+ * Normaliza el catálogo y construye sus índices para el navegador.
+ *
+ * Los códigos se convierten a mayúsculas, se eliminan espacios exteriores y se
+ * deduplican mediante Set. Cuando el catálogo contiene códigos repetidos, el mapa
+ * conserva el último registro leído, de acuerdo con el contrato histórico.
+ *
+ * Se utiliza un objeto sin prototipo para impedir colisiones accidentales con
+ * propiedades heredadas como constructor, prototype o __proto__.
+ *
+ * @param {!Array<!Object>} catalogo Registros obtenidos del Repository.
+ * @return {{
+ *   mapaCatalogo: !Object<string, !Object>,
+ *   codigos: !Array<string>
+ * }} Índices normalizados del catálogo.
+ * @private
+ */
+function procesarCatalogo_(catalogo) {
+  const source =
+    Array.isArray(catalogo)
+      ? catalogo
+      : [];
 
-    for (let i = 0; i < catalogo.length; i++) {
-      const item = source[i];
-      const codigo = String(item.codigo || "").trim().toUpperCase();
-      if (!codigo) continue;
+  const mapaCatalogo =
+    Object.create(null);
 
-      codigosUnicos.add(codigo);
+  const codigosUnicos =
+    new Set();
 
-      mapaCatalogo[codigo] = {
-        idproducto: item.idproducto || "",
-        descripcion: String(item.descripcion || "").trim().toUpperCase()
-      };
+  for (
+    let index = 0;
+    index < source.length;
+    index++
+  ) {
+    const item =
+      source[index] || {};
+
+    const codigo = String(
+      item.codigo || ""
+    )
+      .trim()
+      .toUpperCase();
+
+    if (!codigo) {
+      continue;
     }
 
-    return {
-      mapaCatalogo,
-      codigos: [...codigosUnicos].sort()
+    codigosUnicos.add(codigo);
+
+    mapaCatalogo[codigo] = {
+      idproducto:
+        item.idproducto ||
+        item.idProducto ||
+        "",
+
+      descripcion: String(
+        item.descripcion || ""
+      )
+        .trim()
+        .toUpperCase()
     };
   }
+
+  return {
+    mapaCatalogo,
+
+    codigos: Array
+      .from(codigosUnicos)
+      .sort(function (a, b) {
+        return a.localeCompare(
+          b,
+          "es-MX",
+          {
+            numeric: true,
+            sensitivity: "base"
+          }
+        );
+      })
+  };
+}
 
   /**
    * Construye el mapa de dimensiones y la lista ordenada de etiquetas.
