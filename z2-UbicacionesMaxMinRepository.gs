@@ -39,6 +39,8 @@
  * - Insertar, actualizar y realizar upsert bajo ScriptLock.
  * - Releer el origen dentro del lock antes de decidir una escritura.
  * - Invalidar la caché después de cualquier modificación.
+ * - Medir lectura, normalización, caché, bloqueo, escritura y flush mediante
+ *   las trazas compartidas de APPALMACEN.
  *
  * ESTE REPOSITORIO NO DEBE
  * - Consultar CATALOGO ni resolver descripciones de producto.
@@ -57,7 +59,7 @@
  * - LockService, SpreadsheetApp, Session y Utilities.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version UBICACIONES-MAXMIN-REPOSITORY-2026-11-06-03
+ * @version UBICACIONES-MAXMIN-REPOSITORY-2026-11-07-04
  */
 const UbicacionesMaxMinRepository = (() => {
   "use strict";
@@ -99,6 +101,47 @@ const UbicacionesMaxMinRepository = (() => {
    */
   let cache_ = null;
 
+  /** Nombre estable utilizado para seleccionar la configuración de rendimiento. */
+  const PERF_MODULE = "UBICACIONES_MAXMIN";
+
+  /**
+   * Crea una traza propia cuando el consumidor no proporciona una.
+   *
+   * @param {string} operation Operación lógica.
+   * @param {?Object=} parentTrace Traza del Service o Controller.
+   * @return {{trace:!Object,owned:boolean}} Contexto de trazabilidad.
+   * @private
+   */
+  function _traceContext_(operation, parentTrace) {
+    if (parentTrace && typeof parentTrace === "object") {
+      perfMark_(parentTrace, "REPOSITORY_" + operation + "_STARTED", {
+        module: PERF_MODULE,
+        layer: "REPOSITORY"
+      });
+      return { trace: parentTrace, owned: false };
+    }
+
+    return {
+      trace: perfStart_("UBICACIONES_MAXMIN_REPOSITORY_" + operation, {
+        module: PERF_MODULE,
+        layer: "REPOSITORY"
+      }),
+      owned: true
+    };
+  }
+
+  /** Finaliza solo las trazas creadas por el Repository. */
+  function _finishTrace_(context, status, metadata) {
+    if (!context || !context.trace) return;
+    if (context.owned) {
+      perfEnd_(context.trace, status, metadata || {});
+      return;
+    }
+    perfMark_(context.trace, "REPOSITORY_STAGE_COMPLETED", Object.assign({
+      status: status || "ok"
+    }, metadata || {}));
+  }
+
   // ===========================================================================
   // DEPENDENCIAS Y CONTRATOS
   // ===========================================================================
@@ -116,7 +159,13 @@ const UbicacionesMaxMinRepository = (() => {
       ["getSheetByKey_", typeof getSheetByKey_],
       ["toStr_", typeof toStr_],
       ["toStrUpper_", typeof toStrUpper_],
-      ["toNum_", typeof toNum_]
+      ["toNum_", typeof toNum_],
+      ["perfStart_", typeof perfStart_],
+      ["perfMark_", typeof perfMark_],
+      ["perfEnd_", typeof perfEnd_],
+      ["perfFail_", typeof perfFail_],
+      ["perfMeasure_", typeof perfMeasure_],
+      ["withScriptLock_", typeof withScriptLock_]
     ];
 
     const missing = functions
@@ -263,9 +312,9 @@ const UbicacionesMaxMinRepository = (() => {
    * @throws {Error} Si la hoja no está disponible.
    * @private
    */
-  function _getSheet_() {
+  function _getSheet_(trace) {
     _validateDependencies_();
-    const sheet = getSheetByKey_(CFG.SOURCE_KEY);
+    const sheet = getSheetByKey_(CFG.SOURCE_KEY, trace);
     if (!sheet || typeof sheet.getRange !== "function") {
       throw new Error(
         `${CFG.LOG_PREFIX} No fue posible resolver la hoja ${CFG.SOURCE_KEY}.`
@@ -282,8 +331,9 @@ const UbicacionesMaxMinRepository = (() => {
    * @throws {Error} Si la hoja no cumple el contrato físico.
    * @private
    */
-  function _validateSheetContract_(sheet) {
-    const source = sheet || _getSheet_();
+  function _validateSheetContract_(sheet, trace) {
+    const source = sheet || _getSheet_(trace);
+    const contractStartedAt = Date.now();
     const expectedHeaders = _getExpectedHeaders_();
     const expectedWidth = UBICACIONES_MAXMIN_EXPECTED_WIDTH;
     const lastColumn = source.getLastColumn();
@@ -330,11 +380,16 @@ const UbicacionesMaxMinRepository = (() => {
       throw error;
     }
 
-    return {
+    const result = {
       sheetName: source.getName(),
       width: expectedWidth,
       headers: actualHeaders.slice()
     };
+    perfMark_(trace, "REPOSITORY_CONTRACT_VALIDATED", {
+      elapsedMs: Date.now() - contractStartedAt,
+      width: expectedWidth
+    });
+    return result;
   }
 
   // ===========================================================================
@@ -559,29 +614,36 @@ const UbicacionesMaxMinRepository = (() => {
    * @return {!Array<!Object>} Entidades internas normalizadas.
    * @private
    */
-  function _readNormalizedData_(validateContract = true) {
+  function _readNormalizedData_(validateContract = true, trace) {
     _validateDependencies_();
     _getColumns_();
     _getConfig_();
 
     if (validateContract) {
-      _validateSheetContract_();
+      _validateSheetContract_(null, trace);
     }
 
-    const rows = getRowsByKey_(CFG.SOURCE_KEY);
+    const rows = getRowsByKey_(CFG.SOURCE_KEY, trace);
     if (!Array.isArray(rows)) {
       throw new Error(
         `${CFG.LOG_PREFIX} La fuente ${CFG.SOURCE_KEY} no devolvió un arreglo.`
       );
     }
 
-    return rows
+    const normalizeStartedAt = Date.now();
+    const normalized = rows
       .map(function (row, index) {
         return _normalizeRow_(row, CFG.FIRST_DATA_ROW + index);
       })
       .filter(function (item) {
         return Boolean(item.codigo || item.bodega || item.ubicacion);
       });
+    perfMark_(trace, "REPOSITORY_ROWS_NORMALIZED", {
+      elapsedMs: Date.now() - normalizeStartedAt,
+      inputRows: rows.length,
+      outputRows: normalized.length
+    });
+    return normalized;
   }
 
   /**
@@ -590,11 +652,13 @@ const UbicacionesMaxMinRepository = (() => {
    * @return {!Array<!Object>} Caché interna.
    * @private
    */
-  function _getCachedData_() {
+  function _getCachedData_(trace) {
     if (cache_ !== null) {
+      perfMark_(trace, "REPOSITORY_CACHE_HIT", { records: cache_.length });
       return cache_;
     }
-    cache_ = _readNormalizedData_(true);
+    perfMark_(trace, "REPOSITORY_CACHE_MISS");
+    cache_ = _readNormalizedData_(true, trace);
     console.log(
       `${CFG.LOG_PREFIX} Caché cargada: ${cache_.length} registro(s).`
     );
@@ -633,8 +697,26 @@ const UbicacionesMaxMinRepository = (() => {
    *
    * @return {!Array<!Object>} Copias defensivas ordenadas.
    */
-  function getAll() {
-    return _getCachedData_().map(_copyItem_).sort(_compareItems_);
+  function getAll(parentTrace) {
+    const context = _traceContext_("GET_ALL", parentTrace);
+    try {
+      const copyStartedAt = Date.now();
+      const result = _getCachedData_(context.trace)
+        .map(_copyItem_)
+        .sort(_compareItems_);
+      perfMark_(context.trace, "REPOSITORY_RESULT_COPIED_SORTED", {
+        elapsedMs: Date.now() - copyStartedAt,
+        records: result.length
+      });
+      _finishTrace_(context, "ok", { records: result.length });
+      return result;
+    } catch (error) {
+      if (context.owned) perfFail_(context.trace, error);
+      else perfMark_(context.trace, "REPOSITORY_GET_ALL_FAILED", {
+        message: error && error.message ? error.message : String(error || "")
+      });
+      throw error;
+    }
   }
 
   /**
@@ -716,11 +798,11 @@ const UbicacionesMaxMinRepository = (() => {
    *
    * @return {{sheetName:string,width:number,headers:!Array<string>}} Diagnóstico.
    */
-  function validarContrato() {
+  function validarContrato(trace) {
     _validateDependencies_();
     _getColumns_();
     _getConfig_();
-    return _validateSheetContract_();
+    return _validateSheetContract_(null, trace);
   }
 
   // ===========================================================================
@@ -820,29 +902,19 @@ const UbicacionesMaxMinRepository = (() => {
    * @throws {Error} Si no se obtiene el lock dentro del tiempo configurado.
    * @private
    */
-  function _withScriptLock_(operation) {
+  function _withScriptLock_(operation, trace) {
     if (typeof operation !== "function") {
       throw new TypeError(
         `${CFG.LOG_PREFIX} La operación protegida debe ser una función.`
       );
     }
-
     const config = _getConfig_();
-    const lock = LockService.getScriptLock();
-    const acquired = lock.tryLock(config.LIMITS.LOCK_TIMEOUT_MS);
-    if (!acquired) {
-      const error = new Error(
-        `${CFG.LOG_PREFIX} No fue posible obtener el bloqueo de escritura.`
-      );
-      error.code = config.ERROR_CODES.LOCK_TIMEOUT;
-      throw error;
-    }
-
-    try {
-      return operation();
-    } finally {
-      lock.releaseLock();
-    }
+    return withScriptLock_(
+      "UBICACIONES_MAXMIN_WRITE",
+      operation,
+      config.LIMITS.LOCK_TIMEOUT_MS,
+      trace
+    );
   }
 
   // ===========================================================================
@@ -898,65 +970,97 @@ const UbicacionesMaxMinRepository = (() => {
    * @return {!Object} Registro actualizado.
    * @throws {Error} Si la fila no existe o la identidad colisiona con otra fila.
    */
-  function actualizar(numFila, payload) {
-    const rowNumber = Number(numFila);
-    if (!Number.isInteger(rowNumber) || rowNumber < CFG.FIRST_DATA_ROW) {
-      const error = new TypeError(
-        `${CFG.LOG_PREFIX} El número de fila debe ser un entero mayor o igual a ` +
+  function actualizar(numFila, payload, parentTrace) {
+    const context = _traceContext_("UPDATE", parentTrace);
+    try {
+      const rowNumber = Number(numFila);
+      if (!Number.isInteger(rowNumber) || rowNumber < CFG.FIRST_DATA_ROW) {
+        const error = new TypeError(
+          `${CFG.LOG_PREFIX} El número de fila debe ser un entero mayor o igual a ` +
           `${CFG.FIRST_DATA_ROW}.`
-      );
-      error.code = _getConfig_().ERROR_CODES.REGISTRO_NO_ENCONTRADO;
-      throw error;
-    }
-
-    const normalized = _normalizeWritePayload_(payload);
-
-    return _withScriptLock_(function () {
-      const sheet = _getSheet_();
-      _validateSheetContract_(sheet);
-      const freshData = _readNormalizedData_(false);
-      const current = freshData.find(function (item) {
-        return item.numFila === rowNumber;
-      });
-
-      if (!current) {
-        const error = new Error(
-          `${CFG.LOG_PREFIX} No existe un registro en la fila ${rowNumber}.`
         );
         error.code = _getConfig_().ERROR_CODES.REGISTRO_NO_ENCONTRADO;
         throw error;
       }
 
-      const duplicate = freshData.find(function (item) {
-        return (
-          item.identidad === normalized.identidad &&
-          item.numFila !== rowNumber
-        );
-      });
-      if (duplicate) {
-        const error = new Error(
-          `${CFG.LOG_PREFIX} La identidad ${normalized.identidad} ya existe en ` +
-            `la fila ${duplicate.numFila}.`
-        );
-        error.code = _getConfig_().ERROR_CODES.REGISTRO_DUPLICADO;
-        throw error;
-      }
-
-      const persisted = {
-        ...normalized,
-        validacion: current.validacion
-      };
-      const physicalRow = _toPhysicalRow_(persisted);
-      sheet
-        .getRange(rowNumber, 1, 1, UBICACIONES_MAXMIN_EXPECTED_WIDTH)
-        .setValues([physicalRow]);
-      SpreadsheetApp.flush();
-      clearCache();
-
-      return _copyItem_(
-        _normalizeRow_(physicalRow, rowNumber)
+      const normalized = perfMeasure_(
+        context.trace,
+        "REPOSITORY_PAYLOAD_NORMALIZED",
+        function () { return _normalizeWritePayload_(payload); }
       );
-    });
+
+      const result = _withScriptLock_(function () {
+        const sheet = perfMeasure_(
+          context.trace,
+          "REPOSITORY_SHEET_RESOLVED",
+          function () { return _getSheet_(context.trace); }
+        );
+        _validateSheetContract_(sheet, context.trace);
+        const freshData = _readNormalizedData_(false, context.trace);
+
+        const lookupStartedAt = Date.now();
+        const current = freshData.find(function (item) {
+          return item.numFila === rowNumber;
+        });
+        if (!current) {
+          const error = new Error(
+            `${CFG.LOG_PREFIX} No existe un registro en la fila solicitada.`
+          );
+          error.code = _getConfig_().ERROR_CODES.REGISTRO_NO_ENCONTRADO;
+          throw error;
+        }
+        const duplicate = freshData.find(function (item) {
+          return item.identidad === normalized.identidad && item.numFila !== rowNumber;
+        });
+        perfMark_(context.trace, "REPOSITORY_ROW_LOOKUP_COMPLETED", {
+          elapsedMs: Date.now() - lookupStartedAt,
+          recordsScanned: freshData.length,
+          duplicateFound: Boolean(duplicate)
+        });
+        if (duplicate) {
+          const error = new Error(
+            `${CFG.LOG_PREFIX} La identidad funcional ya existe en otra fila.`
+          );
+          error.code = _getConfig_().ERROR_CODES.REGISTRO_DUPLICADO;
+          throw error;
+        }
+
+        const persisted = { ...normalized, validacion: current.validacion };
+        const physicalRow = perfMeasure_(
+          context.trace,
+          "REPOSITORY_PHYSICAL_ROW_BUILT",
+          function () { return _toPhysicalRow_(persisted); }
+        );
+
+        const writeStartedAt = Date.now();
+        sheet
+          .getRange(rowNumber, 1, 1, UBICACIONES_MAXMIN_EXPECTED_WIDTH)
+          .setValues([physicalRow]);
+        perfMark_(context.trace, "REPOSITORY_ROW_WRITTEN", {
+          elapsedMs: Date.now() - writeStartedAt,
+          width: UBICACIONES_MAXMIN_EXPECTED_WIDTH
+        });
+
+        const flushStartedAt = Date.now();
+        SpreadsheetApp.flush();
+        perfMark_(context.trace, "REPOSITORY_FLUSH_COMPLETED", {
+          elapsedMs: Date.now() - flushStartedAt
+        });
+
+        clearCache();
+        perfMark_(context.trace, "REPOSITORY_CACHE_CLEARED");
+        return _copyItem_(_normalizeRow_(physicalRow, rowNumber));
+      }, context.trace);
+
+      _finishTrace_(context, "ok", { updated: true });
+      return result;
+    } catch (error) {
+      if (context.owned) perfFail_(context.trace, error);
+      else perfMark_(context.trace, "REPOSITORY_UPDATE_FAILED", {
+        message: error && error.message ? error.message : String(error || "")
+      });
+      throw error;
+    }
   }
 
   /**
