@@ -16,6 +16,8 @@
  * - Delegar las reglas de negocio y la persistencia al Service.
  * - Mantener respuestas serializables y errores accionables.
  * - Evitar registrar payloads completos o valores personales.
+ * - Crear una traza principal por RPC y compartirla con Service y Repository.
+ * - Medir validación, delegación, contrato de respuesta y tamaño serializado.
  *
  * ESTE CONTROLADOR NO DEBE
  * - Leer o escribir Google Sheets directamente.
@@ -41,6 +43,8 @@
  * DEPENDENCIAS GLOBALES
  * - execController_(controllerName, label, executor).
  * - FormularioUbicacionesMaxMinService.
+ * - perfStart_(), perfMark_(), perfMeasure_(), perfEnd_(), perfFail_() y
+ *   perfMeasureJsonChars_().
  *
  * NOTA SOBRE GOOGLE APPS SCRIPT
  * Las funciones RPC se declaran en el ámbito global. No deben encerrarse en un
@@ -48,7 +52,7 @@
  * del servidor.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-01
+ * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-02
  */
 "use strict";
 
@@ -60,8 +64,9 @@
  */
 const FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG = Object.freeze({
   NAME: "FormularioUbicacionesMaxMinController",
-  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-01",
+  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-02",
   LOG_PREFIX: "[FormularioUbicacionesMaxMinController]",
+  PERF_MODULE: "UBICACIONES_MAXMIN",
   MIN_DATA_ROW: 2,
   OPERATIONS: Object.freeze({
     GET_BOOTSTRAP: "getBootstrap",
@@ -91,6 +96,16 @@ function FormularioUbicacionesMaxMinController_validateDependencies_() {
   if (typeof execController_ !== "function") {
     missing.push("execController_");
   }
+  [
+    ["perfStart_", typeof perfStart_],
+    ["perfMark_", typeof perfMark_],
+    ["perfMeasure_", typeof perfMeasure_],
+    ["perfEnd_", typeof perfEnd_],
+    ["perfFail_", typeof perfFail_],
+    ["perfMeasureJsonChars_", typeof perfMeasureJsonChars_]
+  ].forEach(function(dependency) {
+    if (dependency[1] !== "function") missing.push(dependency[0]);
+  });
   if (
     typeof FormularioUbicacionesMaxMinService === "undefined" ||
     !FormularioUbicacionesMaxMinService
@@ -137,42 +152,52 @@ function FormularioUbicacionesMaxMinController_requireServiceMethod_(
  * @return {*} Respuesta serializable.
  * @private
  */
-function FormularioUbicacionesMaxMinController_execute_(
-  operationName,
-  callback
-) {
+function FormularioUbicacionesMaxMinController_execute_(operationName, callback) {
   FormularioUbicacionesMaxMinController_validateDependencies_();
-
-  if (typeof operationName !== "string" || !operationName.trim()) {
+  const operation = String(operationName || "").trim();
+  if (!operation) {
     throw new TypeError(
       `${FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.LOG_PREFIX} ` +
-        "El nombre de la operación es obligatorio."
+      "El nombre de la operación es obligatorio."
     );
   }
   if (typeof callback !== "function") {
     throw new TypeError(
       `${FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.LOG_PREFIX} ` +
-        "El callback de la operación debe ser una función."
+      "El callback de la operación debe ser una función."
     );
   }
 
-  /*
-   * CONTRATO REAL DE execController_
-   *
-   * execController_(controllerName, label, executor)
-   *
-   * - controllerName identifica el controlador que publica el endpoint.
-   * - label identifica la operación para trazabilidad y diagnóstico.
-   * - executor contiene el trabajo delegado al Service.
-   *
-   * El orden es obligatorio. Si el tercer argumento no es una función,
-   * execController_ genera el error "executor is not a function".
-   */
-  return execController_(
-    FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.NAME,
-    operationName,
-    callback
+  const trace = perfStart_(
+    "UBICACIONES_MAXMIN_CONTROLLER_" + operation.toUpperCase(),
+    {
+      module: FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.PERF_MODULE,
+      layer: "CONTROLLER",
+      controller: FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.NAME,
+      operation: operation
+    }
   );
+
+  try {
+    const result = execController_(
+      FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.NAME,
+      operation,
+      function() { return callback(trace); }
+    );
+    const responseChars = perfMeasureJsonChars_(result);
+    perfMark_(trace, "CONTROLLER_RESPONSE_READY", {
+      responseChars: responseChars,
+      responseType: Array.isArray(result) ? "array" : typeof result
+    });
+    perfEnd_(trace, "ok", {
+      operation: operation,
+      responseChars: responseChars
+    });
+    return result;
+  } catch (error) {
+    perfFail_(trace, error, { operation: operation });
+    throw error;
+  }
 }
 
 /**
@@ -276,35 +301,40 @@ function FormularioUbicacionesMaxMinController_requireRowNumber_(numFila) {
 function FormularioUbicacionesMaxMinController_getBootstrap() {
   return FormularioUbicacionesMaxMinController_execute_(
     FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.OPERATIONS.GET_BOOTSTRAP,
-    function () {
-      const method =
-        FormularioUbicacionesMaxMinController_requireServiceMethod_(
-          "getBootstrap"
-        );
-      const bootstrap = method.call(FormularioUbicacionesMaxMinService);
-
-      if (!bootstrap || typeof bootstrap !== "object" || Array.isArray(bootstrap)) {
-        throw new Error(
-          `${FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.LOG_PREFIX} ` +
-          "El Service devolvió un bootstrap inválido."
-        );
-      }
-
-      const requiredArrays = [
-        "usuarios",
-        "registrosPendientes",
-        "codigosPendientes"
-      ];
-
-      requiredArrays.forEach(function(fieldName) {
-        if (!Array.isArray(bootstrap[fieldName])) {
-          throw new Error(
-            `${FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.LOG_PREFIX} ` +
-            `El campo ${fieldName} del bootstrap debe ser un arreglo.`
+    function(trace) {
+      const method = perfMeasure_(
+        trace,
+        "CONTROLLER_SERVICE_METHOD_RESOLVED",
+        function() {
+          return FormularioUbicacionesMaxMinController_requireServiceMethod_(
+            "getBootstrap"
           );
         }
+      );
+      const bootstrap = perfMeasure_(
+        trace,
+        "CONTROLLER_SERVICE_GET_BOOTSTRAP",
+        function() {
+          return method.call(FormularioUbicacionesMaxMinService, trace);
+        }
+      );
+      perfMeasure_(trace, "CONTROLLER_BOOTSTRAP_CONTRACT_VALIDATED", function() {
+        if (!bootstrap || typeof bootstrap !== "object" || Array.isArray(bootstrap)) {
+          throw new Error(
+            `${FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.LOG_PREFIX} ` +
+            "El Service devolvió un bootstrap inválido."
+          );
+        }
+        ["usuarios", "registrosPendientes", "codigosPendientes"]
+          .forEach(function(fieldName) {
+            if (!Array.isArray(bootstrap[fieldName])) {
+              throw new Error(
+                `${FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.LOG_PREFIX} ` +
+                `El campo ${fieldName} del bootstrap debe ser un arreglo.`
+              );
+            }
+          });
       });
-
       return bootstrap;
     }
   );
@@ -449,26 +479,50 @@ function FormularioUbicacionesMaxMinController_guardar(payload) {
  * @param {*} payload Datos del formulario.
  * @return {!Object} Registro actualizado.
  */
-function FormularioUbicacionesMaxMinController_actualizar(
-  numFila,
-  payload
-) {
-  const rowNumber =
-    FormularioUbicacionesMaxMinController_requireRowNumber_(numFila);
-  const validatedPayload =
-    FormularioUbicacionesMaxMinController_requirePayload_(payload);
-
+function FormularioUbicacionesMaxMinController_actualizar(numFila, payload) {
   return FormularioUbicacionesMaxMinController_execute_(
     FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.OPERATIONS.UPDATE,
-    function () {
-      const method =
-        FormularioUbicacionesMaxMinController_requireServiceMethod_(
-          "actualizar"
-        );
-      return method.call(
-        FormularioUbicacionesMaxMinService,
-        rowNumber,
-        validatedPayload
+    function(trace) {
+      const rowNumber = perfMeasure_(
+        trace,
+        "CONTROLLER_ROW_NUMBER_VALIDATED",
+        function() {
+          return FormularioUbicacionesMaxMinController_requireRowNumber_(numFila);
+        }
+      );
+      const validatedPayload = perfMeasure_(
+        trace,
+        "CONTROLLER_PAYLOAD_VALIDATED",
+        function() {
+          return FormularioUbicacionesMaxMinController_requirePayload_(payload);
+        },
+        {
+          fieldCount:
+            payload && typeof payload === "object" && !Array.isArray(payload)
+              ? Object.keys(payload).length
+              : 0
+        }
+      );
+      const method = perfMeasure_(
+        trace,
+        "CONTROLLER_SERVICE_METHOD_RESOLVED",
+        function() {
+          return FormularioUbicacionesMaxMinController_requireServiceMethod_(
+            "actualizar"
+          );
+        }
+      );
+      return perfMeasure_(
+        trace,
+        "CONTROLLER_SERVICE_UPDATE",
+        function() {
+          return method.call(
+            FormularioUbicacionesMaxMinService,
+            rowNumber,
+            validatedPayload,
+            trace
+          );
+        }
       );
     }
   );
