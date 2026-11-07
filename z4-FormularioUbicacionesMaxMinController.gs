@@ -11,8 +11,8 @@
  * - Publicar endpoints globales invocables mediante google.script.run.
  * - Validar la estructura mínima de los argumentos recibidos.
  * - Delegar al Service la composición completa del bootstrap específico.
- * - Entregar a la vista usuarios, registros pendientes y opciones con
- *   CODIGO y DESCRIPCION.
+ * - Entregar a la vista usuarios y registros elegibles con CODIGO y DESCRIPCION.
+ * - Mantener el contrato de usuario sin exigir que la vista muestre el rol.
  * - Delegar las reglas de negocio y la persistencia al Service.
  * - Mantener respuestas serializables y errores accionables.
  * - Evitar registrar payloads completos o valores personales.
@@ -48,7 +48,7 @@
  * del servidor.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-05
+ * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-01
  */
 "use strict";
 
@@ -60,7 +60,7 @@
  */
 const FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG = Object.freeze({
   NAME: "FormularioUbicacionesMaxMinController",
-  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-06-05",
+  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-01",
   LOG_PREFIX: "[FormularioUbicacionesMaxMinController]",
   MIN_DATA_ROW: 2,
   OPERATIONS: Object.freeze({
@@ -263,7 +263,7 @@ function FormularioUbicacionesMaxMinController_requireRowNumber_(numFila) {
  * CONTRATO DE RESPUESTA
  * {
  *   usuarios: Array<{idusuario:number,nombre:string,rol:string}>,
- *   registrosPendientes: Array<Object>,
+ *   registrosPendientes: Array<Object>, // elegibles por compatibilidad
  *   codigosPendientes: Array<{codigo:string,descripcion:string}>,
  *   rules: Object,
  *   source: Object,

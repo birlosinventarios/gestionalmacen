@@ -13,7 +13,7 @@
    * RESPONSABILIDADES
    * - Cargar usuarios y registros pendientes desde el Controller.
    * - Permitir seleccionar cualquier usuario, sin filtrar por rol.
-   * - Mostrar únicamente filas cuya captura inicial está pendiente.
+   * - Mostrar códigos ACTIVO con FECHA, HORA y USUARIO registrados.
    * - Mostrar el código como valor principal y la descripción como texto auxiliar.
    * - Capturar EXISTENCIA y PORCENTAJE de ocupación.
    * - Calcular MAXIMO cuando PORCENTAJE es menor que 100.
@@ -24,14 +24,16 @@
    *
    * REGLAS FUNCIONALES
    * - PORCENTAJE admite enteros entre 1 y 100.
-   * - Si PORCENTAJE = 100 y MAXIMO está vacío, MAXIMO = EXISTENCIA.
+   * - Si PORCENTAJE = 100 y MAXIMO no fue editado, MAXIMO = EXISTENCIA.
+   * - Si PORCENTAJE = 100, el usuario puede capturar un MAXIMO menor que
+   *   EXISTENCIA para representar material excedente.
    * - Si PORCENTAJE < 100:
    *     MAXIMO = redondearADecena((EXISTENCIA / PORCENTAJE) * 100).
    * - El signo de porcentaje es visual y no puede borrarse.
    * - FECHA y HORA se generan en el servidor.
    * - USUARIO se selecciona en la vista y se valida en el servidor.
    * - La lista desplegable muestra únicamente CODIGO y DESCRIPCION.
-   * - Si un código tiene varias filas pendientes, se selecciona de forma
+   * - Si un código tiene varias filas elegibles, se selecciona de forma
    *   determinista la fila física menor; el guardado continúa usando numFila.
    *
    * DEPENDENCIAS GLOBALES
@@ -51,7 +53,7 @@
    * - window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__.
    *
    * @author Sigifredo de la Cruz Ramos
-   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-06-04
+   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-07-01
    */
 </script>
 
@@ -521,6 +523,8 @@
       const [usuarios, setUsuarios] = useState([]);
       const [registrosPendientes, setRegistrosPendientes] = useState([]);
       const [form, setForm] = useState({ ...FORM_INICIAL });
+      const [maximoEditadoManualmente, setMaximoEditadoManualmente] =
+        useState(false);
       const codigoInputRef = useRef(null);
 
       /**
@@ -574,13 +578,22 @@
       const maximoCalculado = useMemo(() => {
         if (form.existencia === "" || form.porcentaje === "") return 0;
         if (porcentaje === 100) {
-          return form.maximo === "" ? existencia : toNumberSafe_(form.maximo);
+          return maximoEditadoManualmente && form.maximo !== ""
+            ? toNumberSafe_(form.maximo)
+            : existencia;
         }
         if (porcentaje > 0 && porcentaje < 100) {
           return redondearADecena_((existencia / porcentaje) * 100);
         }
         return 0;
-      }, [existencia, porcentaje, form.existencia, form.porcentaje, form.maximo]);
+      }, [
+        existencia,
+        porcentaje,
+        form.existencia,
+        form.porcentaje,
+        form.maximo,
+        maximoEditadoManualmente
+      ]);
 
       const resumen = useMemo(() => ({
         pendientes: registrosPendientes.length,
@@ -605,7 +618,7 @@
         setUsuarios(listaUsuarios);
         setRegistrosPendientes(listaPendientes);
         window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
-        window.DATA_ALMACEN_CACHE.ubicacionesMaxMinBootstrap = {
+        window.DATA_ALMACEN_CACHE.ubicacionesMaxMinBootstrapV2 = {
           usuarios: listaUsuarios,
           registrosPendientes: listaPendientes
         };
@@ -618,7 +631,7 @@
             sound: false
           });
 
-          const cache = window.DATA_ALMACEN_CACHE?.ubicacionesMaxMinBootstrap || null;
+          const cache = window.DATA_ALMACEN_CACHE?.ubicacionesMaxMinBootstrapV2 || null;
           if (cache) {
             hidratarBootstrap_(cache);
             setCargando(false);
@@ -677,6 +690,7 @@
       }, []);
 
       const actualizarCodigo_ = value => {
+        setMaximoEditadoManualmente(false);
         setForm(previous => ({
           ...previous,
           codigo: normalizarTexto_(value),
@@ -686,15 +700,50 @@
         }));
       };
 
+      /**
+       * Actualiza el porcentaje y prepara MAXIMO para el caso de 100%.
+       *
+       * Al llegar a 100%, el valor propuesto es EXISTENCIA. El campo permanece
+       * editable para permitir un máximo menor cuando existe material excedente.
+       */
       const actualizarPorcentaje_ = value => {
         const limpio = limpiarEntero_(value).slice(0, 3);
         const limitado = limpio === ""
           ? ""
           : String(Math.min(100, Number(limpio)));
+        const esCien = Number(limitado) === 100;
+
+        setMaximoEditadoManualmente(false);
         setForm(previous => ({
           ...previous,
           porcentaje: limitado,
-          maximo: Number(limitado) === 100 ? previous.maximo : ""
+          maximo: esCien ? previous.existencia : ""
+        }));
+      };
+
+      /**
+       * Actualiza EXISTENCIA y sincroniza MAXIMO mientras el valor al 100% no
+       * haya sido reemplazado manualmente.
+       */
+      const actualizarExistencia_ = value => {
+        const existenciaLimpia = limpiarEntero_(value);
+        setForm(previous => ({
+          ...previous,
+          existencia: existenciaLimpia,
+          maximo:
+            Number(previous.porcentaje) === 100 &&
+            !maximoEditadoManualmente
+              ? existenciaLimpia
+              : previous.maximo
+        }));
+      };
+
+      /** Registra una captura manual de MAXIMO para el caso de 100%. */
+      const actualizarMaximoManual_ = value => {
+        setMaximoEditadoManualmente(true);
+        setForm(previous => ({
+          ...previous,
+          maximo: limpiarEntero_(value)
         }));
       };
 
@@ -708,8 +757,8 @@
         if (!porcentaje || porcentaje < 1 || porcentaje > 100) {
           return "El porcentaje debe estar entre 1 y 100.";
         }
-        if (maximoCalculado < existencia) {
-          return "El máximo debe ser mayor o igual a la existencia.";
+        if (porcentaje < 100 && maximoCalculado < existencia) {
+          return "Con un porcentaje menor a 100, el máximo no puede ser menor que la existencia.";
         }
         return "";
       };
@@ -731,7 +780,7 @@
           codigo: registroSeleccionado.codigo,
           existencia,
           porcentaje,
-          maximo: maximoEditable ? form.maximo : maximoCalculado
+          maximo: maximoCalculado
         };
 
         setGuardando(true);
@@ -748,7 +797,7 @@
             );
             setRegistrosPendientes(restantes);
             window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
-            window.DATA_ALMACEN_CACHE.ubicacionesMaxMinBootstrap = {
+            window.DATA_ALMACEN_CACHE.ubicacionesMaxMinBootstrapV2 = {
               usuarios,
               registrosPendientes: restantes
             };
@@ -760,6 +809,7 @@
                   .filter(Boolean)
               )
             ];
+            setMaximoEditadoManualmente(false);
             setForm(previous => ({
               ...FORM_INICIAL,
               usuario: previous.usuario
@@ -808,10 +858,9 @@
                         {usuarios.map((usuario, index) => {
                           const nombre = usuario.nombre || usuario.NOMBRE || "";
                           const id = usuario.idusuario || index;
-                          const rol = usuario.rol || usuario.ROL || "";
                           return (
                             <option key={`${id}-${index}`} value={nombre}>
-                              {nombre}{rol ? ` · ${rol}` : ""}
+                              {nombre}
                             </option>
                           );
                         })}
@@ -820,7 +869,7 @@
 
                     <div className="umm-grid-codigo umm-field-block">
                       <label className="umm-label ml-1">
-                        Código pendiente ({codigosDisponibles.length})
+                        Código disponible ({codigosDisponibles.length})
                       </label>
                       <div className="relative group">
                         <input
@@ -852,7 +901,7 @@
                       </div>
                       <span id="umm-ayuda-codigo" className="umm-helper">
                         La lista muestra el código y su descripción. Solo aparecen
-                        códigos con captura inicial pendiente.
+                        códigos ACTIVO con FECHA, HORA y USUARIO registrados.
                       </span>
                     </div>
 
@@ -904,10 +953,9 @@
                         disabled={!registroSeleccionado || guardando}
                         placeholder="Ej: 250"
                         value={form.existencia}
-                        onChange={event => setForm(previous => ({
-                          ...previous,
-                          existencia: limpiarEntero_(event.target.value)
-                        }))}
+                        onChange={event =>
+                          actualizarExistencia_(event.target.value)
+                        }
                       />
                     </div>
 
@@ -940,15 +988,14 @@
                             ? "Vacío toma la existencia"
                             : "Calculado automáticamente"
                         }
-                        value={maximoEditable ? form.maximo : (maximoCalculado || "")}
-                        onChange={event => setForm(previous => ({
-                          ...previous,
-                          maximo: limpiarEntero_(event.target.value)
-                        }))}
+                        value={maximoEditable ? String(maximoCalculado || "") : (maximoCalculado || "")}
+                        onChange={event =>
+                          actualizarMaximoManual_(event.target.value)
+                        }
                       />
                       <span className="umm-helper">
                         {maximoEditable
-                          ? "Con 100%, el máximo puede capturarse. Si queda vacío se usará la existencia."
+                          ? "Con 100%, se propone la existencia. Puedes capturar un valor menor si existe material excedente."
                           : "Con menos de 100%, el máximo se calcula y redondea a la decena más cercana."}
                       </span>
                     </div>
@@ -1041,7 +1088,7 @@
                     <div className="umm-detail-card">
                       <div className="bg-[#1c1d1f] px-6 py-5 text-white">
                         <div className="text-[11px] font-black uppercase tracking-[0.22em] text-gray-400 mb-2">
-                          Registro pendiente
+                          Registro elegible
                         </div>
                         <div className="umm-mono text-[26px] font-black leading-none break-all">
                           {registroSeleccionado.codigo}

@@ -21,7 +21,8 @@
  * - Usar EXISTENCIA como MAXIMO cuando PORCENTAJE es 100 y MAXIMO está vacío.
  * - Delegar la persistencia y el control de concurrencia al Repository.
  * - Construir el bootstrap específico del formulario desde los repositorios.
- * - Entregar usuarios y códigos pendientes con CODIGO y DESCRIPCION.
+ * - Entregar usuarios y códigos elegibles con CODIGO y DESCRIPCION.
+ * - Segmentar códigos por STATUS=ACTIVO y captura completa en UBICACIONES_MAXMIN.
  * - Entregar respuestas planas y serializables al Controller.
  *
  * REGLAS DE DOMINIO
@@ -32,7 +33,10 @@
  *     MAXIMO = redondearADecena((EXISTENCIA / PORCENTAJE) * 100).
  * - Si PORCENTAJE = 100:
  *     MAXIMO = valor capturado; si está vacío, MAXIMO = EXISTENCIA.
- * - MAXIMO debe ser un entero no negativo y no puede ser menor que EXISTENCIA.
+ * - MAXIMO debe ser un entero no negativo.
+ * - Si PORCENTAJE < 100, MAXIMO no puede ser menor que EXISTENCIA.
+ * - Si PORCENTAJE = 100, MAXIMO puede ser menor que EXISTENCIA para representar
+ *   material excedente.
  * - USUARIO se valida por coincidencia exacta contra UsuariosRepository.
  * - VALIDACION no se modifica durante esta captura.
  * - FECHA y HORA son generadas por UbicacionesMaxMinRepository.
@@ -55,7 +59,7 @@
  * - toStr_(value) y toStrUpper_(value).
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-SERVICE-2026-11-06-03
+ * @version FORMULARIO-UBICACIONES-MAXMIN-SERVICE-2026-11-07-01
  */
 const FormularioUbicacionesMaxMinService = (() => {
   "use strict";
@@ -242,15 +246,15 @@ const FormularioUbicacionesMaxMinService = (() => {
   /**
    * Determina si un producto puede utilizarse en el formulario.
    *
-   * Un estado vacío se mantiene compatible con catálogos históricos.
+   * Solo STATUS=ACTIVO es elegible para este formulario.
    *
    * @param {!Object} product Producto normalizado.
-   * @return {boolean} true cuando está activo o carece de estado.
+   * @return {boolean} true únicamente cuando STATUS es ACTIVO.
    * @private
    */
   function _isActiveProduct_(product) {
     const status = toStrUpper_(product && product.status);
-    return !status || status === CFG.PRODUCT_STATUS_ACTIVE;
+    return status === CFG.PRODUCT_STATUS_ACTIVE;
   }
 
   /**
@@ -463,10 +467,10 @@ const FormularioUbicacionesMaxMinService = (() => {
         "MAXIMO no pudo calcularse como un entero no negativo."
       );
     }
-    if (maximum < existencia) {
+    if (porcentaje < CFG.MAX_PERCENTAGE && maximum < existencia) {
       throw _domainError_(
         _errorCode_("RANGO_INVALIDO", "UBMAXMIN_RANGO_INVALIDO"),
-        "MAXIMO no puede ser menor que EXISTENCIA."
+        "Con PORCENTAJE menor a 100, MAXIMO no puede ser menor que EXISTENCIA."
       );
     }
     return maximum;
@@ -688,10 +692,19 @@ const FormularioUbicacionesMaxMinService = (() => {
       "UbicacionesMaxMinRepository",
       "getAll"
     );
+    const getCatalog =
+      typeof CatalogoRepository.getAllRaw === "function"
+        ? CatalogoRepository.getAllRaw
+        : _requireMethod_(
+            CatalogoRepository,
+            "CatalogoRepository",
+            "getAll"
+          );
 
     const contract = validateContract.call(UbicacionesMaxMinRepository);
     const rawUsers = getUsers.call(UsuariosRepository);
     const rawRecords = getRecords.call(UbicacionesMaxMinRepository);
+    const rawCatalog = getCatalog.call(CatalogoRepository);
 
     if (!Array.isArray(rawUsers)) {
       throw new Error(
@@ -703,6 +716,20 @@ const FormularioUbicacionesMaxMinService = (() => {
         `${CFG.LOG_PREFIX} UbicacionesMaxMinRepository.getAll no devolvió un arreglo.`
       );
     }
+    if (!Array.isArray(rawCatalog)) {
+      throw new Error(
+        `${CFG.LOG_PREFIX} CatalogoRepository no devolvió un arreglo.`
+      );
+    }
+
+    const activeCodes = new Set(
+      rawCatalog
+        .filter(_isActiveProduct_)
+        .map(function(product) {
+          return toStrUpper_(product && product.codigo);
+        })
+        .filter(Boolean)
+    );
 
     const usuarios = rawUsers
       .map(_projectUser_)
@@ -716,12 +743,37 @@ const FormularioUbicacionesMaxMinService = (() => {
         });
       });
 
+    /**
+     * Selecciona las filas pendientes de captura pertenecientes a productos activos.
+     *
+     * Una fila se considera pendiente cuando al menos uno de los campos FECHA, HORA
+     * o USUARIO está vacío. Los registros completos quedan excluidos del formulario.
+     *
+     * El filtro por STATUS=ACTIVO se conserva para evitar parametrizar productos
+     * inactivos, dados de baja o no disponibles en CATALOGO.
+     */
     const registrosPendientes = rawRecords
       .filter(function(record) {
-        return Number(record && record.numFila || 0) >= CFG.FIRST_DATA_ROW;
+        return (
+          Number(
+            record &&
+            record.numFila ||
+            0
+          ) >= CFG.FIRST_DATA_ROW
+        );
       })
       .filter(function(record) {
-        return !_isInitialCaptureComplete_(record);
+        return !_isInitialCaptureComplete_(
+          record
+        );
+      })
+      .filter(function(record) {
+        return activeCodes.has(
+          toStrUpper_(
+            record &&
+            record.codigo
+          )
+        );
       })
       .map(_projectPendingRecord_)
       .filter(function(record) {
@@ -742,6 +794,9 @@ const FormularioUbicacionesMaxMinService = (() => {
       rules: {
         listaMuestraCodigoDescripcion: true,
         seleccionDeterministaPorFilaMenor: true,
+        catalogoSoloStatusActivo: true,
+        requiereFechaHoraUsuarioRegistrados: true,
+        maximoMenorAExistenciaPermitidoAlCien: true,
         porcentajeCapturadoPorUsuario: true,
         porcentajeMinimo: CFG.MIN_PERCENTAGE,
         porcentajeMaximo: CFG.MAX_PERCENTAGE,
@@ -765,7 +820,8 @@ const FormularioUbicacionesMaxMinService = (() => {
       diagnostics: {
         totalUsuarios: usuarios.length,
         totalRegistros: rawRecords.length,
-        totalPendientes: registrosPendientes.length,
+        totalCatalogoActivo: activeCodes.size,
+        totalElegibles: registrosPendientes.length,
         totalCodigosPendientes: codigosPendientes.length
       }
     };
