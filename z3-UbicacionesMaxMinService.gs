@@ -24,6 +24,9 @@
  * - Entregar usuarios y códigos elegibles con CODIGO y DESCRIPCION.
  * - Segmentar códigos por STATUS=ACTIVO y captura completa en UBICACIONES_MAXMIN.
  * - Entregar respuestas planas y serializables al Controller.
+ * - Correlacionar tiempos de bootstrap y escritura con Repository y Controller.
+ * - Medir consultas, filtros, proyecciones, validaciones e invalidaciones sin
+ *   registrar nombres, códigos, ubicaciones ni payloads completos.
  *
  * REGLAS DE DOMINIO
  * - CODIGO, USUARIO y numFila son obligatorios para actualizar.
@@ -57,9 +60,10 @@
  * - UbicacionesMaxMinRepository.
  * - UBICACIONES_MAXMIN_CONFIG.
  * - toStr_(value) y toStrUpper_(value).
+ * - perfStart_(), perfMark_(), perfMeasure_(), perfEnd_() y perfFail_().
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-SERVICE-2026-11-07-01
+ * @version FORMULARIO-UBICACIONES-MAXMIN-SERVICE-2026-11-07-02
  */
 const FormularioUbicacionesMaxMinService = (() => {
   "use strict";
@@ -78,6 +82,63 @@ const FormularioUbicacionesMaxMinService = (() => {
       "usuario"
     ])
   });
+
+  /** Nombre estable del módulo para seleccionar umbrales de rendimiento. */
+  const PERF_MODULE = "UBICACIONES_MAXMIN";
+
+  /**
+   * Crea o reutiliza una traza de rendimiento.
+   *
+   * Si el Controller proporciona una traza, el Service agrega marcas a esa misma
+   * correlación. Cuando se invoca directamente, el Service crea y finaliza su
+   * propia traza.
+   *
+   * @param {string} operation Operación lógica del Service.
+   * @param {?Object=} parentTrace Traza opcional del Controller.
+   * @return {{trace:!Object,owned:boolean}} Contexto de trazabilidad.
+   * @private
+   */
+  function _traceContext_(operation, parentTrace) {
+    if (parentTrace && typeof parentTrace === "object") {
+      perfMark_(parentTrace, "SERVICE_" + operation + "_STARTED", {
+        module: PERF_MODULE,
+        layer: "SERVICE"
+      });
+      return { trace: parentTrace, owned: false };
+    }
+
+    return {
+      trace: perfStart_("UBICACIONES_MAXMIN_SERVICE_" + operation, {
+        module: PERF_MODULE,
+        layer: "SERVICE"
+      }),
+      owned: true
+    };
+  }
+
+  /** Finaliza una traza propia o marca la conclusión en una traza heredada. */
+  function _finishTrace_(context, status, metadata) {
+    if (!context || !context.trace) return;
+    if (context.owned) {
+      perfEnd_(context.trace, status, metadata || {});
+      return;
+    }
+    perfMark_(context.trace, "SERVICE_STAGE_COMPLETED", Object.assign({
+      status: status || "ok"
+    }, metadata || {}));
+  }
+
+  /** Registra un error sin finalizar trazas pertenecientes al Controller. */
+  function _failTrace_(context, error, stage) {
+    if (!context || !context.trace) return;
+    if (context.owned) {
+      perfFail_(context.trace, error, { stage: stage || "SERVICE" });
+      return;
+    }
+    perfMark_(context.trace, String(stage || "SERVICE") + "_FAILED", {
+      message: error && error.message ? error.message : String(error || "")
+    });
+  }
 
   // ===========================================================================
   // DEPENDENCIAS Y ERRORES
@@ -99,6 +160,18 @@ const FormularioUbicacionesMaxMinService = (() => {
     if (typeof toStrUpper_ !== "function") {
       missing.push("toStrUpper_");
     }
+    [
+      ["perfStart_", typeof perfStart_],
+      ["perfMark_", typeof perfMark_],
+      ["perfMeasure_", typeof perfMeasure_],
+      ["perfEnd_", typeof perfEnd_],
+      ["perfFail_", typeof perfFail_],
+      ["perfMeasureJsonChars_", typeof perfMeasureJsonChars_]
+    ].forEach(function(dependency) {
+      if (dependency[1] !== "function") {
+        missing.push(dependency[0]);
+      }
+    });
     if (typeof CatalogoRepository === "undefined" || !CatalogoRepository) {
       missing.push("CatalogoRepository");
     }
@@ -674,157 +747,230 @@ const FormularioUbicacionesMaxMinService = (() => {
    *
    * @return {!Object} Bootstrap completo y serializable del formulario.
    */
-  function getBootstrap() {
-    _validateDependencies_();
+  function getBootstrap(parentTrace) {
+    const context = _traceContext_("GET_BOOTSTRAP", parentTrace);
 
-    const validateContract = _requireMethod_(
-      UbicacionesMaxMinRepository,
-      "UbicacionesMaxMinRepository",
-      "validarContrato"
-    );
-    const getUsers = _requireMethod_(
-      UsuariosRepository,
-      "UsuariosRepository",
-      "getAll"
-    );
-    const getRecords = _requireMethod_(
-      UbicacionesMaxMinRepository,
-      "UbicacionesMaxMinRepository",
-      "getAll"
-    );
-    const getCatalog =
-      typeof CatalogoRepository.getAllRaw === "function"
-        ? CatalogoRepository.getAllRaw
-        : _requireMethod_(
-            CatalogoRepository,
-            "CatalogoRepository",
-            "getAll"
-          );
-
-    const contract = validateContract.call(UbicacionesMaxMinRepository);
-    const rawUsers = getUsers.call(UsuariosRepository);
-    const rawRecords = getRecords.call(UbicacionesMaxMinRepository);
-    const rawCatalog = getCatalog.call(CatalogoRepository);
-
-    if (!Array.isArray(rawUsers)) {
-      throw new Error(
-        `${CFG.LOG_PREFIX} UsuariosRepository.getAll no devolvió un arreglo.`
-      );
-    }
-    if (!Array.isArray(rawRecords)) {
-      throw new Error(
-        `${CFG.LOG_PREFIX} UbicacionesMaxMinRepository.getAll no devolvió un arreglo.`
-      );
-    }
-    if (!Array.isArray(rawCatalog)) {
-      throw new Error(
-        `${CFG.LOG_PREFIX} CatalogoRepository no devolvió un arreglo.`
-      );
-    }
-
-    const activeCodes = new Set(
-      rawCatalog
-        .filter(_isActiveProduct_)
-        .map(function(product) {
-          return toStrUpper_(product && product.codigo);
-        })
-        .filter(Boolean)
-    );
-
-    const usuarios = rawUsers
-      .map(_projectUser_)
-      .filter(function(user) {
-        return Boolean(user.nombre);
-      })
-      .sort(function(a, b) {
-        return a.nombre.localeCompare(b.nombre, "es-MX", {
-          numeric: true,
-          sensitivity: "base"
-        });
+    try {
+      perfMeasure_(context.trace, "SERVICE_DEPENDENCIES_VALIDATED", function() {
+        _validateDependencies_();
       });
 
-    /**
-     * Selecciona las filas pendientes de captura pertenecientes a productos activos.
-     *
-     * Una fila se considera pendiente cuando al menos uno de los campos FECHA, HORA
-     * o USUARIO está vacío. Los registros completos quedan excluidos del formulario.
-     *
-     * El filtro por STATUS=ACTIVO se conserva para evitar parametrizar productos
-     * inactivos, dados de baja o no disponibles en CATALOGO.
-     */
-    const registrosPendientes = rawRecords
-      .filter(function(record) {
-        return (
-          Number(
-            record &&
-            record.numFila ||
-            0
-          ) >= CFG.FIRST_DATA_ROW
-        );
-      })
-      .filter(function(record) {
-        return !_isInitialCaptureComplete_(
-          record
-        );
-      })
-      .filter(function(record) {
-        return activeCodes.has(
-          toStrUpper_(
-            record &&
-            record.codigo
-          )
-        );
-      })
-      .map(_projectPendingRecord_)
-      .filter(function(record) {
-        return Boolean(record.codigo);
-      })
-      .sort(_comparePendingRecords_);
+      const methods = perfMeasure_(
+        context.trace,
+        "SERVICE_METHODS_RESOLVED",
+        function() {
+          return {
+            validateContract: _requireMethod_(
+              UbicacionesMaxMinRepository,
+              "UbicacionesMaxMinRepository",
+              "validarContrato"
+            ),
+            getUsers: _requireMethod_(
+              UsuariosRepository,
+              "UsuariosRepository",
+              "getAll"
+            ),
+            getRecords: _requireMethod_(
+              UbicacionesMaxMinRepository,
+              "UbicacionesMaxMinRepository",
+              "getAll"
+            ),
+            getCatalog:
+              typeof CatalogoRepository.getAllRaw === "function"
+                ? CatalogoRepository.getAllRaw
+                : _requireMethod_(
+                    CatalogoRepository,
+                    "CatalogoRepository",
+                    "getAll"
+                  )
+          };
+        }
+      );
 
-    const codigosPendientes = _buildPendingCodes_(registrosPendientes);
+      const contract = perfMeasure_(
+        context.trace,
+        "SERVICE_REPOSITORY_CONTRACT",
+        function() {
+          return methods.validateContract.call(
+            UbicacionesMaxMinRepository,
+            context.trace
+          );
+        }
+      );
 
-    return {
-      version: UBICACIONES_MAXMIN_CONFIG.VERSION,
-      usuarios,
-      registrosPendientes,
-      codigosPendientes,
-      identityFields: UBICACIONES_MAXMIN_CONFIG.IDENTITY_FIELDS.slice(),
-      serverManagedFields:
-        UBICACIONES_MAXMIN_CONFIG.SERVER_MANAGED_FIELDS.slice(),
-      rules: {
-        listaMuestraCodigoDescripcion: true,
-        seleccionDeterministaPorFilaMenor: true,
-        catalogoSoloStatusActivo: true,
-        requiereFechaHoraUsuarioRegistrados: true,
-        maximoMenorAExistenciaPermitidoAlCien: true,
-        porcentajeCapturadoPorUsuario: true,
-        porcentajeMinimo: CFG.MIN_PERCENTAGE,
-        porcentajeMaximo: CFG.MAX_PERCENTAGE,
-        maximoCalculadoEnServidor: true,
-        maximoEditableAlCienPorCiento: true,
-        maximoVacioAlCienUsaExistencia: true,
-        redondeoMaximoMultiplo: CFG.ROUNDING_MULTIPLE,
-        usuarioValidadoContraCatalogo: true,
-        usuariosSinFiltroDeRol: true,
-        descripcionAutoritativaDesdeCatalogo: true,
-        datosEstructuralesAutoritativosDesdeFila: true,
-        validacionConservada: true
-      },
-      source: {
-        sheetName: contract.sheetName,
-        width: contract.width,
-        headers: Array.isArray(contract.headers)
-          ? contract.headers.slice()
-          : []
-      },
-      diagnostics: {
-        totalUsuarios: usuarios.length,
-        totalRegistros: rawRecords.length,
-        totalCatalogoActivo: activeCodes.size,
-        totalElegibles: registrosPendientes.length,
-        totalCodigosPendientes: codigosPendientes.length
-      }
-    };
+      const rawUsers = perfMeasure_(
+        context.trace,
+        "SERVICE_USERS_READ",
+        function() {
+          return methods.getUsers.call(UsuariosRepository);
+        }
+      );
+
+      const rawRecords = perfMeasure_(
+        context.trace,
+        "SERVICE_LOCATIONS_READ",
+        function() {
+          return methods.getRecords.call(
+            UbicacionesMaxMinRepository,
+            context.trace
+          );
+        }
+      );
+
+      const rawCatalog = perfMeasure_(
+        context.trace,
+        "SERVICE_CATALOG_READ",
+        function() {
+          return methods.getCatalog.call(CatalogoRepository);
+        }
+      );
+
+      perfMeasure_(context.trace, "SERVICE_SOURCE_CONTRACTS_VALIDATED", function() {
+        if (!Array.isArray(rawUsers)) {
+          throw new Error(
+            `${CFG.LOG_PREFIX} UsuariosRepository.getAll no devolvió un arreglo.`
+          );
+        }
+        if (!Array.isArray(rawRecords)) {
+          throw new Error(
+            `${CFG.LOG_PREFIX} UbicacionesMaxMinRepository.getAll no devolvió un arreglo.`
+          );
+        }
+        if (!Array.isArray(rawCatalog)) {
+          throw new Error(
+            `${CFG.LOG_PREFIX} CatalogoRepository no devolvió un arreglo.`
+          );
+        }
+      });
+
+      const activeCodes = perfMeasure_(
+        context.trace,
+        "SERVICE_ACTIVE_CODES_INDEXED",
+        function() {
+          return new Set(
+            rawCatalog
+              .filter(_isActiveProduct_)
+              .map(function(product) {
+                return toStrUpper_(product && product.codigo);
+              })
+              .filter(Boolean)
+          );
+        },
+        { catalogRecords: rawCatalog.length }
+      );
+
+      const usuarios = perfMeasure_(
+        context.trace,
+        "SERVICE_USERS_PROJECTED",
+        function() {
+          return rawUsers
+            .map(_projectUser_)
+            .filter(function(user) {
+              return Boolean(user.nombre);
+            })
+            .sort(function(a, b) {
+              return a.nombre.localeCompare(b.nombre, "es-MX", {
+                numeric: true,
+                sensitivity: "base"
+              });
+            });
+        },
+        { inputUsers: rawUsers.length }
+      );
+
+      const registrosPendientes = perfMeasure_(
+        context.trace,
+        "SERVICE_ELIGIBLE_RECORDS_BUILT",
+        function() {
+          return rawRecords
+            .filter(function(record) {
+              return Number(record && record.numFila || 0) >= CFG.FIRST_DATA_ROW;
+            })
+            .filter(function(record) {
+              return !_isInitialCaptureComplete_(record);
+            })
+            .filter(function(record) {
+              return activeCodes.has(toStrUpper_(record && record.codigo));
+            })
+            .map(_projectPendingRecord_)
+            .filter(function(record) {
+              return Boolean(record.codigo);
+            })
+            .sort(_comparePendingRecords_);
+        },
+        { inputRecords: rawRecords.length, activeCodes: activeCodes.size }
+      );
+
+      const codigosPendientes = perfMeasure_(
+        context.trace,
+        "SERVICE_VISIBLE_CODES_BUILT",
+        function() {
+          return _buildPendingCodes_(registrosPendientes);
+        },
+        { eligibleRecords: registrosPendientes.length }
+      );
+
+      const result = {
+        version: UBICACIONES_MAXMIN_CONFIG.VERSION,
+        usuarios,
+        registrosPendientes,
+        codigosPendientes,
+        identityFields: UBICACIONES_MAXMIN_CONFIG.IDENTITY_FIELDS.slice(),
+        serverManagedFields:
+          UBICACIONES_MAXMIN_CONFIG.SERVER_MANAGED_FIELDS.slice(),
+        rules: {
+          listaMuestraCodigoDescripcion: true,
+          seleccionDeterministaPorFilaMenor: true,
+          catalogoSoloStatusActivo: true,
+          requiereAlMenosUnCampoCapturaVacio: true,
+          maximoMenorAExistenciaPermitidoAlCien: true,
+          porcentajeCapturadoPorUsuario: true,
+          porcentajeMinimo: CFG.MIN_PERCENTAGE,
+          porcentajeMaximo: CFG.MAX_PERCENTAGE,
+          maximoCalculadoEnServidor: true,
+          maximoEditableAlCienPorCiento: true,
+          maximoVacioAlCienUsaExistencia: true,
+          redondeoMaximoMultiplo: CFG.ROUNDING_MULTIPLE,
+          usuarioValidadoContraCatalogo: true,
+          usuariosSinFiltroDeRol: true,
+          descripcionAutoritativaDesdeCatalogo: true,
+          datosEstructuralesAutoritativosDesdeFila: true,
+          validacionConservada: true
+        },
+        source: {
+          sheetName: contract.sheetName,
+          width: contract.width,
+          headers: Array.isArray(contract.headers)
+            ? contract.headers.slice()
+            : []
+        },
+        diagnostics: {
+          totalUsuarios: usuarios.length,
+          totalRegistros: rawRecords.length,
+          totalCatalogoActivo: activeCodes.size,
+          totalElegibles: registrosPendientes.length,
+          totalCodigosPendientes: codigosPendientes.length
+        }
+      };
+
+      const responseChars = perfMeasureJsonChars_(result);
+      perfMark_(context.trace, "SERVICE_RESPONSE_READY", {
+        responseChars,
+        users: usuarios.length,
+        eligibleRecords: registrosPendientes.length,
+        visibleCodes: codigosPendientes.length
+      });
+      _finishTrace_(context, "ok", {
+        responseChars,
+        users: usuarios.length,
+        eligibleRecords: registrosPendientes.length,
+        visibleCodes: codigosPendientes.length
+      });
+      return result;
+    } catch (error) {
+      _failTrace_(context, error, "SERVICE_GET_BOOTSTRAP");
+      throw error;
+    }
   }
 
   /**
@@ -913,45 +1059,105 @@ const FormularioUbicacionesMaxMinService = (() => {
    * @param {*} payload Datos del formulario con numFila.
    * @return {!Object} Registro actualizado.
    */
-  function guardar(payload) {
-    _validateDependencies_();
-    const source = _requirePayload_(payload);
-    return actualizar(source.numFila, source);
+  function guardar(payload, parentTrace) {
+    const context = _traceContext_("SAVE", parentTrace);
+    try {
+      perfMeasure_(context.trace, "SERVICE_DEPENDENCIES_VALIDATED", function() {
+        _validateDependencies_();
+      });
+      const source = perfMeasure_(
+        context.trace,
+        "SERVICE_PAYLOAD_REQUIRED",
+        function() { return _requirePayload_(payload); }
+      );
+      const result = actualizar(source.numFila, source, context.trace);
+      _finishTrace_(context, "ok", { saved: true });
+      return result;
+    } catch (error) {
+      _failTrace_(context, error, "SERVICE_SAVE");
+      throw error;
+    }
   }
 
   /**
    * Actualiza una fila existente con datos de captura validados.
    *
+   * La traza opcional se comparte con Controller y Repository para distinguir
+   * validación de dominio, persistencia e invalidación de cachés.
+   *
    * @param {*} numFila Número físico de fila.
    * @param {*} payload Datos del formulario.
+   * @param {?Object=} parentTrace Traza opcional del Controller.
    * @return {!Object} Registro actualizado.
    */
-  function actualizar(numFila, payload) {
-    _validateDependencies_();
-    const command = _buildUpdateCommand_(numFila, payload);
-    const update = _requireMethod_(
-      UbicacionesMaxMinRepository,
-      "UbicacionesMaxMinRepository",
-      "actualizar"
-    );
+  function actualizar(numFila, payload, parentTrace) {
+    const context = _traceContext_("UPDATE", parentTrace);
+    try {
+      perfMeasure_(context.trace, "SERVICE_DEPENDENCIES_VALIDATED", function() {
+        _validateDependencies_();
+      });
 
-    const updatedRecord = update.call(
-      UbicacionesMaxMinRepository,
-      command.rowNumber,
-      command.record
-    );
+      const command = perfMeasure_(
+        context.trace,
+        "SERVICE_UPDATE_COMMAND_BUILT",
+        function() {
+          return _buildUpdateCommand_(numFila, payload);
+        }
+      );
 
-    if (typeof clearUbicacionesMaxMinCaches_ === "function") {
-      clearUbicacionesMaxMinCaches_();
-    } else if (
-      typeof APPALMACENCache !== "undefined" &&
-      APPALMACENCache &&
-      typeof APPALMACENCache.clearUbicacionesMaxMin === "function"
-    ) {
-      APPALMACENCache.clearUbicacionesMaxMin();
+      const update = perfMeasure_(
+        context.trace,
+        "SERVICE_UPDATE_METHOD_RESOLVED",
+        function() {
+          return _requireMethod_(
+            UbicacionesMaxMinRepository,
+            "UbicacionesMaxMinRepository",
+            "actualizar"
+          );
+        }
+      );
+
+      const updatedRecord = perfMeasure_(
+        context.trace,
+        "SERVICE_REPOSITORY_UPDATE",
+        function() {
+          return update.call(
+            UbicacionesMaxMinRepository,
+            command.rowNumber,
+            command.record,
+            context.trace
+          );
+        }
+      );
+
+      perfMeasure_(context.trace, "SERVICE_CACHES_INVALIDATED", function() {
+        if (typeof clearUbicacionesMaxMinCaches_ === "function") {
+          return clearUbicacionesMaxMinCaches_();
+        }
+        if (
+          typeof APPALMACENCache !== "undefined" &&
+          APPALMACENCache &&
+          typeof APPALMACENCache.clearUbicacionesMaxMin === "function"
+        ) {
+          return APPALMACENCache.clearUbicacionesMaxMin();
+        }
+        return false;
+      });
+
+      const responseChars = perfMeasureJsonChars_(updatedRecord);
+      perfMark_(context.trace, "SERVICE_UPDATE_RESPONSE_READY", {
+        responseChars,
+        updated: Boolean(updatedRecord)
+      });
+      _finishTrace_(context, "ok", {
+        responseChars,
+        updated: Boolean(updatedRecord)
+      });
+      return updatedRecord;
+    } catch (error) {
+      _failTrace_(context, error, "SERVICE_UPDATE");
+      throw error;
     }
-
-    return updatedRecord;
   }
 
   // ===========================================================================
