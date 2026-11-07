@@ -54,7 +54,7 @@
    * - window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__.
    *
    * @author Sigifredo de la Cruz Ramos
-   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-07-02
+   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-07-03
    */
 </script>
 
@@ -479,7 +479,97 @@
 
 <script type="text/babel">
   window.cargar_FormularioUbicacionesMaxMin = () => {
+    const mountStartedAt = window.performance?.now?.() ?? Date.now();
     const { useEffect, useMemo, useRef, useState } = React;
+
+    /** Configuración privada e inmutable de observabilidad cliente. */
+    const CLIENT_PERF = Object.freeze({
+      MODULE: "UBICACIONES_MAXMIN",
+      VIEW: "FormularioUbicacionesMaxMin",
+      LOG_PREFIX: "[APPALMACEN][UBICACIONES_MAXMIN][CLIENT_PERF]",
+      WARN_BOOTSTRAP_MS: 2500,
+      WARN_HYDRATION_MS: 120,
+      WARN_SAVE_MS: 2500,
+      MAX_MARKS: 60
+    });
+
+    /** Devuelve una marca monotónica para medir intervalos del navegador. */
+    const now_ = () => (
+      window.performance && typeof window.performance.now === "function"
+        ? window.performance.now()
+        : Date.now()
+    );
+
+    /** Genera un identificador local sin incorporar datos operativos. */
+    const createClientTraceId_ = operation => [
+      "UMM",
+      String(operation || "OP").toUpperCase(),
+      Date.now().toString(36),
+      Math.random().toString(36).slice(2, 8)
+    ].join("-");
+
+    /** Crea una traza cliente limitada y residente únicamente en memoria. */
+    const startClientTrace_ = (operation, metadata = {}) => ({
+      traceId: createClientTraceId_(operation),
+      operation: String(operation || "UNKNOWN"),
+      startedAt: now_(),
+      lastAt: now_(),
+      marks: [],
+      metadata: { ...metadata }
+    });
+
+    /** Agrega una marca técnica sin registrar payloads ni valores del formulario. */
+    const markClientTrace_ = (trace, stage, metadata = {}) => {
+      if (!trace || trace.marks.length >= CLIENT_PERF.MAX_MARKS) return;
+      const current = now_();
+      trace.marks.push({
+        stage: String(stage || "MARK"),
+        segmentMs: Math.round((current - trace.lastAt) * 100) / 100,
+        totalMs: Math.round((current - trace.startedAt) * 100) / 100,
+        metadata: { ...metadata }
+      });
+      trace.lastAt = current;
+    };
+
+    /** Finaliza una traza y publica un resumen estructurado. */
+    const endClientTrace_ = (trace, status = "ok", metadata = {}) => {
+      if (!trace) return null;
+      const totalMs = Math.round((now_() - trace.startedAt) * 100) / 100;
+      const summary = {
+        type: "APPALMACEN_CLIENT_PERFORMANCE",
+        module: CLIENT_PERF.MODULE,
+        view: CLIENT_PERF.VIEW,
+        traceId: trace.traceId,
+        operation: trace.operation,
+        status,
+        totalMs,
+        metadata: { ...trace.metadata, ...metadata },
+        marks: trace.marks.slice()
+      };
+      const threshold = trace.operation === "SAVE"
+        ? CLIENT_PERF.WARN_SAVE_MS
+        : CLIENT_PERF.WARN_BOOTSTRAP_MS;
+      (totalMs >= threshold ? console.warn : console.log)(
+        CLIENT_PERF.LOG_PREFIX,
+        summary
+      );
+      try {
+        if (typeof window.APPALMACEN_PERF?.record === "function") {
+          window.APPALMACEN_PERF.record(summary);
+        }
+      } catch (bridgeError) {
+        console.debug(CLIENT_PERF.LOG_PREFIX, "Bridge opcional no disponible.");
+      }
+      return summary;
+    };
+
+    /** Espera dos ciclos de pintura para aproximar el tiempo visible al usuario. */
+    const afterTwoPaints_ = callback => {
+      const raf = window.requestAnimationFrame || (fn => setTimeout(fn, 16));
+      raf(() => raf(() => {
+        if (typeof callback === "function") callback();
+      }));
+    };
 
     const notify_ = (message, type = "info", timer = 2500, options = {}) => {
       const fn = window.notificar || window.lanzarNotificacion;
@@ -527,6 +617,7 @@
       const [maximoEditadoManualmente, setMaximoEditadoManualmente] =
         useState(false);
       const codigoInputRef = useRef(null);
+      const viewTraceRef = useRef(null);
 
       /**
        * Ordena y deduplica los códigos pendientes para construir un datalist
@@ -617,7 +708,9 @@
         }, 0);
       };
 
-      const hidratarBootstrap_ = data => {
+      /** Hidrata el estado local y registra cantidades y duración. */
+      const hidratarBootstrap_ = (data, trace) => {
+        const startedAt = now_();
         const listaUsuarios = Array.isArray(data?.usuarios) ? data.usuarios : [];
         const listaPendientes = Array.isArray(data?.registrosPendientes)
           ? data.registrosPendientes.filter(
@@ -631,34 +724,69 @@
           usuarios: listaUsuarios,
           registrosPendientes: listaPendientes
         };
+        const elapsedMs = Math.round((now_() - startedAt) * 100) / 100;
+        const stats = {
+          elapsedMs,
+          users: listaUsuarios.length,
+          eligibleRecords: listaPendientes.length
+        };
+        markClientTrace_(trace, "CLIENT_BOOTSTRAP_HYDRATED", stats);
+        if (elapsedMs >= CLIENT_PERF.WARN_HYDRATION_MS) {
+          console.warn(CLIENT_PERF.LOG_PREFIX, "Hidratación lenta", stats);
+        }
+        return stats;
       };
 
       useEffect(() => {
+        const trace = startClientTrace_("BOOTSTRAP", {
+          cacheKey: "ubicacionesMaxMinBootstrapV2"
+        });
+        viewTraceRef.current = trace;
         try {
           notify_("Inicializando ubicaciones MaxMin...", "info", 1600, {
             title: "Cargando vista",
             sound: false
           });
-
+          const cacheStartedAt = now_();
           const cache = window.DATA_ALMACEN_CACHE?.ubicacionesMaxMinBootstrapV2 || null;
+          markClientTrace_(trace, cache ? "CLIENT_CACHE_HIT" : "CLIENT_CACHE_MISS", {
+            lookupMs: Math.round((now_() - cacheStartedAt) * 100) / 100
+          });
           if (cache) {
-            hidratarBootstrap_(cache);
+            const stats = hidratarBootstrap_(cache, trace);
             setCargando(false);
             enfocarCodigo_();
+            afterTwoPaints_(() => {
+              markClientTrace_(trace, "CLIENT_VIEW_INTERACTIVE", stats);
+              endClientTrace_(trace, "ok", { source: "CLIENT_CACHE", ...stats });
+            });
             return;
           }
-
+          markClientTrace_(trace, "CLIENT_RPC_STARTED", {
+            endpoint: "FormularioUbicacionesMaxMinController_getBootstrap"
+          });
           google.script.run
             .withSuccessHandler(data => {
-              hidratarBootstrap_(data || {});
+              markClientTrace_(trace, "CLIENT_RPC_SUCCEEDED", {
+                responseType: Array.isArray(data) ? "array" : typeof data
+              });
+              const stats = hidratarBootstrap_(data || {}, trace);
               setCargando(false);
               notify_("Ubicaciones MaxMin cargadas correctamente.", "success", 1800, {
                 title: "Sistema listo",
                 sound: false
               });
               enfocarCodigo_();
+              afterTwoPaints_(() => {
+                markClientTrace_(trace, "CLIENT_VIEW_INTERACTIVE", stats);
+                endClientTrace_(trace, "ok", { source: "SERVER_RPC", ...stats });
+              });
             })
             .withFailureHandler(error => {
+              markClientTrace_(trace, "CLIENT_RPC_FAILED", {
+                message: error?.message || "RPC_ERROR"
+              });
+              endClientTrace_(trace, "error", { source: "SERVER_RPC" });
               console.error("Error cargando FormularioUbicacionesMaxMin:", error);
               setCargando(false);
               notify_(
@@ -670,6 +798,10 @@
             })
             .FormularioUbicacionesMaxMinController_getBootstrap();
         } catch (error) {
+          markClientTrace_(trace, "CLIENT_INITIALIZATION_FAILED", {
+            message: error?.message || "INITIALIZATION_ERROR"
+          });
+          endClientTrace_(trace, "error");
           console.error("Error inesperado inicializando Ubicaciones MaxMin:", error);
           setCargando(false);
           notify_("No se pudo inicializar la vista.", "error", 4200, {
@@ -779,7 +911,15 @@
 
       const guardar_ = event => {
         event.preventDefault();
+        const trace = startClientTrace_("SAVE", {
+          pendingBeforeSave: registrosPendientes.length
+        });
+        const validationStartedAt = now_();
         const error = validarForm_();
+        markClientTrace_(trace, "CLIENT_FORM_VALIDATED", {
+          elapsedMs: Math.round((now_() - validationStartedAt) * 100) / 100,
+          valid: !error
+        });
         if (error) {
           notify_(error, "warning", 3600, {
             title: "Validación pendiente",
@@ -806,8 +946,13 @@
           sound: false
         });
 
+        markClientTrace_(trace, "CLIENT_SAVE_RPC_STARTED", {
+          endpoint: "FormularioUbicacionesMaxMinController_actualizar",
+          payloadFields: Object.keys(payload).length
+        });
         google.script.run
           .withSuccessHandler(() => {
+            markClientTrace_(trace, "CLIENT_SAVE_RPC_SUCCEEDED");
             setGuardando(false);
             const restantes = registrosPendientes.filter(
               item => item.numFila !== registroSeleccionado.numFila
@@ -836,8 +981,20 @@
               sound: true
             });
             enfocarCodigo_();
+            afterTwoPaints_(() => {
+              markClientTrace_(trace, "CLIENT_SAVE_UI_UPDATED", {
+                remainingRecords: restantes.length
+              });
+              endClientTrace_(trace, "ok", {
+                remainingRecords: restantes.length
+              });
+            });
           })
           .withFailureHandler(error => {
+            markClientTrace_(trace, "CLIENT_SAVE_RPC_FAILED", {
+              message: error?.message || "SAVE_RPC_ERROR"
+            });
+            endClientTrace_(trace, "error");
             console.error("Error guardando Ubicaciones MaxMin:", error);
             setGuardando(false);
             notify_(
@@ -1168,6 +1325,11 @@
       window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__.render(
         <VistaUbicacionesMaxMin />
       );
+      console.log("[APPALMACEN][UBICACIONES_MAXMIN][CLIENT_PERF]", {
+        type: "APPALMACEN_CLIENT_MOUNT",
+        view: "FormularioUbicacionesMaxMin",
+        mountMs: Math.round(((window.performance?.now?.() ?? Date.now()) - mountStartedAt) * 100) / 100
+      });
     } catch (error) {
       console.error("Error montando FormularioUbicacionesMaxMin:", error);
       notify_("Ocurrió un error al montar la vista.", "error", 4200, {
