@@ -28,7 +28,7 @@
  * - Un ID de Spreadsheet corresponde al segmento entre `/d/` y `/edit` en su URL.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-2026-11-06-03
+ * @version APPALMACEN-2026-11-07-04
  */
 
 /**
@@ -385,6 +385,24 @@ const UBICACIONES_MAXMIN_CONFIG = Object.freeze({
     LOCK_TIMEOUT_MS: 30000
   }),
 
+
+  /** Configuración de observabilidad específica de UBICACIONES_MAXMIN. */
+  PERFORMANCE: Object.freeze({
+    ENABLED: true,
+    LOG_PREFIX: "[APPALMACEN][UBICACIONES_MAXMIN][PERF]",
+    MAX_MARKS: 100,
+    MAX_METADATA_TEXT_LENGTH: 250,
+    WARN_TOTAL_MS: 2500,
+    WARN_SHEET_READ_MS: 900,
+    WARN_SHEET_WRITE_MS: 700,
+    WARN_LOCK_WAIT_MS: 500,
+    WARN_BOOTSTRAP_MS: 1800,
+    WARN_REPOSITORY_MS: 1200,
+    WARN_SERVICE_MS: 2000,
+    WARN_CONTROLLER_MS: 2300,
+    MEASURE_RESPONSE_CHARS: true,
+    INCLUDE_ROW_NUMBER: false
+  }),
   ERROR_CODES: Object.freeze({
     PAYLOAD_INVALIDO: "UBMAXMIN_PAYLOAD_INVALIDO",
     USUARIO_REQUERIDO: "UBMAXMIN_USUARIO_REQUERIDO",

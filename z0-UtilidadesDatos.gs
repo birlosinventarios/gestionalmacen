@@ -35,7 +35,7 @@
  * - Los Controllers utilizan execController_(controllerName, label, executor).
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-UTILIDADES-DATOS-2026-11-06-02
+ * @version APPALMACEN-UTILIDADES-DATOS-2026-11-07-03
  */
 
 // =========================================================
@@ -127,14 +127,43 @@ function getSheetByKey_(sheetKey, trace) {
  * Lectura genérica heredada. Lee todo el rango utilizado.
  * No usar para hojas VE-* que puedan crecer considerablemente.
  */
-function getRowsByKey_(sheetKey) {
-  const values = getSheetByKey_(sheetKey)
-    .getDataRange()
-    .getValues();
+function getRowsByKey_(sheetKey, trace) {
+  const key = String(sheetKey || "").trim();
+  const sheet = getSheetByKey_(key, trace);
+  const dimensionsStartedAt = Date.now();
+  const lastRow = sheet.getLastRow();
+  const lastColumn = sheet.getLastColumn();
 
-  if (values.length < 2) return [];
+  perfMark_(trace, "SHEET_DIMENSIONS_READY", {
+    sheetKey: key,
+    elapsedMs: Date.now() - dimensionsStartedAt,
+    lastRow,
+    lastColumn
+  });
 
-  return values.slice(1);
+  if (lastRow < 2 || lastColumn < 1) {
+    perfMark_(trace, "SHEET_ROWS_READ_SKIPPED", {
+      sheetKey: key,
+      reason: "NO_DATA_ROWS",
+      rows: 0
+    });
+    return [];
+  }
+
+  const readStartedAt = Date.now();
+  const rows = sheet.getRange(2, 1, lastRow - 1, lastColumn).getValues();
+  const elapsedMs = Date.now() - readStartedAt;
+  perfMark_(trace, "SHEET_ROWS_READ", {
+    sheetKey: key,
+    elapsedMs,
+    rows: rows.length,
+    width: lastColumn,
+    cells: rows.length * lastColumn
+  });
+  perfWarnSlow_(trace, "SLOW_SHEET_READ", elapsedMs,
+    perfConfig_(trace).WARN_SHEET_READ_MS,
+    { sheetKey: key, rows: rows.length, width: lastColumn });
+  return rows;
 }
 
 /**
@@ -202,7 +231,7 @@ function readSheetRows_(sheetKey, width, trace) {
     trace,
     "SLOW_SHEET_READ",
     elapsedMs,
-    perfConfig_().WARN_SHEET_READ_MS,
+    perfConfig_(trace).WARN_SHEET_READ_MS,
     {
       sheetKey: String(sheetKey || ""),
       rows: rows.length,
@@ -290,7 +319,7 @@ function writeRowsBatch_(sheetKey, rows, width, trace) {
     trace,
     "SLOW_SHEET_WRITE",
     elapsedMs,
-    perfConfig_().WARN_SHEET_WRITE_MS,
+    perfConfig_(trace).WARN_SHEET_WRITE_MS,
     {
       sheetKey: String(sheetKey || ""),
       rows: safeRows.length,
@@ -779,15 +808,24 @@ function clonePlain_(obj) {
  */
 
 /** Obtiene la configuración efectiva de rendimiento. */
-function perfConfig_() {
+function perfConfig_(traceOrModule) {
+  const moduleName = typeof traceOrModule === "string"
+    ? traceOrModule
+    : String(traceOrModule?.metadata?.module || "");
+
+  if (
+    moduleName === "UBICACIONES_MAXMIN" &&
+    typeof UBICACIONES_MAXMIN_CONFIG !== "undefined" &&
+    UBICACIONES_MAXMIN_CONFIG?.PERFORMANCE
+  ) {
+    return UBICACIONES_MAXMIN_CONFIG.PERFORMANCE;
+  }
   if (
     typeof VERIFICACION_ENTRADA !== "undefined" &&
-    VERIFICACION_ENTRADA &&
-    VERIFICACION_ENTRADA.PERFORMANCE
+    VERIFICACION_ENTRADA?.PERFORMANCE
   ) {
     return VERIFICACION_ENTRADA.PERFORMANCE;
   }
-
   return {
     ENABLED: true,
     LOG_PREFIX: "[APPALMACEN][PERF]",
@@ -800,7 +838,6 @@ function perfConfig_() {
     MEASURE_RESPONSE_CHARS: true
   };
 }
-
 /** Genera un identificador compacto de correlación. */
 function perfGenerateRequestId_() {
   return (
@@ -922,7 +959,7 @@ function perfStart_(operation, metadata) {
 function perfMark_(trace, stage, metadata) {
   if (!trace || trace.ended === true) return null;
 
-  const cfg = perfConfig_();
+  const cfg = perfConfig_(trace);
   const maxMarks = Math.max(1, Number(cfg.MAX_MARKS || 80));
 
   if (trace.marks.length >= maxMarks) return null;
@@ -972,13 +1009,36 @@ function perfMeasureJsonChars_(value) {
   }
 }
 
+/** Mide una etapa síncrona y conserva el error original. */
+function perfMeasure_(trace, stage, executor, metadata) {
+  if (typeof executor !== "function") {
+    throw new TypeError("perfMeasure_: executor debe ser una función.");
+  }
+  const startedAt = Date.now();
+  try {
+    const result = executor();
+    perfMark_(trace, stage, Object.assign({}, metadata || {}, {
+      elapsedMs: Date.now() - startedAt,
+      ok: true
+    }));
+    return result;
+  } catch (error) {
+    perfMark_(trace, stage + "_FAILED", Object.assign({}, metadata || {}, {
+      elapsedMs: Date.now() - startedAt,
+      ok: false,
+      message: error?.message || String(error || "")
+    }));
+    throw error;
+  }
+}
+
 /** Finaliza y registra una traza. */
 function perfEnd_(trace, status, metadata) {
   if (!trace || trace.ended === true) return null;
 
   trace.ended = true;
 
-  const cfg = perfConfig_();
+  const cfg = perfConfig_(trace);
   const totalMs = Date.now() - trace.startedAt;
 
   const result = {
@@ -1130,7 +1190,7 @@ function withScriptLock_(label, executor, timeoutMs, trace) {
       trace,
       "SLOW_LOCK_WAIT",
       waitMs,
-      perfConfig_().WARN_LOCK_WAIT_MS,
+      perfConfig_(trace).WARN_LOCK_WAIT_MS,
       { label: safeLabel }
     );
   } catch (error) {
@@ -1437,7 +1497,7 @@ function clearUbicacionesMaxMinCaches_() {
     if (
       typeof APPALMACENCache !== "undefined" &&
       APPALMACENCache &&
-      typeof APPALMACENCache.clearOperational === "function"
+      typeof APPALMACENCache.clearUbicacionesMaxMin === "function"
     ) {
       APPALMACENCache.clearUbicacionesMaxMin();
     }
@@ -1967,7 +2027,7 @@ function writeRowAt_(sheetKey, rowNumber, row, width, trace) {
     trace,
     "SLOW_SHEET_ROW_UPDATE",
     elapsedMs,
-    perfConfig_().WARN_SHEET_WRITE_MS,
+    perfConfig_(trace).WARN_SHEET_WRITE_MS,
     {
       sheetKey: sheetKey,
       rowNumber: safeRowNumber,
