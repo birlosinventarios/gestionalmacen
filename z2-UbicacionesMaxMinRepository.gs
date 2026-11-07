@@ -59,7 +59,7 @@
  * - LockService, SpreadsheetApp, Session y Utilities.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version UBICACIONES-MAXMIN-REPOSITORY-2026-11-07-05
+ * @version UBICACIONES-MAXMIN-REPOSITORY-2026-11-07-06
  */
 const UbicacionesMaxMinRepository = (() => {
   "use strict";
@@ -828,6 +828,51 @@ const UbicacionesMaxMinRepository = (() => {
     return _copyItem_(normalized);
   }
 
+
+  /**
+   * Busca registros pendientes por código o descripción y limita la respuesta.
+   *
+   * La operación no utiliza la caché ordenada del Repository. Lee el rango físico
+   * una sola vez, filtra antes de normalizar y detiene la colección al alcanzar el
+   * límite. La validación de producto activo corresponde al Service.
+   *
+   * @param {*} criterio Texto normalizado de búsqueda.
+   * @param {*} limite Máximo de candidatos por devolver.
+   * @param {Object=} trace Traza opcional de rendimiento.
+   * @return {!Array<!Object>} Candidatos pendientes en orden físico.
+   */
+  function buscarPendientes(criterio, limite, trace) {
+    const query = toStrUpper_(criterio);
+    const maximum = Math.max(1, Math.floor(Number(limite || 1)));
+    if (!query) return [];
+
+    const rows = getRowsByKey_(CFG.SOURCE_KEY, trace);
+    const columns = _getColumns_();
+    const result = [];
+    const startedAt = Date.now();
+
+    for (let index = 0; index < rows.length && result.length < maximum; index++) {
+      const row = rows[index];
+      const code = toStrUpper_(row[columns.CODIGO]);
+      const description = toStrUpper_(row[columns.DESCRIPCION]);
+      const date = toStr_(row[columns.FECHA]);
+      const time = toStr_(row[columns.HORA]);
+      const user = toStr_(row[columns.USUARIO]);
+      const pending = !date || !time || !user;
+      const matches = code.indexOf(query) !== -1 || description.indexOf(query) !== -1;
+      if (!pending || !matches) continue;
+      result.push(_copyItem_(_normalizeRow_(row, index + CFG.FIRST_DATA_ROW)));
+    }
+
+    perfMark_(trace, "REPOSITORY_PENDING_SEARCH_COMPLETED", {
+      elapsedMs: Date.now() - startedAt,
+      sourceRows: rows.length,
+      results: result.length,
+      limit: maximum
+    });
+    return result;
+  }
+
   /**
    * Valida públicamente el contrato físico sin modificar información.
    *
@@ -1212,6 +1257,7 @@ const UbicacionesMaxMinRepository = (() => {
     getPorIdentidad,
     getPorNumeroFila,
     getPorNumeroFilaDirecto,
+    buscarPendientes,
     validarContrato,
     insertar,
     actualizar,

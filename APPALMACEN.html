@@ -43,7 +43,7 @@
   - Los scripts externos y los módulos embebidos en vistas dinámicas no se ejecutan nuevamente.
   - La configuración servidor-cliente debe existir antes de montar la aplicación React.
 
-  Versión: APPALMACEN-SHELL-2026-11-06-02
+  Versión: APPALMACEN-SHELL-2026-11-07-03
 
   Nota:
   Este archivo combina plantilla HTML de Apps Script, CSS y JavaScript del navegador.
@@ -505,6 +505,7 @@
           const cache = window.DATA_ALMACEN_CACHE;
           if (!cache || typeof cache !== "object") return;
           delete cache.ubicacionesMaxMinBootstrap;
+          delete cache.ubicacionesMaxMinBootstrapV2;
           delete cache.registrosUbicacionesMaxMin;
           delete cache.registrosPendientesUbicacionesMaxMin;
           delete cache.codigosPendientesUbicacionesMaxMin;
@@ -1701,12 +1702,7 @@
               usuarios: window.usuariosGlobal.length,
               bodegas: window.bodegasGlobal.length,
               ubicaciones: window.mapaUbicacionesGlobal.length,
-              productos: Object.keys(window.catalogoGlobal).length,
-              pendientesMaxMin: Array.isArray(
-                finalData.registrosPendientesUbicacionesMaxMin
-              )
-                ? finalData.registrosPendientesUbicacionesMaxMin.length
-                : 0
+              productos: Object.keys(window.catalogoGlobal).length
             });
             perfEnd_(traceId, "ok");
             bootstrapTraceRef.current = null;

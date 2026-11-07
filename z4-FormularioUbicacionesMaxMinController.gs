@@ -52,7 +52,7 @@
  * del servidor.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-02
+ * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-03
  */
 "use strict";
 
@@ -64,12 +64,13 @@
  */
 const FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG = Object.freeze({
   NAME: "FormularioUbicacionesMaxMinController",
-  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-02",
+  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-03",
   LOG_PREFIX: "[FormularioUbicacionesMaxMinController]",
   PERF_MODULE: "UBICACIONES_MAXMIN",
   MIN_DATA_ROW: 2,
   OPERATIONS: Object.freeze({
     GET_BOOTSTRAP: "getBootstrap",
+    SEARCH_PENDING: "buscarPendientes",
     SEARCH_PRODUCT: "buscarProductoPorCodigo",
     GET_BY_CODE: "obtenerPorCodigo",
     GET_BY_IDENTITY: "obtenerPorIdentidad",
@@ -325,7 +326,7 @@ function FormularioUbicacionesMaxMinController_getBootstrap() {
             "El Service devolvió un bootstrap inválido."
           );
         }
-        ["usuarios", "registrosPendientes", "codigosPendientes"]
+        ["usuarios"]
           .forEach(function(fieldName) {
             if (!Array.isArray(bootstrap[fieldName])) {
               throw new Error(
@@ -336,6 +337,37 @@ function FormularioUbicacionesMaxMinController_getBootstrap() {
           });
       });
       return bootstrap;
+    }
+  );
+}
+
+/**
+ * Busca registros pendientes por código o descripción.
+ *
+ * @param {*} criterio Texto parcial normalizado por el Service.
+ * @param {*} limite Máximo de resultados solicitado.
+ * @return {!Object} Resultado compacto y limitado.
+ */
+function FormularioUbicacionesMaxMinController_buscarPendientes(criterio, limite) {
+  return FormularioUbicacionesMaxMinController_execute_(
+    FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.OPERATIONS.SEARCH_PENDING,
+    function(trace) {
+      const method = FormularioUbicacionesMaxMinController_requireServiceMethod_(
+        "buscarPendientes"
+      );
+      const result = method.call(
+        FormularioUbicacionesMaxMinService,
+        criterio,
+        limite,
+        trace
+      );
+      if (!result || !Array.isArray(result.registros)) {
+        throw new Error(
+          FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.LOG_PREFIX +
+          " El Service devolvió una búsqueda inválida."
+        );
+      }
+      return result;
     }
   );
 }

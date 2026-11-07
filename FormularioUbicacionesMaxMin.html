@@ -54,7 +54,7 @@
    * - window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__.
    *
    * @author Sigifredo de la Cruz Ramos
-   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-07-03
+   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-07-04
    */
 </script>
 
@@ -613,6 +613,14 @@
       const [guardando, setGuardando] = useState(false);
       const [usuarios, setUsuarios] = useState([]);
       const [registrosPendientes, setRegistrosPendientes] = useState([]);
+      const [buscando, setBuscando] = useState(false);
+      const [totalPendientes, setTotalPendientes] = useState(0);
+      const [searchRules, setSearchRules] = useState({
+        minimumSearchLength: 2,
+        maximumResults: 100,
+        debounceMs: 300
+      });
+      const searchSequenceRef = useRef(0);
       const [form, setForm] = useState({ ...FORM_INICIAL });
       const [maximoEditadoManualmente, setMaximoEditadoManualmente] =
         useState(false);
@@ -696,10 +704,10 @@
       ]);
 
       const resumen = useMemo(() => ({
-        pendientes: registrosPendientes.length,
+        pendientes: totalPendientes,
         usuarios: usuarios.length,
         maximo: maximoCalculado
-      }), [registrosPendientes.length, usuarios.length, maximoCalculado]);
+      }), [totalPendientes, usuarios.length, maximoCalculado]);
 
       const enfocarCodigo_ = () => {
         setTimeout(() => {
@@ -712,23 +720,22 @@
       const hidratarBootstrap_ = (data, trace) => {
         const startedAt = now_();
         const listaUsuarios = Array.isArray(data?.usuarios) ? data.usuarios : [];
-        const listaPendientes = Array.isArray(data?.registrosPendientes)
-          ? data.registrosPendientes.filter(
-              item => Number(item?.numFila || 0) >= 2
-            )
-          : [];
+        const rules = data?.rules && typeof data.rules === "object"
+          ? data.rules
+          : {};
         setUsuarios(listaUsuarios);
-        setRegistrosPendientes(listaPendientes);
+        setRegistrosPendientes([]);
+        setSearchRules(previous => ({ ...previous, ...rules }));
         window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
         window.DATA_ALMACEN_CACHE.ubicacionesMaxMinBootstrapV2 = {
           usuarios: listaUsuarios,
-          registrosPendientes: listaPendientes
+          rules: { ...searchRules, ...rules }
         };
         const elapsedMs = Math.round((now_() - startedAt) * 100) / 100;
         const stats = {
           elapsedMs,
           users: listaUsuarios.length,
-          eligibleRecords: listaPendientes.length
+          eligibleRecords: 0
         };
         markClientTrace_(trace, "CLIENT_BOOTSTRAP_HYDRATED", stats);
         if (elapsedMs >= CLIENT_PERF.WARN_HYDRATION_MS) {
@@ -810,6 +817,41 @@
           });
         }
       }, []);
+
+      useEffect(() => {
+        const query = normalizarTexto_(form.codigo);
+        const minimumLength = Number(searchRules.minimumSearchLength || 2);
+        if (query.length < minimumLength) {
+          searchSequenceRef.current += 1;
+          setRegistrosPendientes([]);
+          setBuscando(false);
+          return;
+        }
+        const sequence = ++searchSequenceRef.current;
+        const timer = setTimeout(() => {
+          setBuscando(true);
+          google.script.run
+            .withSuccessHandler(result => {
+              if (sequence !== searchSequenceRef.current) return;
+              const records = Array.isArray(result?.registros) ? result.registros : [];
+              setRegistrosPendientes(records);
+              setTotalPendientes(Number(result?.totalDevueltos || records.length));
+              setBuscando(false);
+            })
+            .withFailureHandler(error => {
+              if (sequence !== searchSequenceRef.current) return;
+              console.error("Error buscando pendientes MaxMin:", error);
+              setRegistrosPendientes([]);
+              setBuscando(false);
+              notify_(error?.message || "No se pudo completar la búsqueda.", "error", 3600);
+            })
+            .FormularioUbicacionesMaxMinController_buscarPendientes(
+              query,
+              Number(searchRules.maximumResults || 100)
+            );
+        }, Number(searchRules.debounceMs || 300));
+        return () => clearTimeout(timer);
+      }, [form.codigo, searchRules]);
 
       useEffect(() => {
         const root = document.getElementById("render-ubicaciones-maxmin");
@@ -961,16 +1003,9 @@
             window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
             window.DATA_ALMACEN_CACHE.ubicacionesMaxMinBootstrapV2 = {
               usuarios,
-              registrosPendientes: restantes
+              rules: searchRules
             };
-            window.DATA_ALMACEN_CACHE.registrosPendientesUbicacionesMaxMin = restantes;
-            window.DATA_ALMACEN_CACHE.codigosPendientesUbicacionesMaxMin = [
-              ...new Set(
-                restantes
-                  .map(item => normalizarTexto_(item.codigo))
-                  .filter(Boolean)
-              )
-            ];
+            setTotalPendientes(restantes.length);
             setMaximoEditadoManualmente(false);
             setForm(previous => ({
               ...FORM_INICIAL,
@@ -1043,7 +1078,7 @@
 
                     <div className="umm-grid-codigo umm-field-block">
                       <label className="umm-label ml-1">
-                        Código disponible ({codigosDisponibles.length})
+                        Resultados disponibles ({codigosDisponibles.length})
                       </label>
                       <div className="relative group">
                         <input
@@ -1051,14 +1086,14 @@
                           list="lista-codigos-ubicaciones-maxmin"
                           className="umm-form-input umm-mono uppercase"
                           disabled={cargando || guardando}
-                          placeholder={cargando ? "Cargando códigos..." : "Selecciona un código"}
+                          placeholder={cargando ? "Cargando configuración..." : (buscando ? "Buscando..." : "Escribe al menos 2 caracteres")}
                           value={form.codigo}
                           onChange={event => actualizarCodigo_(event.target.value)}
                           autoComplete="off"
                           aria-describedby="umm-ayuda-codigo"
                         />
                         <datalist id="lista-codigos-ubicaciones-maxmin">
-                          {codigosDisponibles.map((registro, index) => (
+                          {codigosDisponibles.slice(0, Number(searchRules.maximumResults || 100)).map((registro, index) => (
                             <option
                               key={`${registro.codigo}-${registro.numFila}-${index}`}
                               value={registro.codigo}
@@ -1074,8 +1109,9 @@
                         )}
                       </div>
                       <span id="umm-ayuda-codigo" className="umm-helper">
-                        La lista muestra el código y su descripción. Solo aparecen
-                        códigos ACTIVO con FECHA, HORA y USUARIO registrados.
+                        Escribe al menos {searchRules.minimumSearchLength || 2} caracteres.
+                        Se muestran hasta {searchRules.maximumResults || 100} códigos activos
+                        cuya captura inicial permanece pendiente.
                       </span>
                     </div>
 

@@ -28,7 +28,7 @@
  * - Un ID de Spreadsheet corresponde al segmento entre `/d/` y `/edit` en su URL.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-2026-11-07-04
+ * @version APPALMACEN-2026-11-07-05
  */
 
 /**
@@ -382,6 +382,10 @@ const UBICACIONES_MAXMIN_CONFIG = Object.freeze({
     PORCENTAJE_MINIMO: 1,
     PORCENTAJE_MAXIMO: 100,
     MAX_REGISTROS_POR_LOTE: 1000,
+    BUSQUEDA_MIN_LENGTH: 2,
+    BUSQUEDA_MAX_LENGTH: 100,
+    BUSQUEDA_MAX_RESULTADOS: 100,
+    BUSQUEDA_DEBOUNCE_MS: 300,
     LOCK_TIMEOUT_MS: 30000
   }),
 
