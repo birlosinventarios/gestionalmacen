@@ -63,7 +63,7 @@
  * - perfStart_(), perfMark_(), perfMeasure_(), perfEnd_() y perfFail_().
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-SERVICE-2026-11-07-02
+ * @version FORMULARIO-UBICACIONES-MAXMIN-SERVICE-2026-11-07-03
  */
 const FormularioUbicacionesMaxMinService = (() => {
   "use strict";
@@ -338,7 +338,7 @@ const FormularioUbicacionesMaxMinService = (() => {
    * @throws {Error} Si no existe, está inactivo o es ambiguo.
    * @private
    */
-  function _resolveProduct_(codigo) {
+  function _resolveProduct_(codigo, trace) {
     const normalizedCode = toStrUpper_(codigo);
     if (!normalizedCode) {
       throw _domainError_(
@@ -347,12 +347,19 @@ const FormularioUbicacionesMaxMinService = (() => {
       );
     }
 
+    const methodName = typeof CatalogoRepository.getPorCodigoDirecto === "function"
+      ? "getPorCodigoDirecto"
+      : "getPorCodigo";
     const getByCode = _requireMethod_(
       CatalogoRepository,
       "CatalogoRepository",
-      "getPorCodigo"
+      methodName
     );
-    const matches = getByCode.call(CatalogoRepository, normalizedCode);
+    const matches = getByCode.call(
+      CatalogoRepository,
+      normalizedCode,
+      trace
+    );
     if (!Array.isArray(matches)) {
       throw new Error(
         `${CFG.LOG_PREFIX} CatalogoRepository.getPorCodigo no devolvió un arreglo.`
@@ -399,7 +406,7 @@ const FormularioUbicacionesMaxMinService = (() => {
    * @throws {Error} Si no existe o está duplicado.
    * @private
    */
-  function _resolveUser_(usuario) {
+  function _resolveUser_(usuario, trace) {
     const normalizedName = toStrUpper_(usuario);
     if (!normalizedName) {
       throw _domainError_(
@@ -408,12 +415,19 @@ const FormularioUbicacionesMaxMinService = (() => {
       );
     }
 
+    const methodName = typeof UsuariosRepository.getPorNombreDirecto === "function"
+      ? "getPorNombreDirecto"
+      : "getPorNombre";
     const getByName = _requireMethod_(
       UsuariosRepository,
       "UsuariosRepository",
-      "getPorNombre"
+      methodName
     );
-    const matches = getByName.call(UsuariosRepository, normalizedName);
+    const matches = getByName.call(
+      UsuariosRepository,
+      normalizedName,
+      trace
+    );
     if (!Array.isArray(matches)) {
       throw new Error(
         `${CFG.LOG_PREFIX} UsuariosRepository.getPorNombre no devolvió un arreglo.`
@@ -448,14 +462,22 @@ const FormularioUbicacionesMaxMinService = (() => {
    * @throws {Error} Si la fila no existe.
    * @private
    */
-  function _resolveExistingRow_(numFila) {
+  function _resolveExistingRow_(numFila, trace) {
     const rowNumber = _requireRowNumber_(numFila);
+    const methodName =
+      typeof UbicacionesMaxMinRepository.getPorNumeroFilaDirecto === "function"
+        ? "getPorNumeroFilaDirecto"
+        : "getPorNumeroFila";
     const getByRow = _requireMethod_(
       UbicacionesMaxMinRepository,
       "UbicacionesMaxMinRepository",
-      "getPorNumeroFila"
+      methodName
     );
-    const current = getByRow.call(UbicacionesMaxMinRepository, rowNumber);
+    const current = getByRow.call(
+      UbicacionesMaxMinRepository,
+      rowNumber,
+      trace
+    );
     if (!current) {
       throw _domainError_(
         _errorCode_("REGISTRO_NO_ENCONTRADO", "UBMAXMIN_REGISTRO_NO_ENCONTRADO"),
@@ -577,25 +599,38 @@ const FormularioUbicacionesMaxMinService = (() => {
    * @return {{rowNumber:number,record:!Object}} Registro listo para persistencia.
    * @private
    */
-  function _buildUpdateCommand_(numFila, payload) {
-    const source = _requirePayload_(payload);
-    const rowNumber = _requireRowNumber_(numFila);
-    const current = _resolveExistingRow_(rowNumber);
-    const product = _resolveProduct_(source.codigo || current.codigo);
-    const user = _resolveUser_(source.usuario);
-    const existence = _toNonNegativeInteger_(
-      source.existencia,
-      "EXISTENCIA",
-      _errorCode_("EXISTENCIA_INVALIDA", "UBMAXMIN_EXISTENCIA_INVALIDA")
-    );
-    const percentage = _resolvePercentage_(source.porcentaje);
-    const maximum = _calculateMaximum_(
-      existence,
-      percentage,
-      source.maximo
-    );
-
-    _assertRowProduct_(current, product);
+  function _buildUpdateCommand_(numFila, payload, trace) {
+    const source = perfMeasure_(trace, "SERVICE_PAYLOAD_VALIDATED", function() {
+      return _requirePayload_(payload);
+    });
+    const rowNumber = perfMeasure_(trace, "SERVICE_ROW_NUMBER_VALIDATED", function() {
+      return _requireRowNumber_(numFila);
+    });
+    const current = perfMeasure_(trace, "SERVICE_ROW_RESOLVED", function() {
+      return _resolveExistingRow_(rowNumber, trace);
+    });
+    const product = perfMeasure_(trace, "SERVICE_PRODUCT_RESOLVED", function() {
+      return _resolveProduct_(source.codigo || current.codigo, trace);
+    });
+    const user = perfMeasure_(trace, "SERVICE_USER_RESOLVED", function() {
+      return _resolveUser_(source.usuario, trace);
+    });
+    const existence = perfMeasure_(trace, "SERVICE_EXISTENCE_VALIDATED", function() {
+      return _toNonNegativeInteger_(
+        source.existencia,
+        "EXISTENCIA",
+        _errorCode_("EXISTENCIA_INVALIDA", "UBMAXMIN_EXISTENCIA_INVALIDA")
+      );
+    });
+    const percentage = perfMeasure_(trace, "SERVICE_PERCENTAGE_VALIDATED", function() {
+      return _resolvePercentage_(source.porcentaje);
+    });
+    const maximum = perfMeasure_(trace, "SERVICE_MAXIMUM_CALCULATED", function() {
+      return _calculateMaximum_(existence, percentage, source.maximo);
+    });
+    perfMeasure_(trace, "SERVICE_ROW_PRODUCT_VALIDATED", function() {
+      _assertRowProduct_(current, product);
+    });
 
     return {
       rowNumber,
@@ -1101,7 +1136,7 @@ const FormularioUbicacionesMaxMinService = (() => {
         context.trace,
         "SERVICE_UPDATE_COMMAND_BUILT",
         function() {
-          return _buildUpdateCommand_(numFila, payload);
+          return _buildUpdateCommand_(numFila, payload, context.trace);
         }
       );
 
@@ -1132,7 +1167,7 @@ const FormularioUbicacionesMaxMinService = (() => {
 
       perfMeasure_(context.trace, "SERVICE_CACHES_INVALIDATED", function() {
         if (typeof clearUbicacionesMaxMinCaches_ === "function") {
-          return clearUbicacionesMaxMinCaches_();
+          return clearUbicacionesMaxMinCaches_({ skipRepository: true });
         }
         if (
           typeof APPALMACENCache !== "undefined" &&

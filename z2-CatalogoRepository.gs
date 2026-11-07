@@ -27,7 +27,12 @@
  * - Las búsquedas son exactas después de normalizar su criterio.
  * - No deben agregarse efectos secundarios ni escrituras a este repositorio.
  *
+ * Rendimiento:
+ * - Construye índices por código, ID, descripción y estado una sola vez por ejecución.
+ * - getPorCodigoDirecto() consulta únicamente la columna CODIGO y las filas halladas.
+ *
  * @author Sigifredo de la Cruz Ramos
+ * @version CATALOGO-REPOSITORY-2026-11-07-02
  */
 
 const CatalogoRepository = (() => {
@@ -54,6 +59,7 @@ const CatalogoRepository = (() => {
    * @type {?Array<!Object>}
    */
   let cache_ = null;
+  let indexes_ = null;
 
   /**
    * Lee todas las filas físicas de la fuente CATALOGO.
@@ -115,6 +121,37 @@ const CatalogoRepository = (() => {
     }
 
     return cache_;
+  }
+
+  /** Construye índices exactos sin eliminar duplicados. */
+  function getIndexes_() {
+    if (indexes_ !== null) return indexes_;
+    const byCode = Object.create(null);
+    const byId = Object.create(null);
+    const byDescription = Object.create(null);
+    const byStatus = Object.create(null);
+
+    getData_().forEach(function(product) {
+      [
+        [byCode, product.codigo],
+        [byId, product.idproducto],
+        [byDescription, product.descripcion],
+        [byStatus, product.status]
+      ].forEach(function(entry) {
+        const index = entry[0];
+        const key = entry[1];
+        if (!key) return;
+        if (!index[key]) index[key] = [];
+        index[key].push(product);
+      });
+    });
+    indexes_ = { byCode, byId, byDescription, byStatus };
+    return indexes_;
+  }
+
+  /** Devuelve copias de una colección indexada. */
+  function copyIndexed_(items) {
+    return Array.isArray(items) ? items.map(cloneProduct_) : [];
   }
 
   /**
@@ -205,9 +242,7 @@ const CatalogoRepository = (() => {
    */
   function getPorCodigo(codigo) {
     const filtro = toStrUpper_(codigo);
-    return getData_()
-      .filter(producto => producto.codigo === filtro)
-      .map(cloneProduct_);
+    return copyIndexed_(getIndexes_().byCode[filtro]);
   }
 
   /**
@@ -218,9 +253,7 @@ const CatalogoRepository = (() => {
    */
   function getPorIdProducto(idproducto) {
     const filtro = toStr_(idproducto);
-    return getData_()
-      .filter(producto => producto.idproducto === filtro)
-      .map(cloneProduct_);
+    return copyIndexed_(getIndexes_().byId[filtro]);
   }
 
   /**
@@ -231,9 +264,7 @@ const CatalogoRepository = (() => {
    */
   function getPorDescripcion(descripcion) {
     const filtro = toStrUpper_(descripcion);
-    return getData_()
-      .filter(producto => producto.descripcion === filtro)
-      .map(cloneProduct_);
+    return copyIndexed_(getIndexes_().byDescription[filtro]);
   }
 
   /**
@@ -247,9 +278,51 @@ const CatalogoRepository = (() => {
    */
   function getPorStatus(status) {
     const filtro = toStrUpper_(status);
-    return getData_()
-      .filter(producto => producto.status === filtro)
-      .map(cloneProduct_);
+    return copyIndexed_(getIndexes_().byStatus[filtro]);
+  }
+
+  /**
+   * Busca un código leyendo únicamente la columna CODIGO y las filas coincidentes.
+   *
+   * Esta ruta está diseñada para validaciones puntuales en ejecuciones donde cargar
+   * el catálogo completo sería más costoso. Conserva duplicados para que el Service
+   * pueda detectar ambigüedad.
+   *
+   * @param {*} codigo Código solicitado.
+   * @param {Object=} trace Traza opcional.
+   * @return {!Array<!Object>} Coincidencias normalizadas.
+   */
+  function getPorCodigoDirecto(codigo, trace) {
+    const filter = toStrUpper_(codigo);
+    if (!filter) return [];
+    const columns = COL.CATALOGO;
+    const sheet = getSheetByKey_(SOURCE_KEY, trace);
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return [];
+
+    const startedAt = Date.now();
+    const codeRange = sheet.getRange(2, columns.CODIGO + 1, lastRow - 1, 1);
+    const matches = codeRange
+      .createTextFinder(filter)
+      .matchEntireCell(true)
+      .matchCase(false)
+      .findAll();
+    const result = matches.map(function(cell) {
+      const rowNumber = cell.getRow();
+      const width = Math.max(
+        columns.IDPRODUCTO,
+        columns.CODIGO,
+        columns.DESCRIPCION,
+        columns.STATUS
+      ) + 1;
+      return normalize_(sheet.getRange(rowNumber, 1, 1, width).getValues()[0]);
+    });
+    perfMark_(trace, "CATALOG_DIRECT_CODE_LOOKUP", {
+      elapsedMs: Date.now() - startedAt,
+      matches: result.length,
+      sourceRows: lastRow - 1
+    });
+    return result.map(cloneProduct_);
   }
 
   /**
@@ -259,6 +332,7 @@ const CatalogoRepository = (() => {
    */
   function clearCache() {
     cache_ = null;
+    indexes_ = null;
     console.log("[CACHE] Catalogo limpio");
     return true;
   }
@@ -271,6 +345,7 @@ const CatalogoRepository = (() => {
     getIdProductos,
     getStatus,
     getPorCodigo,
+    getPorCodigoDirecto,
     getPorIdProducto,
     getPorDescripcion,
     getPorStatus,

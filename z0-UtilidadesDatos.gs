@@ -35,7 +35,7 @@
  * - Los Controllers utilizan execController_(controllerName, label, executor).
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-UTILIDADES-DATOS-2026-11-07-03
+ * @version APPALMACEN-UTILIDADES-DATOS-2026-11-07-04
  */
 
 // =========================================================
@@ -331,6 +331,63 @@ function writeRowsBatch_(sheetKey, rows, width, trace) {
     written: safeRows.length,
     firstRow: firstRow
   };
+}
+
+/**
+ * Lee una única fila física con ancho controlado.
+ *
+ * Evita cargar el rango completo cuando el consumidor ya conoce el número de
+ * fila. No incluye encabezados y no modifica la hoja.
+ *
+ * @param {string} sheetKey Clave definida en SHEETS.
+ * @param {*} rowNumber Número físico de fila, base uno.
+ * @param {number} width Ancho exacto del contrato.
+ * @param {Object=} trace Traza opcional de rendimiento.
+ * @return {?Array<*>} Fila leída o null cuando está fuera del rango utilizado.
+ * @throws {RangeError} Si rowNumber o width son inválidos.
+ */
+function readRowAt_(sheetKey, rowNumber, width, trace) {
+  const safeRowNumber = Math.floor(Number(rowNumber));
+  const safeWidth = Math.floor(Number(width));
+
+  if (!Number.isInteger(safeRowNumber) || safeRowNumber < 2) {
+    throw new RangeError("rowNumber debe ser una fila de datos válida.");
+  }
+  if (!Number.isInteger(safeWidth) || safeWidth < 1) {
+    throw new RangeError("width debe ser un entero mayor que cero.");
+  }
+
+  const sheet = getSheetByKey_(sheetKey, trace);
+  const lastRow = sheet.getLastRow();
+  if (safeRowNumber > lastRow) {
+    perfMark_(trace, "SHEET_SINGLE_ROW_NOT_FOUND", {
+      sheetKey: String(sheetKey || ""),
+      rowNumber: safeRowNumber,
+      lastRow: lastRow
+    });
+    return null;
+  }
+
+  const startedAt = Date.now();
+  const row = sheet
+    .getRange(safeRowNumber, 1, 1, safeWidth)
+    .getValues()[0];
+  const elapsedMs = Date.now() - startedAt;
+
+  perfMark_(trace, "SHEET_SINGLE_ROW_READ", {
+    sheetKey: String(sheetKey || ""),
+    rowNumber: safeRowNumber,
+    width: safeWidth,
+    elapsedMs: elapsedMs
+  });
+  perfWarnSlow_(
+    trace,
+    "SLOW_SHEET_SINGLE_ROW_READ",
+    elapsedMs,
+    perfConfig_(trace).WARN_SHEET_READ_MS,
+    { sheetKey: String(sheetKey || ""), width: safeWidth }
+  );
+  return row;
 }
 
 // =========================================================
@@ -1484,9 +1541,11 @@ function clearOperationalCaches_() {
  *
  * @return {boolean} true cuando finaliza sin errores; false en caso contrario.
  */
-function clearUbicacionesMaxMinCaches_() {
+function clearUbicacionesMaxMinCaches_(options) {
+  const config = options || {};
   try {
     if (
+      config.skipRepository !== true &&
       typeof UbicacionesMaxMinRepository !== "undefined" &&
       UbicacionesMaxMinRepository &&
       typeof UbicacionesMaxMinRepository.clearCache === "function"

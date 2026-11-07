@@ -59,7 +59,7 @@
  * - LockService, SpreadsheetApp, Session y Utilities.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version UBICACIONES-MAXMIN-REPOSITORY-2026-11-07-04
+ * @version UBICACIONES-MAXMIN-REPOSITORY-2026-11-07-05
  */
 const UbicacionesMaxMinRepository = (() => {
   "use strict";
@@ -157,6 +157,7 @@ const UbicacionesMaxMinRepository = (() => {
     const functions = [
       ["getRowsByKey_", typeof getRowsByKey_],
       ["getSheetByKey_", typeof getSheetByKey_],
+      ["readRowAt_", typeof readRowAt_],
       ["toStr_", typeof toStr_],
       ["toStrUpper_", typeof toStrUpper_],
       ["toNum_", typeof toNum_],
@@ -700,8 +701,9 @@ const UbicacionesMaxMinRepository = (() => {
   function getAll(parentTrace) {
     const context = _traceContext_("GET_ALL", parentTrace);
     try {
+      const cachedData = _getCachedData_(context.trace);
       const copyStartedAt = Date.now();
-      const result = _getCachedData_(context.trace)
+      const result = cachedData
         .map(_copyItem_)
         .sort(_compareItems_);
       perfMark_(context.trace, "REPOSITORY_RESULT_COPIED_SORTED", {
@@ -791,6 +793,39 @@ const UbicacionesMaxMinRepository = (() => {
       return item.numFila === rowNumber;
     });
     return found ? _copyItem_(found) : null;
+  }
+
+  /**
+   * Lee una única fila física sin construir la caché completa del Repository.
+   *
+   * Esta ruta se utiliza en validaciones y actualizaciones puntuales. Conserva el
+   * mismo contrato normalizado que getPorNumeroFila(), pero su costo es constante
+   * respecto al número total de filas de la hoja.
+   *
+   * @param {*} numFila Número físico de fila.
+   * @param {Object=} trace Traza opcional de rendimiento.
+   * @return {?Object} Copia normalizada o null si la fila no existe o está vacía.
+   */
+  function getPorNumeroFilaDirecto(numFila, trace) {
+    const rowNumber = Number(numFila);
+    if (!Number.isInteger(rowNumber) || rowNumber < CFG.FIRST_DATA_ROW) {
+      return null;
+    }
+    const row = readRowAt_(
+      CFG.SOURCE_KEY,
+      rowNumber,
+      UBICACIONES_MAXMIN_EXPECTED_WIDTH,
+      trace
+    );
+    if (!row) return null;
+    const normalized = _normalizeRow_(row, rowNumber);
+    if (!normalized.codigo && !normalized.bodega && !normalized.ubicacion) {
+      return null;
+    }
+    perfMark_(trace, "REPOSITORY_SINGLE_ROW_NORMALIZED", {
+      width: UBICACIONES_MAXMIN_EXPECTED_WIDTH
+    });
+    return _copyItem_(normalized);
   }
 
   /**
@@ -986,22 +1021,24 @@ const UbicacionesMaxMinRepository = (() => {
       const normalized = perfMeasure_(
         context.trace,
         "REPOSITORY_PAYLOAD_NORMALIZED",
-        function () { return _normalizeWritePayload_(payload); }
+        function() { return _normalizeWritePayload_(payload); }
       );
 
-      const result = _withScriptLock_(function () {
+      const result = _withScriptLock_(function() {
         const sheet = perfMeasure_(
           context.trace,
           "REPOSITORY_SHEET_RESOLVED",
-          function () { return _getSheet_(context.trace); }
+          function() { return _getSheet_(context.trace); }
         );
         _validateSheetContract_(sheet, context.trace);
-        const freshData = _readNormalizedData_(false, context.trace);
 
-        const lookupStartedAt = Date.now();
-        const current = freshData.find(function (item) {
-          return item.numFila === rowNumber;
-        });
+        const current = perfMeasure_(
+          context.trace,
+          "REPOSITORY_LOCKED_ROW_REVALIDATED",
+          function() {
+            return getPorNumeroFilaDirecto(rowNumber, context.trace);
+          }
+        );
         if (!current) {
           const error = new Error(
             `${CFG.LOG_PREFIX} No existe un registro en la fila solicitada.`
@@ -1009,27 +1046,23 @@ const UbicacionesMaxMinRepository = (() => {
           error.code = _getConfig_().ERROR_CODES.REGISTRO_NO_ENCONTRADO;
           throw error;
         }
-        const duplicate = freshData.find(function (item) {
-          return item.identidad === normalized.identidad && item.numFila !== rowNumber;
-        });
-        perfMark_(context.trace, "REPOSITORY_ROW_LOOKUP_COMPLETED", {
-          elapsedMs: Date.now() - lookupStartedAt,
-          recordsScanned: freshData.length,
-          duplicateFound: Boolean(duplicate)
-        });
-        if (duplicate) {
+
+        if (current.identidad !== normalized.identidad) {
           const error = new Error(
-            `${CFG.LOG_PREFIX} La identidad funcional ya existe en otra fila.`
+            `${CFG.LOG_PREFIX} La identidad de la fila cambió durante la captura.`
           );
-          error.code = _getConfig_().ERROR_CODES.REGISTRO_DUPLICADO;
+          error.code = _getConfig_().ERROR_CODES.PAYLOAD_INVALIDO;
           throw error;
         }
 
-        const persisted = { ...normalized, validacion: current.validacion };
+        const persisted = {
+          ...normalized,
+          validacion: current.validacion
+        };
         const physicalRow = perfMeasure_(
           context.trace,
           "REPOSITORY_PHYSICAL_ROW_BUILT",
-          function () { return _toPhysicalRow_(persisted); }
+          function() { return _toPhysicalRow_(persisted); }
         );
 
         const writeStartedAt = Date.now();
@@ -1041,10 +1074,13 @@ const UbicacionesMaxMinRepository = (() => {
           width: UBICACIONES_MAXMIN_EXPECTED_WIDTH
         });
 
-        const flushStartedAt = Date.now();
-        SpreadsheetApp.flush();
-        perfMark_(context.trace, "REPOSITORY_FLUSH_COMPLETED", {
-          elapsedMs: Date.now() - flushStartedAt
+        /*
+         * No se fuerza SpreadsheetApp.flush(). Apps Script confirma las escrituras
+         * pendientes al finalizar la ejecución. La operación no relee la fila tras
+         * setValues(), por lo que el flush explícito solo agregaba latencia.
+         */
+        perfMark_(context.trace, "REPOSITORY_FLUSH_SKIPPED", {
+          reason: "NO_READ_AFTER_WRITE"
         });
 
         clearCache();
@@ -1175,6 +1211,7 @@ const UbicacionesMaxMinRepository = (() => {
     getPorBodega,
     getPorIdentidad,
     getPorNumeroFila,
+    getPorNumeroFilaDirecto,
     validarContrato,
     insertar,
     actualizar,

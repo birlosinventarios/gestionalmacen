@@ -35,7 +35,12 @@
  * - Las proyecciones conservan el orden físico y los valores duplicados.
  * - La caché es local a la ejecución y no sustituye CacheService.
  *
+ * Rendimiento:
+ * - Construye índices exactos una vez por ejecución.
+ * - getPorNombreDirecto() evita cargar toda la tabla para validaciones puntuales.
+ *
  * @author Sigifredo de la Cruz Ramos
+ * @version USUARIOS-REPOSITORY-2026-11-07-02
  */
 
 const UsuariosRepository = (() => {
@@ -72,6 +77,7 @@ const UsuariosRepository = (() => {
    * @type {?Array<!Object>}
    */
   let cache_ = null;
+  let indexes_ = null;
 
   /**
    * Verifica que las dependencias funcionales requeridas estén disponibles.
@@ -246,6 +252,31 @@ const UsuariosRepository = (() => {
     return cache_;
   }
 
+  /** Construye índices exactos por ID, nombre y rol. */
+  function _getIndexes_() {
+    if (indexes_ !== null) return indexes_;
+    const byId = Object.create(null);
+    const byName = Object.create(null);
+    const byRole = Object.create(null);
+    _getCachedData_().forEach(function(user) {
+      [
+        [byId, String(user.idusuario || "")],
+        [byName, user.nombre],
+        [byRole, user.rol]
+      ].forEach(function(entry) {
+        if (!entry[1]) return;
+        if (!entry[0][entry[1]]) entry[0][entry[1]] = [];
+        entry[0][entry[1]].push(user);
+      });
+    });
+    indexes_ = { byId, byName, byRole };
+    return indexes_;
+  }
+
+  function _copyIndexed_(items) {
+    return Array.isArray(items) ? items.map(_copyItem_) : [];
+  }
+
   /**
    * Filtra la caché y devuelve copias independientes.
    *
@@ -342,9 +373,7 @@ const UsuariosRepository = (() => {
       return [];
     }
 
-    return _filterAndCopy_(function (item) {
-      return item.idusuario === filter;
-    });
+    return _copyIndexed_(_getIndexes_().byId[String(filter)]);
   }
 
   /**
@@ -359,9 +388,43 @@ const UsuariosRepository = (() => {
       return [];
     }
 
-    return _filterAndCopy_(function (item) {
-      return item.nombre === filter;
+    return _copyIndexed_(_getIndexes_().byName[filter]);
+  }
+
+  /**
+   * Busca un nombre leyendo únicamente la columna NOMBRE y las filas coincidentes.
+   *
+   * @param {*} nombre Nombre solicitado.
+   * @param {Object=} trace Traza opcional.
+   * @return {!Array<!Object>} Coincidencias exactas normalizadas.
+   */
+  function getPorNombreDirecto(nombre, trace) {
+    const filter = toStrUpper_(nombre);
+    if (!filter) return [];
+    const columns = _getColumns_();
+    const sheet = getSheetByKey_(CFG.SOURCE_KEY, trace);
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return [];
+    const startedAt = Date.now();
+    const matches = sheet
+      .getRange(2, columns.NOMBRE + 1, lastRow - 1, 1)
+      .createTextFinder(filter)
+      .matchEntireCell(true)
+      .matchCase(false)
+      .findAll();
+    const width = Math.max(columns.IDUSUARIOS, columns.NOMBRE, columns.ROL) + 1;
+    const result = matches.map(function(cell) {
+      return _normalizeRow_(
+        sheet.getRange(cell.getRow(), 1, 1, width).getValues()[0],
+        cell.getRow() - 2
+      );
     });
+    perfMark_(trace, "USERS_DIRECT_NAME_LOOKUP", {
+      elapsedMs: Date.now() - startedAt,
+      matches: result.length,
+      sourceRows: lastRow - 1
+    });
+    return result.map(_copyItem_);
   }
 
   /**
@@ -379,9 +442,7 @@ const UsuariosRepository = (() => {
       return [];
     }
 
-    return _filterAndCopy_(function (item) {
-      return item.rol === filter;
-    });
+    return _copyIndexed_(_getIndexes_().byRole[filter]);
   }
 
   /** @return {!Array<number>} Identificadores en orden físico. */
@@ -406,6 +467,7 @@ const UsuariosRepository = (() => {
    */
   function clearCache() {
     cache_ = null;
+    indexes_ = null;
     console.log(`${CFG.LOG_PREFIX} Caché invalidada.`);
   }
 
@@ -413,6 +475,7 @@ const UsuariosRepository = (() => {
     getAll,
     getPorId,
     getPorNombre,
+    getPorNombreDirecto,
     getPorRol,
     getIds,
     getNombres,
