@@ -45,7 +45,7 @@
  * - Diagnóstico: debugGetRaw(), debugKeys().
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-CACHE-2026-11-06-02
+ * @version APPALMACEN-CACHE-2026-11-07-03
  */
 const APPALMACENCache = (() => {
   "use strict";
@@ -224,6 +224,7 @@ const APPALMACENCache = (() => {
    * @return {*} Dato cacheado o recién construido.
    */
   function remember(name, ttlSeconds, builder, options) {
+    const startedAt = Date.now();
     const config = options || {};
 
     if (typeof builder !== "function") {
@@ -236,7 +237,9 @@ const APPALMACENCache = (() => {
       const cached = get(name);
 
       if (cached != null) {
-        console.log("[APPALMACENCache] HIT:", name);
+        console.log("[APPALMACENCache] HIT:", name, {
+          elapsedMs: Date.now() - startedAt
+        });
         return cached;
       }
     }
@@ -283,7 +286,6 @@ const APPALMACENCache = (() => {
     return put(KEYS.BOOTSTRAP, data, CFG.TTL.BOOTSTRAP);
   }
 
-  /** Recupera bootstrap o ejecuta el builder sin persistir el resultado. */
   /**
    * Devuelve el bootstrap vigente o ejecuta su builder.
    *

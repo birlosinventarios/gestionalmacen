@@ -31,7 +31,7 @@
  * - APPALMACENController_obtenerContenidoVista(nombreArchivo).
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-CONTROLLER-2026-11-06-02
+ * @version APPALMACEN-CONTROLLER-2026-11-07-03
  */
 
 "use strict";
@@ -309,7 +309,27 @@ function APPALMACENController_getBootstrap(forceRefresh) {
       throw new Error("El servicio de inicialización devolvió un resultado inválido.");
     }
 
-    _appalmacen_logSuccess_(operation, startedAt);
+    var diagnostics = result.diagnostics || {};
+    var responseChars = 0;
+    try {
+      responseChars = JSON.stringify(result).length;
+    } catch (serializationError) {
+      throw new Error("El bootstrap no pudo serializarse correctamente.");
+    }
+    if (diagnostics.degraded === true) {
+      console.warn(
+        APPALMACEN_CONTROLLER_CONFIG.LOG_PREFIX +
+          " Bootstrap construido en modo degradado.",
+        {
+          totalMs: diagnostics.totalMs || 0,
+          responseChars: responseChars
+        }
+      );
+    }
+    _appalmacen_logSuccess_(operation, startedAt, {
+      responseChars: responseChars,
+      degraded: diagnostics.degraded === true
+    });
     return result;
   } catch (error) {
     _appalmacen_logError_(operation, error, startedAt);

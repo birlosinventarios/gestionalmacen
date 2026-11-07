@@ -53,7 +53,7 @@
  *   contienen valores no vacíos. VALIDACION pertenece a un flujo posterior.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version BOOTSTRAP-SERVICES-2026-11-06-03
+ * @version BOOTSTRAP-SERVICES-2026-11-07-04
  */
 
 const BootstrapServices = (() => {
@@ -92,13 +92,21 @@ const BootstrapServices = (() => {
    * @return {*} Resultado de la consulta o fallback.
    * @private
    */
-  function ejecutarLecturaSegura_(label, executor, fallback) {
+  function ejecutarLecturaSegura_(label, executor, fallback, diagnostics) {
     const inicio = Date.now();
     try {
       if (typeof executor !== "function") {
         throw new TypeError("executor debe ser una función.");
       }
       const result = executor();
+      const elapsedMs = Date.now() - inicio;
+      if (diagnostics && diagnostics.sources) {
+        diagnostics.sources[label] = {
+          ok: true,
+          elapsedMs,
+          total: Array.isArray(result) ? result.length : undefined
+        };
+      }
       logDuracion_(label, inicio, {
         ok: true,
         total: Array.isArray(result) ? result.length : undefined
@@ -108,6 +116,14 @@ const BootstrapServices = (() => {
       console.warn(`[BOOT][SERVER] ${label} :: ERROR`, {
         message: error && error.message ? error.message : String(error || "")
       });
+      if (diagnostics && diagnostics.sources) {
+        diagnostics.sources[label] = {
+          ok: false,
+          elapsedMs: Date.now() - inicio,
+          message: error && error.message ? error.message : String(error || "")
+        };
+        diagnostics.degraded = true;
+      }
       logDuracion_(label, inicio, { ok: false });
       return fallback;
     }
@@ -130,7 +146,13 @@ const BootstrapServices = (() => {
       nombresEtiquetas: [],
       registrosUbicacionesMaxMin: [],
       registrosPendientesUbicacionesMaxMin: [],
-      codigosPendientesUbicacionesMaxMin: []
+      codigosPendientesUbicacionesMaxMin: [],
+      diagnostics: {
+        ok: false,
+        degraded: true,
+        generatedAt: new Date().toISOString(),
+        sources: {}
+      }
     };
   }
 
@@ -341,12 +363,19 @@ const BootstrapServices = (() => {
     console.log("[BOOT][SERVER] BootstrapServices.getInfoInicialFresh_ :: INICIO");
 
     try {
+      const diagnostics = {
+        ok: true,
+        degraded: false,
+        generatedAt: new Date().toISOString(),
+        sources: {}
+      };
       const usuarios = ejecutarLecturaSegura_(
         "UsuariosRepository.getAll",
         function() {
           return UsuariosRepository.getAll();
         },
-        []
+        [],
+        diagnostics
       );
 
       const ubicacionesExcedentes = ejecutarLecturaSegura_(
@@ -354,7 +383,8 @@ const BootstrapServices = (() => {
         function() {
           return UbicacionesExcedentesRepository.getAll();
         },
-        []
+        [],
+        diagnostics
       );
 
       const catalogo = ejecutarLecturaSegura_(
@@ -364,7 +394,8 @@ const BootstrapServices = (() => {
             ? CatalogoRepository.getAllRaw()
             : CatalogoRepository.getAll();
         },
-        []
+        [],
+        diagnostics
       );
 
       const etiquetas = ejecutarLecturaSegura_(
@@ -372,7 +403,8 @@ const BootstrapServices = (() => {
         function() {
           return EtiquetasRepository.getAll();
         },
-        []
+        [],
+        diagnostics
       );
 
       const ubicacionesMaxMin = ejecutarLecturaSegura_(
@@ -387,7 +419,8 @@ const BootstrapServices = (() => {
           }
           return UbicacionesMaxMinRepository.getAll();
         },
-        []
+        [],
+        diagnostics
       );
 
       let t = Date.now();
@@ -442,7 +475,11 @@ const BootstrapServices = (() => {
         nombresEtiquetas,
         registrosUbicacionesMaxMin,
         registrosPendientesUbicacionesMaxMin,
-        codigosPendientesUbicacionesMaxMin
+        codigosPendientesUbicacionesMaxMin,
+        diagnostics: Object.assign({}, diagnostics, {
+          ok: diagnostics.degraded !== true,
+          totalMs: Date.now() - tTotal
+        })
       };
 
       logDuracion_("BootstrapServices.getInfoInicialFresh_ :: TOTAL", tTotal, {
@@ -461,7 +498,16 @@ const BootstrapServices = (() => {
         "BootstrapServices.getInfoInicialFresh_ :: ERROR TOTAL",
         tTotal
       );
-      return crearBootstrapVacio_();
+      const fallback = crearBootstrapVacio_();
+      fallback.diagnostics = {
+        ok: false,
+        degraded: true,
+        generatedAt: new Date().toISOString(),
+        totalMs: Date.now() - tTotal,
+        error: error && error.message ? error.message : String(error || ""),
+        sources: {}
+      };
+      return fallback;
     }
   }
   // =========================================================
