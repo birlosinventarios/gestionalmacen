@@ -25,6 +25,7 @@
    * REGLAS FUNCIONALES
    * - PORCENTAJE admite enteros entre 1 y 100.
    * - Si PORCENTAJE = 100 y MAXIMO no fue editado, MAXIMO = EXISTENCIA.
+   * - Durante la edición manual, MAXIMO puede permanecer vacío temporalmente.
    * - Si PORCENTAJE = 100, el usuario puede capturar un MAXIMO menor que
    *   EXISTENCIA para representar material excedente.
    * - Si PORCENTAJE < 100:
@@ -53,7 +54,7 @@
    * - window.__FORMULARIO_UBICACIONES_MAXMIN_ROOT__.
    *
    * @author Sigifredo de la Cruz Ramos
-   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-07-01
+   * @version FORMULARIO-UBICACIONES-MAXMIN-2026-11-07-02
    */
 </script>
 
@@ -578,9 +579,17 @@
       const maximoCalculado = useMemo(() => {
         if (form.existencia === "" || form.porcentaje === "") return 0;
         if (porcentaje === 100) {
-          return maximoEditadoManualmente && form.maximo !== ""
-            ? toNumberSafe_(form.maximo)
-            : existencia;
+          if (!maximoEditadoManualmente) {
+            return existencia;
+          }
+
+          /*
+           * Un campo vacío durante la edición no debe restaurar EXISTENCIA.
+           * El Service aplicará el fallback MAXIMO = EXISTENCIA si se guarda vacío.
+           */
+          return form.maximo === ""
+            ? 0
+            : toNumberSafe_(form.maximo);
         }
         if (porcentaje > 0 && porcentaje < 100) {
           return redondearADecena_((existencia / porcentaje) * 100);
@@ -738,7 +747,12 @@
         }));
       };
 
-      /** Registra una captura manual de MAXIMO para el caso de 100%. */
+      /**
+       * Registra una captura manual de MAXIMO para el caso de 100%.
+       *
+       * El vacío se conserva en el estado para que el usuario pueda borrar el valor
+       * propuesto y escribir otro sin que React restaure EXISTENCIA inmediatamente.
+       */
       const actualizarMaximoManual_ = value => {
         setMaximoEditadoManualmente(true);
         setForm(previous => ({
@@ -780,7 +794,10 @@
           codigo: registroSeleccionado.codigo,
           existencia,
           porcentaje,
-          maximo: maximoCalculado
+          maximo:
+            porcentaje === 100
+              ? form.maximo
+              : maximoCalculado
         };
 
         setGuardando(true);
@@ -988,14 +1005,18 @@
                             ? "Vacío toma la existencia"
                             : "Calculado automáticamente"
                         }
-                        value={maximoEditable ? String(maximoCalculado || "") : (maximoCalculado || "")}
+                        value={
+                          maximoEditable
+                            ? form.maximo
+                            : (maximoCalculado || "")
+                        }
                         onChange={event =>
                           actualizarMaximoManual_(event.target.value)
                         }
                       />
                       <span className="umm-helper">
                         {maximoEditable
-                          ? "Con 100%, se propone la existencia. Puedes capturar un valor menor si existe material excedente."
+                          ? "Con 100%, se propone la existencia. Puedes borrar el valor y capturar una capacidad menor si existe material excedente."
                           : "Con menos de 100%, el máximo se calcula y redondea a la decena más cercana."}
                       </span>
                     </div>
