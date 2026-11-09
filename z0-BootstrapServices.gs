@@ -42,7 +42,7 @@
  *   existen duplicados en la fuente.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version BOOTSTRAP-SERVICES-2026-11-07-05
+ * @version BOOTSTRAP-SERVICES-2026-11-07-06
  */
 
 const BootstrapServices = (() => {
@@ -72,8 +72,8 @@ const BootstrapServices = (() => {
    * Ejecuta una lectura de repositorio sin derribar el bootstrap completo.
    *
    * Las fuentes de APPALMACEN son funcionalmente independientes. Una falla en
-   * etiquetas o excedentes no debe impedir que FormularioUbicacionesMaxMin cargue
-   * usuarios y registros pendientes.
+   * etiquetas o excedentes no debe impedir que el shell entregue los catálogos
+   * globales restantes. MaxMin se carga exclusivamente desde su propio módulo.
    *
    * @param {string} label Nombre estable de la lectura.
    * @param {function(): *} executor Operación de consulta.
@@ -362,21 +362,6 @@ function procesarCatalogo_(catalogo) {
         diagnostics
       );
 
-      const ubicacionesMaxMin = ejecutarLecturaSegura_(
-        "UbicacionesMaxMinRepository.getAll",
-        function() {
-          if (
-            typeof UbicacionesMaxMinRepository === "undefined" ||
-            !UbicacionesMaxMinRepository ||
-            typeof UbicacionesMaxMinRepository.getAll !== "function"
-          ) {
-            return [];
-          }
-          return UbicacionesMaxMinRepository.getAll();
-        },
-        [],
-        diagnostics
-      );
 
       let t = Date.now();
       const usuariosNormalizados = usuariosOrdenados_(usuarios);
@@ -408,17 +393,6 @@ function procesarCatalogo_(catalogo) {
         nombresEtiquetas: nombresEtiquetas.length
       });
 
-      t = Date.now();
-      const {
-        registros: registrosUbicacionesMaxMin,
-        pendientes: registrosPendientesUbicacionesMaxMin,
-        codigosPendientes: codigosPendientesUbicacionesMaxMin
-      } = procesarUbicacionesMaxMin_(ubicacionesMaxMin);
-      logDuracion_("procesarUbicacionesMaxMin_", t, {
-        registros: registrosUbicacionesMaxMin.length,
-        pendientes: registrosPendientesUbicacionesMaxMin.length,
-        codigosPendientes: codigosPendientesUbicacionesMaxMin.length
-      });
 
       const resultado = {
         usuarios: usuariosNormalizados,

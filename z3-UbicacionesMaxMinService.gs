@@ -21,7 +21,8 @@
  * - Usar EXISTENCIA como MAXIMO cuando PORCENTAJE es 100 y MAXIMO está vacío.
  * - Delegar la persistencia y el control de concurrencia al Repository.
  * - Construir el bootstrap específico del formulario desde los repositorios.
- * - Entregar usuarios y códigos elegibles con CODIGO y DESCRIPCION.
+ * - Entregar en una sola carga usuarios y registros elegibles compactos.
+ * - Permitir filtrado local inmediato sin RPC por cada carácter.
  * - Segmentar códigos por STATUS=ACTIVO y captura completa en UBICACIONES_MAXMIN.
  * - Entregar respuestas planas y serializables al Controller.
  * - Correlacionar tiempos de bootstrap y escritura con Repository y Controller.
@@ -63,7 +64,7 @@
  * - perfStart_(), perfMark_(), perfMeasure_(), perfEnd_() y perfFail_().
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-SERVICE-2026-11-07-04
+ * @version FORMULARIO-UBICACIONES-MAXMIN-SERVICE-2026-11-07-05
  */
 const FormularioUbicacionesMaxMinService = (() => {
   "use strict";
@@ -778,117 +779,130 @@ const FormularioUbicacionesMaxMinService = (() => {
   function getBootstrap(parentTrace) {
     const context = _traceContext_("GET_BOOTSTRAP", parentTrace);
     try {
-      perfMeasure_(context.trace, "SERVICE_DEPENDENCIES_VALIDATED", _validateDependencies_);
-      const getUsers = _requireMethod_(UsuariosRepository, "UsuariosRepository", "getAll");
+      perfMeasure_(context.trace, "SERVICE_DEPENDENCIES_VALIDATED", function() {
+        _validateDependencies_();
+      });
+
+      const getUsers = _requireMethod_(
+        UsuariosRepository,
+        "UsuariosRepository",
+        "getAll"
+      );
+      const getLocations = _requireMethod_(
+        UbicacionesMaxMinRepository,
+        "UbicacionesMaxMinRepository",
+        "getAll"
+      );
+      const getCatalog = typeof CatalogoRepository.getAllRaw === "function"
+        ? CatalogoRepository.getAllRaw
+        : _requireMethod_(CatalogoRepository, "CatalogoRepository", "getAll");
+
       const rawUsers = perfMeasure_(context.trace, "SERVICE_USERS_READ", function() {
         return getUsers.call(UsuariosRepository);
       });
-      const usuarios = perfMeasure_(context.trace, "SERVICE_USERS_PROJECTED", function() {
-        return rawUsers.map(_projectUser_).filter(function(user) {
-          return Boolean(user.nombre);
-        }).sort(function(a, b) {
-          return a.nombre.localeCompare(b.nombre, "es-MX", {
-            numeric: true,
-            sensitivity: "base"
-          });
-        });
+      const rawLocations = perfMeasure_(context.trace, "SERVICE_LOCATIONS_READ", function() {
+        return getLocations.call(UbicacionesMaxMinRepository, context.trace);
       });
+      const rawCatalog = perfMeasure_(context.trace, "SERVICE_CATALOG_READ", function() {
+        return getCatalog.call(CatalogoRepository);
+      });
+
+      if (!Array.isArray(rawUsers) || !Array.isArray(rawLocations) || !Array.isArray(rawCatalog)) {
+        throw new TypeError(
+          `${CFG.LOG_PREFIX} Los repositorios del bootstrap deben devolver arreglos.`
+        );
+      }
+
+      const activeCodes = perfMeasure_(
+        context.trace,
+        "SERVICE_ACTIVE_CODES_INDEXED",
+        function() {
+          return new Set(
+            rawCatalog
+              .filter(_isActiveProduct_)
+              .map(function(product) { return toStrUpper_(product && product.codigo); })
+              .filter(Boolean)
+          );
+        },
+        { catalogRecords: rawCatalog.length }
+      );
+
+      const usuarios = perfMeasure_(
+        context.trace,
+        "SERVICE_USERS_PROJECTED",
+        function() {
+          return rawUsers
+            .map(_projectUser_)
+            .filter(function(user) { return Boolean(user.nombre); })
+            .sort(function(a, b) {
+              return a.nombre.localeCompare(b.nombre, "es-MX", {
+                numeric: true,
+                sensitivity: "base"
+              });
+            });
+        },
+        { inputUsers: rawUsers.length }
+      );
+
+      const registrosPendientes = perfMeasure_(
+        context.trace,
+        "SERVICE_ELIGIBLE_RECORDS_BUILT",
+        function() {
+          return rawLocations
+            .filter(function(record) {
+              return (
+                activeCodes.has(toStrUpper_(record && record.codigo)) &&
+                !_isInitialCaptureComplete_(record)
+              );
+            })
+            .map(_projectPendingRecord_)
+            .filter(function(record) {
+              return record.numFila >= CFG.FIRST_DATA_ROW && Boolean(record.codigo);
+            })
+            .sort(_comparePendingRecords_);
+        },
+        {
+          inputRecords: rawLocations.length,
+          activeCodes: activeCodes.size
+        }
+      );
+
       const limits = UBICACIONES_MAXMIN_CONFIG.LIMITS;
       const result = {
         version: UBICACIONES_MAXMIN_CONFIG.VERSION,
         usuarios: usuarios,
+        registrosPendientes: registrosPendientes,
         rules: {
-          minimumSearchLength: Number(limits.BUSQUEDA_MIN_LENGTH || 2),
-          maximumSearchLength: Number(limits.BUSQUEDA_MAX_LENGTH || 100),
-          maximumResults: Number(limits.BUSQUEDA_MAX_RESULTADOS || 100),
-          debounceMs: Number(limits.BUSQUEDA_DEBOUNCE_MS || 300),
+          minimumFilterLength: Number(limits.FILTRO_LOCAL_MIN_LENGTH || 0),
+          maximumRenderedResults: Number(limits.RENDER_MAX_RESULTADOS || 100),
           catalogoSoloStatusActivo: true,
+          pendienteSiFaltaFechaHoraOUsuario: true,
           seleccionDeterministaPorFilaMenor: true
         },
         diagnostics: {
           totalUsuarios: usuarios.length,
-          recordsIncluded: 0,
-          searchMode: "ON_DEMAND"
+          totalUbicaciones: rawLocations.length,
+          totalCatalogo: rawCatalog.length,
+          totalCodigosActivos: activeCodes.size,
+          totalRegistrosPendientes: registrosPendientes.length,
+          filteringMode: "LOCAL_IN_MEMORY"
         }
       };
+
       const responseChars = perfMeasureJsonChars_(result);
       perfMark_(context.trace, "SERVICE_RESPONSE_READY", {
         responseChars: responseChars,
         users: usuarios.length,
-        recordsIncluded: 0
+        eligibleRecords: registrosPendientes.length
       });
-      _finishTrace_(context, "ok", { responseChars: responseChars, users: usuarios.length });
+      _finishTrace_(context, "ok", {
+        responseChars: responseChars,
+        users: usuarios.length,
+        eligibleRecords: registrosPendientes.length
+      });
       return result;
     } catch (error) {
       _failTrace_(context, error, "SERVICE_GET_BOOTSTRAP");
-      throw error;
-    }
-  }
-
-  /**
-   * Busca registros pendientes y conserva solo productos activos.
-   *
-   * @param {*} criterio Código o descripción parcial.
-   * @param {*} limite Máximo solicitado por el cliente.
-   * @param {?Object=} parentTrace Traza opcional del Controller.
-   * @return {!Object} Resultado compacto y limitado.
-   */
-  function buscarPendientes(criterio, limite, parentTrace) {
-    const context = _traceContext_("SEARCH_PENDING", parentTrace);
-    try {
-      _validateDependencies_();
-      const limits = UBICACIONES_MAXMIN_CONFIG.LIMITS;
-      const query = toStrUpper_(criterio);
-      const minimumLength = Number(limits.BUSQUEDA_MIN_LENGTH || 2);
-      const maximumLength = Number(limits.BUSQUEDA_MAX_LENGTH || 100);
-      const maximumResults = Number(limits.BUSQUEDA_MAX_RESULTADOS || 100);
-      if (query.length < minimumLength || query.length > maximumLength) {
-        throw _domainError_(
-          _errorCode_("PAYLOAD_INVALIDO", "UBMAXMIN_PAYLOAD_INVALIDO"),
-          `El criterio debe contener entre ${minimumLength} y ${maximumLength} caracteres.`
-        );
-      }
-      const safeLimit = Math.min(
-        maximumResults,
-        Math.max(1, Math.floor(Number(limite || maximumResults)))
-      );
-      const search = _requireMethod_(
-        UbicacionesMaxMinRepository,
-        "UbicacionesMaxMinRepository",
-        "buscarPendientes"
-      );
-      const candidates = perfMeasure_(context.trace, "SERVICE_PENDING_CANDIDATES_READ", function() {
-        return search.call(UbicacionesMaxMinRepository, query, safeLimit * 3, context.trace);
-      });
-      const getCatalog = typeof CatalogoRepository.getAllRaw === "function"
-        ? CatalogoRepository.getAllRaw
-        : _requireMethod_(CatalogoRepository, "CatalogoRepository", "getAll");
-      const catalog = perfMeasure_(context.trace, "SERVICE_CATALOG_READ", function() {
-        return getCatalog.call(CatalogoRepository);
-      });
-      const activeCodes = new Set(catalog.filter(_isActiveProduct_).map(function(product) {
-        return toStrUpper_(product && product.codigo);
-      }).filter(Boolean));
-      const registros = candidates
-        .filter(function(record) { return activeCodes.has(toStrUpper_(record.codigo)); })
-        .map(_projectPendingRecord_)
-        .sort(_comparePendingRecords_)
-        .slice(0, safeLimit);
-      const result = {
-        registros: registros,
-        totalDevueltos: registros.length,
-        limite: safeLimit,
-        truncado: candidates.length > registros.length || registros.length === safeLimit
-      };
-      const responseChars = perfMeasureJsonChars_(result);
-      _finishTrace_(context, "ok", {
-        responseChars: responseChars,
-        results: registros.length,
-        limit: safeLimit
-      });
-      return result;
-    } catch (error) {
-      _failTrace_(context, error, "SERVICE_SEARCH_PENDING");
       throw error;
     }
   }
@@ -1086,7 +1100,6 @@ const FormularioUbicacionesMaxMinService = (() => {
 
   return Object.freeze({
     getBootstrap,
-    buscarPendientes,
     buscarProductoPorCodigo,
     obtenerPorCodigo,
     obtenerPorIdentidad,

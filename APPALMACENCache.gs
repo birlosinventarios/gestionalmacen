@@ -45,7 +45,7 @@
  * - Diagnóstico: debugGetRaw(), debugKeys().
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-CACHE-2026-11-07-04
+ * @version APPALMACEN-CACHE-2026-11-07-05
  */
 const APPALMACENCache = (() => {
   "use strict";
@@ -313,9 +313,9 @@ const APPALMACENCache = (() => {
   /**
    * Invalida el bootstrap utilizado por FormularioUbicacionesMaxMin.
    *
-   * El formulario usa consultas bajo demanda y caché de cliente. El bootstrap
-   * general ya no contiene datos de UBICACIONES_MAXMIN, por lo que esta operación
-   * se conserva como punto de compatibilidad y no invalida BOOTSTRAP_V2.
+   * El formulario utiliza un bootstrap específico compacto y filtrado local en
+   * memoria. El bootstrap general no contiene datos de UBICACIONES_MAXMIN, por lo
+   * que esta operación no invalida BOOTSTRAP_V2.
    *
    * @return {boolean} true cuando la invalidación concluye.
    */

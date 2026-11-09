@@ -52,7 +52,7 @@
  * del servidor.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-03
+ * @version FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-04
  */
 "use strict";
 
@@ -64,13 +64,12 @@
  */
 const FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG = Object.freeze({
   NAME: "FormularioUbicacionesMaxMinController",
-  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-03",
+  VERSION: "FORMULARIO-UBICACIONES-MAXMIN-CONTROLLER-2026-11-07-04",
   LOG_PREFIX: "[FormularioUbicacionesMaxMinController]",
   PERF_MODULE: "UBICACIONES_MAXMIN",
   MIN_DATA_ROW: 2,
   OPERATIONS: Object.freeze({
     GET_BOOTSTRAP: "getBootstrap",
-    SEARCH_PENDING: "buscarPendientes",
     SEARCH_PRODUCT: "buscarProductoPorCodigo",
     GET_BY_CODE: "obtenerPorCodigo",
     GET_BY_IDENTITY: "obtenerPorIdentidad",
@@ -289,10 +288,18 @@ function FormularioUbicacionesMaxMinController_requireRowNumber_(numFila) {
  * CONTRATO DE RESPUESTA
  * {
  *   usuarios: Array<{idusuario:number,nombre:string,rol:string}>,
- *   registrosPendientes: Array<Object>, // elegibles por compatibilidad
- *   codigosPendientes: Array<{codigo:string,descripcion:string}>,
+ *   registrosPendientes: Array<{
+ *     numFila:number,
+ *     codigo:string,
+ *     descripcion:string,
+ *     bodega:string,
+ *     ubicacion:string,
+ *     minimo:number,
+ *     zonaBodega:string,
+ *     zonaAbastecimiento:string,
+ *     zonaNivel:string
+ *   }>,
  *   rules: Object,
- *   source: Object,
  *   diagnostics: Object
  * }
  *
@@ -326,7 +333,7 @@ function FormularioUbicacionesMaxMinController_getBootstrap() {
             "El Service devolvió un bootstrap inválido."
           );
         }
-        ["usuarios"]
+        ["usuarios", "registrosPendientes"]
           .forEach(function(fieldName) {
             if (!Array.isArray(bootstrap[fieldName])) {
               throw new Error(
@@ -341,36 +348,6 @@ function FormularioUbicacionesMaxMinController_getBootstrap() {
   );
 }
 
-/**
- * Busca registros pendientes por código o descripción.
- *
- * @param {*} criterio Texto parcial normalizado por el Service.
- * @param {*} limite Máximo de resultados solicitado.
- * @return {!Object} Resultado compacto y limitado.
- */
-function FormularioUbicacionesMaxMinController_buscarPendientes(criterio, limite) {
-  return FormularioUbicacionesMaxMinController_execute_(
-    FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.OPERATIONS.SEARCH_PENDING,
-    function(trace) {
-      const method = FormularioUbicacionesMaxMinController_requireServiceMethod_(
-        "buscarPendientes"
-      );
-      const result = method.call(
-        FormularioUbicacionesMaxMinService,
-        criterio,
-        limite,
-        trace
-      );
-      if (!result || !Array.isArray(result.registros)) {
-        throw new Error(
-          FORMULARIO_UBICACIONES_MAXMIN_CONTROLLER_CONFIG.LOG_PREFIX +
-          " El Service devolvió una búsqueda inválida."
-        );
-      }
-      return result;
-    }
-  );
-}
 
 /**
  * Busca un producto por código y devuelve sus ubicaciones registradas.
