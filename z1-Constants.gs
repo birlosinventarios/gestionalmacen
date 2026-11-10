@@ -5,9 +5,9 @@
  * @fileoverview Configuración central e inmutable de APPALMACEN.
  *
  * Este módulo concentra los contratos compartidos por la aplicación: archivos de
- * Google Sheets, hojas físicas, índices de columnas, reglas del dominio de
- * Verificación de entrada, perfiles de proveedores, encabezados, límites,
- * presentación visual, navegación y almacenes.
+ * Google Sheets, hojas físicas, índices de columnas, reglas de los dominios de
+ * Verificación de entrada y Reabastecimiento, perfiles de proveedores,
+ * encabezados, límites, presentación visual, navegación y almacenes.
  *
  * PRINCIPIOS DE MANTENIMIENTO
  * 1. Mantener este archivo libre de lógica de negocio y efectos secundarios.
@@ -28,7 +28,7 @@
  * - Un ID de Spreadsheet corresponde al segmento entre `/d/` y `/edit` en su URL.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-2026-11-07-06
+ * @version APPALMACEN-2026-11-10-07
  */
 
 /**
@@ -46,6 +46,7 @@ const FILES = Object.freeze({
   GESTION2: "1hXRyADfhVn_teWydRvCisNBEQnqh6U-9wue9A5_zpeo",
   GESTION3: "102KnS9dsTzVxr3XX983MopCGpaGmST9ccf0n_KhYbqc",
   GESTION4: "1PI4JkHcIl6mHKM9uCtolBGx0olIYdGhZO-ao3_QaT4Q",
+  GESTION5: "1_L_Ur3szSFcJX0Z1gxZpSNXSDoBiJDrV7uJaDuZlOTU",
   PEDIDOS: "1PJh2JaMH2FVDNOzZ7vTcKlFSJ48R5rYGjsF_HyjMWO0"
 });
 
@@ -87,6 +88,19 @@ const SHEETS = Object.freeze({
   UBICACIONES_MAXMIN: Object.freeze({
     file: "GESTION4",
     name: "UBICACIONES_MAXMIN"
+  }),
+  /** Tickets de reabastecimiento. Todas estas hojas viven en GESTION5. */
+  REABASTECIMIENTO_SOLICITUDES: Object.freeze({
+    file: "GESTION5",
+    name: "REABASTECIMIENTO_SOLICITUDES"
+  }),
+  REABASTECIMIENTO_PARTIDAS: Object.freeze({
+    file: "GESTION5",
+    name: "REABASTECIMIENTO_PARTIDAS"
+  }),
+  REABASTECIMIENTO_DETALLES: Object.freeze({
+    file: "GESTION5",
+    name: "REABASTECIMIENTO_DETALLES"
   })
 });
 
@@ -207,6 +221,52 @@ const COL = Object.freeze({
     FECHAMODIFICACION: 21, OBSERVACION: 22
   }),
   /**
+   * Solicitudes de reabastecimiento, una fila por ticket.
+   */
+  REABASTECIMIENTO_SOLICITUDES: Object.freeze({
+    ID_SOLICITUD: 0,
+    ID_SOLICITUDCONSECUTIVO: 1,
+    SOLICITUD_FECHACREACION: 2,
+    SOLICITUD_HORACREACION: 3,
+    SOLICITUD_SOLICITANTE: 4,
+    SOLICITUD_BODEGA: 5,
+    SOLICITUD_SKUSOLICITADOS: 6,
+    SOLICITUD_FECHAINICIOATENCION: 7,
+    SOLICITUD_HORAINICIOATENCION: 8,
+    SOLICITUD_FECHACIERREATENCION: 9,
+    SOLICITUD_HORACIERREATENCION: 10,
+    CAJASINVOLUCRADAS: 11
+  }),
+  /**
+   * Partidas de reabastecimiento, una fila por SKU y ubicación solicitados.
+   */
+  REABASTECIMIENTO_PARTIDAS: Object.freeze({
+    ID_SOLICITUD: 0,
+    ID_PARTIDACONSECUTIVO: 1,
+    SOLICITUD_CODIGOSOLICITADO: 2,
+    SOLICITUD_DESCRIPCIONSOLICITADA: 3,
+    SOLICITUD_CODIGOSOLICITADOUBICACION: 4,
+    SOLICITUD_CODIGOESTADO: 5,
+    SOLICITUD_FECHAATENCION: 6,
+    SOLICITUD_HORAATENCION: 7,
+    SOLICITUD_USUARIOATENCION: 8
+  }),
+  /**
+   * Detalles de reabastecimiento, una fila por IDUNICO escaneado.
+   */
+  REABASTECIMIENTO_DETALLES: Object.freeze({
+    ID_SOLICITUD: 0,
+    ID_PARTIDACONSECUTIVO: 1,
+    ID_DETALLECONSECUTIVO: 2,
+    SOLICITUD_IDUNICOESCANEADO: 3,
+    SOLICITUD_IDUNICOESCANEADOCODIGO: 4,
+    SOLICITUD_IDUNICOESCANEADODESCRIPCION: 5,
+    SOLICITUD_IDUNICOESCANEADOCANTIDAD: 6,
+    SOLICITUD_IDUNICOESCANEADOFECHAESCANEO: 7,
+    SOLICITUD_IDUNICOESCANEADOHORAESCANEO: 8,
+    SOLICITUD_USUARIORESPONSABLE: 9
+  }),
+  /**
    * Cola documental. COTIZACION_NUM es única en MAT_DOCUMENTOS y repetible
    * como clave foránea en MAT_DOCUMENTODETALLE.
    */
@@ -258,6 +318,183 @@ const COL = Object.freeze({
     VERIFICADO_UBICACIONHORA: 15,
     EMPAQUE_CONTENEDORTIPO: 16,
     EMPAQUE_CONTENEDORIDENTIFICADOR: 17
+  })
+});
+
+/**
+ * Contratos físicos de las hojas del módulo de Reabastecimiento.
+ *
+ * MODELO RELACIONAL
+ * - REABASTECIMIENTO_SOLICITUDES contiene una fila por ticket.
+ * - REABASTECIMIENTO_PARTIDAS contiene una fila por SKU y ubicación solicitados.
+ * - REABASTECIMIENTO_DETALLES contiene una fila por IDUNICO escaneado.
+ *
+ * Las listas son la fuente única para validar encabezados y calcular los anchos.
+ * El orden debe coincidir exactamente con COL y con la fila 1 de cada hoja.
+ *
+ * @readonly
+ * @type {!Object<string, ReadonlyArray<string>>}
+ */
+const REABASTECIMIENTO_HEADERS = Object.freeze({
+  SOLICITUDES: Object.freeze([
+    "ID_SOLICITUD",
+    "ID_SOLICITUDCONSECUTIVO",
+    "SOLICITUD_FECHACREACION",
+    "SOLICITUD_HORACREACION",
+    "SOLICITUD_SOLICITANTE",
+    "SOLICITUD_BODEGA",
+    "SOLICITUD_SKUSOLICITADOS",
+    "SOLICITUD_FECHAINICIOATENCION",
+    "SOLICITUD_HORAINICIOATENCION",
+    "SOLICITUD_FECHACIERREATENCION",
+    "SOLICITUD_HORACIERREATENCION",
+    "CAJASINVOLUCRADAS"
+  ]),
+  PARTIDAS: Object.freeze([
+    "ID_SOLICITUD",
+    "ID_PARTIDACONSECUTIVO",
+    "SOLICITUD_CODIGOSOLICITADO",
+    "SOLICITUD_DESCRIPCIONSOLICITADA",
+    "SOLICITUD_CODIGOSOLICITADOUBICACION",
+    "SOLICITUD_CODIGOESTADO",
+    "SOLICITUD_FECHAATENCION",
+    "SOLICITUD_HORAATENCION",
+    "SOLICITUD_USUARIOATENCION"
+  ]),
+  DETALLES: Object.freeze([
+    "ID_SOLICITUD",
+    "ID_PARTIDACONSECUTIVO",
+    "ID_DETALLECONSECUTIVO",
+    "SOLICITUD_IDUNICOESCANEADO",
+    "SOLICITUD_IDUNICOESCANEADOCODIGO",
+    "SOLICITUD_IDUNICOESCANEADODESCRIPCION",
+    "SOLICITUD_IDUNICOESCANEADOCANTIDAD",
+    "SOLICITUD_IDUNICOESCANEADOFECHAESCANEO",
+    "SOLICITUD_IDUNICOESCANEADOHORAESCANEO",
+    "SOLICITUD_USUARIORESPONSABLE"
+  ])
+});
+
+/**
+ * Anchos esperados derivados de los contratos de encabezados.
+ *
+ * @readonly
+ * @enum {number}
+ */
+const REABASTECIMIENTO_EXPECTED_WIDTHS = Object.freeze({
+  REABASTECIMIENTO_SOLICITUDES:
+    REABASTECIMIENTO_HEADERS.SOLICITUDES.length,
+  REABASTECIMIENTO_PARTIDAS:
+    REABASTECIMIENTO_HEADERS.PARTIDAS.length,
+  REABASTECIMIENTO_DETALLES:
+    REABASTECIMIENTO_HEADERS.DETALLES.length
+});
+
+/**
+ * Configuración declarativa del dominio de Reabastecimiento.
+ *
+ * REGLAS DE AUTORIDAD
+ * - El servidor genera folios, consecutivos, fechas y horas.
+ * - SOLICITUD_SKUSOLICITADOS se deriva del número de partidas persistidas.
+ * - CAJASINVOLUCRADAS se deriva del número de IDUNICO únicos persistidos.
+ * - El estado de la solicitud no se persiste; el Service lo deriva de sus marcas
+ *   de inicio y cierre, y utiliza INCONSISTENTE para combinaciones inválidas.
+ * - El estado de partida sí se persiste y solo admite PENDIENTE o ATENDIDO.
+ * - ATENDIDO significa que el usuario consultó las ubicaciones de excedente para
+ *   el SKU; el surtido físico se acredita mediante REABASTECIMIENTO_DETALLES.
+ *
+ * INVARIANTES
+ * - El folio utiliza REA- + yyyyMMdd + consecutivo diario de dos dígitos.
+ * - La generación de folio y las escrituras relacionadas requieren ScriptLock.
+ * - Dentro de una solicitud no se repite código + ubicación de piso.
+ * - Un IDUNICO no se registra dos veces dentro de una misma solicitud.
+ * - La transición ordinaria de partida es PENDIENTE a ATENDIDO.
+ *
+ * @readonly
+ */
+const REABASTECIMIENTO_CONFIG = Object.freeze({
+  VERSION: "REABASTECIMIENTO-2026-11-10-01",
+  SHEET_KEYS: Object.freeze({
+    SOLICITUDES: "REABASTECIMIENTO_SOLICITUDES",
+    PARTIDAS: "REABASTECIMIENTO_PARTIDAS",
+    DETALLES: "REABASTECIMIENTO_DETALLES"
+  }),
+  FOLIO: Object.freeze({
+    PREFIJO: "REA-",
+    FORMATO_FECHA: "yyyyMMdd",
+    CONSECUTIVO_DIGITOS: 2,
+    MAX_SOLICITUDES_DIARIAS: 99
+  }),
+  CONSECUTIVOS: Object.freeze({
+    PARTIDA_DIGITOS: 2,
+    DETALLE_DIGITOS: 3
+  }),
+  FORMATOS: Object.freeze({
+    FECHA: "dd/MM/yyyy",
+    HORA: "HH:mm"
+  }),
+  SOLICITUD_ESTADOS_DERIVADOS: Object.freeze({
+    ABIERTA: "ABIERTA",
+    EN_ATENCION: "EN_ATENCION",
+    CERRADA: "CERRADA",
+    INCONSISTENTE: "INCONSISTENTE"
+  }),
+  PARTIDA_ESTADOS: Object.freeze({
+    PENDIENTE: "PENDIENTE",
+    ATENDIDO: "ATENDIDO"
+  }),
+  TRANSICIONES_PARTIDA: Object.freeze({
+    PENDIENTE: Object.freeze(["ATENDIDO"]),
+    ATENDIDO: Object.freeze([])
+  }),
+  LIMITES: Object.freeze({
+    MAX_SKUS_POR_SOLICITUD: 99,
+    MAX_DETALLES_POR_PARTIDA: 999,
+    MAX_DETALLES_POR_SOLICITUD: 5000,
+    FOLIO_MAX_LENGTH: 32,
+    CODIGO_MAX_LENGTH: 100,
+    DESCRIPCION_MAX_LENGTH: 500,
+    UBICACION_MAX_LENGTH: 150,
+    BODEGA_MAX_LENGTH: 150,
+    USUARIO_MAX_LENGTH: 250,
+    IDUNICO_MAX_LENGTH: 250,
+    LOCK_TIMEOUT_MS: 30000
+  }),
+  PERFORMANCE: Object.freeze({
+    ENABLED: true,
+    LOG_PREFIX: "[APPALMACEN][REABASTECIMIENTO][PERF]",
+    MAX_MARKS: 100,
+    MAX_METADATA_TEXT_LENGTH: 250,
+    WARN_TOTAL_MS: 3000,
+    WARN_SHEET_READ_MS: 1200,
+    WARN_SHEET_WRITE_MS: 900,
+    WARN_LOCK_WAIT_MS: 500,
+    MEASURE_RESPONSE_CHARS: true
+  }),
+  ERROR_CODES: Object.freeze({
+    PAYLOAD_INVALIDO: "REAB_PAYLOAD_INVALIDO",
+    SOLICITUD_REQUERIDA: "REAB_SOLICITUD_REQUERIDA",
+    SOLICITUD_NO_ENCONTRADA: "REAB_SOLICITUD_NO_ENCONTRADA",
+    SOLICITUD_CERRADA: "REAB_SOLICITUD_CERRADA",
+    SOLICITUD_INCONSISTENTE: "REAB_SOLICITUD_INCONSISTENTE",
+    SOLICITUD_DUPLICADA: "REAB_SOLICITUD_DUPLICADA",
+    PARTIDA_NO_ENCONTRADA: "REAB_PARTIDA_NO_ENCONTRADA",
+    PARTIDA_DUPLICADA: "REAB_PARTIDA_DUPLICADA",
+    PARTIDA_YA_ATENDIDA: "REAB_PARTIDA_YA_ATENDIDA",
+    TRANSICION_INVALIDA: "REAB_TRANSICION_INVALIDA",
+    IDUNICO_REQUERIDO: "REAB_IDUNICO_REQUERIDO",
+    IDUNICO_NO_ENCONTRADO: "REAB_IDUNICO_NO_ENCONTRADO",
+    IDUNICO_DUPLICADO: "REAB_IDUNICO_DUPLICADO",
+    IDUNICO_CODIGO_INCORRECTO: "REAB_IDUNICO_CODIGO_INCORRECTO",
+    IDUNICO_SIN_SALDO: "REAB_IDUNICO_SIN_SALDO",
+    USUARIO_REQUERIDO: "REAB_USUARIO_REQUERIDO",
+    USUARIO_NO_ENCONTRADO: "REAB_USUARIO_NO_ENCONTRADO",
+    ENCABEZADOS_INVALIDOS: "REAB_ENCABEZADOS_INVALIDOS",
+    ANCHO_INVALIDO: "REAB_ANCHO_INVALIDO",
+    LIMITE_DIARIO_ALCANZADO: "REAB_LIMITE_DIARIO_ALCANZADO",
+    LIMITE_PARTIDAS_EXCEDIDO: "REAB_LIMITE_PARTIDAS_EXCEDIDO",
+    LIMITE_DETALLES_EXCEDIDO: "REAB_LIMITE_DETALLES_EXCEDIDO",
+    LOCK_TIMEOUT: "REAB_LOCK_TIMEOUT"
   })
 });
 
@@ -940,7 +1177,8 @@ const APPALMACEN_ROUTING = Object.freeze({
     "GestorExcedentes", "ConsultaExcedentes", "NegativosBirlos",
     "MonitorReabastecimiento", "AuditoriaExcedentes", "AuditoriaExcedentesCaptura",
     "AuditoriaExcedentesDetalle", "PrototipoExcedentes", "FormularioDetallesProducto",
-    "FormularioUbicacionesMaxMin"
+    "FormularioUbicacionesMaxMin", "Reabastecimiento",
+    "ReabastecimientoDetalles", "ReabastecimientoSolicitud"
   ]),
   PRINT_PAGES: Object.freeze(["imprimir", "EtiquetaExcedentesImpresa"]),
   TEST_PAGE: "Pruebas",

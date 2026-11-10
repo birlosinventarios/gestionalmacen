@@ -17,6 +17,9 @@
  * - Invalidar de forma específica las cachés de UBICACIONES_MAXMIN.
  * - Verificar contratos de hojas del módulo Verificación de entrada.
  * - Validar y normalizar contratos documentales de Gestión de Material.
+ * - Validar los contratos físicos del módulo de Reabastecimiento.
+ * - Generar contextos temporales, folios y consecutivos de Reabastecimiento.
+ * - Invalidar selectivamente las cachés del dominio de Reabastecimiento.
  * - Administrar claves COTIZACION_NUM, identificadores y consecutivos diarios.
  *
  * Seguridad:
@@ -30,12 +33,14 @@
  * - Las hojas de alto crecimiento deben leerse con readSheetRows_().
  * - COTIZACION_NUM se trata siempre como texto, nunca como número.
  * - La unicidad técnica se confirma bajo ScriptLock en el repositorio.
+ * - Los folios y consecutivos de Reabastecimiento se calculan bajo el mismo
+ *   ScriptLock que protege su persistencia.
  * - Las trazas finalizadas no aceptan nuevas marcas.
  * - Las limpiezas de caché toleran dependencias opcionales ausentes.
  * - Los Controllers utilizan execController_(controllerName, label, executor).
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-UTILIDADES-DATOS-2026-11-07-04
+ * @version APPALMACEN-UTILIDADES-DATOS-2026-11-10-05
  */
 
 // =========================================================
@@ -789,6 +794,130 @@ function getTemporalContext_() {
     ahora: current
   };
 }
+/**
+ * Construye un contexto temporal con precisión de minuto.
+ *
+ * Este contrato corresponde a los campos FECHA y HORA del módulo de
+ * Reabastecimiento. Se genera una sola instancia Date para impedir diferencias
+ * entre la fecha y la hora cuando la operación cruza un cambio de minuto o día.
+ *
+ * @param {Date=} current Instante opcional para pruebas deterministas.
+ * @return {{fecha:string, hora:string, fechaFolio:string, ahora:Date}}
+ * @throws {TypeError} Si current no es una fecha válida.
+ */
+function getReabastecimientoTemporalContext_(current) {
+  const instant = current === undefined ? now_() : current;
+  if (!isValidDate_(instant)) {
+    throw new TypeError(
+      "getReabastecimientoTemporalContext_: current debe ser una fecha válida."
+    );
+  }
+  const timezone = getScriptTz_();
+  const formats =
+    typeof REABASTECIMIENTO_CONFIG !== "undefined" &&
+    REABASTECIMIENTO_CONFIG &&
+    REABASTECIMIENTO_CONFIG.FORMATOS
+      ? REABASTECIMIENTO_CONFIG.FORMATOS
+      : {};
+  const folio =
+    typeof REABASTECIMIENTO_CONFIG !== "undefined" &&
+    REABASTECIMIENTO_CONFIG &&
+    REABASTECIMIENTO_CONFIG.FOLIO
+      ? REABASTECIMIENTO_CONFIG.FOLIO
+      : {};
+  return {
+    fecha: Utilities.formatDate(
+      instant,
+      timezone,
+      String(formats.FECHA || "dd/MM/yyyy")
+    ),
+    hora: Utilities.formatDate(
+      instant,
+      timezone,
+      String(formats.HORA || "HH:mm")
+    ),
+    fechaFolio: Utilities.formatDate(
+      instant,
+      timezone,
+      String(folio.FORMATO_FECHA || "yyyyMMdd")
+    ),
+    ahora: new Date(instant.getTime())
+  };
+}
+
+/**
+ * Completa un entero positivo con ceros a la izquierda.
+ *
+ * @param {*} value Entero positivo o cero.
+ * @param {*} digits Cantidad exacta de dígitos.
+ * @param {string=} fieldName Nombre funcional para mensajes de error.
+ * @return {string} Valor textual con longitud fija.
+ * @throws {RangeError} Si el valor no cabe en la longitud especificada.
+ */
+function padPositiveInteger_(value, digits, fieldName) {
+  const number = Math.floor(Number(value));
+  const width = Math.floor(Number(digits));
+  const label = String(fieldName || "consecutivo");
+  if (!Number.isInteger(number) || number < 0) {
+    throw new RangeError(label + " debe ser un entero no negativo.");
+  }
+  if (!Number.isInteger(width) || width < 1) {
+    throw new RangeError("digits debe ser un entero mayor que cero.");
+  }
+  const text = String(number);
+  if (text.length > width) {
+    throw new RangeError(
+      label + " excede la longitud configurada de " + width + " dígitos."
+    );
+  }
+  return text.padStart(width, "0");
+}
+
+/**
+ * Construye un folio de solicitud de Reabastecimiento.
+ *
+ * Esta función es pura: no consulta hojas ni garantiza unicidad. El Repository
+ * debe calcular el consecutivo y persistir el folio bajo el mismo ScriptLock.
+ *
+ * @param {string} dateToken Fecha yyyyMMdd generada por el servidor.
+ * @param {*} consecutive Consecutivo diario.
+ * @return {string} Folio con formato REA-yyyyMMddNN.
+ */
+function buildReabastecimientoFolio_(dateToken, consecutive) {
+  if (
+    typeof REABASTECIMIENTO_CONFIG === "undefined" ||
+    !REABASTECIMIENTO_CONFIG ||
+    !REABASTECIMIENTO_CONFIG.FOLIO
+  ) {
+    throw new Error("REABASTECIMIENTO_CONFIG.FOLIO no está disponible.");
+  }
+  const config = REABASTECIMIENTO_CONFIG.FOLIO;
+  const normalizedDate = String(dateToken || "").trim();
+  if (!/^\d{8}$/.test(normalizedDate)) {
+    throw new Error("dateToken debe usar el formato yyyyMMdd.");
+  }
+  const safeConsecutive = Math.floor(Number(consecutive));
+  const maximum = Number(config.MAX_SOLICITUDES_DIARIAS || 99);
+  if (
+    !Number.isInteger(safeConsecutive) ||
+    safeConsecutive < 1 ||
+    safeConsecutive > maximum
+  ) {
+    throw new RangeError(
+      "El consecutivo diario debe estar entre 1 y " + maximum + "."
+    );
+  }
+  return (
+    String(config.PREFIJO || "REA-") +
+    normalizedDate +
+    padPositiveInteger_(
+      safeConsecutive,
+      Number(config.CONSECUTIVO_DIGITOS || 2),
+      "ID_SOLICITUDCONSECUTIVO"
+    )
+  );
+}
+
 
 /** Normaliza una ubicación eliminando espacios. */
 function normalizeLocationToken_(value) {
@@ -876,6 +1005,14 @@ function perfConfig_(traceOrModule) {
     UBICACIONES_MAXMIN_CONFIG?.PERFORMANCE
   ) {
     return UBICACIONES_MAXMIN_CONFIG.PERFORMANCE;
+  }
+  if (
+    moduleName === "REABASTECIMIENTO" &&
+    typeof REABASTECIMIENTO_CONFIG !== "undefined" &&
+    REABASTECIMIENTO_CONFIG &&
+    REABASTECIMIENTO_CONFIG.PERFORMANCE
+  ) {
+    return REABASTECIMIENTO_CONFIG.PERFORMANCE;
   }
   if (
     typeof VERIFICACION_ENTRADA !== "undefined" &&
@@ -1517,6 +1654,8 @@ function clearOperationalCaches_() {
       VerificacionEntradaService.clearCache();
     }
 
+    clearReabastecimientoCaches_();
+
     console.log("[CACHE] clearOperationalCaches_ :: OK");
     return true;
   } catch (error) {
@@ -1674,6 +1813,54 @@ function clearVerificacionEntradaCaches_() {
         : String(error || "")
     );
 
+    return false;
+  }
+}
+
+/**
+ * Limpia únicamente cachés del dominio de Reabastecimiento.
+ *
+ * Tolera módulos todavía no instalados y no invalida cachés ajenas al dominio.
+ * Debe ejecutarse después de una escritura confirmada de solicitud, partida o
+ * detalle. No debe utilizarse para compensar errores de persistencia.
+ *
+ * @return {boolean} true cuando concluye sin errores.
+ */
+function clearReabastecimientoCaches_() {
+  try {
+    const dependencies = [
+      typeof ReabastecimientoSolicitudesRepository !== "undefined"
+        ? ReabastecimientoSolicitudesRepository
+        : null,
+      typeof ReabastecimientoPartidasRepository !== "undefined"
+        ? ReabastecimientoPartidasRepository
+        : null,
+      typeof ReabastecimientoDetallesRepository !== "undefined"
+        ? ReabastecimientoDetallesRepository
+        : null,
+      typeof ReabastecimientoService !== "undefined"
+        ? ReabastecimientoService
+        : null
+    ];
+    dependencies.forEach(function(dependency) {
+      if (dependency && typeof dependency.clearCache === "function") {
+        dependency.clearCache();
+      }
+    });
+    if (
+      typeof APPALMACENCache !== "undefined" &&
+      APPALMACENCache &&
+      typeof APPALMACENCache.clearReabastecimiento === "function"
+    ) {
+      APPALMACENCache.clearReabastecimiento();
+    }
+    console.log("[CACHE] clearReabastecimientoCaches_ :: OK");
+    return true;
+  } catch (error) {
+    console.warn(
+      "[CACHE] clearReabastecimientoCaches_ :: ERROR",
+      error && error.message ? error.message : String(error || "")
+    );
     return false;
   }
 }
@@ -1988,6 +2175,89 @@ function assertMaterialDocumentSheets_(trace) {
       trace
     )
   ];
+}
+
+
+
+/**
+ * Valida los contratos físicos de las tres hojas de Reabastecimiento.
+ *
+ * La función no escribe información. Verifica que todas las hojas pertenezcan a
+ * GESTION5 y que sus encabezados coincidan exactamente con Constants.
+ *
+ * @param {Object=} trace Tracker opcional.
+ * @return {!Array<!Object>} Contratos validados en orden lógico.
+ */
+function assertReabastecimientoSheets_(trace) {
+  if (
+    typeof REABASTECIMIENTO_HEADERS === "undefined" ||
+    !REABASTECIMIENTO_HEADERS ||
+    typeof REABASTECIMIENTO_EXPECTED_WIDTHS === "undefined" ||
+    !REABASTECIMIENTO_EXPECTED_WIDTHS
+  ) {
+    throw new Error(
+      "Los contratos de encabezados de Reabastecimiento no están disponibles."
+    );
+  }
+  const contracts = [
+    {
+      sheetKey: "REABASTECIMIENTO_SOLICITUDES",
+      headers: REABASTECIMIENTO_HEADERS.SOLICITUDES
+    },
+    {
+      sheetKey: "REABASTECIMIENTO_PARTIDAS",
+      headers: REABASTECIMIENTO_HEADERS.PARTIDAS
+    },
+    {
+      sheetKey: "REABASTECIMIENTO_DETALLES",
+      headers: REABASTECIMIENTO_HEADERS.DETALLES
+    }
+  ];
+  return contracts.map(function(contract) {
+    const descriptor = SHEETS[contract.sheetKey];
+    if (!descriptor || descriptor.file !== "GESTION5") {
+      throw new Error(
+        contract.sheetKey + " debe estar configurada en GESTION5."
+      );
+    }
+    const expectedWidth = Number(
+      REABASTECIMIENTO_EXPECTED_WIDTHS[contract.sheetKey] || 0
+    );
+    if (
+      !Array.isArray(contract.headers) ||
+      expectedWidth < 1 ||
+      contract.headers.length !== expectedWidth
+    ) {
+      throw new Error(
+        "Contrato de encabezados inválido para " + contract.sheetKey + "."
+      );
+    }
+    return assertSheetContract_(
+      contract.sheetKey,
+      contract.headers,
+      trace
+    );
+  });
+}
+
+/**
+ * Prueba de integración no destructiva de GESTION5.
+ *
+ * @return {!Array<!Object>} Resultado de validación de las tres hojas.
+ */
+function testReabastecimientoUtilities_() {
+  const trace = perfStart_("REABASTECIMIENTO_TEST_UTILITIES", {
+    module: "REABASTECIMIENTO",
+    test: true
+  });
+  try {
+    const result = assertReabastecimientoSheets_(trace);
+    perfEnd_(trace, "ok", { sheets: result.length });
+    return result;
+  } catch (error) {
+    perfFail_(trace, error, { module: "REABASTECIMIENTO" });
+    throw error;
+  }
 }
 
 // =========================================================
