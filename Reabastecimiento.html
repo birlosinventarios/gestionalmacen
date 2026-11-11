@@ -1,0 +1,377 @@
+<!--
+  Reabastecimiento.html
+
+  Vista inicial del módulo de tickets de Reabastecimiento de APPALMACEN.
+
+  RESPONSABILIDADES
+  - Mostrar solicitudes abiertas, en atención, cerradas e inconsistentes.
+  - Aplicar filtros locales sin repetir solicitudes al servidor.
+  - Navegar a ReabastecimientoSolicitud para crear un ticket.
+  - Mantener la carga inicial limitada al listado y métricas.
+  - Navegar a ReabastecimientoDetalles con solo ID_SOLICITUD.
+
+  RESPONSABILIDADES EXCLUIDAS
+  - No calcula saldos, estados, folios, fechas, horas ni consecutivos.
+  - No confía en datos derivados del navegador para persistir solicitudes.
+  - No registra códigos, usuarios, ubicaciones o folios en consola.
+
+  DEPENDENCIAS
+  - google.script.run.
+  - ReabastecimientoController_getSolicitudes().
+  - ReabastecimientoController_getCandidatosPorBodega().
+  - ReabastecimientoController_crearSolicitud().
+
+  INTEGRACIÓN
+  - La vista expone initReabastecimientoView() y destroyReabastecimientoView().
+  - La navegación intenta window.cargarVista() y, si no existe, emite el evento
+    appalmacen:navigate con { view, context }.
+
+  @author Sigifredo de la Cruz Ramos
+  @version REABASTECIMIENTO-VIEW-2026-11-11-02
+-->
+<div id="reabastecimiento-root" class="reab-app" aria-live="polite">
+  <style>
+    #reabastecimiento-root {
+      --reab-primary: #d93025;
+      --reab-primary-dark: #b3261e;
+      --reab-bg: #f8f9fa;
+      --reab-surface: #ffffff;
+      --reab-surface-soft: #f1f3f4;
+      --reab-text: #202124;
+      --reab-muted: #5f6368;
+      --reab-border: #dadce0;
+      --reab-success: #188038;
+      --reab-warning: #e37400;
+      --reab-danger: #c5221f;
+      --reab-info: #1967d2;
+      --reab-radius: 14px;
+      --reab-shadow: 0 2px 10px rgba(60, 64, 67, .10);
+      color: var(--reab-text);
+      font-family: Inter, Roboto, Arial, sans-serif;
+      min-height: 100%;
+    }
+    #reabastecimiento-root * { box-sizing: border-box; }
+    #reabastecimiento-root button,
+    #reabastecimiento-root input,
+    #reabastecimiento-root select { font: inherit; }
+    .reab-shell { display: grid; gap: 18px; max-width: 1600px; margin: 0 auto; padding: 20px; }
+    .reab-header { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; }
+    .reab-title { margin: 0; font-size: clamp(1.45rem, 2vw, 2rem); line-height: 1.15; }
+    .reab-subtitle { margin: 6px 0 0; color: var(--reab-muted); font-size: .95rem; }
+    .reab-header__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .reab-btn { min-height: 42px; border: 1px solid var(--reab-border); border-radius: 10px; padding: 0 16px; background: var(--reab-surface); color: var(--reab-text); cursor: pointer; font-weight: 700; transition: .18s ease; }
+    .reab-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--reab-shadow); }
+    .reab-btn:focus-visible, .reab-tab:focus-visible, .reab-input:focus-visible, .reab-select:focus-visible { outline: 3px solid rgba(25, 103, 210, .25); outline-offset: 2px; }
+    .reab-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .reab-btn--primary { color: #fff; background: var(--reab-primary); border-color: var(--reab-primary); }
+    .reab-btn--primary:hover:not(:disabled) { background: var(--reab-primary-dark); }
+    .reab-btn--ghost { background: transparent; }
+    .reab-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--reab-border); overflow-x: auto; }
+    .reab-tab { border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--reab-muted); padding: 13px 16px 11px; cursor: pointer; font-weight: 800; white-space: nowrap; }
+    .reab-tab[aria-selected="true"] { color: var(--reab-primary); border-bottom-color: var(--reab-primary); }
+    .reab-panel[hidden] { display: none !important; }
+    .reab-grid { display: grid; gap: 14px; }
+    .reab-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .reab-card { background: var(--reab-surface); border: 1px solid var(--reab-border); border-radius: var(--reab-radius); box-shadow: var(--reab-shadow); }
+    .reab-kpi { padding: 16px; border-left: 4px solid var(--reab-border); }
+    .reab-kpi--open { border-left-color: var(--reab-info); }
+    .reab-kpi--attention { border-left-color: var(--reab-warning); }
+    .reab-kpi--closed { border-left-color: var(--reab-success); }
+    .reab-kpi--inconsistent { border-left-color: var(--reab-danger); }
+    .reab-kpi__label { color: var(--reab-muted); font-size: .8rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+    .reab-kpi__value { margin-top: 7px; font-size: 1.75rem; font-weight: 900; }
+    .reab-toolbar { padding: 14px; display: grid; grid-template-columns: minmax(220px, 2fr) repeat(2, minmax(150px, 1fr)) auto; gap: 10px; align-items: end; }
+    .reab-field { display: grid; gap: 6px; }
+    .reab-label { color: var(--reab-muted); font-size: .76rem; font-weight: 800; text-transform: uppercase; letter-spacing: .035em; }
+    .reab-input, .reab-select { width: 100%; min-height: 42px; border: 1px solid var(--reab-border); border-radius: 10px; padding: 0 12px; background: var(--reab-surface); color: var(--reab-text); }
+    .reab-table-wrap { overflow: auto; max-height: 58vh; }
+    .reab-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 980px; }
+    .reab-table th { position: sticky; top: 0; z-index: 1; padding: 12px; color: var(--reab-muted); background: var(--reab-surface-soft); border-bottom: 1px solid var(--reab-border); font-size: .75rem; text-align: left; text-transform: uppercase; letter-spacing: .035em; }
+    .reab-table td { padding: 12px; border-bottom: 1px solid var(--reab-border); vertical-align: middle; }
+    .reab-table tbody tr:hover { background: #fafafa; }
+    .reab-status { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 6px 10px; font-size: .76rem; font-weight: 900; }
+    .reab-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .reab-status--ABIERTA { color: var(--reab-info); background: #e8f0fe; }
+    .reab-status--EN_ATENCION { color: var(--reab-warning); background: #fef7e0; }
+    .reab-status--CERRADA { color: var(--reab-success); background: #e6f4ea; }
+    .reab-status--INCONSISTENTE { color: var(--reab-danger); background: #fce8e6; }
+    .reab-empty, .reab-loading { padding: 42px 18px; text-align: center; color: var(--reab-muted); }
+    .reab-spinner { width: 28px; height: 28px; margin: 0 auto 12px; border: 3px solid #e0e0e0; border-top-color: var(--reab-primary); border-radius: 50%; animation: reab-spin .8s linear infinite; }
+    @keyframes reab-spin { to { transform: rotate(360deg); } }
+    .reab-form { display: grid; gap: 16px; }
+    .reab-form__header { padding: 18px; }
+    .reab-form__header h2 { margin: 0 0 6px; }
+    .reab-form__header p { margin: 0; color: var(--reab-muted); }
+    .reab-form__controls { padding: 16px; display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+    .reab-candidates { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; }
+    .reab-candidate-toolbar { padding: 14px; display: grid; grid-template-columns: minmax(200px, 1fr) 180px auto; gap: 10px; align-items: end; }
+    .reab-candidate-list { max-height: 55vh; overflow: auto; }
+    .reab-candidate { display: grid; grid-template-columns: 36px minmax(130px, .8fr) minmax(220px, 1.5fr) minmax(135px, .8fr) repeat(3, 90px); gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--reab-border); }
+    .reab-candidate:hover { background: #fafafa; }
+    .reab-candidate__muted { color: var(--reab-muted); font-size: .8rem; }
+    .reab-summary { padding: 16px; align-self: start; position: sticky; top: 10px; }
+    .reab-summary h3 { margin: 0 0 14px; }
+    .reab-summary__metric { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--reab-border); }
+    .reab-summary__actions { display: grid; gap: 8px; margin-top: 16px; }
+    .reab-alert { border-radius: 10px; padding: 12px 14px; font-size: .9rem; }
+    .reab-alert--error { color: #8c1d18; background: #fce8e6; border: 1px solid #f6aea9; }
+    .reab-alert--success { color: #0d652d; background: #e6f4ea; border: 1px solid #a8dab5; }
+    .reab-footnote { color: var(--reab-muted); font-size: .78rem; line-height: 1.45; }
+    @media (max-width: 1050px) {
+      .reab-kpis { grid-template-columns: repeat(2, 1fr); }
+      .reab-toolbar, .reab-form__controls, .reab-candidate-toolbar { grid-template-columns: 1fr 1fr; }
+      .reab-candidates { grid-template-columns: 1fr; }
+      .reab-summary { position: static; }
+      .reab-candidate { grid-template-columns: 34px 1fr 1.6fr 1fr; }
+      .reab-candidate > :nth-child(n+5) { display: none; }
+    }
+    @media (max-width: 650px) {
+      .reab-shell { padding: 12px; }
+      .reab-header { flex-direction: column; }
+      .reab-kpis, .reab-toolbar, .reab-form__controls, .reab-candidate-toolbar { grid-template-columns: 1fr; }
+      .reab-candidate { grid-template-columns: 34px 1fr; }
+      .reab-candidate > :nth-child(n+3) { display: none; }
+    }
+  </style>
+
+  <main class="reab-shell">
+    <header class="reab-header">
+      <div>
+        <h1 class="reab-title">Reabastecimiento</h1>
+        <p class="reab-subtitle">Gestión de solicitudes, atención y seguimiento de excedentes.</p>
+      </div>
+      <div class="reab-header__actions">
+        <button id="reab-refresh" class="reab-btn reab-btn--ghost" type="button">Actualizar</button>
+        <button id="reab-new" class="reab-btn reab-btn--primary" type="button">Nueva solicitud</button>
+      </div>
+    </header>
+
+
+
+    <section id="reab-panel-solicitudes" class="reab-panel" data-panel="SOLICITUDES">
+      <div class="reab-grid reab-kpis" aria-label="Resumen de solicitudes">
+        <article class="reab-card reab-kpi reab-kpi--open"><div class="reab-kpi__label">Abiertas</div><div id="reab-kpi-open" class="reab-kpi__value">0</div></article>
+        <article class="reab-card reab-kpi reab-kpi--attention"><div class="reab-kpi__label">En atención</div><div id="reab-kpi-attention" class="reab-kpi__value">0</div></article>
+        <article class="reab-card reab-kpi reab-kpi--closed"><div class="reab-kpi__label">Cerradas</div><div id="reab-kpi-closed" class="reab-kpi__value">0</div></article>
+        <article class="reab-card reab-kpi reab-kpi--inconsistent"><div class="reab-kpi__label">Inconsistentes</div><div id="reab-kpi-inconsistent" class="reab-kpi__value">0</div></article>
+      </div>
+
+      <div class="reab-card reab-toolbar">
+        <label class="reab-field"><span class="reab-label">Buscar</span><input id="reab-filter-text" class="reab-input" type="search" placeholder="Folio, solicitante o bodega" autocomplete="off"></label>
+        <label class="reab-field"><span class="reab-label">Estado</span><select id="reab-filter-status" class="reab-select"><option value="">Todos</option><option>ABIERTA</option><option>EN_ATENCION</option><option>CERRADA</option><option>INCONSISTENTE</option></select></label>
+        <label class="reab-field"><span class="reab-label">Bodega</span><select id="reab-filter-warehouse" class="reab-select"><option value="">Todas</option></select></label>
+        <button id="reab-clear-filters" class="reab-btn" type="button">Limpiar</button>
+      </div>
+
+      <div class="reab-card">
+        <div id="reab-requests-state" class="reab-loading"><div class="reab-spinner"></div>Cargando solicitudes...</div>
+        <div id="reab-requests-table-wrap" class="reab-table-wrap" hidden>
+          <table class="reab-table">
+            <thead><tr><th>Folio</th><th>Estado</th><th>Creación</th><th>Solicitante</th><th>Bodega</th><th>SKU</th><th>Cajas</th><th>Acción</th></tr></thead>
+            <tbody id="reab-requests-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const ROOT_ID = "reabastecimiento-root";
+      const state = {
+        destroyed: false,
+        requests: [],
+        loading: false,
+        initialized: false
+      };
+
+      const $ = (selector) => document.querySelector(`#${ROOT_ID} ${selector}`);
+      const text = (value) => String(value ?? "").trim();
+      const upper = (value) => text(value).toUpperCase();
+      const escapeHtml = (value) => text(value).replace(/[&<>'"]/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+      }[char]));
+
+      /** Ejecuta un endpoint de google.script.run como Promise. */
+      function callServer(method, ...args) {
+        return new Promise((resolve, reject) => {
+          if (!window.google?.script?.run) {
+            reject(new Error("google.script.run no está disponible."));
+            return;
+          }
+          const runner = google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject);
+          if (typeof runner[method] !== "function") {
+            reject(new Error(`Endpoint no disponible: ${method}`));
+            return;
+          }
+          runner[method](...args);
+        });
+      }
+
+      /** Elimina el código técnico del inicio de un error público. */
+      function publicError(error) {
+        const message = text(error?.message || error);
+        return message.replace(/^\[[A-Z0-9_]+\]\s*/, "") ||
+          "No fue posible completar la operación.";
+      }
+
+      /** Navega usando el cargador activo o emite un evento compatible. */
+      function navigate(view, context = {}) {
+        window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+        if (view === "ReabastecimientoDetalles") {
+          window.DATA_ALMACEN_CACHE.reabastecimientoNavigation = context;
+        }
+        if (typeof window.cargarVista === "function") {
+          window.cargarVista(view, context);
+          return;
+        }
+        window.dispatchEvent(new CustomEvent("appalmacen:navigate", {
+          detail: { view, context }
+        }));
+      }
+
+      /** Calcula y muestra los KPI a partir del estado derivado del servidor. */
+      function renderKpis() {
+        const counts = state.requests.reduce((result, item) => {
+          const status = upper(item.estado);
+          result[status] = (result[status] || 0) + 1;
+          return result;
+        }, Object.create(null));
+        $("#reab-kpi-open").textContent = counts.ABIERTA || 0;
+        $("#reab-kpi-attention").textContent = counts.EN_ATENCION || 0;
+        $("#reab-kpi-closed").textContent = counts.CERRADA || 0;
+        $("#reab-kpi-inconsistent").textContent = counts.INCONSISTENTE || 0;
+      }
+
+      /** Reconstruye el filtro de bodegas sin perder una selección válida. */
+      function renderWarehouseOptions() {
+        const select = $("#reab-filter-warehouse");
+        const selected = upper(select.value);
+        const warehouses = [...new Set(
+          state.requests.map((item) => upper(item.bodega)).filter(Boolean)
+        )].sort();
+        select.innerHTML = '<option value="">Todas</option>' +
+          warehouses.map((warehouse) =>
+            `<option value="${escapeHtml(warehouse)}">${escapeHtml(warehouse)}</option>`
+          ).join("");
+        select.value = warehouses.includes(selected) ? selected : "";
+      }
+
+      /** Devuelve solicitudes filtradas completamente en cliente. */
+      function getVisibleRequests() {
+        const query = upper($("#reab-filter-text").value);
+        const status = upper($("#reab-filter-status").value);
+        const warehouse = upper($("#reab-filter-warehouse").value);
+        return state.requests.filter((item) => {
+          const searchable = upper([
+            item.idSolicitud, item.solicitante, item.bodega
+          ].join(" "));
+          return (!query || searchable.includes(query)) &&
+            (!status || upper(item.estado) === status) &&
+            (!warehouse || upper(item.bodega) === warehouse);
+        });
+      }
+
+      /** Renderiza la tabla y conserva el DOM limitado al conjunto filtrado. */
+      function renderRequests() {
+        const body = $("#reab-requests-body");
+        const records = getVisibleRequests();
+        if (!records.length) {
+          body.innerHTML = '<tr><td colspan="8"><div class="reab-empty">No hay solicitudes para los filtros seleccionados.</div></td></tr>';
+        } else {
+          body.innerHTML = records.map((item) => {
+            const status = upper(item.estado);
+            const canAttend = status === "ABIERTA" || status === "EN_ATENCION";
+            return `<tr>
+              <td><strong>${escapeHtml(item.idSolicitud)}</strong></td>
+              <td><span class="reab-status reab-status--${escapeHtml(status)}">${escapeHtml(status.replaceAll("_", " "))}</span></td>
+              <td>${escapeHtml(item.fechaCreacion)} <span class="reab-candidate__muted">${escapeHtml(item.horaCreacion)}</span></td>
+              <td>${escapeHtml(item.solicitante)}</td>
+              <td>${escapeHtml(item.bodega)}</td>
+              <td>${Number(item.skusSolicitados || 0)}</td>
+              <td>${Number(item.cajasInvolucradas || 0)}</td>
+              <td><button class="reab-btn" type="button" data-request-id="${escapeHtml(item.idSolicitud)}">${canAttend ? "Atender" : "Ver detalle"}</button></td>
+            </tr>`;
+          }).join("");
+        }
+        $("#reab-requests-state").hidden = true;
+        $("#reab-requests-table-wrap").hidden = false;
+      }
+
+      /** Consulta el listado ligero; nunca carga candidatos de solicitud. */
+      async function loadRequests() {
+        if (state.loading || state.destroyed) return;
+        state.loading = true;
+        $("#reab-refresh").disabled = true;
+        $("#reab-requests-table-wrap").hidden = true;
+        $("#reab-requests-state").hidden = false;
+        $("#reab-requests-state").innerHTML =
+          '<div class="reab-spinner"></div>Cargando solicitudes...';
+        try {
+          const response = await callServer(
+            "ReabastecimientoController_getSolicitudes",
+            {}
+          );
+          state.requests = Array.isArray(response?.data?.solicitudes)
+            ? response.data.solicitudes
+            : [];
+          renderKpis();
+          renderWarehouseOptions();
+          renderRequests();
+        } catch (error) {
+          $("#reab-requests-state").innerHTML =
+            `<div class="reab-alert reab-alert--error">${escapeHtml(publicError(error))}</div>`;
+        } finally {
+          state.loading = false;
+          $("#reab-refresh").disabled = false;
+        }
+      }
+
+      /** Registra eventos una sola vez durante la vida de la vista. */
+      function bindEvents() {
+        $("#reab-new").addEventListener("click", () =>
+          navigate("ReabastecimientoSolicitud")
+        );
+        $("#reab-refresh").addEventListener("click", loadRequests);
+        $("#reab-filter-text").addEventListener("input", renderRequests);
+        $("#reab-filter-status").addEventListener("change", renderRequests);
+        $("#reab-filter-warehouse").addEventListener("change", renderRequests);
+        $("#reab-clear-filters").addEventListener("click", () => {
+          $("#reab-filter-text").value = "";
+          $("#reab-filter-status").value = "";
+          $("#reab-filter-warehouse").value = "";
+          renderRequests();
+        });
+        $("#reab-requests-body").addEventListener("click", (event) => {
+          const button = event.target.closest("[data-request-id]");
+          if (!button) return;
+          navigate("ReabastecimientoDetalles", {
+            idSolicitud: text(button.dataset.requestId)
+          });
+        });
+      }
+
+      /** Inicializa la vista de listado. */
+      window.initReabastecimientoView = function initReabastecimientoView() {
+        if (state.destroyed || state.initialized) return;
+        state.initialized = true;
+        bindEvents();
+        loadRequests();
+      };
+
+      /** Libera referencias mantenidas por la vista. */
+      window.destroyReabastecimientoView = function destroyReabastecimientoView() {
+        state.destroyed = true;
+        state.requests = [];
+      };
+
+      window.initReabastecimientoView();
+    })();
+  </script>
+</div>
+

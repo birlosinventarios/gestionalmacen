@@ -1,0 +1,155 @@
+<!--
+  ReabastecimientoSolicitud.html
+
+  Vista independiente para crear tickets de Reabastecimiento.
+
+  RESPONSABILIDADES
+  - Capturar solicitante y bodega.
+  - Consultar candidatos únicamente bajo demanda.
+  - Conservar candidatos por bodega en memoria durante dos minutos.
+  - Filtrar, seleccionar y resumir SKU localmente.
+  - Enviar al servidor solamente código y ubicación.
+  - Volver al listado después de una creación exitosa.
+
+  RENDIMIENTO
+  - No consulta candidatos al montar la vista.
+  - No ejecuta RPC por cada carácter.
+  - Renderiza como máximo 250 candidatos, aunque conserva todo el conjunto.
+
+  SEGURIDAD
+  - Escapa contenido insertado mediante innerHTML.
+  - Bloquea dobles envíos.
+  - El servidor revalida usuario, bodega, código, ubicación y elegibilidad.
+  - No registra datos operativos en consola.
+
+  @author Sigifredo de la Cruz Ramos
+  @version REABASTECIMIENTO-SOLICITUD-VIEW-2026-11-11-01
+-->
+<div id="reabastecimiento-solicitud-root" class="reas-app" aria-live="polite">
+  <style>
+    #reabastecimiento-solicitud-root {
+      --reas-primary:#d93025;--reas-primary-dark:#b3261e;--reas-surface:#fff;
+      --reas-soft:#f1f3f4;--reas-text:#202124;--reas-muted:#5f6368;
+      --reas-border:#dadce0;--reas-success:#188038;--reas-danger:#c5221f;
+      --reas-radius:14px;--reas-shadow:0 2px 10px rgba(60,64,67,.10);
+      color:var(--reas-text);font-family:Inter,Roboto,Arial,sans-serif;min-height:100%;
+    }
+    #reabastecimiento-solicitud-root *{box-sizing:border-box}
+    #reabastecimiento-solicitud-root button,#reabastecimiento-solicitud-root input,#reabastecimiento-solicitud-root select{font:inherit}
+    .reas-shell{display:grid;gap:16px;max-width:1600px;margin:0 auto;padding:20px}
+    .reas-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+    .reas-header__identity,.reas-actions{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+    .reas-title{margin:0;font-size:clamp(1.4rem,2vw,2rem)}
+    .reas-subtitle{margin:6px 0 0;color:var(--reas-muted)}
+    .reas-card{background:var(--reas-surface);border:1px solid var(--reas-border);border-radius:var(--reas-radius);box-shadow:var(--reas-shadow)}
+    .reas-btn{min-height:42px;border:1px solid var(--reas-border);border-radius:10px;padding:0 15px;background:var(--reas-surface);color:var(--reas-text);cursor:pointer;font-weight:800;transition:.18s ease}
+    .reas-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:var(--reas-shadow)}
+    .reas-btn:disabled{opacity:.52;cursor:not-allowed}.reas-btn--primary{color:#fff;background:var(--reas-primary);border-color:var(--reas-primary)}
+    .reas-btn--primary:hover:not(:disabled){background:var(--reas-primary-dark)}
+    .reas-btn:focus-visible,.reas-input:focus-visible,.reas-select:focus-visible{outline:3px solid rgba(25,103,210,.25);outline-offset:2px}
+    .reas-controls{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;padding:16px;align-items:end}
+    .reas-field{display:grid;gap:6px}.reas-label{color:var(--reas-muted);font-size:.74rem;font-weight:900;text-transform:uppercase;letter-spacing:.035em}
+    .reas-input,.reas-select{width:100%;min-height:43px;border:1px solid var(--reas-border);border-radius:10px;padding:0 12px;background:var(--reas-surface);color:var(--reas-text)}
+    .reas-alert{padding:12px 14px;border-radius:10px}.reas-alert--error{color:#8c1d18;background:#fce8e6;border:1px solid #f6aea9}.reas-alert--success{color:#0d652d;background:#e6f4ea;border:1px solid #a8dab5}
+    .reas-empty,.reas-loading{padding:46px 18px;text-align:center;color:var(--reas-muted)}
+    .reas-spinner{width:29px;height:29px;margin:0 auto 12px;border:3px solid #e0e0e0;border-top-color:var(--reas-primary);border-radius:50%;animation:reas-spin .8s linear infinite}@keyframes reas-spin{to{transform:rotate(360deg)}}
+    .reas-workspace{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px}
+    .reas-toolbar{display:grid;grid-template-columns:minmax(220px,1fr) 190px auto;gap:10px;padding:14px;align-items:end}
+    .reas-list{max-height:62vh;overflow:auto}.reas-row{display:grid;grid-template-columns:38px minmax(120px,.75fr) minmax(220px,1.4fr) minmax(145px,.8fr) repeat(3,90px);gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--reas-border)}
+    .reas-row:hover{background:#fafafa}.reas-muted{color:var(--reas-muted);font-size:.78rem}.reas-code{font-weight:900}
+    .reas-summary{position:sticky;top:10px;align-self:start;padding:16px}.reas-summary h2{margin:0 0 14px;font-size:1.05rem}
+    .reas-metric{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--reas-border)}
+    .reas-summary__actions{display:grid;gap:8px;margin-top:16px}.reas-footnote{color:var(--reas-muted);font-size:.78rem;line-height:1.45}
+    @media(max-width:1050px){.reas-controls,.reas-toolbar{grid-template-columns:1fr 1fr}.reas-workspace{grid-template-columns:1fr}.reas-summary{position:static}.reas-row{grid-template-columns:34px 1fr 1.6fr 1fr}.reas-row>:nth-child(n+5){display:none}}
+    @media(max-width:650px){.reas-shell{padding:12px}.reas-header{flex-direction:column}.reas-controls,.reas-toolbar{grid-template-columns:1fr}.reas-row{grid-template-columns:34px 1fr}.reas-row>:nth-child(n+3){display:none}}
+  </style>
+
+  <main class="reas-shell">
+    <header class="reas-header">
+      <div class="reas-header__identity">
+        <button id="reas-back" class="reas-btn" type="button">← Volver</button>
+        <div><h1 class="reas-title">Nueva solicitud</h1><p class="reas-subtitle">Selecciona los SKU que requieren reabastecimiento y conservan excedente vigente.</p></div>
+      </div>
+    </header>
+
+    <div id="reas-message" hidden></div>
+    <section class="reas-card reas-controls">
+      <label class="reas-field"><span class="reas-label">Solicitante</span><input id="reas-applicant" class="reas-input" type="text" maxlength="250" autocomplete="name" placeholder="Nombre registrado en usuarios"></label>
+      <label class="reas-field"><span class="reas-label">Bodega</span><select id="reas-warehouse" class="reas-select"><option value="">Selecciona una bodega</option><option value="ALMACENBIRLOS">Almacén Birlos</option><option value="EXCEDENTEBODEGA">Excedente Bodega</option><option value="EXCEDENTECASABLANCA">Excedente Casa Blanca</option></select></label>
+      <button id="reas-load" class="reas-btn reas-btn--primary" type="button">Consultar candidatos</button>
+    </section>
+
+    <div id="reas-state" class="reas-card reas-empty">Selecciona una bodega y presiona Consultar candidatos.</div>
+    <section id="reas-workspace" class="reas-workspace" hidden>
+      <div class="reas-card">
+        <div class="reas-toolbar">
+          <label class="reas-field"><span class="reas-label">Buscar</span><input id="reas-filter" class="reas-input" type="search" placeholder="Código, descripción o ubicación" autocomplete="off"></label>
+          <label class="reas-field"><span class="reas-label">Prioridad</span><select id="reas-priority" class="reas-select"><option value="">Todas</option><option value="RELLENO URGENTE">Urgente</option><option value="RELLENO PREVENTIVO">Preventivo</option></select></label>
+          <button id="reas-select-visible" class="reas-btn" type="button">Seleccionar visibles</button>
+        </div>
+        <div id="reas-list" class="reas-list"></div>
+      </div>
+      <aside class="reas-card reas-summary">
+        <h2>Resumen</h2>
+        <div class="reas-metric"><span>Seleccionados</span><strong id="reas-selected">0</strong></div>
+        <div class="reas-metric"><span>Candidatos</span><strong id="reas-total">0</strong></div>
+        <div class="reas-summary__actions">
+          <button id="reas-create" class="reas-btn reas-btn--primary" type="button" disabled>Crear solicitud</button>
+          <button id="reas-clear" class="reas-btn" type="button" disabled>Limpiar selección</button>
+        </div>
+        <p class="reas-footnote">El Service revalidará usuario, bodega, código, ubicación y elegibilidad bajo ScriptLock antes de generar el folio.</p>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+      const ROOT_ID="reabastecimiento-solicitud-root",CACHE_TTL_MS=120000,RENDER_LIMIT=250;
+      const state={destroyed:false,initialized:false,candidates:[],filtered:[],selected:new Map(),cache:new Map(),loading:false,creating:false};
+      const $=(selector)=>document.querySelector(`#${ROOT_ID} ${selector}`);
+      const text=(value)=>String(value??"").trim();
+      const upper=(value)=>text(value).toUpperCase();
+      const escapeHtml=(value)=>text(value).replace(/[&<>'"]/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
+      const itemKey=(item)=>upper(item.codigo);
+
+      /** Ejecuta un endpoint Apps Script mediante Promise. */
+      function callServer(method,...args){return new Promise((resolve,reject)=>{if(!window.google?.script?.run){reject(new Error("google.script.run no está disponible."));return}const runner=google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);if(typeof runner[method]!=="function"){reject(new Error(`Endpoint no disponible: ${method}`));return}runner[method](...args)})}
+
+      /** Extrae un mensaje público sin el código técnico inicial. */
+      function publicError(error){const message=text(error?.message||error);return message.replace(/^\[[A-Z0-9_]+\]\s*/,"")||"No fue posible completar la operación."}
+
+      /** Navega al listado principal. */
+      function navigateBack(){if(typeof window.cargarVista==="function"){window.cargarVista("Reabastecimiento");return}window.dispatchEvent(new CustomEvent("appalmacen:navigate",{detail:{view:"Reabastecimiento",context:{}}}))}
+
+      /** Muestra un mensaje accesible de operación. */
+      function showMessage(message,type="error"){const node=$("#reas-message");node.hidden=!message;node.className=`reas-alert reas-alert--${type}`;node.textContent=message||""}
+
+      /** Aplica búsqueda y prioridad completamente en memoria. */
+      function applyFilters(){const query=upper($("#reas-filter").value),priority=upper($("#reas-priority").value);state.filtered=state.candidates.filter((item)=>{const searchable=upper([item.codigo,item.descripcion,item.ubicacionSurtido].join(" "));return(!query||searchable.includes(query))&&(!priority||upper(item.accionOperativa)===priority)});renderCandidates()}
+
+      /** Actualiza conteos y disponibilidad de acciones. */
+      function renderSummary(){$("#reas-selected").textContent=state.selected.size;$("#reas-total").textContent=state.candidates.length;$("#reas-create").disabled=state.selected.size===0||state.creating;$("#reas-clear").disabled=state.selected.size===0||state.creating}
+
+      /** Renderiza solo una ventana representativa del conjunto filtrado. */
+      function renderCandidates(){const visible=state.filtered.slice(0,RENDER_LIMIT),list=$("#reas-list");list.innerHTML=visible.length?visible.map((item)=>{const key=itemKey(item);return `<label class="reas-row"><input type="checkbox" data-key="${escapeHtml(key)}" ${state.selected.has(key)?"checked":""}><div><div class="reas-code">${escapeHtml(item.codigo)}</div><div class="reas-muted">${escapeHtml(item.accionOperativa)}</div></div><div>${escapeHtml(item.descripcion)}</div><div>${escapeHtml(item.ubicacionSurtido)}</div><div><strong>${Number(item.existenciaActual||0)}</strong><div class="reas-muted">Existencia</div></div><div><strong>${Number(item.cantidadObjetivoRelleno||0)}</strong><div class="reas-muted">Objetivo</div></div><div><strong>${Number(item.excedenteDisponibleIdUnico||0)}</strong><div class="reas-muted">Excedente</div></div></label>`}).join(""):'<div class="reas-empty">Sin candidatos para los filtros seleccionados.</div>';if(state.filtered.length>RENDER_LIMIT)list.insertAdjacentHTML("beforeend",`<div class="reas-empty">Mostrando ${RENDER_LIMIT} de ${state.filtered.length}. Usa los filtros para reducir resultados.</div>`);renderSummary()}
+
+      /** Consulta candidatos bajo demanda y usa caché temporal por bodega. */
+      async function loadCandidates(){const warehouse=upper($("#reas-warehouse").value);if(!warehouse)return showMessage("Selecciona una bodega.");if(state.loading)return;state.loading=true;showMessage("");$("#reas-load").disabled=true;$("#reas-workspace").hidden=true;$("#reas-state").hidden=false;$("#reas-state").innerHTML='<div class="reas-spinner"></div>Consultando existencias, ubicaciones y excedentes vigentes...';try{const cached=state.cache.get(warehouse);let records;if(cached&&Date.now()-cached.loadedAt<CACHE_TTL_MS)records=cached.records;else{const response=await callServer("ReabastecimientoController_getCandidatosPorBodega",warehouse);records=Array.isArray(response?.data?.registros)?response.data.registros:[];state.cache.set(warehouse,{loadedAt:Date.now(),records})}state.candidates=records;state.filtered=records.slice();state.selected.clear();$("#reas-state").hidden=true;$("#reas-workspace").hidden=false;renderCandidates()}catch(error){$("#reas-state").innerHTML=`<div class="reas-alert reas-alert--error">${escapeHtml(publicError(error))}</div>`}finally{state.loading=false;$("#reas-load").disabled=false}}
+
+      /** Envía identificadores mínimos y evita doble creación. */
+      async function createRequest(){if(state.creating)return;const applicant=text($("#reas-applicant").value),warehouse=upper($("#reas-warehouse").value);if(!applicant)return showMessage("Captura un solicitante registrado.");if(!warehouse)return showMessage("Selecciona una bodega.");if(!state.selected.size)return showMessage("Selecciona al menos un SKU.");state.creating=true;showMessage("");renderSummary();$("#reas-create").textContent="Creando...";try{const response=await callServer("ReabastecimientoController_crearSolicitud",{solicitante:applicant,bodega:warehouse,partidas:[...state.selected.values()].map((item)=>({codigo:item.codigo,ubicacion:item.ubicacionSurtido}))});const id=text(response?.data?.idSolicitud);state.cache.delete(warehouse);showMessage(`Solicitud ${id} creada correctamente.`,"success");window.DATA_ALMACEN_CACHE=window.DATA_ALMACEN_CACHE||{};window.DATA_ALMACEN_CACHE.reabastecimientoUltimaSolicitud=id;setTimeout(navigateBack,900)}catch(error){showMessage(publicError(error))}finally{state.creating=false;$("#reas-create").textContent="Crear solicitud";renderSummary()}}
+
+      /** Registra eventos una sola vez. */
+      function bindEvents(){$("#reas-back").addEventListener("click",navigateBack);$("#reas-load").addEventListener("click",loadCandidates);$("#reas-warehouse").addEventListener("change",()=>{state.candidates=[];state.filtered=[];state.selected.clear();$("#reas-workspace").hidden=true;$("#reas-state").hidden=false;$("#reas-state").textContent="Presiona Consultar candidatos para cargar la bodega.";renderSummary()});$("#reas-filter").addEventListener("input",applyFilters);$("#reas-priority").addEventListener("change",applyFilters);$("#reas-list").addEventListener("change",(event)=>{const input=event.target.closest("[data-key]");if(!input)return;const item=state.candidates.find((candidate)=>itemKey(candidate)===input.dataset.key);if(input.checked&&item)state.selected.set(input.dataset.key,item);else state.selected.delete(input.dataset.key);renderSummary()});$("#reas-select-visible").addEventListener("click",()=>{state.filtered.slice(0,RENDER_LIMIT).forEach((item)=>state.selected.set(itemKey(item),item));renderCandidates()});$("#reas-clear").addEventListener("click",()=>{state.selected.clear();renderCandidates()});$("#reas-create").addEventListener("click",createRequest)}
+
+      /** Inicializa la vista independiente de creación. */
+      window.initReabastecimientoSolicitudView=function initReabastecimientoSolicitudView(){if(state.destroyed||state.initialized)return;state.initialized=true;bindEvents()};
+
+      /** Libera referencias de candidatos y selección. */
+      window.destroyReabastecimientoSolicitudView=function destroyReabastecimientoSolicitudView(){state.destroyed=true;state.candidates=[];state.filtered=[];state.selected.clear();state.cache.clear()};
+
+      window.initReabastecimientoSolicitudView();
+    })();
+  </script>
+</div>
