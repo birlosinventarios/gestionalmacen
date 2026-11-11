@@ -17,7 +17,8 @@
  * - Invalidar de forma específica las cachés de UBICACIONES_MAXMIN.
  * - Verificar contratos de hojas del módulo Verificación de entrada.
  * - Validar y normalizar contratos documentales de Gestión de Material.
- * - Validar los contratos físicos del módulo de Reabastecimiento.
+ * - Validar los contratos físicos del módulo de Reabastecimiento, incluidos los
+ *   nueve campos de detalle sin consecutivo de partida.
  * - Generar contextos temporales, folios y consecutivos de Reabastecimiento.
  * - Invalidar selectivamente las cachés del dominio de Reabastecimiento.
  * - Administrar claves COTIZACION_NUM, identificadores y consecutivos diarios.
@@ -40,7 +41,7 @@
  * - Los Controllers utilizan execController_(controllerName, label, executor).
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-UTILIDADES-DATOS-2026-11-10-05
+ * @version APPALMACEN-UTILIDADES-DATOS-2026-11-10-06
  */
 
 // =========================================================
@@ -2183,7 +2184,8 @@ function assertMaterialDocumentSheets_(trace) {
  * Valida los contratos físicos de las tres hojas de Reabastecimiento.
  *
  * La función no escribe información. Verifica que todas las hojas pertenezcan a
- * GESTION5 y que sus encabezados coincidan exactamente con Constants.
+ * GESTION5 y que sus encabezados coincidan exactamente con Constants. El detalle
+ * usa nueve columnas y se relaciona con la partida mediante solicitud + código.
  *
  * @param {Object=} trace Tracker opcional.
  * @return {!Array<!Object>} Contratos validados en orden lógico.

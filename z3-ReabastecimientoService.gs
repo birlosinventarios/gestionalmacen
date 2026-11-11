@@ -8,7 +8,8 @@
  * MODELO
  * - REABASTECIMIENTO_SOLICITUDES: una fila por ticket.
  * - REABASTECIMIENTO_PARTIDAS: una fila por SKU y ubicación solicitados.
- * - REABASTECIMIENTO_DETALLES: una fila por IDUNICO escaneado.
+ * - REABASTECIMIENTO_DETALLES: una fila por IDUNICO escaneado; se vincula con
+ *   la partida mediante ID_SOLICITUD + código y no persiste consecutivo de partida.
  *
  * REGLAS PRINCIPALES
  * - El estado de la solicitud se deriva de las marcas de inicio y cierre.
@@ -35,7 +36,7 @@
  * - Las escrituras son idempotentes cuando el estado ya refleja el resultado.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-SERVICE-2026-11-10-01
+ * @version REABASTECIMIENTO-SERVICE-2026-11-10-02
  */
 const ReabastecimientoService = (() => {
   "use strict";
@@ -263,9 +264,9 @@ const ReabastecimientoService = (() => {
       if (!candidate) {
         throw domainError_(REABASTECIMIENTO_CONFIG.ERROR_CODES.PAYLOAD_INVALIDO, "Uno de los SKU ya no es elegible para reabastecimiento.", { index: index });
       }
-      const key = code + "|" + location;
+      const key = code;
       if (unique[key]) {
-        throw domainError_(REABASTECIMIENTO_CONFIG.ERROR_CODES.PARTIDA_DUPLICADA, "La solicitud contiene SKU y ubicación duplicados.");
+        throw domainError_(REABASTECIMIENTO_CONFIG.ERROR_CODES.PARTIDA_DUPLICADA, "La solicitud contiene un código duplicado.");
       }
       unique[key] = true;
       return candidate;
@@ -379,17 +380,19 @@ const ReabastecimientoService = (() => {
       }
       const parts = ReabastecimientoPartidasRepository.getBySolicitud(id, trace);
       const details = ReabastecimientoDetallesRepository.getBySolicitud(id, trace);
-      const detailsByPart = details.reduce(function(map, item) {
-        if (!map[item.idPartidaConsecutivo]) map[item.idPartidaConsecutivo] = [];
-        map[item.idPartidaConsecutivo].push(item);
+      const detailsByCode = details.reduce(function(map, item) {
+        const code = toStrUpper_(item.codigo);
+        if (!map[code]) map[code] = [];
+        map[code].push(item);
         return map;
       }, Object.create(null));
       const result = {
         solicitud: Object.assign({}, request, { estado: deriveRequestState_(request) }),
         partidas: parts.map(function(part) {
           return Object.assign({}, part, {
-            detalles: detailsByPart[part.idPartidaConsecutivo] || [],
-            cajasEscaneadas: (detailsByPart[part.idPartidaConsecutivo] || []).length
+            detalles: detailsByCode[toStrUpper_(part.codigoSolicitado)] || [],
+            cajasEscaneadas:
+              (detailsByCode[toStrUpper_(part.codigoSolicitado)] || []).length
           });
         }),
         totalPartidas: parts.length,
@@ -536,10 +539,13 @@ const ReabastecimientoService = (() => {
             throw domainError_(REABASTECIMIENTO_CONFIG.ERROR_CODES.IDUNICO_DUPLICADO, "El IDUNICO ya fue registrado en esta solicitud.");
           }
           const temporal = getReabastecimientoTemporalContext_();
-          const sequence = ReabastecimientoDetallesRepository.nextDetailConsecutiveUnderLock(id, partId, trace);
+          const sequence =
+            ReabastecimientoDetallesRepository.nextDetailConsecutiveUnderLock(
+              id,
+              trace
+            );
           ReabastecimientoDetallesRepository.appendUnderLock({
             idSolicitud: id,
-            idPartidaConsecutivo: partId,
             idDetalleConsecutivo: sequence,
             idUnico: state.idUnico,
             codigo: state.codigo,

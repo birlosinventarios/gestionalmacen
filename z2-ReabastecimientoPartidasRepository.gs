@@ -6,8 +6,8 @@
  *
  * Responsabilidades:
  * - Validar REABASTECIMIENTO_PARTIDAS.
- * - Consultar partidas por solicitud y clave compuesta.
- * - Insertar lotes de partidas dentro de la transacción de creación.
+ * - Consultar partidas por solicitud, consecutivo y código.
+ * - Insertar lotes y garantizar un solo registro por código dentro del ticket.
  * - Cambiar una partida de PENDIENTE a ATENDIDO bajo lock externo.
  * - Conservar fecha, hora y usuario de la primera atención.
  *
@@ -30,7 +30,7 @@
  * - Las métricas contienen únicamente cantidades, índices y duraciones.
  * - El Repository no confía en números de fila proporcionados por el navegador.
  * @author Sigifredo de la Cruz Ramos
- * @version REAB-PARTIDAS-REPOSITORY-2026-11-10-01
+ * @version REAB-PARTIDAS-REPOSITORY-2026-11-10-02
  */
 const ReabastecimientoPartidasRepository = (() => {
   "use strict";
@@ -106,6 +106,17 @@ const ReabastecimientoPartidasRepository = (() => {
     return matches[0] || null;
   }
 
+  function getByCodigo(idSolicitud, codigo, trace) {
+    const id = toStrUpper_(idSolicitud);
+    const code = toStrUpper_(codigo);
+    const matches = getAll(trace).filter(function(item) {
+      return item.idSolicitud === id && item.codigoSolicitado === code;
+    });
+    if (matches.length > 1) {
+      throw new Error(CFG.LOG_PREFIX + " Código duplicado dentro de la solicitud.");
+    }
+    return matches[0] || null;
+  }
   function appendManyUnderLock(records, trace) {
     const source = Array.isArray(records) ? records : [];
     if (!source.length) throw new Error("Se requiere al menos una partida.");
@@ -115,7 +126,7 @@ const ReabastecimientoPartidasRepository = (() => {
       const c = COL.REABASTECIMIENTO_PARTIDAS;
       if (!row[c.ID_SOLICITUD] || !row[c.ID_PARTIDACONSECUTIVO] || !row[c.SOLICITUD_CODIGOSOLICITADO])
         throw new Error("Cada partida requiere solicitud, consecutivo y código.");
-      const key = row[c.ID_SOLICITUD] + "|" + row[c.SOLICITUD_CODIGOSOLICITADO] + "|" + row[c.SOLICITUD_CODIGOSOLICITADOUBICACION];
+      const key = row[c.ID_SOLICITUD] + "|" + row[c.SOLICITUD_CODIGOSOLICITADO];
       if (unique[key]) {
         const error = new Error("Existe una partida duplicada en el lote.");
         error.code = REABASTECIMIENTO_CONFIG.ERROR_CODES.PARTIDA_DUPLICADA;
@@ -156,6 +167,7 @@ const ReabastecimientoPartidasRepository = (() => {
     getAll,
     getBySolicitud,
     getByKey,
+    getByCodigo,
     appendManyUnderLock,
     markAttendedUnderLock,
     validateContract,

@@ -44,7 +44,7 @@
  * - toStr_() y toStrUpper_().
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-CONTROLLER-2026-11-10-01
+ * @version REABASTECIMIENTO-CONTROLLER-2026-11-10-02
  */
 const REABASTECIMIENTO_CONTROLLER_CONFIG = Object.freeze({
   MODULE: "REABASTECIMIENTO",
@@ -407,6 +407,8 @@ function ReabastecimientoController_atenderPartida(payload) {
 
 /**
  * Valida un IDUNICO contra una partida sin persistir el escaneo.
+ * idPartidaConsecutivo identifica la partida operativa, pero no se almacena en
+ * REABASTECIMIENTO_DETALLES.
  *
  * Payload esperado:
  * {
@@ -435,7 +437,9 @@ function ReabastecimientoController_validarIdUnico(payload) {
 }
 
 /**
- * Registra un IDUNICO escaneado en una partida.
+ * Registra un IDUNICO escaneado para el código de una partida.
+ * idPartidaConsecutivo se usa para recuperar el código autoritativo y no se
+ * persiste en la hoja de detalles.
  *
  * Payload esperado:
  * {

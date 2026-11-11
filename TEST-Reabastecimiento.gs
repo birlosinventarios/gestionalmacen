@@ -32,7 +32,7 @@
  * 3. Ejecutar pruebas destructivas solamente con un caso controlado.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version TEST-REABASTECIMIENTO-2026-11-10-01
+ * @version TEST-REABASTECIMIENTO-2026-11-10-02
  */
 
 const TEST_REAB_CONFIG = Object.freeze({
@@ -43,7 +43,7 @@ const TEST_REAB_CONFIG = Object.freeze({
   EXPECTED_WIDTHS: Object.freeze({
     SOLICITUDES: 12,
     PARTIDAS: 9,
-    DETALLES: 10
+    DETALLES: 9
   })
 });
 
@@ -200,6 +200,7 @@ function TEST_REAB_SAFE_ejecutarTodo(bodega) {
     TEST_REAB_SAFE_validarConfiguracion(),
     TEST_REAB_SAFE_validarContratos(),
     TEST_REAB_SAFE_leerRepositorios(),
+    TEST_REAB_SAFE_validarIntegridadRelacional(),
     TEST_REAB_SAFE_derivarEstados(),
     TEST_REAB_SAFE_listarSolicitudes(),
     TEST_REAB_SAFE_validarErroresController(),
@@ -316,6 +317,39 @@ function TEST_REAB_SAFE_leerRepositorios() {
       solicitudes: solicitudes.length,
       partidas: partidas.length,
       detalles: detalles.length
+    };
+  });
+}
+
+
+/**
+ * Verifica la relación solicitud + código y la ausencia de códigos duplicados.
+ *
+ * @return {!Object} Resultado de prueba.
+ */
+function TEST_REAB_SAFE_validarIntegridadRelacional() {
+  return TEST_REAB_run_("INTEGRIDAD_RELACIONAL", function() {
+    const partidas = ReabastecimientoPartidasRepository.getAll();
+    const detalles = ReabastecimientoDetallesRepository.getAll();
+    const partKeys = Object.create(null);
+    let duplicateParts = 0;
+    partidas.forEach(function(part) {
+      const key = part.idSolicitud + "|" + part.codigoSolicitado;
+      if (partKeys[key]) duplicateParts += 1;
+      partKeys[key] = true;
+    });
+    const orphanDetails = detalles.filter(function(detail) {
+      return !partKeys[detail.idSolicitud + "|" + detail.codigo];
+    }).length;
+    TEST_REAB_assertEqual_(duplicateParts, 0,
+      "Existen códigos duplicados dentro de una solicitud.");
+    TEST_REAB_assertEqual_(orphanDetails, 0,
+      "Existen detalles sin una partida coincidente por solicitud + código.");
+    return {
+      totalPartidas: partidas.length,
+      totalDetalles: detalles.length,
+      partidasDuplicadas: duplicateParts,
+      detallesHuerfanos: orphanDetails
     };
   });
 }

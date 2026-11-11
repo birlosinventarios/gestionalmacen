@@ -28,7 +28,7 @@
  * - Un ID de Spreadsheet corresponde al segmento entre `/d/` y `/edit` en su URL.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-2026-11-10-07
+ * @version APPALMACEN-2026-11-10-08
  */
 
 /**
@@ -326,7 +326,8 @@ const COL = Object.freeze({
  * MODELO RELACIONAL
  * - REABASTECIMIENTO_SOLICITUDES contiene una fila por ticket.
  * - REABASTECIMIENTO_PARTIDAS contiene una fila por SKU y ubicación solicitados.
- * - REABASTECIMIENTO_DETALLES contiene una fila por IDUNICO escaneado.
+ * - REABASTECIMIENTO_DETALLES contiene una fila por IDUNICO escaneado y se
+ *   relaciona con la partida mediante ID_SOLICITUD + código.
  *
  * Las listas son la fuente única para validar encabezados y calcular los anchos.
  * El orden debe coincidir exactamente con COL y con la fila 1 de cada hoja.
@@ -404,7 +405,8 @@ const REABASTECIMIENTO_EXPECTED_WIDTHS = Object.freeze({
  * INVARIANTES
  * - El folio utiliza REA- + yyyyMMdd + consecutivo diario de dos dígitos.
  * - La generación de folio y las escrituras relacionadas requieren ScriptLock.
- * - Dentro de una solicitud no se repite código + ubicación de piso.
+ * - Dentro de una solicitud no se repite el código solicitado; esta unicidad
+ *   permite relacionar cada detalle con una sola partida mediante solicitud + código.
  * - Un IDUNICO no se registra dos veces dentro de una misma solicitud.
  * - La transición ordinaria de partida es PENDIENTE a ATENDIDO.
  *
@@ -447,8 +449,7 @@ const REABASTECIMIENTO_CONFIG = Object.freeze({
   }),
   LIMITES: Object.freeze({
     MAX_SKUS_POR_SOLICITUD: 99,
-    MAX_DETALLES_POR_PARTIDA: 999,
-    MAX_DETALLES_POR_SOLICITUD: 5000,
+    MAX_DETALLES_POR_SOLICITUD: 999,
     FOLIO_MAX_LENGTH: 32,
     CODIGO_MAX_LENGTH: 100,
     DESCRIPCION_MAX_LENGTH: 500,
@@ -1176,7 +1177,7 @@ const APPALMACEN_ROUTING = Object.freeze({
     "MonitorReabastecimiento", "AuditoriaExcedentes", "AuditoriaExcedentesCaptura",
     "AuditoriaExcedentesDetalle", "PrototipoExcedentes", "FormularioDetallesProducto",
     "FormularioUbicacionesMaxMin", "Reabastecimiento",
-    "ReabastecimientoDetalles", "ReabastecimientoSolicitud"
+    "ReabastecimientoDetalles"
   ]),
   PRINT_PAGES: Object.freeze(["imprimir", "EtiquetaExcedentesImpresa"]),
   TEST_PAGE: "Pruebas",
