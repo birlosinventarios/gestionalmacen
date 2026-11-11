@@ -12,6 +12,7 @@
   - Exponer el envoltorio APPALMACEN_ACTIONS para operaciones basadas en google.script.run.
   - Administrar los controles globales de impresión LOCAL y ONLINE.
   - Registrar FormularioUbicacionesMaxMin y desmontar su raíz React al navegar.
+  - Integrar Reabastecimiento y sus vistas internas al sidebar y ciclo de vida.
   - Mantener utilidades de caché cliente por alcance funcional.
 
   Contratos globales expuestos:
@@ -43,7 +44,7 @@
   - Los scripts externos y los módulos embebidos en vistas dinámicas no se ejecutan nuevamente.
   - La configuración servidor-cliente debe existir antes de montar la aplicación React.
 
-  Versión: APPALMACEN-SHELL-2026-11-07-03
+  Versión: APPALMACEN-SHELL-2026-11-11-04
 
   Nota:
   Este archivo combina plantilla HTML de Apps Script, CSS y JavaScript del navegador.
@@ -509,6 +510,14 @@
           delete cache.registrosUbicacionesMaxMin;
           delete cache.registrosPendientesUbicacionesMaxMin;
           delete cache.codigosPendientesUbicacionesMaxMin;
+        },
+        /** Limpia el contexto transitorio cliente de Reabastecimiento. */
+        clearReabastecimiento(preserveNavigation = false) {
+          const cache = window.DATA_ALMACEN_CACHE;
+          if (!cache || typeof cache !== "object") return;
+          if (!preserveNavigation) delete cache.reabastecimientoNavigation;
+          delete cache.reabastecimientoUltimaSolicitud;
+          delete cache.reabastecimientoUsuario;
         }
       });
 
@@ -1148,6 +1157,16 @@
         printing: { showControls: false }
       },
       {
+        id: "Reabastecimiento",
+        fileName: "Reabastecimiento",
+        name: "Reabastecimiento",
+        description: "Crea, atiende y supervisa solicitudes de reabastecimiento",
+        icon: "package-open",
+        category: "Procesos",
+        header: { showIdentity: true },
+        printing: { showControls: false }
+      },
+      {
         id: "MonitorReabastecimiento",
         name: "Monitor de reabastecimiento",
         description: "Consulta necesidades de reposición y disponibilidad de producto",
@@ -1245,6 +1264,30 @@
         icon: "scan-line",
         category: "Auditorías",
         parentId: "AuditoriaExcedentes",
+        visibleInSidebar: false,
+        header: DEFAULT_HEADER_CONFIG,
+        printing: DEFAULT_PRINTING_CONFIG
+      }),
+      ReabastecimientoSolicitud: Object.freeze({
+        id: "ReabastecimientoSolicitud",
+        fileName: "ReabastecimientoSolicitud",
+        name: "Nueva solicitud de reabastecimiento",
+        description: "Selecciona códigos elegibles y genera un ticket de reabastecimiento",
+        icon: "clipboard-plus",
+        category: "Procesos",
+        parentId: "Reabastecimiento",
+        visibleInSidebar: false,
+        header: DEFAULT_HEADER_CONFIG,
+        printing: DEFAULT_PRINTING_CONFIG
+      }),
+      ReabastecimientoDetalles: Object.freeze({
+        id: "ReabastecimientoDetalles",
+        fileName: "ReabastecimientoDetalles",
+        name: "Atención de reabastecimiento",
+        description: "Atiende partidas, registra IDUNICO y cierra la solicitud",
+        icon: "scan-line",
+        category: "Procesos",
+        parentId: "Reabastecimiento",
         visibleInSidebar: false,
         header: DEFAULT_HEADER_CONFIG,
         printing: DEFAULT_PRINTING_CONFIG
@@ -1348,6 +1391,10 @@
     /* ======================================================
        Ciclo de vida de vistas dinámicas
        ====================================================== */
+    /** Limpieza devuelta por la última implementación de window.initVista. */
+    window.__APPALMACEN_VIEW_CLEANUP__ =
+      window.__APPALMACEN_VIEW_CLEANUP__ || null;
+
     const VIEW_ROOT_KEYS = Object.freeze([
       "__AUDITORIA_EXCEDENTES_ROOT__",
       "__AUDITORIA_EXCEDENTES_DETALLE_ROOT__",
@@ -1392,6 +1439,14 @@
      * @return {void}
      */
     function limpiarRecursosDeVistaAnterior() {
+      if (typeof window.__APPALMACEN_VIEW_CLEANUP__ === "function") {
+        try {
+          window.__APPALMACEN_VIEW_CLEANUP__();
+        } catch (error) {
+          registrarAdvertencia_("VIEW", "VIEW_CLEANUP_FAILED", error, null);
+        }
+      }
+      window.__APPALMACEN_VIEW_CLEANUP__ = null;
       limpiarReactRootsVistas_();
       window.initVista = null;
 
@@ -1766,6 +1821,9 @@
             if (typeof window.initVista === "function") {
               const initResult = await Promise.resolve(window.initVista());
               initReturnedCleanup = typeof initResult === "function";
+              window.__APPALMACEN_VIEW_CLEANUP__ = initReturnedCleanup
+                ? initResult
+                : null;
             }
 
             perfMark_(traceId, "INIT_VISTA_COMPLETED", {

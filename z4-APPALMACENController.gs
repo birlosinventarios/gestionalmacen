@@ -12,7 +12,7 @@
  * - Evaluar plantillas HTML que puedan contener scriptlets controlados.
  * - Registrar tiempos de ejecución y errores con un formato uniforme.
  * - Propagar errores públicos sin exponer detalles internos innecesarios.
- * - Autorizar explícitamente FormularioUbicacionesMaxMin como archivo lógico.
+ * - Autorizar explícitamente las vistas públicas e internas de Reabastecimiento.
  * - Conservar códigos funcionales de error cuando estén disponibles.
  *
  * Dependencias globales:
@@ -31,7 +31,7 @@
  * - APPALMACENController_obtenerContenidoVista(nombreArchivo).
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-CONTROLLER-2026-11-07-03
+ * @version APPALMACEN-CONTROLLER-2026-11-11-04
  */
 
 "use strict";
@@ -75,11 +75,12 @@ var APPALMACEN_VISTAS_PERMITIDAS = Object.freeze([
   "PrototipoTraspasos",
   "ConciliacionSaldo",
   "VerificacionEntrada",
-  "FormularioUbicacionesMaxMin",
-
+  "Reabastecimiento",
   // Vistas ocultas o utilizadas por navegación interna.
   "AuditoriaExcedentesDetalle",
-  "AuditoriaExcedentesCaptura"
+  "AuditoriaExcedentesCaptura",
+  "ReabastecimientoSolicitud",
+  "ReabastecimientoDetalles"
 ]);
 
 /**

@@ -28,7 +28,7 @@
  * - Un ID de Spreadsheet corresponde al segmento entre `/d/` y `/edit` en su URL.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-2026-11-10-08
+ * @version APPALMACEN-2026-11-11-09
  */
 
 /**
@@ -1177,7 +1177,7 @@ const APPALMACEN_ROUTING = Object.freeze({
     "MonitorReabastecimiento", "AuditoriaExcedentes", "AuditoriaExcedentesCaptura",
     "AuditoriaExcedentesDetalle", "PrototipoExcedentes", "FormularioDetallesProducto",
     "FormularioUbicacionesMaxMin", "Reabastecimiento",
-    "ReabastecimientoDetalles"
+    "ReabastecimientoSolicitud", "ReabastecimientoDetalles"
   ]),
   PRINT_PAGES: Object.freeze(["imprimir", "EtiquetaExcedentesImpresa"]),
   TEST_PAGE: "Pruebas",
