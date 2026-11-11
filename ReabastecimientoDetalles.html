@@ -1,0 +1,734 @@
+<!--
+  ReabastecimientoDetalles.html
+
+  Vista operativa para consultar, atender y cerrar una solicitud de
+  Reabastecimiento dentro del Shell APPALMACEN.
+
+  RESPONSABILIDADES
+  - Recibir ID_SOLICITUD desde window.REABASTECIMIENTO_ID_SOLICITUD.
+  - Consultar cabecera, partidas y detalles vigentes en el servidor.
+  - Marcar partidas como ATENDIDO.
+  - Validar y registrar IDUNICO sin persistir ID_PARTIDACONSECUTIVO.
+  - Cerrar la solicitud cuando el Service confirme las reglas de negocio.
+  - Mostrar solicitudes CERRADA o INCONSISTENTE en modo de solo lectura.
+
+  INTEGRACION CON EL SHELL
+  - Expone window.initVista(), contrato requerido por APPALMACEN.html.
+  - initVista() devuelve una funcion de limpieza idempotente.
+  - Navega exclusivamente mediante window.irAVistaShell().
+  - Usa DATA_ALMACEN_CACHE solo como respaldo transitorio, nunca como autoridad.
+
+  AUTORIDAD DE DATOS
+  - El servidor calcula estados, cantidades, consecutivos, fechas y horas.
+  - idPartidaConsecutivo identifica la operacion, pero no se persiste en detalles.
+  - La relacion persistida detalle-partida es ID_SOLICITUD + codigo.
+
+  SEGURIDAD
+  - Escapa todo valor insertado mediante innerHTML.
+  - Envia identificadores minimos y delega la revalidacion al Service.
+  - Bloquea dobles envios por operacion.
+  - No registra folios, IDUNICO, usuarios ni ubicaciones en consola.
+
+  ENDPOINTS
+  - ReabastecimientoController_getDetalleSolicitud(idSolicitud)
+  - ReabastecimientoController_atenderPartida(payload)
+  - ReabastecimientoController_validarIdUnico(payload)
+  - ReabastecimientoController_registrarIdUnico(payload)
+  - ReabastecimientoController_cerrarSolicitud(payload)
+
+  @author Sigifredo de la Cruz Ramos
+  @version REABASTECIMIENTO-DETALLES-VIEW-2026-11-11-02
+-->
+<div id="reabastecimiento-detalles-root" aria-live="polite">
+  <style>
+    #reabastecimiento-detalles-root {
+      --rd-primary: #d93025;
+      --rd-primary-dark: #b3261e;
+      --rd-surface: #ffffff;
+      --rd-soft: #f1f3f4;
+      --rd-text: #202124;
+      --rd-muted: #5f6368;
+      --rd-border: #dadce0;
+      --rd-success: #188038;
+      --rd-warning: #e37400;
+      --rd-danger: #c5221f;
+      --rd-info: #1967d2;
+      --rd-radius: 14px;
+      --rd-shadow: 0 2px 10px rgba(60, 64, 67, .10);
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      overflow: auto;
+      color: var(--rd-text);
+      background: #f8f9fa;
+      font-family: Inter, Roboto, Arial, sans-serif;
+    }
+    #reabastecimiento-detalles-root * { box-sizing: border-box; }
+    #reabastecimiento-detalles-root button,
+    #reabastecimiento-detalles-root input { font: inherit; }
+    .rd-shell { display: grid; gap: 16px; max-width: 1500px; margin: 0 auto; padding: 20px; }
+    .rd-card { background: var(--rd-surface); border: 1px solid var(--rd-border); border-radius: var(--rd-radius); box-shadow: var(--rd-shadow); }
+    .rd-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+    .rd-header__identity, .rd-actions { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+    .rd-title { margin: 0; font-size: clamp(1.35rem, 2vw, 1.9rem); line-height: 1.15; }
+    .rd-subtitle { margin: 6px 0 0; color: var(--rd-muted); }
+    .rd-btn { min-height: 42px; padding: 0 15px; border: 1px solid var(--rd-border); border-radius: 10px; background: var(--rd-surface); color: var(--rd-text); cursor: pointer; font-weight: 800; transition: .18s ease; }
+    .rd-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--rd-shadow); }
+    .rd-btn:focus-visible, .rd-input:focus-visible { outline: 3px solid rgba(25, 103, 210, .25); outline-offset: 2px; }
+    .rd-btn:disabled { opacity: .52; cursor: not-allowed; }
+    .rd-btn--primary { color: #fff; background: var(--rd-primary); border-color: var(--rd-primary); }
+    .rd-btn--primary:hover:not(:disabled) { background: var(--rd-primary-dark); }
+    .rd-btn--success { color: #fff; background: var(--rd-success); border-color: var(--rd-success); }
+    .rd-btn--small { min-height: 36px; padding: 0 11px; font-size: .82rem; }
+    .rd-summary { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; overflow: hidden; }
+    .rd-summary__item { min-width: 0; padding: 14px; background: var(--rd-surface); }
+    .rd-summary__label { color: var(--rd-muted); font-size: .72rem; font-weight: 900; letter-spacing: .035em; text-transform: uppercase; }
+    .rd-summary__value { margin-top: 6px; overflow: hidden; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+    .rd-status { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 999px; font-size: .75rem; font-weight: 900; white-space: nowrap; }
+    .rd-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .rd-status--ABIERTA { color: var(--rd-info); background: #e8f0fe; }
+    .rd-status--EN_ATENCION { color: var(--rd-warning); background: #fef7e0; }
+    .rd-status--CERRADA, .rd-status--ATENDIDO { color: var(--rd-success); background: #e6f4ea; }
+    .rd-status--INCONSISTENTE { color: var(--rd-danger); background: #fce8e6; }
+    .rd-status--PENDIENTE { color: var(--rd-info); background: #e8f0fe; }
+    .rd-banner { padding: 13px 15px; border-radius: 10px; line-height: 1.45; }
+    .rd-banner--info { color: #174ea6; background: #e8f0fe; border: 1px solid #aecbfa; }
+    .rd-banner--warning { color: #7c4a03; background: #fef7e0; border: 1px solid #fdd663; }
+    .rd-banner--error { color: #8c1d18; background: #fce8e6; border: 1px solid #f6aea9; }
+    .rd-banner--success { color: #0d652d; background: #e6f4ea; border: 1px solid #a8dab5; }
+    .rd-loading, .rd-empty { padding: 46px 18px; text-align: center; color: var(--rd-muted); }
+    .rd-spinner { width: 29px; height: 29px; margin: 0 auto 12px; border: 3px solid #e0e0e0; border-top-color: var(--rd-primary); border-radius: 50%; animation: rd-spin .8s linear infinite; }
+    @keyframes rd-spin { to { transform: rotate(360deg); } }
+    .rd-section { display: grid; gap: 12px; }
+    .rd-section__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .rd-section__title { margin: 0; font-size: 1.05rem; }
+    .rd-section__meta { color: var(--rd-muted); font-size: .82rem; }
+    .rd-parts { display: grid; gap: 12px; }
+    .rd-part { overflow: hidden; }
+    .rd-part__head { display: grid; grid-template-columns: 70px minmax(130px, .8fr) minmax(230px, 1.4fr) minmax(150px, .8fr) auto; gap: 12px; align-items: center; padding: 14px 16px; background: var(--rd-soft); border-bottom: 1px solid var(--rd-border); }
+    .rd-code { font-size: 1rem; font-weight: 900; }
+    .rd-muted { color: var(--rd-muted); font-size: .8rem; }
+    .rd-part__body { display: grid; grid-template-columns: minmax(0, 1fr) 370px; gap: 14px; padding: 15px; }
+    .rd-table-wrap { max-height: 310px; overflow: auto; border: 1px solid var(--rd-border); border-radius: 10px; }
+    .rd-table { width: 100%; min-width: 720px; border-collapse: separate; border-spacing: 0; }
+    .rd-table th { position: sticky; top: 0; z-index: 1; padding: 10px; color: var(--rd-muted); background: var(--rd-soft); border-bottom: 1px solid var(--rd-border); font-size: .7rem; text-align: left; letter-spacing: .03em; text-transform: uppercase; }
+    .rd-table td { padding: 10px; border-bottom: 1px solid var(--rd-border); font-size: .84rem; }
+    .rd-scan { display: grid; gap: 11px; align-content: start; padding: 14px; border: 1px solid var(--rd-border); border-radius: 10px; }
+    .rd-scan h3 { margin: 0; font-size: 1rem; }
+    .rd-field { display: grid; gap: 6px; }
+    .rd-label { color: var(--rd-muted); font-size: .73rem; font-weight: 900; letter-spacing: .035em; text-transform: uppercase; }
+    .rd-input { width: 100%; min-height: 43px; padding: 0 12px; border: 1px solid var(--rd-border); border-radius: 10px; color: var(--rd-text); background: var(--rd-surface); }
+    .rd-scan__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .rd-preview { display: grid; gap: 7px; padding: 11px; border-radius: 10px; background: var(--rd-soft); font-size: .84rem; }
+    .rd-preview__row { display: flex; justify-content: space-between; gap: 10px; }
+    .rd-preview__row span { color: var(--rd-muted); }
+    .rd-footer { position: sticky; bottom: 0; z-index: 4; display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 13px 15px; }
+    .rd-footer__text { color: var(--rd-muted); font-size: .82rem; }
+    .rd-modal { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(32, 33, 36, .55); }
+    .rd-modal[hidden] { display: none; }
+    .rd-modal__dialog { width: min(520px, 100%); padding: 20px; }
+    .rd-modal__dialog h2 { margin: 0 0 8px; }
+    .rd-modal__dialog p { color: var(--rd-muted); line-height: 1.5; }
+    .rd-modal__actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
+    @media (max-width: 1100px) {
+      .rd-summary { grid-template-columns: repeat(3, 1fr); }
+      .rd-part__head { grid-template-columns: 64px 1fr 1.4fr auto; }
+      .rd-part__head > :nth-child(4) { display: none; }
+      .rd-part__body { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 680px) {
+      .rd-shell { padding: 12px; }
+      .rd-header { flex-direction: column; }
+      .rd-summary { grid-template-columns: repeat(2, 1fr); }
+      .rd-part__head { grid-template-columns: 55px 1fr auto; }
+      .rd-part__head > :nth-child(3), .rd-part__head > :nth-child(4) { display: none; }
+      .rd-scan__actions { grid-template-columns: 1fr; }
+      .rd-footer { align-items: stretch; flex-direction: column; }
+      .rd-footer .rd-btn { width: 100%; }
+    }
+  </style>
+
+  <main class="rd-shell">
+    <header class="rd-header">
+      <div class="rd-header__identity">
+        <button id="rd-back" class="rd-btn" type="button">← Volver</button>
+        <div>
+          <h1 class="rd-title">Atención de solicitud</h1>
+          <p id="rd-title-context" class="rd-subtitle">Cargando información vigente...</p>
+        </div>
+      </div>
+      <div class="rd-actions">
+        <button id="rd-refresh" class="rd-btn" type="button">Actualizar</button>
+      </div>
+    </header>
+
+    <div id="rd-global-message" hidden></div>
+    <div id="rd-loading" class="rd-card rd-loading">
+      <div class="rd-spinner"></div>
+      Consultando solicitud, partidas y escaneos...
+    </div>
+
+    <section id="rd-content" hidden>
+      <div class="rd-card rd-summary">
+        <div class="rd-summary__item"><div class="rd-summary__label">Folio</div><div id="rd-summary-id" class="rd-summary__value"></div></div>
+        <div class="rd-summary__item"><div class="rd-summary__label">Estado</div><div id="rd-summary-status" class="rd-summary__value"></div></div>
+        <div class="rd-summary__item"><div class="rd-summary__label">Solicitante</div><div id="rd-summary-applicant" class="rd-summary__value"></div></div>
+        <div class="rd-summary__item"><div class="rd-summary__label">Bodega</div><div id="rd-summary-warehouse" class="rd-summary__value"></div></div>
+        <div class="rd-summary__item"><div class="rd-summary__label">Partidas</div><div id="rd-summary-parts" class="rd-summary__value">0</div></div>
+        <div class="rd-summary__item"><div class="rd-summary__label">Cajas únicas</div><div id="rd-summary-boxes" class="rd-summary__value">0</div></div>
+      </div>
+
+      <div id="rd-state-banner" class="rd-banner rd-banner--info"></div>
+
+      <section class="rd-section">
+        <div class="rd-section__head">
+          <div>
+            <h2 class="rd-section__title">Partidas solicitadas</h2>
+            <div id="rd-parts-meta" class="rd-section__meta"></div>
+          </div>
+        </div>
+        <div id="rd-parts" class="rd-parts"></div>
+      </section>
+
+      <footer class="rd-card rd-footer">
+        <div id="rd-close-help" class="rd-footer__text">Todas las partidas deben estar atendidas y debe existir al menos una caja registrada.</div>
+        <button id="rd-close" class="rd-btn rd-btn--success" type="button" disabled>Cerrar solicitud</button>
+      </footer>
+    </section>
+  </main>
+
+  <div id="rd-close-modal" class="rd-modal" hidden role="dialog" aria-modal="true" aria-labelledby="rd-close-title">
+    <div class="rd-card rd-modal__dialog">
+      <h2 id="rd-close-title">Confirmar cierre</h2>
+      <p>Después del cierre la solicitud quedará en modo de solo lectura.</p>
+      <label class="rd-field">
+        <span class="rd-label">Usuario responsable</span>
+        <input id="rd-close-user" class="rd-input" type="text" maxlength="250" autocomplete="name" placeholder="Nombre registrado en usuarios">
+      </label>
+      <div class="rd-modal__actions">
+        <button id="rd-close-cancel" class="rd-btn" type="button">Cancelar</button>
+        <button id="rd-close-confirm" class="rd-btn rd-btn--success" type="button">Confirmar cierre</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const ROOT_ID = "reabastecimiento-detalles-root";
+      const state = {
+        initialized: false,
+        destroyed: false,
+        loading: false,
+        idSolicitud: "",
+        detail: null,
+        activeOperations: new Set(),
+        validations: new Map(),
+        listeners: []
+      };
+
+      const $ = (selector) => document.querySelector(`#${ROOT_ID} ${selector}`);
+      const text = (value) => String(value ?? "").trim();
+      const upper = (value) => text(value).toUpperCase();
+      const escapeHtml = (value) => text(value).replace(/[&<>'"]/g, (character) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+      }[character]));
+      const operationKey = (type, partId = "") => `${type}:${partId}`;
+
+      /**
+       * Registra un listener y conserva su descriptor para removerlo en cleanup.
+       * @param {EventTarget} target Destino del evento.
+       * @param {string} eventName Nombre del evento.
+       * @param {Function} handler Manejador.
+       * @return {void}
+       */
+      function listen(target, eventName, handler) {
+        target.addEventListener(eventName, handler);
+        state.listeners.push({ target, eventName, handler });
+      }
+
+      /**
+       * Ejecuta un endpoint de Apps Script como Promise.
+       * @param {string} method Nombre de la función pública.
+       * @param {...*} args Argumentos del endpoint.
+       * @return {!Promise<*>} Respuesta serializable del servidor.
+       */
+      function callServer(method, ...args) {
+        return new Promise((resolve, reject) => {
+          if (!window.google?.script?.run) {
+            reject(new Error("google.script.run no está disponible."));
+            return;
+          }
+          const runner = google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject);
+          if (typeof runner[method] !== "function") {
+            reject(new Error(`Endpoint no disponible: ${method}`));
+            return;
+          }
+          runner[method](...args);
+        });
+      }
+
+      /** Convierte un error desconocido en un mensaje apto para interfaz. */
+      function publicError(error) {
+        const message = text(error?.message || error);
+        return message.replace(/^\[[A-Z0-9_]+\]\s*/, "") ||
+          "No fue posible completar la operación.";
+      }
+
+      /** Resuelve el folio recibido desde el Shell o desde la caché transitoria. */
+      function resolveRequestId() {
+        return text(window.REABASTECIMIENTO_ID_SOLICITUD) ||
+          text(window.DATA_ALMACEN_CACHE?.reabastecimientoNavigation?.idSolicitud);
+      }
+
+      /** Navega al listado usando el contrato oficial del Shell. */
+      function navigateBack() {
+        if (typeof window.irAVistaShell !== "function") {
+          showGlobalMessage("La navegación del Shell no está disponible.");
+          return;
+        }
+        delete window.REABASTECIMIENTO_ID_SOLICITUD;
+        if (window.DATA_ALMACEN_CACHE?.reabastecimientoNavigation) {
+          delete window.DATA_ALMACEN_CACHE.reabastecimientoNavigation;
+        }
+        window.irAVistaShell("Reabastecimiento", "Reabastecimiento");
+      }
+
+      /** Muestra o limpia el mensaje global de la vista. */
+      function showGlobalMessage(message, type = "error") {
+        const node = $("#rd-global-message");
+        if (!node) return;
+        node.hidden = !message;
+        node.className = `rd-banner rd-banner--${type}`;
+        node.textContent = message || "";
+      }
+
+      /** Devuelve el estado derivado normalizado de la solicitud. */
+      function requestStatus() {
+        return upper(state.detail?.solicitud?.estado);
+      }
+
+      /** Indica si la vista debe bloquear todas las escrituras. */
+      function isReadOnly() {
+        return ["CERRADA", "INCONSISTENTE"].includes(requestStatus());
+      }
+
+      /** Verifica que todas las partidas estén atendidas. */
+      function allPartsAttended() {
+        const parts = state.detail?.partidas || [];
+        return parts.length > 0 && parts.every((part) =>
+          upper(part.estado) === "ATENDIDO"
+        );
+      }
+
+      /** Evalúa únicamente condiciones visuales; el Service vuelve a validar. */
+      function canClose() {
+        return !isReadOnly() &&
+          allPartsAttended() &&
+          Number(state.detail?.cajasUnicas || 0) > 0;
+      }
+
+      /** Renderiza métricas y datos principales de la solicitud. */
+      function renderSummary() {
+        const request = state.detail.solicitud;
+        $("#rd-title-context").textContent = `${request.idSolicitud} · ${request.bodega}`;
+        $("#rd-summary-id").textContent = request.idSolicitud;
+        $("#rd-summary-status").innerHTML =
+          `<span class="rd-status rd-status--${escapeHtml(request.estado)}">${escapeHtml(request.estado.replaceAll("_", " "))}</span>`;
+        $("#rd-summary-applicant").textContent = request.solicitante || "";
+        $("#rd-summary-warehouse").textContent = request.bodega || "";
+        $("#rd-summary-parts").textContent = Number(state.detail.totalPartidas || 0);
+        $("#rd-summary-boxes").textContent = Number(state.detail.cajasUnicas || 0);
+        const attended = (state.detail.partidas || []).filter((part) =>
+          upper(part.estado) === "ATENDIDO"
+        ).length;
+        $("#rd-parts-meta").textContent =
+          `${attended} de ${state.detail.totalPartidas || 0} partidas atendidas · ${state.detail.totalDetalles || 0} escaneos`;
+      }
+
+      /** Renderiza la advertencia correspondiente al estado derivado. */
+      function renderStateBanner() {
+        const configurations = {
+          ABIERTA: ["info", "La solicitud está abierta. Marca una partida como atendida después de consultar sus excedentes."],
+          EN_ATENCION: ["warning", "La solicitud está en atención. Registra únicamente IDUNICO vigentes del código solicitado."],
+          CERRADA: ["success", "La solicitud está cerrada y se muestra en modo de solo lectura."],
+          INCONSISTENTE: ["error", "La solicitud presenta marcas inconsistentes. Las escrituras están bloqueadas hasta su revisión."]
+        };
+        const selected = configurations[requestStatus()] || configurations.INCONSISTENTE;
+        const node = $("#rd-state-banner");
+        node.className = `rd-banner rd-banner--${selected[0]}`;
+        node.textContent = selected[1];
+      }
+
+      /** Construye la tabla de IDUNICO registrados para una partida. */
+      function renderDetailsTable(details) {
+        if (!details.length) {
+          return '<div class="rd-empty">Todavía no hay cajas registradas para este código.</div>';
+        }
+        return `<div class="rd-table-wrap"><table class="rd-table">
+          <thead><tr><th>Consecutivo</th><th>IDUNICO</th><th>Cantidad</th><th>Escaneo</th><th>Responsable</th></tr></thead>
+          <tbody>${details.map((detail) => `<tr>
+            <td>${escapeHtml(detail.idDetalleConsecutivo)}</td>
+            <td><strong>${escapeHtml(detail.idUnico)}</strong></td>
+            <td>${Number(detail.cantidad || 0)}</td>
+            <td>${escapeHtml(detail.fechaEscaneo)} ${escapeHtml(detail.horaEscaneo)}</td>
+            <td>${escapeHtml(detail.usuarioResponsable)}</td>
+          </tr>`).join("")}</tbody>
+        </table></div>`;
+      }
+
+      /** Construye la previsualización de una validación vigente. */
+      function renderValidationPreview(partId) {
+        const validation = state.validations.get(partId);
+        if (!validation) return "";
+        return `<div class="rd-preview">
+          <div class="rd-preview__row"><span>Código</span><strong>${escapeHtml(validation.codigo)}</strong></div>
+          <div class="rd-preview__row"><span>Descripción</span><strong>${escapeHtml(validation.descripcion)}</strong></div>
+          <div class="rd-preview__row"><span>Saldo vigente</span><strong>${Number(validation.cantidad || 0)}</strong></div>
+          <div class="rd-preview__row"><span>Ubicación actual</span><strong>${escapeHtml(validation.ubicacion || "SIN UBICACIÓN")}</strong></div>
+        </div>`;
+      }
+
+      /** Renderiza las partidas y sus formularios operativos. */
+      function renderParts() {
+        const container = $("#rd-parts");
+        const parts = state.detail.partidas || [];
+        if (!parts.length) {
+          container.innerHTML = '<div class="rd-card rd-empty">La solicitud no contiene partidas y requiere revisión administrativa.</div>';
+          return;
+        }
+        const readOnly = isReadOnly();
+        container.innerHTML = parts.map((part) => {
+          const partId = text(part.idPartidaConsecutivo);
+          const attended = upper(part.estado) === "ATENDIDO";
+          const busy = [...state.activeOperations].some((key) => key.endsWith(`:${partId}`));
+          const details = Array.isArray(part.detalles) ? part.detalles : [];
+          return `<article class="rd-card rd-part" data-part-id="${escapeHtml(partId)}">
+            <header class="rd-part__head">
+              <div><div class="rd-muted">Partida</div><strong>${escapeHtml(partId)}</strong></div>
+              <div><div class="rd-code">${escapeHtml(part.codigoSolicitado)}</div><div class="rd-muted">${details.length} caja(s)</div></div>
+              <div><strong>${escapeHtml(part.descripcionSolicitada)}</strong></div>
+              <div><div class="rd-muted">Ubicación de surtido</div><strong>${escapeHtml(part.ubicacionSolicitada)}</strong></div>
+              <div class="rd-actions">
+                <span class="rd-status rd-status--${attended ? "ATENDIDO" : "PENDIENTE"}">${attended ? "ATENDIDO" : "PENDIENTE"}</span>
+                <button class="rd-btn rd-btn--small" type="button" data-action="attend" data-part-id="${escapeHtml(partId)}" ${readOnly || attended || busy ? "disabled" : ""}>Marcar atendido</button>
+              </div>
+            </header>
+            <div class="rd-part__body">
+              <div>${renderDetailsTable(details)}</div>
+              <div class="rd-scan">
+                <h3>Registrar IDUNICO</h3>
+                <div class="rd-muted">El consecutivo de partida identifica la operación y no se persiste en la hoja de detalles.</div>
+                <label class="rd-field"><span class="rd-label">IDUNICO</span><input class="rd-input" type="text" data-field="idUnico" data-part-id="${escapeHtml(partId)}" autocomplete="off" ${readOnly || !attended || busy ? "disabled" : ""}></label>
+                <label class="rd-field"><span class="rd-label">Usuario responsable</span><input class="rd-input" type="text" data-field="usuario" data-part-id="${escapeHtml(partId)}" maxlength="250" autocomplete="name" value="${escapeHtml(text(window.DATA_ALMACEN_CACHE?.reabastecimientoUsuario))}" ${readOnly || !attended || busy ? "disabled" : ""}></label>
+                <div data-preview-for="${escapeHtml(partId)}">${renderValidationPreview(partId)}</div>
+                <div class="rd-scan__actions">
+                  <button class="rd-btn" type="button" data-action="validate" data-part-id="${escapeHtml(partId)}" ${readOnly || !attended || busy ? "disabled" : ""}>Validar</button>
+                  <button class="rd-btn rd-btn--primary" type="button" data-action="register" data-part-id="${escapeHtml(partId)}" ${readOnly || !attended || busy || !state.validations.has(partId) ? "disabled" : ""}>Registrar</button>
+                </div>
+                <div data-message-for="${escapeHtml(partId)}" hidden></div>
+              </div>
+            </div>
+          </article>`;
+        }).join("");
+      }
+
+      /** Renderiza disponibilidad y texto del cierre. */
+      function renderFooter() {
+        const button = $("#rd-close");
+        button.disabled = !canClose() || state.activeOperations.has(operationKey("close"));
+        if (requestStatus() === "CERRADA") {
+          button.textContent = "Solicitud cerrada";
+          $("#rd-close-help").textContent = "La solicitud se encuentra en modo de solo lectura.";
+        } else if (requestStatus() === "INCONSISTENTE") {
+          button.textContent = "Cierre bloqueado";
+          $("#rd-close-help").textContent = "Corrige las marcas inconsistentes antes de continuar.";
+        } else {
+          button.textContent = "Cerrar solicitud";
+          $("#rd-close-help").textContent = canClose()
+            ? "La solicitud cumple las condiciones visuales para cerrarse."
+            : "Todas las partidas deben estar atendidas y debe existir al menos una caja registrada.";
+        }
+      }
+
+      /** Renderiza toda la vista a partir del contrato del servidor. */
+      function render() {
+        renderSummary();
+        renderStateBanner();
+        renderParts();
+        renderFooter();
+      }
+
+      /** Consulta nuevamente el detalle autoritativo. */
+      async function loadDetail(options = {}) {
+        if (state.loading || state.destroyed) return;
+        state.loading = true;
+        $("#rd-refresh").disabled = true;
+        if (!options.silent) {
+          $("#rd-content").hidden = true;
+          $("#rd-loading").hidden = false;
+          $("#rd-loading").innerHTML = '<div class="rd-spinner"></div>Consultando solicitud, partidas y escaneos...';
+        }
+        try {
+          const response = await callServer(
+            "ReabastecimientoController_getDetalleSolicitud",
+            state.idSolicitud
+          );
+          if (state.destroyed) return;
+          state.detail = response?.data || null;
+          if (!state.detail?.solicitud) {
+            throw new Error("El servidor no devolvió una solicitud válida.");
+          }
+          state.validations.clear();
+          render();
+          $("#rd-loading").hidden = true;
+          $("#rd-content").hidden = false;
+          showGlobalMessage("");
+        } catch (error) {
+          if (state.destroyed) return;
+          $("#rd-content").hidden = true;
+          $("#rd-loading").hidden = false;
+          $("#rd-loading").innerHTML =
+            `<div class="rd-banner rd-banner--error">${escapeHtml(publicError(error))}</div>`;
+        } finally {
+          state.loading = false;
+          const refresh = $("#rd-refresh");
+          if (refresh) refresh.disabled = false;
+        }
+      }
+
+      /** Obtiene un campo de una partida mediante selectores escapados. */
+      function partField(partId, fieldName) {
+        return $(`[data-field="${fieldName}"][data-part-id="${CSS.escape(partId)}"]`);
+      }
+
+      /** Muestra un mensaje contextual dentro de una partida. */
+      function showPartMessage(partId, message, type = "error") {
+        const node = $(`[data-message-for="${CSS.escape(partId)}"]`);
+        if (!node) return;
+        node.hidden = !message;
+        node.className = `rd-banner rd-banner--${type}`;
+        node.textContent = message || "";
+      }
+
+      /** Marca una partida como atendida y recarga el contrato completo. */
+      async function attendPart(partId) {
+        const entered = window.prompt(
+          "Usuario responsable registrado:",
+          text(window.DATA_ALMACEN_CACHE?.reabastecimientoUsuario)
+        );
+        const user = text(entered);
+        if (!user) return;
+        const key = operationKey("attend", partId);
+        if (state.activeOperations.has(key)) return;
+        state.activeOperations.add(key);
+        renderParts();
+        try {
+          await callServer("ReabastecimientoController_atenderPartida", {
+            idSolicitud: state.idSolicitud,
+            idPartidaConsecutivo: partId,
+            usuario: user
+          });
+          window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+          window.DATA_ALMACEN_CACHE.reabastecimientoUsuario = user;
+          await loadDetail({ silent: true });
+          showGlobalMessage("Partida marcada como atendida.", "success");
+        } catch (error) {
+          showGlobalMessage(publicError(error));
+        } finally {
+          state.activeOperations.delete(key);
+          if (state.detail && !state.destroyed) render();
+        }
+      }
+
+      /** Valida un IDUNICO sin persistirlo. */
+      async function validateIdUnico(partId) {
+        const idUnico = text(partField(partId, "idUnico")?.value);
+        if (!idUnico) {
+          showPartMessage(partId, "Captura un IDUNICO.");
+          return;
+        }
+        const key = operationKey("validate", partId);
+        if (state.activeOperations.has(key)) return;
+        state.activeOperations.add(key);
+        renderParts();
+        try {
+          const response = await callServer(
+            "ReabastecimientoController_validarIdUnico",
+            {
+              idSolicitud: state.idSolicitud,
+              idPartidaConsecutivo: partId,
+              idUnico
+            }
+          );
+          state.validations.set(partId, response.data);
+          renderParts();
+          showPartMessage(partId, "IDUNICO válido y disponible.", "success");
+        } catch (error) {
+          state.validations.delete(partId);
+          renderParts();
+          showPartMessage(partId, publicError(error));
+        } finally {
+          state.activeOperations.delete(key);
+          if (!state.destroyed) renderParts();
+        }
+      }
+
+      /** Registra un IDUNICO previamente validado. */
+      async function registerIdUnico(partId) {
+        const validation = state.validations.get(partId);
+        const idUnico = text(partField(partId, "idUnico")?.value);
+        const user = text(partField(partId, "usuario")?.value);
+        if (!validation || upper(validation.idUnico) !== upper(idUnico)) {
+          showPartMessage(partId, "Valida nuevamente el IDUNICO antes de registrarlo.");
+          return;
+        }
+        if (!user) {
+          showPartMessage(partId, "Captura el usuario responsable.");
+          return;
+        }
+        const key = operationKey("register", partId);
+        if (state.activeOperations.has(key)) return;
+        state.activeOperations.add(key);
+        renderParts();
+        try {
+          await callServer("ReabastecimientoController_registrarIdUnico", {
+            idSolicitud: state.idSolicitud,
+            idPartidaConsecutivo: partId,
+            idUnico,
+            usuario: user
+          });
+          window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+          window.DATA_ALMACEN_CACHE.reabastecimientoUsuario = user;
+          state.validations.delete(partId);
+          await loadDetail({ silent: true });
+          showGlobalMessage("IDUNICO registrado correctamente.", "success");
+        } catch (error) {
+          showPartMessage(partId, publicError(error));
+        } finally {
+          state.activeOperations.delete(key);
+          if (state.detail && !state.destroyed) render();
+        }
+      }
+
+      /** Abre el cuadro de confirmación de cierre. */
+      function openCloseModal() {
+        if (!canClose()) return;
+        $("#rd-close-user").value = text(
+          window.DATA_ALMACEN_CACHE?.reabastecimientoUsuario
+        );
+        $("#rd-close-modal").hidden = false;
+        setTimeout(() => $("#rd-close-user")?.focus(), 0);
+      }
+
+      /** Cierra el cuadro de confirmación sin modificar datos. */
+      function closeCloseModal() {
+        $("#rd-close-modal").hidden = true;
+      }
+
+      /** Solicita el cierre definitivo al servidor. */
+      async function closeRequest() {
+        const user = text($("#rd-close-user").value);
+        if (!user) {
+          showGlobalMessage("Captura el usuario responsable del cierre.");
+          return;
+        }
+        const key = operationKey("close");
+        if (state.activeOperations.has(key)) return;
+        state.activeOperations.add(key);
+        $("#rd-close-confirm").disabled = true;
+        try {
+          await callServer("ReabastecimientoController_cerrarSolicitud", {
+            idSolicitud: state.idSolicitud,
+            usuario: user
+          });
+          closeCloseModal();
+          await loadDetail({ silent: true });
+          showGlobalMessage("Solicitud cerrada correctamente.", "success");
+        } catch (error) {
+          showGlobalMessage(publicError(error));
+        } finally {
+          state.activeOperations.delete(key);
+          const confirm = $("#rd-close-confirm");
+          if (confirm) confirm.disabled = false;
+          if (state.detail && !state.destroyed) renderFooter();
+        }
+      }
+
+      /** Delega acciones dinámicas de partidas. */
+      function handlePartsClick(event) {
+        const button = event.target.closest("[data-action][data-part-id]");
+        if (!button) return;
+        const partId = text(button.dataset.partId);
+        if (button.dataset.action === "attend") attendPart(partId);
+        if (button.dataset.action === "validate") validateIdUnico(partId);
+        if (button.dataset.action === "register") registerIdUnico(partId);
+      }
+
+      /** Invalida una validación si el usuario altera el IDUNICO. */
+      function handlePartsInput(event) {
+        const input = event.target.closest('[data-field="idUnico"][data-part-id]');
+        if (!input) return;
+        const partId = text(input.dataset.partId);
+        state.validations.delete(partId);
+        const preview = $(`[data-preview-for="${CSS.escape(partId)}"]`);
+        if (preview) preview.innerHTML = "";
+        const register = $(`[data-action="register"][data-part-id="${CSS.escape(partId)}"]`);
+        if (register) register.disabled = true;
+      }
+
+      /** Registra todos los eventos estáticos de la vista. */
+      function bindEvents() {
+        listen($("#rd-back"), "click", navigateBack);
+        listen($("#rd-refresh"), "click", () => loadDetail());
+        listen($("#rd-parts"), "click", handlePartsClick);
+        listen($("#rd-parts"), "input", handlePartsInput);
+        listen($("#rd-close"), "click", openCloseModal);
+        listen($("#rd-close-cancel"), "click", closeCloseModal);
+        listen($("#rd-close-confirm"), "click", closeRequest);
+        listen($("#rd-close-modal"), "click", (event) => {
+          if (event.target === $("#rd-close-modal")) closeCloseModal();
+        });
+      }
+
+      /** Inicializa la vista una sola vez. */
+      function initialize() {
+        if (state.initialized || state.destroyed) return;
+        state.initialized = true;
+        state.idSolicitud = resolveRequestId();
+        bindEvents();
+        if (!state.idSolicitud) {
+          $("#rd-loading").innerHTML =
+            '<div class="rd-banner rd-banner--error">No se recibió ID_SOLICITUD. Regresa al listado y abre nuevamente la solicitud.</div>';
+          return;
+        }
+        loadDetail();
+      }
+
+      /**
+       * Libera listeners y referencias. Es idempotente para tolerar múltiples
+       * solicitudes de desmontaje del Shell.
+       */
+      function destroy() {
+        if (state.destroyed) return;
+        state.destroyed = true;
+        state.listeners.forEach(({ target, eventName, handler }) => {
+          target.removeEventListener(eventName, handler);
+        });
+        state.listeners = [];
+        state.activeOperations.clear();
+        state.validations.clear();
+        state.detail = null;
+      }
+
+      /** Contrato de ciclo de vida requerido por APPALMACEN.html. */
+      window.initVista = function initVista() {
+        initialize();
+        return destroy;
+      };
+    })();
+  </script>
+</div>
