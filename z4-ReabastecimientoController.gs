@@ -44,7 +44,7 @@
  * - toStr_() y toStrUpper_().
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-CONTROLLER-2026-11-10-02
+ * @version REABASTECIMIENTO-CONTROLLER-2026-11-11-04
  */
 const REABASTECIMIENTO_CONTROLLER_CONFIG = Object.freeze({
   MODULE: "REABASTECIMIENTO",
@@ -52,6 +52,7 @@ const REABASTECIMIENTO_CONTROLLER_CONFIG = Object.freeze({
   LOG_PREFIX: "[ReabastecimientoController]",
   INTERNAL_ERROR_CODE: "REAB_INTERNAL_ERROR",
   OPERATIONS: Object.freeze({
+    GET_EXCEDENTES_MANUALES: "GET_EXCEDENTES_SOLICITUD_MANUAL",
     GET_CANDIDATOS: "GET_CANDIDATOS_POR_BODEGA",
     CREAR_SOLICITUD: "CREAR_SOLICITUD",
     GET_SOLICITUDES: "GET_SOLICITUDES",
@@ -276,6 +277,28 @@ function ReabastecimientoController_execute_(operation, executor) {
     });
     throw ReabastecimientoController_toPublicError_(error);
   }
+}
+
+/**
+ * Obtiene el bootstrap o el detalle manual de excedentes para una bodega de piso.
+ *
+ * Cuando bodega está vacía devuelve únicamente las bodegas disponibles. Cuando
+ * contiene un clave inferida devuelve una fila por SKU, ubicación de
+ * surtido e IDUNICO vigente.
+ *
+ * @param {*=} bodega Clave inferida por prefijo de UBICACIONES_SURTIDO.UBICACION.
+ * @return {!Object} Sobre con bodegas, registros y métricas.
+ */
+function ReabastecimientoController_getExcedentesSolicitudManual(bodega) {
+  return ReabastecimientoController_execute_(
+    REABASTECIMIENTO_CONTROLLER_CONFIG.OPERATIONS.GET_EXCEDENTES_MANUALES,
+    function() {
+      const warehouse = bodega === null || typeof bodega === "undefined"
+        ? ""
+        : toStr_(bodega);
+      return ReabastecimientoService.getExcedentesSolicitudManual(warehouse);
+    }
+  );
 }
 
 /**

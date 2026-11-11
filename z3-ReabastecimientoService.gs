@@ -22,7 +22,6 @@
  * - Toda escritura y revalidación crítica ocurre bajo un único ScriptLock.
  *
  * DEPENDENCIAS
- * - MonitorReabastecimientoService.
  * - CatalogoRepository, UsuariosRepository y UbicacionesSurtidoRepository.
  * - EstadoActualExcedentesService.
  * - ReabastecimientoSolicitudesRepository.
@@ -36,7 +35,7 @@
  * - Las escrituras son idempotentes cuando el estado ya refleja el resultado.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-SERVICE-2026-11-10-02
+ * @version REABASTECIMIENTO-SERVICE-2026-11-11-04
  */
 const ReabastecimientoService = (() => {
   "use strict";
@@ -81,7 +80,6 @@ const ReabastecimientoService = (() => {
       throw new Error(CFG.LOG_PREFIX + " Faltan utilidades: " + missingFunctions.join(", ") + ".");
     }
     const requiredObjects = [
-      ["MonitorReabastecimientoService", typeof MonitorReabastecimientoService],
       ["CatalogoRepository", typeof CatalogoRepository],
       ["UsuariosRepository", typeof UsuariosRepository],
       ["UbicacionesSurtidoRepository", typeof UbicacionesSurtidoRepository],
@@ -159,83 +157,233 @@ const ReabastecimientoService = (() => {
     return states.INCONSISTENTE;
   }
 
-  function normalizeWarehouseFilter_(warehouse) {
-    const normalized = toStrUpper_(warehouse);
-    return normalized || CFG.ALL_WAREHOUSES;
+  /**
+   * Catálogo canónico inferido desde el prefijo de UBICACION.
+   * BA y CB se excluyen porque no representan ubicaciones almacenables.
+   * @private
+   */
+  const SALES_FLOOR_WAREHOUSES = Object.freeze({
+    B1: Object.freeze({ id: "B1", label: "BODEGA 1" }),
+    B2: Object.freeze({ id: "B2", label: "BODEGA 2" }),
+    B3: Object.freeze({ id: "B3", label: "BODEGA 3" }),
+    MO: Object.freeze({ id: "MO", label: "MOSTRADOR" }),
+    CU: Object.freeze({ id: "CU", label: "CUARTO ALTO VALOR" })
+  });
+
+  /**
+   * Normaliza una clave de bodega inferida sin aceptar prefijos descartados.
+   * @param {*} warehouse Clave recibida.
+   * @return {string} B1, B2, B3, MO, CU o cadena vacía.
+   * @private
+   */
+  function normalizeSalesFloorWarehouse_(warehouse) {
+    const value = toStrUpper_(warehouse);
+    return Object.prototype.hasOwnProperty.call(SALES_FLOOR_WAREHOUSES, value)
+      ? value
+      : "";
   }
 
-  function isEligibleCandidate_(item, warehouse) {
-    const warehouseFilter = normalizeWarehouseFilter_(warehouse);
-    const matchesWarehouse = warehouseFilter === CFG.ALL_WAREHOUSES ||
-      toStrUpper_(item && item.bodegakey) === warehouseFilter ||
-      toStrUpper_(item && item.bodegalabel) === warehouseFilter;
-    return Boolean(
-      matchesWarehouse &&
-      toStrUpper_(item && item.statuscatalogo) === "ACTIVO" &&
-      toStrUpper_(item && item.ubicacionsurtido) &&
-      toNum_(item && item.cantidadobjetivorelleno) > 0 &&
-      toNum_(item && item.excedenteTotalIdUnico) > 0 &&
-      CFG.ELIGIBLE_ACTIONS.includes(toStrUpper_(item && item.accionoperativa))
-    );
+  /**
+   * Infiere la bodega de piso desde el inicio de UBICACION.
+   * El orden evita interpretar BA como Bodega 1 y descarta CB completamente.
+   * @param {*} location Ubicación de surtido.
+   * @return {string} Clave válida o cadena vacía si debe excluirse.
+   * @private
+   */
+  function inferSalesFloorWarehouse_(location) {
+    const value = toStrUpper_(location);
+    if (!value || value.startsWith("BA") || value.startsWith("CB")) return "";
+    if (value.startsWith("B1")) return "B1";
+    if (value.startsWith("B2")) return "B2";
+    if (value.startsWith("B3")) return "B3";
+    if (value.startsWith("MO")) return "MO";
+    if (value.startsWith("CU")) return "CU";
+    return "";
   }
 
-  function projectCandidate_(item) {
-    return {
-      codigo: toStrUpper_(item.codigo),
-      descripcion: toStrUpper_(item.descripcion),
-      ubicacionSurtido: toStrUpper_(item.ubicacionsurtido),
-      bodegaKey: toStrUpper_(item.bodegakey),
-      bodegaLabel: toStrUpper_(item.bodegalabel),
-      existenciaActual: toNum_(item.existenciaactual),
-      minimo: toNum_(item.minimo),
-      maximo: toNum_(item.maximo),
-      cantidadObjetivoRelleno: toNum_(item.cantidadobjetivorelleno),
-      excedenteDisponibleIdUnico: toNum_(item.excedenteTotalIdUnico),
-      accionOperativa: toStrUpper_(item.accionoperativa),
-      prioridadOrden: toNum_(item.prioridadorden),
-      prioridadEtiqueta: toStrUpper_(item.prioridadetiqueta)
-    };
+  /** Orden alfanumérico natural para ubicaciones de surtido. */
+  function compareSupplyLocation_(left, right) {
+    return toStrUpper_(left).localeCompare(toStrUpper_(right), CFG.LOCALE, {
+      numeric: true,
+      sensitivity: "base"
+    });
   }
 
-  function getCandidatesByWarehouse(warehouse) {
-    const trace = startTrace_("REABASTECIMIENTO_GET_CANDIDATES", {});
+  /**
+   * Devuelve las bodegas de piso configuradas en UBICACIONES_SURTIDO.
+   *
+   * @return {!Array<!Object>} Identificadores y etiquetas seguras.
+   * @private
+   */
+  function getSalesFloorWarehouses_() {
+    const available = UbicacionesSurtidoRepository.getAll().reduce(function(set, item) {
+      const warehouseKey = inferSalesFloorWarehouse_(item && item.ubicacion);
+      if (warehouseKey) set.add(warehouseKey);
+      return set;
+    }, new Set());
+    return Object.keys(SALES_FLOOR_WAREHOUSES)
+      .filter(function(key) { return available.has(key); })
+      .map(function(key) {
+        return {
+          id: SALES_FLOOR_WAREHOUSES[key].id,
+          label: SALES_FLOOR_WAREHOUSES[key].label
+        };
+      });
+  }
+
+  /** Construye un índice único de productos activos por código. */
+  function buildActiveCatalogIndex_() {
+    return CatalogoRepository.getAllRaw().reduce(function(index, product) {
+      const code = toStrUpper_(product && product.codigo);
+      if (!code || toStrUpper_(product && product.status) !== "ACTIVO") return index;
+      if (!index[code]) {
+        index[code] = {
+          codigo: code,
+          descripcion: toStrUpper_(product.descripcion),
+          idproducto: toStr_(product.idproducto)
+        };
+      }
+      return index;
+    }, Object.create(null));
+  }
+
+  /** Agrupa excedentes vigentes y ubicados por código. */
+  function buildCurrentExcessByCode_() {
+    return EstadoActualExcedentesService.getVigentes().reduce(function(index, item) {
+      const code = toStrUpper_(item && item.codigo);
+      const idUnico = toStrUpper_(item && item.idUnico);
+      const balance = toNum_(item && item.saldoActual);
+      const location = toStrUpper_(item && item.ubicacionActual);
+      if (!code || !idUnico || balance <= 0 || !location || item.vigente !== true) {
+        return index;
+      }
+      if (!index[code]) index[code] = [];
+      index[code].push({
+        idUnico: idUnico,
+        codigo: code,
+        descripcion: toStrUpper_(item.descripcion),
+        cantidadIdUnico: balance,
+        ubicacionExcedente: location,
+        bodegaExcedente: toStrUpper_(item.bodegaActual)
+      });
+      return index;
+    }, Object.create(null));
+  }
+
+  /**
+   * Obtiene el catálogo manual de excedentes para una bodega de piso.
+   * Una fila representa la combinación SKU + ubicación de surtido + IDUNICO.
+   *
+   * @param {*} warehouse Clave inferida de la bodega de piso.
+   * @return {!Object} Bootstrap y registros manuales.
+   */
+  function getManualRequestExcess(warehouse) {
+    const trace = startTrace_("REABASTECIMIENTO_GET_MANUAL_EXCESS", {});
     try {
       assertDependencies_();
-      const normalizedWarehouse = normalizeWarehouseFilter_(warehouse);
-      const source = MonitorReabastecimientoService.getRegistros();
-      if (!Array.isArray(source)) throw new TypeError("El monitor debe devolver un arreglo.");
-      const records = source
-        .filter(function(item) { return isEligibleCandidate_(item, normalizedWarehouse); })
-        .map(projectCandidate_)
-        .sort(function(left, right) {
-          return left.prioridadOrden - right.prioridadOrden ||
-            left.codigo.localeCompare(right.codigo, CFG.LOCALE, {
-              numeric: true,
-              sensitivity: "base"
-            });
+      const warehouses = getSalesFloorWarehouses_();
+      const warehouseId = normalizeSalesFloorWarehouse_(warehouse);
+      if (!toStr_(warehouse)) {
+        const bootstrap = {
+          bodegaSurtido: null,
+          bodegasPisoVenta: warehouses,
+          registros: [],
+          totalIdUnicos: 0,
+          totalSkus: 0,
+          cantidadTotal: 0
+        };
+        finishTrace_(trace, { bootstrapOnly: true, warehouses: warehouses.length });
+        return bootstrap;
+      }
+      if (!warehouses.some(function(item) { return item.id === warehouseId; })) {
+        throw domainError_(
+          REABASTECIMIENTO_CONFIG.ERROR_CODES.PAYLOAD_INVALIDO,
+          "La bodega de piso de venta no corresponde a un prefijo de ubicación permitido."
+        );
+      }
+      const supplyLocations = UbicacionesSurtidoRepository.getAll().filter(function(item) {
+        return inferSalesFloorWarehouse_(item && item.ubicacion) === warehouseId;
+      });
+      const activeCatalog = buildActiveCatalogIndex_();
+      const excessByCode = buildCurrentExcessByCode_();
+      const records = [];
+      supplyLocations.forEach(function(supply) {
+        const code = toStrUpper_(supply.codigo);
+        const supplyLocation = toStrUpper_(supply.ubicacion);
+        const product = activeCatalog[code];
+        if (!code || !supplyLocation || !product || !excessByCode[code]) return;
+        excessByCode[code].forEach(function(excess) {
+          records.push({
+            codigo: code,
+            descripcion: product.descripcion || excess.descripcion,
+            ubicacionExcedente: excess.ubicacionExcedente,
+            bodegaExcedente: excess.bodegaExcedente,
+            cantidadIdUnico: excess.cantidadIdUnico,
+            idUnico: excess.idUnico,
+            ubicacionSurtido: supplyLocation,
+            bodegaSurtido: warehouseId
+          });
         });
-      finishTrace_(trace, { sourceRows: source.length, resultRows: records.length });
-      return {
-        bodega: normalizedWarehouse,
-        registros: records,
-        total: records.length,
-        reglas: {
-          catalogoActivo: true,
-          requiereUbicacion: true,
-          requiereObjetivoPositivo: true,
-          requiereExcedenteIdUnico: true,
-          accionesPermitidas: CFG.ELIGIBLE_ACTIONS.slice()
+      });
+      records.sort(function(left, right) {
+        return compareSupplyLocation_(left.ubicacionSurtido, right.ubicacionSurtido) ||
+          left.codigo.localeCompare(right.codigo, CFG.LOCALE, { numeric: true, sensitivity: "base" }) ||
+          left.idUnico.localeCompare(right.idUnico, CFG.LOCALE, { numeric: true, sensitivity: "base" });
+      });
+      const uniqueSkus = new Set(records.map(function(item) { return item.codigo; }));
+      const quantitiesById = records.reduce(function(index, item) {
+        if (!Object.prototype.hasOwnProperty.call(index, item.idUnico)) {
+          index[item.idUnico] = toNum_(item.cantidadIdUnico);
         }
+        return index;
+      }, Object.create(null));
+      const result = {
+        bodegaSurtido: warehouseId,
+        bodegasPisoVenta: warehouses,
+        registros: records,
+        totalIdUnicos: Object.keys(quantitiesById).length,
+        totalSkus: uniqueSkus.size,
+        cantidadTotal: round2_(Object.keys(quantitiesById).reduce(function(total, idUnico) {
+          return total + quantitiesById[idUnico];
+        }, 0))
       };
+      finishTrace_(trace, {
+        supplyLocations: supplyLocations.length,
+        rows: records.length,
+        skus: result.totalSkus,
+        idUnicos: result.totalIdUnicos
+      });
+      return result;
     } catch (error) {
       failTrace_(trace, error);
       throw error;
     }
   }
 
+  /**
+   * Conserva compatibilidad temporal con consumidores del endpoint anterior.
+   * @param {*} warehouse Bodega de piso.
+   * @return {!Object} Contrato manual detallado.
+   */
+  function getCandidatesByWarehouse(warehouse) {
+    return getManualRequestExcess(warehouse);
+  }
+
+  /**
+   * Construye candidatos autoritativos por código y ubicación de surtido.
+   * Solo incorpora combinaciones con producto activo y excedente vigente.
+   */
   function buildCandidateMap_(warehouse) {
-    return getCandidatesByWarehouse(warehouse).registros.reduce(function(map, item) {
-      map[item.codigo + "|" + item.ubicacionSurtido] = item;
+    return getManualRequestExcess(warehouse).registros.reduce(function(map, item) {
+      const key = item.codigo + "|" + item.ubicacionSurtido;
+      if (!map[key]) {
+        map[key] = {
+          codigo: item.codigo,
+          descripcion: item.descripcion,
+          ubicacionSurtido: item.ubicacionSurtido,
+          bodegaKey: String(item.bodegaSurtido)
+        };
+      }
       return map;
     }, Object.create(null));
   }
@@ -243,7 +391,7 @@ const ReabastecimientoService = (() => {
   function normalizeCreationPayload_(payload, trace) {
     const input = payload && typeof payload === "object" ? payload : {};
     const applicant = validateUser_(input.solicitante, trace);
-    const warehouse = toStrUpper_(input.bodega);
+    const warehouse = normalizeSalesFloorWarehouse_(input.bodega);
     if (!warehouse) {
       throw domainError_(REABASTECIMIENTO_CONFIG.ERROR_CODES.PAYLOAD_INVALIDO, "La bodega es obligatoria.");
     }
@@ -648,6 +796,7 @@ const ReabastecimientoService = (() => {
   }
 
   return Object.freeze({
+    getExcedentesSolicitudManual: getManualRequestExcess,
     getCandidatosPorBodega: getCandidatesByWarehouse,
     crearSolicitud: createRequest,
     getSolicitudes: getRequests,
