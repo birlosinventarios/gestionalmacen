@@ -1,377 +1,760 @@
-<!--
-  Reabastecimiento.html
+<script>
+  /**
+   * Reabastecimiento.html
+   *
+   * Vista principal del módulo de solicitudes de Reabastecimiento.
+   *
+   * RESPONSABILIDADES
+   * - Consultar el listado ligero de solicitudes.
+   * - Filtrar por estado, bodega, texto y orden cronológico.
+   * - Mostrar indicadores operativos derivados del listado cargado.
+   * - Navegar a la creación o atención mediante el Shell APPALMACEN.
+   * - Exportar el conjunto visible a XLSX cuando el exportador esté disponible.
+   * - Administrar el montaje y desmontaje de su raíz React.
+   *
+   * RESPONSABILIDADES EXCLUIDAS
+   * - No consulta candidatos de reabastecimiento.
+   * - No crea solicitudes ni registra IDUNICO.
+   * - No calcula estados, fechas, folios o cantidades autoritativas.
+   *
+   * DEPENDENCIAS GLOBALES
+   * - React y ReactDOM.
+   * - FitoComponents.Icon.LocalIcon o FitoComponents.LocalIcon.
+   * - google.script.run.
+   * - window.irAVistaShell().
+   * - window.notificar o window.lanzarNotificacion.
+   * - ExcelExportUtils.exportarAXLSX(), opcional.
+   *
+   * CONTROLADOR CONSUMIDO
+   * - ReabastecimientoController_getSolicitudes({}).
+   *
+   * CONTRATOS GLOBALES EXPUESTOS
+   * - window.cargar_Reabastecimiento().
+   * - window.initVista.
+   * - window.__REABASTECIMIENTO_ROOT__.
+   *
+   * CONSIDERACIONES DE MANTENIMIENTO
+   * - Las respuestas obsoletas se descartan mediante un número de secuencia.
+   * - El watchdog visual se activa a los 20 segundos.
+   * - La actualización automática ocurre cada 60 segundos solo con la pestaña visible.
+   * - initVista devuelve una función de limpieza compatible con APPALMACEN.html.
+   * - El servidor permanece como autoridad de los datos operativos.
+   *
+   * @author Sigifredo de la Cruz Ramos
+   * @version REABASTECIMIENTO-VIEW-2026-11-11-03
+   */
+</script>
 
-  Vista inicial del módulo de tickets de Reabastecimiento de APPALMACEN.
+<style>
+  /* =========================================================
+     TOKENS Y CONTENEDOR
+     ========================================================= */
+  #render-reabastecimiento {
+    --rb-primary: var(--primary, #d93025);
+    --rb-primary-dark: var(--primary-dark, #a50e0e);
+    --rb-primary-light: var(--primary-light, rgba(217, 48, 37, .14));
+    --rb-warning: #d97706;
+    --rb-warning-dark: #9a5a04;
+    --rb-warning-light: rgba(217, 119, 6, .14);
+    --rb-success: #1e8e3e;
+    --rb-success-dark: #157337;
+    --rb-success-light: rgba(30, 142, 62, .14);
+    --rb-info: #1967d2;
+    --rb-info-dark: #174ea6;
+    --rb-info-light: rgba(25, 103, 210, .13);
+    --rb-danger: #c5221f;
+    --rb-danger-dark: #8c1d18;
+    --rb-danger-light: rgba(197, 34, 31, .12);
+    --rb-white: var(--white, #fff);
+    --rb-text: var(--text-main, #1c1d1f);
+    --rb-muted: var(--text-secondary, #5f6368);
+    --rb-border: var(--border-color, #dadce0);
+    --rb-shadow: var(--shadow-soft, 0 10px 25px rgba(0,0,0,.10), 0 4px 10px rgba(0,0,0,.05));
+    --rb-shadow-red: var(--shadow-red, 0 4px 10px rgba(217,48,37,.10));
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  #render-reabastecimiento::-webkit-scrollbar { display: none; }
+  #render-reabastecimiento .rb-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  #render-reabastecimiento .rb-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,.03); }
+  #render-reabastecimiento .rb-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,.16); border-radius: 99px; }
+  #render-reabastecimiento .rb-scroll::-webkit-scrollbar-thumb:hover { background: var(--rb-primary); }
 
-  RESPONSABILIDADES
-  - Mostrar solicitudes abiertas, en atención, cerradas e inconsistentes.
-  - Aplicar filtros locales sin repetir solicitudes al servidor.
-  - Navegar a ReabastecimientoSolicitud para crear un ticket.
-  - Mantener la carga inicial limitada al listado y métricas.
-  - Navegar a ReabastecimientoDetalles con solo ID_SOLICITUD.
+  @keyframes rbFadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes rbSearchIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes rbSearchOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-8px); }
+  }
+  #render-reabastecimiento .rb-fade-in { animation: rbFadeInUp .38s cubic-bezier(.16,1,.3,1) forwards; }
+  #render-reabastecimiento .rb-card {
+    background: var(--rb-white);
+    border: 1px solid var(--rb-border);
+    border-radius: 1.5rem;
+    box-shadow: var(--rb-shadow);
+  }
 
-  RESPONSABILIDADES EXCLUIDAS
-  - No calcula saldos, estados, folios, fechas, horas ni consecutivos.
-  - No confía en datos derivados del navegador para persistir solicitudes.
-  - No registra códigos, usuarios, ubicaciones o folios en consola.
+  /* =========================================================
+     KPI
+     ========================================================= */
+  #render-reabastecimiento .rb-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  #render-reabastecimiento .rb-kpi {
+    position: relative;
+    overflow: hidden;
+    min-height: 104px;
+    padding: 18px;
+  }
+  #render-reabastecimiento .rb-kpi::after {
+    content: "";
+    position: absolute;
+    inset: auto -24px -30px auto;
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: .06;
+  }
+  #render-reabastecimiento .rb-kpi-label {
+    color: var(--rb-muted);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+  }
+  #render-reabastecimiento .rb-kpi-value { margin-top: 8px; font-size: 28px; font-weight: 950; line-height: 1; }
+  #render-reabastecimiento .rb-kpi-open { color: var(--rb-info-dark); }
+  #render-reabastecimiento .rb-kpi-attention { color: var(--rb-warning-dark); }
+  #render-reabastecimiento .rb-kpi-closed { color: var(--rb-success-dark); }
+  #render-reabastecimiento .rb-kpi-inconsistent { color: var(--rb-danger-dark); }
 
-  DEPENDENCIAS
-  - google.script.run.
-  - ReabastecimientoController_getSolicitudes().
-  - ReabastecimientoController_getCandidatosPorBodega().
-  - ReabastecimientoController_crearSolicitud().
+  /* =========================================================
+     FILTROS Y ACCIONES
+     ========================================================= */
+  #render-reabastecimiento .rb-filter-btn {
+    width: auto;
+    min-height: 42px;
+    padding: .625rem 1rem;
+    border-radius: .75rem;
+    border: 1px solid var(--rb-border);
+    font-size: 12px;
+    line-height: 1rem;
+    font-weight: 900;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: all .2s ease;
+  }
+  #render-reabastecimiento .rb-filter-btn:active { transform: scale(.98); }
+  #render-reabastecimiento .rb-filter-btn.active-primary { color: #fff; background: var(--rb-primary); border-color: var(--rb-primary); box-shadow: var(--rb-shadow-red); }
+  #render-reabastecimiento .rb-filter-btn.idle { color: var(--rb-muted); background: var(--rb-white); }
+  #render-reabastecimiento .rb-filter-btn.idle:hover { background: #f3f4f6; }
+  #render-reabastecimiento .rb-select {
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--rb-border);
+    border-radius: 12px;
+    outline: none;
+    background: var(--rb-white);
+    color: var(--rb-text);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  #render-reabastecimiento .rb-select:focus { border-color: var(--rb-primary); box-shadow: var(--rb-shadow-red); }
+  #render-reabastecimiento .rb-toolbar-action {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid var(--rb-border);
+    border-radius: 12px;
+    background: var(--rb-white);
+    color: var(--rb-muted);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: all .2s ease;
+  }
+  #render-reabastecimiento .rb-toolbar-action:hover:not(:disabled) { color: var(--rb-text); background: #f8f9fa; border-color: #b9bec5; transform: translateY(-1px); box-shadow: 0 5px 13px rgba(15,23,42,.08); }
+  #render-reabastecimiento .rb-toolbar-action.primary { color: #fff; background: var(--rb-primary); border-color: var(--rb-primary); box-shadow: var(--rb-shadow-red); }
+  #render-reabastecimiento .rb-toolbar-action.primary:hover:not(:disabled) { color: #fff; background: var(--rb-primary-dark); border-color: var(--rb-primary-dark); }
+  #render-reabastecimiento .rb-toolbar-action.success { color: #fff; background: var(--rb-success); border-color: var(--rb-success); }
+  #render-reabastecimiento .rb-toolbar-action.success:hover:not(:disabled) { color: #fff; background: var(--rb-success-dark); }
+  #render-reabastecimiento .rb-toolbar-action.active-dark { color: #fff; background: var(--rb-text); border-color: var(--rb-text); }
+  #render-reabastecimiento .rb-toolbar-action:disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
 
-  INTEGRACIÓN
-  - La vista expone initReabastecimientoView() y destroyReabastecimientoView().
-  - La navegación intenta window.cargarVista() y, si no existe, emite el evento
-    appalmacen:navigate con { view, context }.
+  #render-reabastecimiento .rb-search-wrap {
+    width: 100%;
+    min-height: 50px;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--rb-muted);
+    background: #f8f9fa;
+    border: 1px solid var(--rb-border);
+    border-radius: 14px;
+    animation: rbSearchIn .22s ease-out forwards;
+  }
+  #render-reabastecimiento .rb-search-wrap:focus-within { color: var(--rb-primary); background: #fff; border-color: var(--rb-primary); box-shadow: var(--rb-shadow-red); }
+  #render-reabastecimiento .rb-search-wrap.closing { animation: rbSearchOut .18s ease-in forwards; }
+  #render-reabastecimiento .rb-search-input { flex: 1 1 auto; min-width: 0; height: 48px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--rb-text); font-size: 14px; font-weight: 800; }
+  #render-reabastecimiento .rb-search-clear { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 10px; background: rgba(28,29,31,.07); color: var(--rb-muted); }
 
-  @author Sigifredo de la Cruz Ramos
-  @version REABASTECIMIENTO-VIEW-2026-11-11-02
--->
-<div id="reabastecimiento-root" class="reab-app" aria-live="polite">
-  <style>
-    #reabastecimiento-root {
-      --reab-primary: #d93025;
-      --reab-primary-dark: #b3261e;
-      --reab-bg: #f8f9fa;
-      --reab-surface: #ffffff;
-      --reab-surface-soft: #f1f3f4;
-      --reab-text: #202124;
-      --reab-muted: #5f6368;
-      --reab-border: #dadce0;
-      --reab-success: #188038;
-      --reab-warning: #e37400;
-      --reab-danger: #c5221f;
-      --reab-info: #1967d2;
-      --reab-radius: 14px;
-      --reab-shadow: 0 2px 10px rgba(60, 64, 67, .10);
-      color: var(--reab-text);
-      font-family: Inter, Roboto, Arial, sans-serif;
-      min-height: 100%;
+  /* =========================================================
+     TABLA Y ESTADOS
+     ========================================================= */
+  #render-reabastecimiento .rb-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  #render-reabastecimiento .rb-status-open { color: var(--rb-info-dark); background: var(--rb-info-light); border-color: rgba(25,103,210,.22); }
+  #render-reabastecimiento .rb-status-attention { color: var(--rb-warning-dark); background: var(--rb-warning-light); border-color: rgba(217,119,6,.22); }
+  #render-reabastecimiento .rb-status-closed { color: var(--rb-success-dark); background: var(--rb-success-light); border-color: rgba(30,142,62,.22); }
+  #render-reabastecimiento .rb-status-inconsistent { color: var(--rb-danger-dark); background: var(--rb-danger-light); border-color: rgba(197,34,31,.20); }
+  #render-reabastecimiento .rb-table-wrap {
+    --rb-header-height: 58px;
+    --rb-row-height: 102px;
+    position: relative;
+    max-height: calc(var(--rb-header-height) + (var(--rb-row-height) * 5));
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+  #render-reabastecimiento .rb-table { width: 100%; min-width: 1080px; border-collapse: separate; border-spacing: 0; }
+  #render-reabastecimiento .rb-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    height: var(--rb-header-height);
+    padding: 16px 18px;
+    background: rgba(248,249,250,.96);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--rb-border);
+    color: var(--rb-muted);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .15em;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  #render-reabastecimiento .rb-row { height: var(--rb-row-height); }
+  #render-reabastecimiento .rb-row td { height: var(--rb-row-height); padding: 15px 18px; border-bottom: 1px solid #eef1f4; vertical-align: middle; background: var(--rb-white); transition: background-color .18s ease; }
+  #render-reabastecimiento .rb-row:hover td, #render-reabastecimiento .rb-row.active td { background: #fafafa; }
+  #render-reabastecimiento .rb-folio { color: var(--rb-text); font-family: "JetBrains Mono", monospace; font-size: 15px; font-weight: 900; letter-spacing: .035em; }
+  #render-reabastecimiento .rb-folio-sub { display: block; margin-top: 5px; color: var(--rb-muted); font-size: 10px; font-weight: 800; letter-spacing: .10em; text-transform: uppercase; }
+  #render-reabastecimiento .rb-cell-strong { color: var(--rb-text); font-size: 13px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+  #render-reabastecimiento .rb-count { font-size: 20px; font-weight: 950; }
+  #render-reabastecimiento .rb-action { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: 0; border-radius: 12px; color: #fff; background: var(--rb-text); font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; transition: .2s ease; }
+  #render-reabastecimiento .rb-action:hover { background: #000; transform: translateY(-1px); }
+  #render-reabastecimiento .rb-action.primary { background: var(--rb-primary); }
+  #render-reabastecimiento .rb-action.primary:hover { background: var(--rb-primary-dark); }
+  #render-reabastecimiento .rb-empty { min-height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #9ca3af; text-align: center; }
+
+  @media (max-width: 1279px) {
+    #render-reabastecimiento .rb-toolbar-label { display: none; }
+    #render-reabastecimiento .rb-toolbar-action { width: 44px; padding: 0; }
+  }
+  @media (max-width: 900px) {
+    #render-reabastecimiento .rb-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 560px) {
+    #render-reabastecimiento .rb-kpi-grid { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div id="render-reabastecimiento" class="h-full w-full flex flex-col bg-[var(--bg-color)] overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-4"></div>
+
+<script type="text/babel">
+  window.cargar_Reabastecimiento = () => {
+    const { useState, useEffect, useMemo, useCallback, useRef } = React;
+    const LocalIcon = window.FitoComponents?.Icon?.LocalIcon || window.FitoComponents?.LocalIcon;
+
+    if (!LocalIcon) {
+      throw new Error("No se encontró FitoComponents.Icon.LocalIcon.");
     }
-    #reabastecimiento-root * { box-sizing: border-box; }
-    #reabastecimiento-root button,
-    #reabastecimiento-root input,
-    #reabastecimiento-root select { font: inherit; }
-    .reab-shell { display: grid; gap: 18px; max-width: 1600px; margin: 0 auto; padding: 20px; }
-    .reab-header { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; }
-    .reab-title { margin: 0; font-size: clamp(1.45rem, 2vw, 2rem); line-height: 1.15; }
-    .reab-subtitle { margin: 6px 0 0; color: var(--reab-muted); font-size: .95rem; }
-    .reab-header__actions { display: flex; gap: 10px; flex-wrap: wrap; }
-    .reab-btn { min-height: 42px; border: 1px solid var(--reab-border); border-radius: 10px; padding: 0 16px; background: var(--reab-surface); color: var(--reab-text); cursor: pointer; font-weight: 700; transition: .18s ease; }
-    .reab-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--reab-shadow); }
-    .reab-btn:focus-visible, .reab-tab:focus-visible, .reab-input:focus-visible, .reab-select:focus-visible { outline: 3px solid rgba(25, 103, 210, .25); outline-offset: 2px; }
-    .reab-btn:disabled { opacity: .55; cursor: not-allowed; }
-    .reab-btn--primary { color: #fff; background: var(--reab-primary); border-color: var(--reab-primary); }
-    .reab-btn--primary:hover:not(:disabled) { background: var(--reab-primary-dark); }
-    .reab-btn--ghost { background: transparent; }
-    .reab-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--reab-border); overflow-x: auto; }
-    .reab-tab { border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--reab-muted); padding: 13px 16px 11px; cursor: pointer; font-weight: 800; white-space: nowrap; }
-    .reab-tab[aria-selected="true"] { color: var(--reab-primary); border-bottom-color: var(--reab-primary); }
-    .reab-panel[hidden] { display: none !important; }
-    .reab-grid { display: grid; gap: 14px; }
-    .reab-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .reab-card { background: var(--reab-surface); border: 1px solid var(--reab-border); border-radius: var(--reab-radius); box-shadow: var(--reab-shadow); }
-    .reab-kpi { padding: 16px; border-left: 4px solid var(--reab-border); }
-    .reab-kpi--open { border-left-color: var(--reab-info); }
-    .reab-kpi--attention { border-left-color: var(--reab-warning); }
-    .reab-kpi--closed { border-left-color: var(--reab-success); }
-    .reab-kpi--inconsistent { border-left-color: var(--reab-danger); }
-    .reab-kpi__label { color: var(--reab-muted); font-size: .8rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
-    .reab-kpi__value { margin-top: 7px; font-size: 1.75rem; font-weight: 900; }
-    .reab-toolbar { padding: 14px; display: grid; grid-template-columns: minmax(220px, 2fr) repeat(2, minmax(150px, 1fr)) auto; gap: 10px; align-items: end; }
-    .reab-field { display: grid; gap: 6px; }
-    .reab-label { color: var(--reab-muted); font-size: .76rem; font-weight: 800; text-transform: uppercase; letter-spacing: .035em; }
-    .reab-input, .reab-select { width: 100%; min-height: 42px; border: 1px solid var(--reab-border); border-radius: 10px; padding: 0 12px; background: var(--reab-surface); color: var(--reab-text); }
-    .reab-table-wrap { overflow: auto; max-height: 58vh; }
-    .reab-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 980px; }
-    .reab-table th { position: sticky; top: 0; z-index: 1; padding: 12px; color: var(--reab-muted); background: var(--reab-surface-soft); border-bottom: 1px solid var(--reab-border); font-size: .75rem; text-align: left; text-transform: uppercase; letter-spacing: .035em; }
-    .reab-table td { padding: 12px; border-bottom: 1px solid var(--reab-border); vertical-align: middle; }
-    .reab-table tbody tr:hover { background: #fafafa; }
-    .reab-status { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 6px 10px; font-size: .76rem; font-weight: 900; }
-    .reab-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-    .reab-status--ABIERTA { color: var(--reab-info); background: #e8f0fe; }
-    .reab-status--EN_ATENCION { color: var(--reab-warning); background: #fef7e0; }
-    .reab-status--CERRADA { color: var(--reab-success); background: #e6f4ea; }
-    .reab-status--INCONSISTENTE { color: var(--reab-danger); background: #fce8e6; }
-    .reab-empty, .reab-loading { padding: 42px 18px; text-align: center; color: var(--reab-muted); }
-    .reab-spinner { width: 28px; height: 28px; margin: 0 auto 12px; border: 3px solid #e0e0e0; border-top-color: var(--reab-primary); border-radius: 50%; animation: reab-spin .8s linear infinite; }
-    @keyframes reab-spin { to { transform: rotate(360deg); } }
-    .reab-form { display: grid; gap: 16px; }
-    .reab-form__header { padding: 18px; }
-    .reab-form__header h2 { margin: 0 0 6px; }
-    .reab-form__header p { margin: 0; color: var(--reab-muted); }
-    .reab-form__controls { padding: 16px; display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
-    .reab-candidates { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; }
-    .reab-candidate-toolbar { padding: 14px; display: grid; grid-template-columns: minmax(200px, 1fr) 180px auto; gap: 10px; align-items: end; }
-    .reab-candidate-list { max-height: 55vh; overflow: auto; }
-    .reab-candidate { display: grid; grid-template-columns: 36px minmax(130px, .8fr) minmax(220px, 1.5fr) minmax(135px, .8fr) repeat(3, 90px); gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--reab-border); }
-    .reab-candidate:hover { background: #fafafa; }
-    .reab-candidate__muted { color: var(--reab-muted); font-size: .8rem; }
-    .reab-summary { padding: 16px; align-self: start; position: sticky; top: 10px; }
-    .reab-summary h3 { margin: 0 0 14px; }
-    .reab-summary__metric { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--reab-border); }
-    .reab-summary__actions { display: grid; gap: 8px; margin-top: 16px; }
-    .reab-alert { border-radius: 10px; padding: 12px 14px; font-size: .9rem; }
-    .reab-alert--error { color: #8c1d18; background: #fce8e6; border: 1px solid #f6aea9; }
-    .reab-alert--success { color: #0d652d; background: #e6f4ea; border: 1px solid #a8dab5; }
-    .reab-footnote { color: var(--reab-muted); font-size: .78rem; line-height: 1.45; }
-    @media (max-width: 1050px) {
-      .reab-kpis { grid-template-columns: repeat(2, 1fr); }
-      .reab-toolbar, .reab-form__controls, .reab-candidate-toolbar { grid-template-columns: 1fr 1fr; }
-      .reab-candidates { grid-template-columns: 1fr; }
-      .reab-summary { position: static; }
-      .reab-candidate { grid-template-columns: 34px 1fr 1.6fr 1fr; }
-      .reab-candidate > :nth-child(n+5) { display: none; }
-    }
-    @media (max-width: 650px) {
-      .reab-shell { padding: 12px; }
-      .reab-header { flex-direction: column; }
-      .reab-kpis, .reab-toolbar, .reab-form__controls, .reab-candidate-toolbar { grid-template-columns: 1fr; }
-      .reab-candidate { grid-template-columns: 34px 1fr; }
-      .reab-candidate > :nth-child(n+3) { display: none; }
-    }
-  </style>
 
-  <main class="reab-shell">
-    <header class="reab-header">
-      <div>
-        <h1 class="reab-title">Reabastecimiento</h1>
-        <p class="reab-subtitle">Gestión de solicitudes, atención y seguimiento de excedentes.</p>
-      </div>
-      <div class="reab-header__actions">
-        <button id="reab-refresh" class="reab-btn reab-btn--ghost" type="button">Actualizar</button>
-        <button id="reab-new" class="reab-btn reab-btn--primary" type="button">Nueva solicitud</button>
-      </div>
-    </header>
+    /** Emite una notificación mediante la infraestructura global del Shell. */
+    const notify_ = (message, type = "info", timer = 2500, options = {}) => {
+      const handler = window.notificar || window.lanzarNotificacion;
+      if (typeof handler === "function") handler(message, type, timer, options);
+    };
 
+    /** Normaliza valores de texto para búsqueda y comparación. */
+    const normalize_ = (value) => String(value ?? "").trim().toUpperCase();
 
+    /** Convierte una fecha dd/MM/yyyy o ISO a milisegundos para ordenar. */
+    const dateValue_ = (value) => {
+      const text = String(value || "").trim();
+      const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (match) return new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1])).getTime();
+      const parsed = new Date(text);
+      return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+    };
 
-    <section id="reab-panel-solicitudes" class="reab-panel" data-panel="SOLICITUDES">
-      <div class="reab-grid reab-kpis" aria-label="Resumen de solicitudes">
-        <article class="reab-card reab-kpi reab-kpi--open"><div class="reab-kpi__label">Abiertas</div><div id="reab-kpi-open" class="reab-kpi__value">0</div></article>
-        <article class="reab-card reab-kpi reab-kpi--attention"><div class="reab-kpi__label">En atención</div><div id="reab-kpi-attention" class="reab-kpi__value">0</div></article>
-        <article class="reab-card reab-kpi reab-kpi--closed"><div class="reab-kpi__label">Cerradas</div><div id="reab-kpi-closed" class="reab-kpi__value">0</div></article>
-        <article class="reab-card reab-kpi reab-kpi--inconsistent"><div class="reab-kpi__label">Inconsistentes</div><div id="reab-kpi-inconsistent" class="reab-kpi__value">0</div></article>
-      </div>
+    /** Devuelve la clase visual asociada al estado derivado. */
+    const statusClass_ = (status) => ({
+      ABIERTA: "rb-chip rb-status-open",
+      EN_ATENCION: "rb-chip rb-status-attention",
+      CERRADA: "rb-chip rb-status-closed",
+      INCONSISTENTE: "rb-chip rb-status-inconsistent",
+    }[normalize_(status)] || "rb-chip rb-status-inconsistent");
 
-      <div class="reab-card reab-toolbar">
-        <label class="reab-field"><span class="reab-label">Buscar</span><input id="reab-filter-text" class="reab-input" type="search" placeholder="Folio, solicitante o bodega" autocomplete="off"></label>
-        <label class="reab-field"><span class="reab-label">Estado</span><select id="reab-filter-status" class="reab-select"><option value="">Todos</option><option>ABIERTA</option><option>EN_ATENCION</option><option>CERRADA</option><option>INCONSISTENTE</option></select></label>
-        <label class="reab-field"><span class="reab-label">Bodega</span><select id="reab-filter-warehouse" class="reab-select"><option value="">Todas</option></select></label>
-        <button id="reab-clear-filters" class="reab-btn" type="button">Limpiar</button>
-      </div>
+    /** Devuelve la etiqueta legible del estado. */
+    const statusLabel_ = (status) => normalize_(status).replaceAll("_", " ") || "SIN ESTADO";
 
-      <div class="reab-card">
-        <div id="reab-requests-state" class="reab-loading"><div class="reab-spinner"></div>Cargando solicitudes...</div>
-        <div id="reab-requests-table-wrap" class="reab-table-wrap" hidden>
-          <table class="reab-table">
-            <thead><tr><th>Folio</th><th>Estado</th><th>Creación</th><th>Solicitante</th><th>Bodega</th><th>SKU</th><th>Cajas</th><th>Acción</th></tr></thead>
-            <tbody id="reab-requests-body"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
+    /** Componente principal del listado de Reabastecimiento. */
+    const Dashboard = () => {
+      const [requests, setRequests] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [statusFilter, setStatusFilter] = useState("TODAS");
+      const [warehouseFilter, setWarehouseFilter] = useState("TODAS");
+      const [sortBy, setSortBy] = useState("FECHA_DESC");
+      const [searchQuery, setSearchQuery] = useState("");
+      const [searchExpanded, setSearchExpanded] = useState(false);
+      const [searchClosing, setSearchClosing] = useState(false);
+      const [activeRow, setActiveRow] = useState(null);
+      const searchRef = useRef(null);
+      const inFlightRef = useRef(false);
+      const sequenceRef = useRef(0);
+      const watchdogRef = useRef(null);
 
-  </main>
-
-  <script>
-    (() => {
-      "use strict";
-
-      const ROOT_ID = "reabastecimiento-root";
-      const state = {
-        destroyed: false,
-        requests: [],
-        loading: false,
-        initialized: false
-      };
-
-      const $ = (selector) => document.querySelector(`#${ROOT_ID} ${selector}`);
-      const text = (value) => String(value ?? "").trim();
-      const upper = (value) => text(value).toUpperCase();
-      const escapeHtml = (value) => text(value).replace(/[&<>'"]/g, (char) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
-      }[char]));
-
-      /** Ejecuta un endpoint de google.script.run como Promise. */
-      function callServer(method, ...args) {
-        return new Promise((resolve, reject) => {
-          if (!window.google?.script?.run) {
-            reject(new Error("google.script.run no está disponible."));
-            return;
+      /**
+       * Consulta solicitudes y descarta respuestas obsoletas.
+       * @param {"init"|"manual"|"auto"} context Origen de la actualización.
+       */
+      const refresh = useCallback((context = "init") => {
+        if (inFlightRef.current || typeof google === "undefined" || !google.script?.run) {
+          if (!google?.script?.run) {
+            setLoading(false);
+            notify_("google.script.run no está disponible.", "error", 4200, {
+              title: "Entorno inválido",
+              sound: true,
+            });
           }
-          const runner = google.script.run
-            .withSuccessHandler(resolve)
-            .withFailureHandler(reject);
-          if (typeof runner[method] !== "function") {
-            reject(new Error(`Endpoint no disponible: ${method}`));
-            return;
-          }
-          runner[method](...args);
-        });
-      }
-
-      /** Elimina el código técnico del inicio de un error público. */
-      function publicError(error) {
-        const message = text(error?.message || error);
-        return message.replace(/^\[[A-Z0-9_]+\]\s*/, "") ||
-          "No fue posible completar la operación.";
-      }
-
-      /** Navega usando el cargador activo o emite un evento compatible. */
-      function navigate(view, context = {}) {
-        window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
-        if (view === "ReabastecimientoDetalles") {
-          window.DATA_ALMACEN_CACHE.reabastecimientoNavigation = context;
-        }
-        if (typeof window.cargarVista === "function") {
-          window.cargarVista(view, context);
           return;
         }
-        window.dispatchEvent(new CustomEvent("appalmacen:navigate", {
-          detail: { view, context }
-        }));
-      }
 
-      /** Calcula y muestra los KPI a partir del estado derivado del servidor. */
-      function renderKpis() {
-        const counts = state.requests.reduce((result, item) => {
-          const status = upper(item.estado);
-          result[status] = (result[status] || 0) + 1;
-          return result;
-        }, Object.create(null));
-        $("#reab-kpi-open").textContent = counts.ABIERTA || 0;
-        $("#reab-kpi-attention").textContent = counts.EN_ATENCION || 0;
-        $("#reab-kpi-closed").textContent = counts.CERRADA || 0;
-        $("#reab-kpi-inconsistent").textContent = counts.INCONSISTENTE || 0;
-      }
+        const sequence = Date.now();
+        sequenceRef.current = sequence;
+        inFlightRef.current = true;
+        if (context !== "auto") setLoading(true);
 
-      /** Reconstruye el filtro de bodegas sin perder una selección válida. */
-      function renderWarehouseOptions() {
-        const select = $("#reab-filter-warehouse");
-        const selected = upper(select.value);
-        const warehouses = [...new Set(
-          state.requests.map((item) => upper(item.bodega)).filter(Boolean)
-        )].sort();
-        select.innerHTML = '<option value="">Todas</option>' +
-          warehouses.map((warehouse) =>
-            `<option value="${escapeHtml(warehouse)}">${escapeHtml(warehouse)}</option>`
-          ).join("");
-        select.value = warehouses.includes(selected) ? selected : "";
-      }
-
-      /** Devuelve solicitudes filtradas completamente en cliente. */
-      function getVisibleRequests() {
-        const query = upper($("#reab-filter-text").value);
-        const status = upper($("#reab-filter-status").value);
-        const warehouse = upper($("#reab-filter-warehouse").value);
-        return state.requests.filter((item) => {
-          const searchable = upper([
-            item.idSolicitud, item.solicitante, item.bodega
-          ].join(" "));
-          return (!query || searchable.includes(query)) &&
-            (!status || upper(item.estado) === status) &&
-            (!warehouse || upper(item.bodega) === warehouse);
-        });
-      }
-
-      /** Renderiza la tabla y conserva el DOM limitado al conjunto filtrado. */
-      function renderRequests() {
-        const body = $("#reab-requests-body");
-        const records = getVisibleRequests();
-        if (!records.length) {
-          body.innerHTML = '<tr><td colspan="8"><div class="reab-empty">No hay solicitudes para los filtros seleccionados.</div></td></tr>';
-        } else {
-          body.innerHTML = records.map((item) => {
-            const status = upper(item.estado);
-            const canAttend = status === "ABIERTA" || status === "EN_ATENCION";
-            return `<tr>
-              <td><strong>${escapeHtml(item.idSolicitud)}</strong></td>
-              <td><span class="reab-status reab-status--${escapeHtml(status)}">${escapeHtml(status.replaceAll("_", " "))}</span></td>
-              <td>${escapeHtml(item.fechaCreacion)} <span class="reab-candidate__muted">${escapeHtml(item.horaCreacion)}</span></td>
-              <td>${escapeHtml(item.solicitante)}</td>
-              <td>${escapeHtml(item.bodega)}</td>
-              <td>${Number(item.skusSolicitados || 0)}</td>
-              <td>${Number(item.cajasInvolucradas || 0)}</td>
-              <td><button class="reab-btn" type="button" data-request-id="${escapeHtml(item.idSolicitud)}">${canAttend ? "Atender" : "Ver detalle"}</button></td>
-            </tr>`;
-          }).join("");
-        }
-        $("#reab-requests-state").hidden = true;
-        $("#reab-requests-table-wrap").hidden = false;
-      }
-
-      /** Consulta el listado ligero; nunca carga candidatos de solicitud. */
-      async function loadRequests() {
-        if (state.loading || state.destroyed) return;
-        state.loading = true;
-        $("#reab-refresh").disabled = true;
-        $("#reab-requests-table-wrap").hidden = true;
-        $("#reab-requests-state").hidden = false;
-        $("#reab-requests-state").innerHTML =
-          '<div class="reab-spinner"></div>Cargando solicitudes...';
-        try {
-          const response = await callServer(
-            "ReabastecimientoController_getSolicitudes",
-            {}
-          );
-          state.requests = Array.isArray(response?.data?.solicitudes)
-            ? response.data.solicitudes
-            : [];
-          renderKpis();
-          renderWarehouseOptions();
-          renderRequests();
-        } catch (error) {
-          $("#reab-requests-state").innerHTML =
-            `<div class="reab-alert reab-alert--error">${escapeHtml(publicError(error))}</div>`;
-        } finally {
-          state.loading = false;
-          $("#reab-refresh").disabled = false;
-        }
-      }
-
-      /** Registra eventos una sola vez durante la vida de la vista. */
-      function bindEvents() {
-        $("#reab-new").addEventListener("click", () =>
-          navigate("ReabastecimientoSolicitud")
-        );
-        $("#reab-refresh").addEventListener("click", loadRequests);
-        $("#reab-filter-text").addEventListener("input", renderRequests);
-        $("#reab-filter-status").addEventListener("change", renderRequests);
-        $("#reab-filter-warehouse").addEventListener("change", renderRequests);
-        $("#reab-clear-filters").addEventListener("click", () => {
-          $("#reab-filter-text").value = "";
-          $("#reab-filter-status").value = "";
-          $("#reab-filter-warehouse").value = "";
-          renderRequests();
-        });
-        $("#reab-requests-body").addEventListener("click", (event) => {
-          const button = event.target.closest("[data-request-id]");
-          if (!button) return;
-          navigate("ReabastecimientoDetalles", {
-            idSolicitud: text(button.dataset.requestId)
+        clearTimeout(watchdogRef.current);
+        watchdogRef.current = setTimeout(() => {
+          if (sequenceRef.current !== sequence || !inFlightRef.current) return;
+          inFlightRef.current = false;
+          setLoading(false);
+          notify_("La consulta tardó demasiado. Intenta actualizar nuevamente.", "warning", 5000, {
+            title: "Carga detenida",
+            sound: true,
           });
+        }, 20000);
+
+        google.script.run
+          .withSuccessHandler((response) => {
+            if (sequenceRef.current !== sequence) return;
+            clearTimeout(watchdogRef.current);
+            const records = Array.isArray(response?.data?.solicitudes)
+              ? response.data.solicitudes
+              : [];
+            setRequests(records);
+            inFlightRef.current = false;
+            setLoading(false);
+            if (context === "manual") {
+              notify_("Solicitudes actualizadas correctamente.", "success", 1800, {
+                title: "Actualización completada",
+                sound: false,
+              });
+            }
+          })
+          .withFailureHandler((error) => {
+            if (sequenceRef.current !== sequence) return;
+            clearTimeout(watchdogRef.current);
+            inFlightRef.current = false;
+            setLoading(false);
+            notify_(error?.message || "No se pudieron cargar las solicitudes.", "error", 4200, {
+              title: "Error de Reabastecimiento",
+              sound: true,
+            });
+          })
+          .ReabastecimientoController_getSolicitudes({});
+      }, []);
+
+      useEffect(() => {
+        refresh("init");
+      }, [refresh]);
+
+      useEffect(() => {
+        const timer = setInterval(() => {
+          if (document.visibilityState === "visible") refresh("auto");
+        }, 60000);
+        return () => {
+          clearInterval(timer);
+          clearTimeout(watchdogRef.current);
+          sequenceRef.current = Date.now();
+          inFlightRef.current = false;
+        };
+      }, [refresh]);
+
+      /** Abre o cierra el buscador con una transición breve. */
+      const toggleSearch = () => {
+        if (!searchExpanded) {
+          setSearchClosing(false);
+          setSearchExpanded(true);
+          setTimeout(() => searchRef.current?.focus(), 80);
+          return;
+        }
+        setSearchClosing(true);
+        setTimeout(() => {
+          setSearchExpanded(false);
+          setSearchClosing(false);
+          setSearchQuery("");
+        }, 180);
+      };
+
+      /** Abre la vista independiente de creación de solicitudes. */
+      const openNewRequest = () => {
+        if (typeof window.irAVistaShell !== "function") {
+          notify_("La navegación del Shell no está disponible.", "error", 3200, {
+            title: "Navegación no disponible",
+            sound: true,
+          });
+          return;
+        }
+        window.irAVistaShell(
+          "ReabastecimientoSolicitud",
+          "ReabastecimientoSolicitud",
+          {},
+        );
+      };
+
+      /** Abre la solicitud seleccionada en la vista operativa. */
+      const openRequest = (item) => {
+        const idSolicitud = String(item?.idSolicitud || "").trim();
+        if (!idSolicitud || typeof window.irAVistaShell !== "function") {
+          notify_("No se pudo abrir la solicitud.", "error", 3200, {
+            title: "Navegación no disponible",
+            sound: true,
+          });
+          return;
+        }
+        window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+        window.DATA_ALMACEN_CACHE.reabastecimientoNavigation = { idSolicitud };
+        window.irAVistaShell(
+          "ReabastecimientoDetalles",
+          "ReabastecimientoDetalles",
+          { REABASTECIMIENTO_ID_SOLICITUD: idSolicitud },
+        );
+      };
+
+      const warehouses = useMemo(() => [
+        ...new Set(requests.map((item) => normalize_(item.bodega)).filter(Boolean)),
+      ].sort(), [requests]);
+
+      const counts = useMemo(() => requests.reduce((result, item) => {
+        const status = normalize_(item.estado);
+        result[status] = (result[status] || 0) + 1;
+        return result;
+      }, Object.create(null)), [requests]);
+
+      /** Colección derivada tras aplicar filtros, búsqueda y orden. */
+      const filtered = useMemo(() => {
+        let result = [...requests];
+        if (statusFilter !== "TODAS") {
+          result = result.filter((item) => normalize_(item.estado) === statusFilter);
+        }
+        if (warehouseFilter !== "TODAS") {
+          result = result.filter((item) => normalize_(item.bodega) === warehouseFilter);
+        }
+        const query = searchQuery.trim().toLowerCase();
+        if (query) {
+          result = result.filter((item) => [
+            item.idSolicitud,
+            item.solicitante,
+            item.bodega,
+            item.estado,
+            item.fechaCreacion,
+          ].some((value) => String(value || "").toLowerCase().includes(query)));
+        }
+        result.sort((left, right) => {
+          const difference = dateValue_(left.fechaCreacion) - dateValue_(right.fechaCreacion);
+          return sortBy === "FECHA_ASC" ? difference : -difference;
         });
+        return result;
+      }, [requests, statusFilter, warehouseFilter, searchQuery, sortBy]);
+
+      /** Exporta el conjunto visible mediante la utilidad global compartida. */
+      const exportExcel = () => {
+        if (!window.ExcelExportUtils?.exportarAXLSX) {
+          notify_("No se detectó el exportador XLSX.", "error", 4000, {
+            title: "Exportador no disponible",
+            sound: true,
+          });
+          return;
+        }
+        if (!filtered.length) {
+          notify_("No existen solicitudes para exportar.", "warning", 3000, {
+            title: "Sin datos",
+            sound: true,
+          });
+          return;
+        }
+        window.ExcelExportUtils.exportarAXLSX({
+          fileName: `Reabastecimiento_${new Date().toISOString().slice(0, 10)}.xlsx`,
+          sheetName: "Solicitudes",
+          rows: filtered,
+          columns: [
+            { key: "idSolicitud", label: "Solicitud" },
+            { key: "fechaCreacion", label: "Fecha creación" },
+            { key: "horaCreacion", label: "Hora creación" },
+            { key: "solicitante", label: "Solicitante" },
+            { key: "bodega", label: "Bodega" },
+            { key: "skusSolicitados", label: "SKU solicitados" },
+            { key: "cajasInvolucradas", label: "Cajas involucradas" },
+            { key: "estado", label: "Estado" },
+          ],
+        });
+      };
+
+      return (
+        <div className="space-y-4 rb-fade-in relative">
+          <section className="rb-kpi-grid">
+            {[
+              ["Abiertas", counts.ABIERTA || 0, "rb-kpi-open", "circle-dot"],
+              ["En atención", counts.EN_ATENCION || 0, "rb-kpi-attention", "loader-circle"],
+              ["Cerradas", counts.CERRADA || 0, "rb-kpi-closed", "circle-check"],
+              ["Inconsistentes", counts.INCONSISTENTE || 0, "rb-kpi-inconsistent", "triangle-alert"],
+            ].map(([label, value, colorClass, icon]) => (
+              <article key={label} className={`rb-card rb-kpi ${colorClass}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="rb-kpi-label">{label}</div>
+                    <div className="rb-kpi-value">{value}</div>
+                  </div>
+                  <LocalIcon name={icon} size={25} />
+                </div>
+              </article>
+            ))}
+          </section>
+
+          <section className="rb-card p-4">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    ["TODAS", "Todas"],
+                    ["ABIERTA", "Abiertas"],
+                    ["EN_ATENCION", "En atención"],
+                    ["CERRADA", "Cerradas"],
+                    ["INCONSISTENTE", "Inconsistentes"],
+                  ].map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setStatusFilter(id)}
+                      className={`rb-filter-btn ${statusFilter === id ? "active-primary" : "idle"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                  <select
+                    className="rb-select"
+                    value={warehouseFilter}
+                    onChange={(event) => setWarehouseFilter(event.target.value)}
+                    aria-label="Filtrar por bodega"
+                  >
+                    <option value="TODAS">Todas las bodegas</option>
+                    {warehouses.map((warehouse) => (
+                      <option key={warehouse} value={warehouse}>{warehouse}</option>
+                    ))}
+                  </select>
+                  <select
+                    className="rb-select"
+                    value={sortBy}
+                    onChange={(event) => setSortBy(event.target.value)}
+                    aria-label="Ordenar solicitudes"
+                  >
+                    <option value="FECHA_DESC">Más recientes</option>
+                    <option value="FECHA_ASC">Más antiguas</option>
+                  </select>
+                  <button type="button" onClick={toggleSearch} className={`rb-toolbar-action ${searchExpanded ? "active-dark" : ""}`} title="Buscar solicitudes">
+                    <LocalIcon name={searchExpanded ? "x" : "search"} size={17} />
+                    <span className="rb-toolbar-label">{searchExpanded ? "Cerrar" : "Buscar"}</span>
+                  </button>
+                  <button type="button" onClick={() => refresh("manual")} disabled={loading} className="rb-toolbar-action" title="Actualizar">
+                    <LocalIcon name="refresh-cw" size={17} className={loading ? "animate-spin" : ""} />
+                    <span className="rb-toolbar-label">Actualizar</span>
+                  </button>
+                  <button type="button" onClick={openNewRequest} className="rb-toolbar-action primary" title="Nueva solicitud">
+                    <LocalIcon name="clipboard-plus" size={17} />
+                    <span className="rb-toolbar-label">Nueva</span>
+                  </button>
+                  <button type="button" onClick={exportExcel} disabled={loading || !filtered.length} className="rb-toolbar-action success" title="Exportar a Excel">
+                    <LocalIcon name="file-spreadsheet" size={17} />
+                    <span className="rb-toolbar-label">Excel</span>
+                  </button>
+                </div>
+              </div>
+
+              {searchExpanded && (
+                <div className={`rb-search-wrap ${searchClosing ? "closing" : ""}`}>
+                  <LocalIcon name="search" size={18} />
+                  <input
+                    ref={searchRef}
+                    autoFocus
+                    type="text"
+                    className="rb-search-input"
+                    placeholder="Busca por folio, solicitante, bodega, estado o fecha..."
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                  />
+                  {searchQuery && (
+                    <button type="button" className="rb-search-clear" onClick={() => setSearchQuery("")} title="Limpiar búsqueda">
+                      <LocalIcon name="x" size={16} />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rb-card overflow-hidden">
+            <div className="rb-table-wrap rb-scroll">
+              <table className="rb-table">
+                <thead>
+                  <tr>
+                    <th>Solicitud / creación</th>
+                    <th>Solicitante</th>
+                    <th>Bodega</th>
+                    <th>SKU</th>
+                    <th>Cajas</th>
+                    <th>Estado</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((item, index) => {
+                    const status = normalize_(item.estado);
+                    const actionable = status === "ABIERTA" || status === "EN_ATENCION";
+                    return (
+                      <tr
+                        key={item.idSolicitud || index}
+                        className={`rb-row ${activeRow === index ? "active" : ""}`}
+                        onClick={() => setActiveRow(activeRow === index ? null : index)}
+                      >
+                        <td>
+                          <span className="rb-folio">{item.idSolicitud || "SIN FOLIO"}</span>
+                          <span className="rb-folio-sub">{item.fechaCreacion || "SIN FECHA"} · {item.horaCreacion || "--"}</span>
+                        </td>
+                        <td><span className="rb-cell-strong">{item.solicitante || "SIN SOLICITANTE"}</span></td>
+                        <td><span className="rb-cell-strong">{item.bodega || "SIN BODEGA"}</span></td>
+                        <td><span className="rb-count">{Number(item.skusSolicitados || 0)}</span></td>
+                        <td><span className="rb-count">{Number(item.cajasInvolucradas || 0)}</span></td>
+                        <td><span className={statusClass_(status)}>{statusLabel_(status)}</span></td>
+                        <td>
+                          <button
+                            type="button"
+                            className={`rb-action ${actionable ? "primary" : ""}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openRequest(item);
+                            }}
+                          >
+                            <LocalIcon name={actionable ? "play" : "arrow-up-right"} size={14} />
+                            {status === "ABIERTA" ? "Atender" : status === "EN_ATENCION" ? "Continuar" : status === "INCONSISTENTE" ? "Revisar" : "Ver resumen"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {!loading && !filtered.length && (
+                <div className="rb-empty">
+                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                    <LocalIcon name="search-x" size={28} />
+                  </div>
+                  <span className="text-[13px] font-black uppercase tracking-widest">Sin solicitudes coincidentes</span>
+                  <span className="text-[11px] font-semibold">Ajusta la búsqueda o los filtros operativos.</span>
+                </div>
+              )}
+
+              {loading && (
+                <div className="p-28 flex flex-col items-center justify-center gap-4">
+                  <div className="w-10 h-10 border-4 border-slate-100 border-t-[var(--primary)] rounded-full animate-spin"></div>
+                  <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">Cargando solicitudes...</span>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      );
+    };
+
+    const target = document.getElementById("render-reabastecimiento");
+    if (!target) {
+      notify_("No se encontró el contenedor principal.", "error", 4200, {
+        title: "Error de interfaz",
+        sound: true,
+      });
+      return () => {};
+    }
+
+    if (window.__REABASTECIMIENTO_ROOT__) {
+      try {
+        window.__REABASTECIMIENTO_ROOT__.unmount();
+      } catch (_) {}
+      window.__REABASTECIMIENTO_ROOT__ = null;
+    }
+
+    window.__REABASTECIMIENTO_ROOT__ = ReactDOM.createRoot(target);
+    window.__REABASTECIMIENTO_ROOT__.render(<Dashboard />);
+
+    return () => {
+      if (window.__REABASTECIMIENTO_ROOT__) {
+        try {
+          window.__REABASTECIMIENTO_ROOT__.unmount();
+        } catch (_) {}
+        window.__REABASTECIMIENTO_ROOT__ = null;
       }
+    };
+  };
 
-      /** Inicializa la vista de listado. */
-      window.initReabastecimientoView = function initReabastecimientoView() {
-        if (state.destroyed || state.initialized) return;
-        state.initialized = true;
-        bindEvents();
-        loadRequests();
-      };
-
-      /** Libera referencias mantenidas por la vista. */
-      window.destroyReabastecimientoView = function destroyReabastecimientoView() {
-        state.destroyed = true;
-        state.requests = [];
-      };
-
-      window.initReabastecimientoView();
-    })();
-  </script>
-</div>
-
+  window.initVista = window.cargar_Reabastecimiento;
+</script>
