@@ -20,7 +20,7 @@
  * - El Service conserva la autoridad y revalida antes de persistir.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-SOLICITUD-VIEW-2026-11-11-06
+ * @version REABASTECIMIENTO-SOLICITUD-VIEW-2026-11-12-07
  */
 </script>
 
@@ -120,8 +120,79 @@ window.cargar_ReabastecimientoSolicitud=()=>{
     const ordered=useMemo(()=>[...rows].sort((a,b)=>{const order=natural(a.ubicacionSurtido,b.ubicacionSurtido);return(sortDirection==="ASC"?order:-order)||natural(a.codigo,b.codigo)}),[rows,sortDirection]);
     const totalSkus=useMemo(()=>new Set(rows.map((r)=>r.codigo)).size,[rows]);
     const toggle=(item)=>setSelected((previous)=>{const next=new Map(previous),current=next.get(item.codigo);if(current?.ubicacionSurtido===item.ubicacionSurtido)next.delete(item.codigo);else next.set(item.codigo,{codigo:item.codigo,ubicacionSurtido:item.ubicacionSurtido});return next});
-    const create=async()=>{if(creating||!selected.size)return;setCreating(true);try{const response=await callServer("ReabastecimientoController_crearSolicitud",{solicitante:upper(user),bodega:warehouse,partidas:[...selected.values()].map((item)=>({codigo:item.codigo,ubicacion:item.ubicacionSurtido}))});const id=text(response?.data?.idSolicitud);notify(`Solicitud ${id} creada correctamente.`,"success",3000,{title:"Solicitud creada",sound:true});setTimeout(()=>window.irAVistaShell?.("Reabastecimiento","Reabastecimiento"),700)}catch(error){notify(publicError(error),"error",5000,{title:"No se creó la solicitud",sound:true})}finally{if(mounted.current)setCreating(false)}};
+    /** Navega al listado y solicita una recarga autoritativa. */
+    const navigateToList = (idSolicitud = "") => {
+      window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+      window.DATA_ALMACEN_CACHE.reabastecimientoRefreshRequired = true;
+      window.DATA_ALMACEN_CACHE.reabastecimientoUltimaSolicitud = idSolicitud;
+      if (typeof window.irAVistaShell === "function") {
+        window.irAVistaShell(
+          "Reabastecimiento",
+          "Reabastecimiento",
+          {
+            REABASTECIMIENTO_REFRESH_REQUIRED: true,
+            REABASTECIMIENTO_ULTIMA_SOLICITUD: idSolicitud,
+          }
+        );
+      }
+    };
 
+    /** Crea con watchdog. Un timeout no dispara reintento automático. */
+    const create = async () => {
+      if (creating || !selected.size) return;
+      setCreating(true);
+      let creationTimer = null;
+      try {
+        const payload = {
+          solicitante: upper(user),
+          bodega: warehouse,
+          partidas: [...selected.values()].map((item) => ({
+            codigo: item.codigo,
+            ubicacion: item.ubicacionSurtido,
+          })),
+        };
+        const timeoutPromise = new Promise((_, reject) => {
+          creationTimer = setTimeout(() => {
+            const error = new Error(
+              "La creación superó 45 segundos. La operación pudo concluir en el servidor."
+            );
+            error.code = "REAB_CREATE_TIMEOUT";
+            reject(error);
+          }, 45000);
+        });
+        const response = await Promise.race([
+          callServer("ReabastecimientoController_crearSolicitud", payload),
+          timeoutPromise,
+        ]);
+        clearTimeout(creationTimer);
+        const idSolicitud = text(response?.data?.idSolicitud);
+        notify(
+          `Solicitud ${idSolicitud} creada correctamente.`,
+          "success",
+          2600,
+          { title: "Solicitud creada", sound: true }
+        );
+        navigateToList(idSolicitud);
+      } catch (error) {
+        clearTimeout(creationTimer);
+        if (error?.code === "REAB_CREATE_TIMEOUT") {
+          notify(
+            "La respuesta tardó demasiado. Regresaremos al listado para verificar antes de permitir otro intento.",
+            "warning",
+            6500,
+            { title: "Resultado por confirmar", sound: true }
+          );
+          navigateToList("");
+        } else {
+          notify(publicError(error), "error", 5000, {
+            title: "No se creó la solicitud",
+            sound: true,
+          });
+        }
+      } finally {
+        if (mounted.current) setCreating(false);
+      }
+    };
     return <div className="rs-page"><section className="rs-workspace">
       <header className="rs-header"><div className="rs-identity"><div className="rs-icon"><LocalIcon name="clipboard-plus" size={23}/></div><div><p className="rs-eyebrow">Solicitud manual</p><h2 className="rs-title">NUEVO REABASTECIMIENTO</h2><p className="rs-subtitle">Excedentes consolidados por SKU, surtido, bodega y caja.</p></div></div>
       <div className="rs-metrics"><div className="rs-metric"><div className="rs-metric-value">{totalSkus}</div><div className="rs-metric-label">SKU rellenables</div></div><div className="rs-metric green"><div className="rs-metric-value">{selected.size}</div><div className="rs-metric-label">Seleccionados</div></div><div className="rs-metric amber"><div className="rs-metric-value">{Math.max(0,totalSkus-selected.size)}</div><div className="rs-metric-label">Omitidos</div></div><div className="rs-metric red"><button className="rs-clear" onClick={()=>setSelected(new Map())} disabled={!selected.size||creating}><LocalIcon name="eraser" size={15}/>Limpiar selección</button></div></div>

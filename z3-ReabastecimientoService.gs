@@ -35,7 +35,7 @@
  * - Las escrituras son idempotentes cuando el estado ya refleja el resultado.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-SERVICE-2026-11-11-04
+ * @version REABASTECIMIENTO-SERVICE-2026-11-12-05
  */
 const ReabastecimientoService = (() => {
   "use strict";
@@ -431,7 +431,8 @@ const ReabastecimientoService = (() => {
         "REABASTECIMIENTO_CREATE_REQUEST",
         function() {
           const temporal = getReabastecimientoTemporalContext_();
-          const identity = ReabastecimientoSolicitudesRepository.createIdentityUnderLock(temporal, trace);
+          const identity = ReabastecimientoSolicitudesRepository
+            .createIdentityUnderLock(temporal, trace);
           const parts = normalized.partidas.map(function(item, index) {
             return {
               idSolicitud: identity.idSolicitud,
@@ -449,8 +450,7 @@ const ReabastecimientoService = (() => {
               usuarioAtencion: ""
             };
           });
-          ReabastecimientoPartidasRepository.appendManyUnderLock(parts, trace);
-          ReabastecimientoSolicitudesRepository.appendUnderLock({
+          const header = {
             idSolicitud: identity.idSolicitud,
             idSolicitudConsecutivo: identity.idSolicitudConsecutivo,
             fechaCreacion: temporal.fecha,
@@ -463,7 +463,52 @@ const ReabastecimientoService = (() => {
             fechaCierreAtencion: "",
             horaCierreAtencion: "",
             cajasInvolucradas: ""
-          }, trace);
+          };
+
+          try {
+            ReabastecimientoSolicitudesRepository.appendUnderLock(header, trace);
+            ReabastecimientoPartidasRepository.appendManyUnderLock(parts, trace);
+
+            const persistedHeader = ReabastecimientoSolicitudesRepository
+              .getById(identity.idSolicitud, trace);
+            const persistedParts = ReabastecimientoPartidasRepository
+              .getBySolicitud(identity.idSolicitud, trace);
+            if (!persistedHeader || persistedParts.length !== parts.length) {
+              throw new Error(
+                "No fue posible confirmar la persistencia completa de la solicitud."
+              );
+            }
+          } catch (writeError) {
+            let rollbackError = null;
+            try {
+              ReabastecimientoPartidasRepository.deleteBySolicitudUnderLock(
+                identity.idSolicitud,
+                trace
+              );
+              ReabastecimientoSolicitudesRepository.deleteByIdUnderLock(
+                identity.idSolicitud,
+                trace
+              );
+              perfMark_(trace, "CREATE_REQUEST_ROLLBACK_COMPLETED", {
+                expectedParts: parts.length
+              });
+            } catch (compensationError) {
+              rollbackError = compensationError;
+              perfMark_(trace, "CREATE_REQUEST_ROLLBACK_FAILED", {
+                errorName: toStr_(compensationError && compensationError.name)
+              });
+            }
+            if (rollbackError) {
+              const criticalError = new Error(
+                "La creación falló y la reversión automática no pudo completarse. " +
+                "Revise las hojas de Reabastecimiento antes de reintentar."
+              );
+              criticalError.code = REABASTECIMIENTO_CONFIG.ERROR_CODES.PAYLOAD_INVALIDO;
+              throw criticalError;
+            }
+            throw writeError;
+          }
+
           return {
             idSolicitud: identity.idSolicitud,
             fechaCreacion: temporal.fecha,
@@ -481,6 +526,7 @@ const ReabastecimientoService = (() => {
       finishTrace_(trace, { parts: result.skusSolicitados });
       return result;
     } catch (error) {
+      clearReabastecimientoCaches_();
       failTrace_(trace, error);
       throw error;
     }

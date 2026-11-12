@@ -30,7 +30,7 @@
  * - Las métricas contienen únicamente cantidades, índices y duraciones.
  * - El Repository no confía en números de fila proporcionados por el navegador.
  * @author Sigifredo de la Cruz Ramos
- * @version REAB-PARTIDAS-REPOSITORY-2026-11-10-02
+ * @version REAB-PARTIDAS-REPOSITORY-2026-11-12-03
  */
 const ReabastecimientoPartidasRepository = (() => {
   "use strict";
@@ -161,6 +161,27 @@ const ReabastecimientoPartidasRepository = (() => {
     return { updated: true, alreadyAttended: false, rowNumber: current.numFila };
   }
 
+  /**
+   * Elimina todas las partidas de un folio durante una compensación.
+   * El Service debe mantener adquirido el ScriptLock.
+   *
+   * @param {*} idSolicitud Folio autoritativo.
+   * @param {Object=} trace Traza opcional.
+   * @return {{deleted:number,rowNumbers:!Array<number>}}
+   */
+  function deleteBySolicitudUnderLock(idSolicitud, trace) {
+    const id = toStrUpper_(idSolicitud);
+    if (!id) return { deleted: 0, rowNumbers: [] };
+    const result = deleteRowsByTextColumnUnderLock_(
+      CFG.SHEET_KEY,
+      CFG.WIDTH,
+      COL.REABASTECIMIENTO_PARTIDAS.ID_SOLICITUD,
+      id,
+      trace
+    );
+    cache_ = null;
+    return result;
+  }
   function clearCache() { cache_ = null; return true; }
 
   return Object.freeze({
@@ -169,6 +190,7 @@ const ReabastecimientoPartidasRepository = (() => {
     getByKey,
     getByCodigo,
     appendManyUnderLock,
+    deleteBySolicitudUnderLock,
     markAttendedUnderLock,
     validateContract,
     clearCache

@@ -41,7 +41,7 @@
    * - El servidor permanece como autoridad de los datos operativos.
    *
    * @author Sigifredo de la Cruz Ramos
-   * @version REABASTECIMIENTO-VIEW-2026-11-11-03
+   * @version REABASTECIMIENTO-VIEW-2026-11-12-04
    */
 </script>
 
@@ -272,6 +272,15 @@
   #render-reabastecimiento .rb-row { height: var(--rb-row-height); }
   #render-reabastecimiento .rb-row td { height: var(--rb-row-height); padding: 15px 18px; border-bottom: 1px solid #eef1f4; vertical-align: middle; background: var(--rb-white); transition: background-color .18s ease; }
   #render-reabastecimiento .rb-row:hover td, #render-reabastecimiento .rb-row.active td { background: #fafafa; }
+  #render-reabastecimiento .rb-row.recent td {
+    background: #e6f4ea;
+    animation: rbRecentRequest 1.1s ease-in-out 3;
+  }
+  @keyframes rbRecentRequest {
+    0%, 100% { background: #e6f4ea; }
+    50% { background: #ceead6; }
+  }
+
   #render-reabastecimiento .rb-folio { color: var(--rb-text); font-family: "JetBrains Mono", monospace; font-size: 15px; font-weight: 900; letter-spacing: .035em; }
   #render-reabastecimiento .rb-folio-sub { display: block; margin-top: 5px; color: var(--rb-muted); font-size: 10px; font-weight: 800; letter-spacing: .10em; text-transform: uppercase; }
   #render-reabastecimiento .rb-cell-strong { color: var(--rb-text); font-size: 13px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
@@ -345,6 +354,14 @@
       const [searchExpanded, setSearchExpanded] = useState(false);
       const [searchClosing, setSearchClosing] = useState(false);
       const [activeRow, setActiveRow] = useState(null);
+      const [recentRequestId, setRecentRequestId] = useState("");
+      const recentRequestRef = useRef(
+        String(
+          window.REABASTECIMIENTO_ULTIMA_SOLICITUD ||
+          window.DATA_ALMACEN_CACHE?.reabastecimientoUltimaSolicitud ||
+          ""
+        ).trim()
+      );
       const searchRef = useRef(null);
       const inFlightRef = useRef(false);
       const sequenceRef = useRef(0);
@@ -390,6 +407,17 @@
               ? response.data.solicitudes
               : [];
             setRequests(records);
+            const recentId = recentRequestRef.current;
+            if (recentId && records.some((item) => item.idSolicitud === recentId)) {
+              setRecentRequestId(recentId);
+              setTimeout(() => setRecentRequestId(""), 8000);
+            }
+            delete window.REABASTECIMIENTO_REFRESH_REQUIRED;
+            delete window.REABASTECIMIENTO_ULTIMA_SOLICITUD;
+            if (window.DATA_ALMACEN_CACHE) {
+              delete window.DATA_ALMACEN_CACHE.reabastecimientoRefreshRequired;
+              delete window.DATA_ALMACEN_CACHE.reabastecimientoUltimaSolicitud;
+            }
             inFlightRef.current = false;
             setLoading(false);
             if (context === "manual") {
@@ -413,7 +441,10 @@
       }, []);
 
       useEffect(() => {
-        refresh("init");
+        const forceRefresh =
+          window.REABASTECIMIENTO_REFRESH_REQUIRED === true ||
+          window.DATA_ALMACEN_CACHE?.reabastecimientoRefreshRequired === true;
+        refresh(forceRefresh ? "creation_return" : "init");
       }, [refresh]);
 
       useEffect(() => {
@@ -674,7 +705,7 @@
                     return (
                       <tr
                         key={item.idSolicitud || index}
-                        className={`rb-row ${activeRow === index ? "active" : ""}`}
+                        className={`rb-row ${activeRow === index ? "active" : ""} ${item.idSolicitud === recentRequestId ? "recent" : ""}`}
                         onClick={() => setActiveRow(activeRow === index ? null : index)}
                       >
                         <td>

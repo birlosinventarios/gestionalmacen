@@ -41,7 +41,7 @@
  * - Los Controllers utilizan execController_(controllerName, label, executor).
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-UTILIDADES-DATOS-2026-11-10-06
+ * @version APPALMACEN-UTILIDADES-DATOS-2026-11-12-07
  */
 
 // =========================================================
@@ -352,6 +352,61 @@ function writeRowsBatch_(sheetKey, rows, width, trace) {
  * @return {?Array<*>} Fila leída o null cuando está fuera del rango utilizado.
  * @throws {RangeError} Si rowNumber o width son inválidos.
  */
+/**
+ * Elimina filas cuya columna coincide exactamente con un texto normalizado.
+ *
+ * Debe ejecutarse bajo un ScriptLock externo. Las filas se eliminan de abajo
+ * hacia arriba para conservar válidos los números físicos pendientes.
+ *
+ * @param {string} sheetKey Clave configurada en SHEETS.
+ * @param {number} width Ancho físico esperado.
+ * @param {number} columnIndex Índice base cero de la columna clave.
+ * @param {*} value Valor buscado.
+ * @param {Object=} trace Traza opcional.
+ * @return {{deleted:number, rowNumbers:!Array<number>}}
+ */
+function deleteRowsByTextColumnUnderLock_(
+  sheetKey,
+  width,
+  columnIndex,
+  value,
+  trace
+) {
+  const safeWidth = Math.floor(Number(width));
+  const safeColumnIndex = Math.floor(Number(columnIndex));
+  const normalizedValue = toStrUpper_(value);
+  if (!Number.isInteger(safeWidth) || safeWidth < 1) {
+    throw new RangeError("width debe ser un entero mayor que cero.");
+  }
+  if (
+    !Number.isInteger(safeColumnIndex) ||
+    safeColumnIndex < 0 ||
+    safeColumnIndex >= safeWidth
+  ) {
+    throw new RangeError("columnIndex está fuera del ancho de " + sheetKey + ".");
+  }
+  if (!normalizedValue) return { deleted: 0, rowNumbers: [] };
+
+  const rows = readSheetRows_(sheetKey, safeWidth, trace);
+  const rowNumbers = [];
+  rows.forEach(function(row, index) {
+    if (toStrUpper_(row[safeColumnIndex]) === normalizedValue) {
+      rowNumbers.push(index + 2);
+    }
+  });
+  const sheet = getSheetByKey_(sheetKey, trace);
+  rowNumbers.slice().sort(function(left, right) {
+    return right - left;
+  }).forEach(function(rowNumber) {
+    sheet.deleteRow(rowNumber);
+  });
+  perfMark_(trace, "SHEET_ROWS_DELETED", {
+    sheetKey: sheetKey,
+    deleted: rowNumbers.length
+  });
+  return { deleted: rowNumbers.length, rowNumbers: rowNumbers };
+}
+
 function readRowAt_(sheetKey, rowNumber, width, trace) {
   const safeRowNumber = Math.floor(Number(rowNumber));
   const safeWidth = Math.floor(Number(width));
@@ -1838,9 +1893,6 @@ function clearReabastecimientoCaches_() {
         : null,
       typeof ReabastecimientoDetallesRepository !== "undefined"
         ? ReabastecimientoDetallesRepository
-        : null,
-      typeof ReabastecimientoService !== "undefined"
-        ? ReabastecimientoService
         : null
     ];
     dependencies.forEach(function(dependency) {

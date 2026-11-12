@@ -32,7 +32,7 @@
  * - Las métricas contienen únicamente cantidades, índices y duraciones.
  * - El Repository no confía en números de fila proporcionados por el navegador.
  * @author Sigifredo de la Cruz Ramos
- * @version REAB-SOLICITUDES-REPOSITORY-2026-11-10-01
+ * @version REAB-SOLICITUDES-REPOSITORY-2026-11-12-02
  */
 const ReabastecimientoSolicitudesRepository = (() => {
   "use strict";
@@ -211,6 +211,27 @@ const ReabastecimientoSolicitudesRepository = (() => {
     return { updated: true, rowNumber: current.numFila };
   }
 
+  /**
+   * Elimina la cabecera de un folio durante una compensación transaccional.
+   * El Service debe mantener adquirido el ScriptLock.
+   *
+   * @param {*} idSolicitud Folio autoritativo.
+   * @param {Object=} trace Traza opcional.
+   * @return {{deleted:number,rowNumbers:!Array<number>}}
+   */
+  function deleteByIdUnderLock(idSolicitud, trace) {
+    const id = toStrUpper_(idSolicitud);
+    if (!id) return { deleted: 0, rowNumbers: [] };
+    const result = deleteRowsByTextColumnUnderLock_(
+      CFG.SHEET_KEY,
+      CFG.WIDTH,
+      COL.REABASTECIMIENTO_SOLICITUDES.ID_SOLICITUD,
+      id,
+      trace
+    );
+    cache_ = null;
+    return result;
+  }
   function clearCache() { cache_ = null; return true; }
 
   return Object.freeze({
@@ -220,6 +241,7 @@ const ReabastecimientoSolicitudesRepository = (() => {
     nextDailyConsecutiveUnderLock,
     createIdentityUnderLock,
     appendUnderLock,
+    deleteByIdUnderLock,
     updateTemporalFieldsUnderLock,
     clearCache
   });
