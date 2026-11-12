@@ -1277,8 +1277,8 @@
         category: "Procesos",
         parentId: "Reabastecimiento",
         visibleInSidebar: false,
-        header: DEFAULT_HEADER_CONFIG,
-        printing: DEFAULT_PRINTING_CONFIG
+        header: Object.freeze({ showIdentity: false }),
+        printing: Object.freeze({ showControls: false })
       }),
       ReabastecimientoDetalles: Object.freeze({
         id: "ReabastecimientoDetalles",
@@ -1289,8 +1289,8 @@
         category: "Procesos",
         parentId: "Reabastecimiento",
         visibleInSidebar: false,
-        header: DEFAULT_HEADER_CONFIG,
-        printing: DEFAULT_PRINTING_CONFIG
+        header: Object.freeze({ showIdentity: true }),
+        printing: Object.freeze({ showControls: false })
       })
     });
 
