@@ -44,7 +44,7 @@
  * - toStr_() y toStrUpper_().
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-CONTROLLER-2026-11-14-08
+ * @version REABASTECIMIENTO-CONTROLLER-2026-11-14-09
  */
 const REABASTECIMIENTO_CONTROLLER_CONFIG = Object.freeze({
   MODULE: "REABASTECIMIENTO",
@@ -223,6 +223,18 @@ function ReabastecimientoController_toPublicError_(error) {
  * @return {number} Cantidad de caracteres JSON o cero si no es serializable.
  * @private
  */
+function ReabastecimientoController_assertJsonSafe_(value) {
+  const json = JSON.stringify(value);
+  if (typeof json !== "string") {
+    throw new TypeError("La respuesta no puede serializarse como JSON.");
+  }
+  const clone = JSON.parse(json);
+  if (!clone || typeof clone !== "object") {
+    throw new TypeError("La respuesta serializada no conserva un objeto válido.");
+  }
+  return { clone: clone, chars: json.length };
+}
+
 function ReabastecimientoController_measureResponse_(value) {
   try {
     return JSON.stringify(value).length;
@@ -262,7 +274,7 @@ function ReabastecimientoController_execute_(operation, executor) {
       data: data,
       metadata: {
         contractVersion: REABASTECIMIENTO_CONTROLLER_CONFIG.CONTRACT_VERSION,
-        controllerVersion: "REABASTECIMIENTO-CONTROLLER-2026-11-14-08",
+        controllerVersion: "REABASTECIMIENTO-CONTROLLER-2026-11-14-09",
         elapsedMs: Date.now() - startedAt,
         responseChars: 0
       }
@@ -407,12 +419,24 @@ function ReabastecimientoController_getSolicitudes(filtros) {
 function ReabastecimientoController_getDetalleSolicitud(idSolicitud) {
   return ReabastecimientoController_execute_(
     REABASTECIMIENTO_CONTROLLER_CONFIG.OPERATIONS.GET_DETALLE,
-    function() {
+    function(trace) {
       const id = ReabastecimientoController_requireText_(
         idSolicitud,
         "idSolicitud"
       );
-      return ReabastecimientoService.getDetalleSolicitud(id);
+      const detail = ReabastecimientoService.getDetalleSolicitud(id);
+      const serialization = ReabastecimientoController_assertJsonSafe_(detail);
+      if (!serialization.clone.solicitud || !Array.isArray(serialization.clone.partidas)) {
+        throw new TypeError(
+          "El contrato público del detalle no contiene solicitud y partidas válidas."
+        );
+      }
+      perfMark_(trace, "CONTROLLER_DETAIL_SERIALIZATION_VALIDATED", {
+        parts: serialization.clone.partidas.length,
+        details: Number(serialization.clone.totalDetalles || 0),
+        responseChars: serialization.chars
+      });
+      return serialization.clone;
     }
   );
 }

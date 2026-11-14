@@ -32,7 +32,7 @@
  * 3. Ejecutar pruebas destructivas solamente con un caso controlado.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version TEST-REABASTECIMIENTO-2026-11-14-03
+ * @version TEST-REABASTECIMIENTO-2026-11-14-04
  */
 
 const TEST_REAB_CONFIG = Object.freeze({
@@ -204,6 +204,7 @@ function TEST_REAB_SAFE_ejecutarTodo(bodega) {
     TEST_REAB_SAFE_derivarEstados(),
     TEST_REAB_SAFE_listarSolicitudes(),
     TEST_REAB_SAFE_validarContratoUbicaciones(),
+    TEST_REAB_SAFE_validarSerializacionDetalle(),
     TEST_REAB_SAFE_validarErroresController(),
     TEST_REAB_SAFE_medirCandidatos(bodega || TEST_REAB_CONFIG.DEFAULT_WAREHOUSE)
   ];
@@ -442,6 +443,46 @@ function TEST_REAB_SAFE_validarContratoUbicaciones() {
       "El estado funcional de consulta cambió."
     );
     return { total: 3 };
+  });
+}
+
+/**
+ * Verifica que el detalle público sobreviva una ronda JSON completa y que no
+ * exponga propiedades físicas de los repositorios.
+ */
+function TEST_REAB_SAFE_validarSerializacionDetalle() {
+  return TEST_REAB_run_("SERIALIZACION_DETALLE_PUBLICO", function() {
+    const requests = ReabastecimientoSolicitudesRepository.getAll();
+    if (!requests.length) return { total: 0, omitida: true };
+    const detail = ReabastecimientoService.getDetalleSolicitud(
+      requests[requests.length - 1].idSolicitud
+    );
+    const json = JSON.stringify(detail);
+    const clone = JSON.parse(json);
+    TEST_REAB_assert_(Boolean(clone.solicitud), "Falta solicitud pública.");
+    TEST_REAB_assert_(Array.isArray(clone.partidas), "partidas debe ser arreglo.");
+    TEST_REAB_assert_(!Object.prototype.hasOwnProperty.call(clone.solicitud, "numFila"),
+      "La solicitud pública expone numFila.");
+    clone.partidas.forEach(function(part) {
+      TEST_REAB_assert_(!Object.prototype.hasOwnProperty.call(part, "numFila"),
+        "Una partida pública expone numFila.");
+      (part.detalles || []).forEach(function(detailItem) {
+        TEST_REAB_assert_(!Object.prototype.hasOwnProperty.call(detailItem, "numFila"),
+          "Un detalle público expone numFila.");
+      });
+    });
+    const controller = ReabastecimientoController_getDetalleSolicitud(
+      clone.solicitud.idSolicitud
+    );
+    TEST_REAB_assert_(controller && controller.ok === true,
+      "El Controller no devolvió ok=true.");
+    TEST_REAB_assert_(Boolean(controller.data && controller.data.solicitud),
+      "El Controller no devolvió solicitud.");
+    return {
+      total: clone.partidas.length,
+      detalles: Number(clone.totalDetalles || 0),
+      jsonChars: json.length
+    };
   });
 }
 

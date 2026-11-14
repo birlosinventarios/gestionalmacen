@@ -37,7 +37,7 @@
  * - Las escrituras son idempotentes cuando el estado ya refleja el resultado.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-SERVICE-2026-11-14-09
+ * @version REABASTECIMIENTO-SERVICE-2026-11-14-10
  */
 const ReabastecimientoService = (() => {
   "use strict";
@@ -173,6 +173,73 @@ const ReabastecimientoService = (() => {
       return Utilities.formatDate(value, getScriptTz_(), pattern);
     }
     return toStr_(value);
+  }
+
+  /**
+   * Proyecta la cabecera del detalle sin exponer numFila ni valores Date.
+   * @param {!Object} request Cabecera interna del Repository.
+   * @return {!Object} Cabecera pública JSON-safe.
+   * @private
+   */
+  function projectRequestDetail_(request) {
+    return {
+      idSolicitud: toStrUpper_(request.idSolicitud),
+      idSolicitudConsecutivo: toStr_(request.idSolicitudConsecutivo),
+      fechaCreacion: serializeTemporalValue_(request.fechaCreacion, "dd/MM/yyyy"),
+      horaCreacion: serializeTemporalValue_(request.horaCreacion, "HH:mm"),
+      solicitante: toStrUpper_(request.solicitante),
+      bodega: getSalesFloorWarehouseLabel_(request.bodega),
+      skusSolicitados: Math.floor(toNum_(request.skusSolicitados)),
+      fechaInicioAtencion: serializeTemporalValue_(request.fechaInicioAtencion, "dd/MM/yyyy"),
+      horaInicioAtencion: serializeTemporalValue_(request.horaInicioAtencion, "HH:mm"),
+      fechaCierreAtencion: serializeTemporalValue_(request.fechaCierreAtencion, "dd/MM/yyyy"),
+      horaCierreAtencion: serializeTemporalValue_(request.horaCierreAtencion, "HH:mm"),
+      cajasInvolucradas: Math.floor(toNum_(request.cajasInvolucradas)),
+      estado: deriveRequestState_(request)
+    };
+  }
+
+  /**
+   * Proyecta un detalle escaneado sin propiedades físicas del Repository.
+   * @param {!Object} detail Detalle interno.
+   * @return {!Object} Detalle público JSON-safe.
+   * @private
+   */
+  function projectScannedDetail_(detail) {
+    return {
+      idDetalleConsecutivo: toStr_(detail.idDetalleConsecutivo),
+      idUnico: toStr_(detail.idUnico),
+      codigo: toStrUpper_(detail.codigo),
+      descripcion: toStrUpper_(detail.descripcion),
+      cantidad: round2_(toNum_(detail.cantidad)),
+      fechaEscaneo: serializeTemporalValue_(detail.fechaEscaneo, "dd/MM/yyyy"),
+      horaEscaneo: serializeTemporalValue_(detail.horaEscaneo, "HH:mm"),
+      usuarioResponsable: toStrUpper_(detail.usuarioResponsable)
+    };
+  }
+
+  /**
+   * Proyecta una partida y sus detalles escaneados a un contrato público.
+   * @param {!Object} part Partida interna.
+   * @param {!Array<!Object>} details Detalles públicos asociados.
+   * @return {!Object} Partida pública JSON-safe.
+   * @private
+   */
+  function projectPartDetail_(part, details) {
+    const safeDetails = Array.isArray(details) ? details : [];
+    return {
+      idSolicitud: toStrUpper_(part.idSolicitud),
+      idPartidaConsecutivo: toStr_(part.idPartidaConsecutivo),
+      codigoSolicitado: toStrUpper_(part.codigoSolicitado),
+      descripcionSolicitada: toStrUpper_(part.descripcionSolicitada),
+      ubicacionSolicitada: toStrUpper_(part.ubicacionSolicitada),
+      estado: toStrUpper_(part.estado),
+      fechaAtencion: serializeTemporalValue_(part.fechaAtencion, "dd/MM/yyyy"),
+      horaAtencion: serializeTemporalValue_(part.horaAtencion, "HH:mm"),
+      usuarioAtencion: toStrUpper_(part.usuarioAtencion),
+      detalles: safeDetails,
+      cajasEscaneadas: safeDetails.length
+    };
   }
 
   /** Construye una proyección JSON-safe para el listado público. */
@@ -699,33 +766,46 @@ const ReabastecimientoService = (() => {
       const id = toStrUpper_(idSolicitud);
       const request = ReabastecimientoSolicitudesRepository.getById(id, trace);
       if (!request) {
-        throw domainError_(REABASTECIMIENTO_CONFIG.ERROR_CODES.SOLICITUD_NO_ENCONTRADA, "La solicitud no existe.");
+        throw domainError_(
+          REABASTECIMIENTO_CONFIG.ERROR_CODES.SOLICITUD_NO_ENCONTRADA,
+          "La solicitud no existe."
+        );
       }
+
       const parts = ReabastecimientoPartidasRepository.getBySolicitud(id, trace);
-      const details = ReabastecimientoDetallesRepository.getBySolicitud(id, trace);
-      const detailsByCode = details.reduce(function(map, item) {
-        const code = toStrUpper_(item.codigo);
+      const rawDetails = ReabastecimientoDetallesRepository.getBySolicitud(id, trace);
+      const projectionStartedAt = Date.now();
+      const publicDetails = rawDetails.map(projectScannedDetail_);
+      const detailsByCode = publicDetails.reduce(function(map, detail) {
+        const code = toStrUpper_(detail.codigo);
         if (!map[code]) map[code] = [];
-        map[code].push(item);
+        map[code].push(detail);
         return map;
       }, Object.create(null));
+
       const result = {
-        solicitud: Object.assign({}, request, {
-          bodega: getSalesFloorWarehouseLabel_(request.bodega),
-          estado: deriveRequestState_(request)
-        }),
+        solicitud: projectRequestDetail_(request),
         partidas: parts.map(function(part) {
-          return Object.assign({}, part, {
-            detalles: detailsByCode[toStrUpper_(part.codigoSolicitado)] || [],
-            cajasEscaneadas:
-              (detailsByCode[toStrUpper_(part.codigoSolicitado)] || []).length
-          });
+          return projectPartDetail_(
+            part,
+            detailsByCode[toStrUpper_(part.codigoSolicitado)] || []
+          );
         }),
         totalPartidas: parts.length,
-        totalDetalles: details.length,
+        totalDetalles: publicDetails.length,
         cajasUnicas: ReabastecimientoDetallesRepository.countUniqueBoxes(id, trace)
       };
-      finishTrace_(trace, { parts: result.totalPartidas, details: result.totalDetalles });
+
+      perfMark_(trace, "REQUEST_DETAIL_JSON_SAFE_PROJECTION_READY", {
+        parts: result.totalPartidas,
+        details: result.totalDetalles,
+        elapsedMs: Date.now() - projectionStartedAt
+      });
+      finishTrace_(trace, {
+        parts: result.totalPartidas,
+        details: result.totalDetalles,
+        boxes: result.cajasUnicas
+      });
       return result;
     } catch (error) {
       failTrace_(trace, error);
