@@ -37,7 +37,7 @@
   - ReabastecimientoController_cerrarSolicitud(payload)
 
   @author Sigifredo de la Cruz Ramos
-  @version REABASTECIMIENTO-DETALLES-VIEW-2026-11-14-03
+  @version REABASTECIMIENTO-DETALLES-VIEW-2026-11-14-04
 -->
 <div id="reabastecimiento-detalles-root" aria-live="polite">
   <style>
@@ -499,9 +499,70 @@
         renderFooter();
       }
 
+      /**
+       * Adapta las respuestas vigentes y heredadas del endpoint de detalle.
+       *
+       * Formatos admitidos:
+       * - {ok:true,data:{solicitud,partidas,...}}
+       * - {solicitud,partidas,...}
+       * - JSON textual de cualquiera de los anteriores.
+       *
+       * @param {*} rawResponse Respuesta de google.script.run.
+       * @return {{detail:!Object, contractMode:string}}
+       * @throws {Error} Cuando el contrato no contiene una solicitud válida.
+       */
+      function parseDetailResponse(rawResponse) {
+        let response = rawResponse;
+        if (typeof response === "string") {
+          try {
+            response = JSON.parse(response);
+          } catch (_) {
+            throw new Error(
+              "El servidor devolvió texto que no contiene JSON válido."
+            );
+          }
+        }
+
+        if (response?.ok === false) {
+          throw new Error(
+            text(response?.message || response?.error?.message) ||
+            "El servidor reportó una operación no exitosa."
+          );
+        }
+
+        const isEnvelope = response?.ok === true &&
+          response?.data &&
+          typeof response.data === "object";
+        const detail = isEnvelope ? response.data : response;
+        const contractMode = isEnvelope ? "envelope-v2" : "legacy-direct";
+
+        if (!detail || typeof detail !== "object" || !detail.solicitud) {
+          const responseKeys = response && typeof response === "object"
+            ? Object.keys(response).slice(0, 20).join(",")
+            : "ninguna";
+          const dataKeys = response?.data && typeof response.data === "object"
+            ? Object.keys(response.data).slice(0, 20).join(",")
+            : "ninguna";
+          throw new Error(
+            "El servidor no devolvió una solicitud válida. " +
+            `Tipo=${Array.isArray(response) ? "array" : typeof response}; ` +
+            `claves=${responseKeys}; clavesData=${dataKeys}.`
+          );
+        }
+
+        return { detail, contractMode };
+      }
+
       /** Consulta nuevamente el detalle autoritativo. */
       async function loadDetail(options = {}) {
         if (state.loading || state.destroyed) return;
+        const traceId = window.APPALMACEN_PERF?.start?.(
+          "REABASTECIMIENTO_DETAIL_LOAD",
+          {
+            viewId: "ReabastecimientoDetalles",
+            source: options.silent ? "silent_refresh" : "view_load"
+          }
+        ) || null;
         state.loading = true;
         $("#rd-refresh").disabled = true;
         if (!options.silent) {
@@ -515,21 +576,40 @@
             state.idSolicitud
           );
           if (state.destroyed) return;
-          state.detail = response?.data || null;
-          if (!state.detail?.solicitud) {
-            throw new Error("El servidor no devolvió una solicitud válida.");
-          }
+          const parsed = parseDetailResponse(response);
+          state.detail = parsed.detail;
+          window.APPALMACEN_PERF?.mark?.(
+            traceId,
+            "DETAIL_CONTRACT_VALIDATED",
+            {
+              contractMode: parsed.contractMode,
+              parts: Array.isArray(state.detail.partidas)
+                ? state.detail.partidas.length
+                : 0,
+              details: Number(state.detail.totalDetalles || 0)
+            }
+          );
           state.validations.clear();
           render();
           $("#rd-loading").hidden = true;
           $("#rd-content").hidden = false;
           showGlobalMessage("");
+          window.APPALMACEN_PERF?.end?.(traceId, "ok", {
+            parts: Array.isArray(state.detail.partidas)
+              ? state.detail.partidas.length
+              : 0,
+            contractMode: parsed.contractMode
+          });
         } catch (error) {
           if (state.destroyed) return;
           $("#rd-content").hidden = true;
           $("#rd-loading").hidden = false;
           $("#rd-loading").innerHTML =
             `<div class="rd-banner rd-banner--error">${escapeHtml(publicError(error))}</div>`;
+          window.APPALMACEN_PERF?.end?.(traceId, "error", {
+            stage: "detail_contract_or_server",
+            message: publicError(error)
+          });
         } finally {
           state.loading = false;
           const refresh = $("#rd-refresh");
