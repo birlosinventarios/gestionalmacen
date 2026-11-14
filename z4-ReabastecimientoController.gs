@@ -44,13 +44,14 @@
  * - toStr_() y toStrUpper_().
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-CONTROLLER-2026-11-14-05
+ * @version REABASTECIMIENTO-CONTROLLER-2026-11-14-07
  */
 const REABASTECIMIENTO_CONTROLLER_CONFIG = Object.freeze({
   MODULE: "REABASTECIMIENTO",
   LAYER: "CONTROLLER",
   LOG_PREFIX: "[ReabastecimientoController]",
   INTERNAL_ERROR_CODE: "REAB_INTERNAL_ERROR",
+  CONTRACT_VERSION: "REAB-CONTROLLER-CONTRACT-2",
   OPERATIONS: Object.freeze({
     GET_EXCEDENTES_MANUALES: "GET_EXCEDENTES_SOLICITUD_MANUAL",
     GET_CANDIDATOS: "GET_CANDIDATOS_POR_BODEGA",
@@ -259,6 +260,8 @@ function ReabastecimientoController_execute_(operation, executor) {
       operation: String(operation || "UNKNOWN"),
       data: data,
       metadata: {
+        contractVersion: REABASTECIMIENTO_CONTROLLER_CONFIG.CONTRACT_VERSION,
+        controllerVersion: "REABASTECIMIENTO-CONTROLLER-2026-11-14-06",
         elapsedMs: Date.now() - startedAt,
         responseChars: 0
       }
@@ -372,14 +375,23 @@ function ReabastecimientoController_crearSolicitud(payload) {
 function ReabastecimientoController_getSolicitudes(filtros) {
   return ReabastecimientoController_execute_(
     REABASTECIMIENTO_CONTROLLER_CONFIG.OPERATIONS.GET_SOLICITUDES,
-    function() {
+    function(trace) {
       const input = filtros == null
         ? {}
         : ReabastecimientoController_requireObject_(filtros, "filtros");
       const solicitudes = ReabastecimientoService.getSolicitudes(input);
+      if (!Array.isArray(solicitudes)) {
+        throw new TypeError(
+          "ReabastecimientoService.getSolicitudes() debe devolver un arreglo."
+        );
+      }
+      perfMark_(trace, "CONTROLLER_REQUESTS_PAYLOAD_READY", {
+        rows: solicitudes.length
+      });
       return {
         solicitudes: solicitudes,
-        total: solicitudes.length
+        total: solicitudes.length,
+        contractVersion: REABASTECIMIENTO_CONTROLLER_CONFIG.CONTRACT_VERSION
       };
     }
   );

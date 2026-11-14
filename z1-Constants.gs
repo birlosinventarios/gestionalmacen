@@ -28,7 +28,7 @@
  * - Un ID de Spreadsheet corresponde al segmento entre `/d/` y `/edit` en su URL.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version APPALMACEN-2026-11-14-10
+ * @version APPALMACEN-2026-11-14-11
  */
 
 /**
@@ -413,7 +413,8 @@ const REABASTECIMIENTO_EXPECTED_WIDTHS = Object.freeze({
  * @readonly
  */
 const REABASTECIMIENTO_CONFIG = Object.freeze({
-  VERSION: "REABASTECIMIENTO-2026-11-10-01",
+  VERSION: "REABASTECIMIENTO-2026-11-14-02",
+  CONTROLLER_CONTRACT_VERSION: "REAB-CONTROLLER-CONTRACT-2",
   SHEET_KEYS: Object.freeze({
     SOLICITUDES: "REABASTECIMIENTO_SOLICITUDES",
     PARTIDAS: "REABASTECIMIENTO_PARTIDAS",

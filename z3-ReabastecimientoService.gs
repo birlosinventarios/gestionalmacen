@@ -19,6 +19,8 @@
  * - Folios, consecutivos, fechas, horas y conteos se generan en servidor.
  * - El navegador nunca es autoridad para código, descripción, ubicación,
  *   cantidad, estado, fecha, hora ni usuario.
+ * - Las claves técnicas de piso (B1, B2, B3, MO, CU) se usan para validar;
+ *   las etiquetas públicas (BODEGA 1, MOSTRADOR, etc.) se persisten y muestran.
  * - Toda escritura y revalidación crítica ocurre bajo un único ScriptLock.
  *
  * DEPENDENCIAS
@@ -35,7 +37,7 @@
  * - Las escrituras son idempotentes cuando el estado ya refleja el resultado.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-SERVICE-2026-11-14-06
+ * @version REABASTECIMIENTO-SERVICE-2026-11-14-08
  */
 const ReabastecimientoService = (() => {
   "use strict";
@@ -158,6 +160,41 @@ const ReabastecimientoService = (() => {
   }
 
   /**
+   * Convierte valores Date de Google Sheets a texto serializable para
+   * google.script.run. Conserva los textos ya normalizados por el Repository.
+   *
+   * @param {*} value Valor procedente de una celda.
+   * @param {string} pattern Formato de salida.
+   * @return {string} Texto seguro para el navegador.
+   * @private
+   */
+  function serializeTemporalValue_(value, pattern) {
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      return Utilities.formatDate(value, getScriptTz_(), pattern);
+    }
+    return toStr_(value);
+  }
+
+  /** Construye una proyección JSON-safe para el listado público. */
+  function projectRequestForList_(request) {
+    return {
+      idSolicitud: toStrUpper_(request.idSolicitud),
+      idSolicitudConsecutivo: toStr_(request.idSolicitudConsecutivo),
+      fechaCreacion: serializeTemporalValue_(request.fechaCreacion, "dd/MM/yyyy"),
+      horaCreacion: serializeTemporalValue_(request.horaCreacion, "HH:mm"),
+      solicitante: toStrUpper_(request.solicitante),
+      bodega: getSalesFloorWarehouseLabel_(request.bodega),
+      skusSolicitados: Math.floor(toNum_(request.skusSolicitados)),
+      fechaInicioAtencion: serializeTemporalValue_(request.fechaInicioAtencion, "dd/MM/yyyy"),
+      horaInicioAtencion: serializeTemporalValue_(request.horaInicioAtencion, "HH:mm"),
+      fechaCierreAtencion: serializeTemporalValue_(request.fechaCierreAtencion, "dd/MM/yyyy"),
+      horaCierreAtencion: serializeTemporalValue_(request.horaCierreAtencion, "HH:mm"),
+      cajasInvolucradas: Math.floor(toNum_(request.cajasInvolucradas)),
+      estado: deriveRequestState_(request)
+    };
+  }
+
+  /**
    * Catálogo canónico inferido desde el prefijo de UBICACION.
    * BA y CB se excluyen porque no representan ubicaciones almacenables.
    * @private
@@ -181,6 +218,28 @@ const ReabastecimientoService = (() => {
     return Object.prototype.hasOwnProperty.call(SALES_FLOOR_WAREHOUSES, value)
       ? value
       : "";
+  }
+
+  /**
+   * Resuelve la etiqueta pública de una bodega de piso.
+   *
+   * Acepta tanto la clave técnica (B1, B2, B3, MO, CU) como una etiqueta ya
+   * persistida. Esto mantiene compatibilidad con solicitudes anteriores y evita
+   * exponer claves técnicas en las vistas operativas.
+   *
+   * @param {*} warehouse Clave técnica o etiqueta persistida.
+   * @return {string} Etiqueta pública normalizada.
+   * @private
+   */
+  function getSalesFloorWarehouseLabel_(warehouse) {
+    const normalized = toStrUpper_(warehouse);
+    const key = normalizeSalesFloorWarehouse_(normalized);
+    if (key) return SALES_FLOOR_WAREHOUSES[key].label;
+
+    const match = Object.keys(SALES_FLOOR_WAREHOUSES).find(function(itemKey) {
+      return SALES_FLOOR_WAREHOUSES[itemKey].label === normalized;
+    });
+    return match ? SALES_FLOOR_WAREHOUSES[match].label : normalized;
   }
 
   /**
@@ -411,10 +470,14 @@ const ReabastecimientoService = (() => {
   function normalizeCreationPayload_(payload, trace) {
     const input = payload && typeof payload === "object" ? payload : {};
     const applicant = validateUser_(input.solicitante, trace);
-    const warehouse = normalizeSalesFloorWarehouse_(input.bodega);
-    if (!warehouse) {
-      throw domainError_(REABASTECIMIENTO_CONFIG.ERROR_CODES.PAYLOAD_INVALIDO, "La bodega es obligatoria.");
+    const warehouseKey = normalizeSalesFloorWarehouse_(input.bodega);
+    if (!warehouseKey) {
+      throw domainError_(
+        REABASTECIMIENTO_CONFIG.ERROR_CODES.PAYLOAD_INVALIDO,
+        "La bodega es obligatoria."
+      );
     }
+    const warehouseLabel = getSalesFloorWarehouseLabel_(warehouseKey);
     const requested = Array.isArray(input.partidas) ? input.partidas : [];
     if (!requested.length) {
       throw domainError_(REABASTECIMIENTO_CONFIG.ERROR_CODES.PAYLOAD_INVALIDO, "Debe seleccionar al menos un SKU.");
@@ -423,7 +486,7 @@ const ReabastecimientoService = (() => {
     if (requested.length > maximum) {
       throw domainError_(REABASTECIMIENTO_CONFIG.ERROR_CODES.LIMITE_PARTIDAS_EXCEDIDO, "La solicitud excede el límite de SKU.");
     }
-    const candidateMap = buildCandidateMap_(warehouse);
+    const candidateMap = buildCandidateMap_(warehouseKey);
     const unique = Object.create(null);
     const items = requested.map(function(item, index) {
       const code = toStrUpper_(item && item.codigo);
@@ -439,7 +502,12 @@ const ReabastecimientoService = (() => {
       unique[key] = true;
       return candidate;
     });
-    return { solicitante: applicant.nombre, bodega: warehouse, partidas: items };
+    return {
+      solicitante: applicant.nombre,
+      bodegaClave: warehouseKey,
+      bodega: warehouseLabel,
+      partidas: items
+    };
   }
 
   function createRequest(payload) {
@@ -450,6 +518,7 @@ const ReabastecimientoService = (() => {
       const normalized = normalizeCreationPayload_(payload, trace);
       perfMark_(trace, "CREATE_PAYLOAD_NORMALIZED", {
         parts: normalized.partidas.length,
+        warehouseKey: normalized.bodegaClave,
         elapsedMs: Date.now() - normalizationStartedAt
       });
       const result = withScriptLock_(
@@ -580,10 +649,10 @@ const ReabastecimientoService = (() => {
       });
 
       const projectionStartedAt = Date.now();
-      const projected = source.map(function(request) {
-        return Object.assign({}, request, {
-          estado: deriveRequestState_(request)
-        });
+      const projected = source.map(projectRequestForList_);
+      perfMark_(trace, "REQUESTS_JSON_SAFE_PROJECTION_READY", {
+        rows: projected.length,
+        elapsedMs: Date.now() - projectionStartedAt
       });
       const stateCounts = projected.reduce(function(counts, request) {
         counts[request.estado] = (counts[request.estado] || 0) + 1;
@@ -641,7 +710,10 @@ const ReabastecimientoService = (() => {
         return map;
       }, Object.create(null));
       const result = {
-        solicitud: Object.assign({}, request, { estado: deriveRequestState_(request) }),
+        solicitud: Object.assign({}, request, {
+          bodega: getSalesFloorWarehouseLabel_(request.bodega),
+          estado: deriveRequestState_(request)
+        }),
         partidas: parts.map(function(part) {
           return Object.assign({}, part, {
             detalles: detailsByCode[toStrUpper_(part.codigoSolicitado)] || [],

@@ -41,7 +41,7 @@
    * - El servidor permanece como autoridad de los datos operativos.
    *
    * @author Sigifredo de la Cruz Ramos
-   * @version REABASTECIMIENTO-VIEW-2026-11-14-05
+   * @version REABASTECIMIENTO-VIEW-2026-11-14-06
    */
 </script>
 
@@ -385,21 +385,90 @@
        * Consulta solicitudes y descarta respuestas obsoletas.
        * @param {"init"|"manual"|"auto"} context Origen de la actualización.
        */
-      /** Valida estrictamente el contrato del Controller. */
-      const parseResponse_ = (response) => {
-        if (!response || response.ok !== true) {
-          throw new Error("El Controller devolvió una respuesta no exitosa.");
+      /**
+       * Identifica la forma de una respuesta sin registrar datos operativos.
+       * @param {*} response Respuesta recibida de google.script.run.
+       * @return {!Object} Metadatos estructurales no sensibles.
+       */
+      const describeResponse_ = (response) => ({
+        type: response === null ? "null" : Array.isArray(response) ? "array" : typeof response,
+        keys: response && typeof response === "object"
+          ? Object.keys(response).slice(0, 20)
+          : [],
+        ok: response?.ok,
+        operation: response?.operation || "",
+        hasData: Boolean(response?.data),
+        dataKeys: response?.data && typeof response.data === "object"
+          ? Object.keys(response.data).slice(0, 20)
+          : [],
+        contractVersion:
+          response?.metadata?.contractVersion ||
+          response?.data?.contractVersion ||
+          "legacy",
+      });
+
+      /**
+       * Adapta contratos compatibles sin convertir silenciosamente errores en [].
+       *
+       * Contratos admitidos:
+       * - Actual: {ok:true,data:{solicitudes,total}}.
+       * - Legado: {solicitudes,total}.
+       * - Legado mínimo: Array<Solicitud>.
+       * - JSON textual de cualquiera de los anteriores.
+       */
+      const parseResponse_ = (rawResponse) => {
+        let response = rawResponse;
+        if (typeof response === "string") {
+          try {
+            response = JSON.parse(response);
+          } catch (_) {
+            throw new Error("El Controller devolvió texto que no contiene JSON válido.");
+          }
         }
-        if (!response.data || !Array.isArray(response.data.solicitudes)) {
-          throw new Error("Contrato inválido: data.solicitudes debe ser un arreglo.");
+
+        if (response?.ok === false) {
+          throw new Error(
+            response?.message || response?.error?.message ||
+            "El Controller reportó una operación no exitosa."
+          );
         }
+
+        let payload = null;
+        let contractMode = "unknown";
+        if (response?.ok === true && response?.data) {
+          payload = response.data;
+          contractMode = "envelope-v2";
+        } else if (response && Array.isArray(response.solicitudes)) {
+          payload = response;
+          contractMode = "legacy-object";
+        } else if (Array.isArray(response)) {
+          payload = { solicitudes: response, total: response.length };
+          contractMode = "legacy-array";
+        }
+
+        if (!payload || !Array.isArray(payload.solicitudes)) {
+          const shape = describeResponse_(response);
+          throw new Error(
+            "Contrato incompatible de Reabastecimiento. " +
+            `Tipo=${shape.type}; claves=${shape.keys.join(",") || "ninguna"}.`
+          );
+        }
+
+        const total = payload.total;
         if (
-          Number.isFinite(Number(response.data.total)) &&
-          Number(response.data.total) !== response.data.solicitudes.length
+          total !== undefined &&
+          total !== null &&
+          Number.isFinite(Number(total)) &&
+          Number(total) !== payload.solicitudes.length
         ) {
           throw new Error("Contrato inválido: total no coincide con solicitudes.");
         }
-        return response.data.solicitudes;
+
+        return {
+          records: payload.solicitudes,
+          contractMode,
+          responseShape: describeResponse_(response),
+        };
       };
 
       /** Programa una confirmación del folio sin borrar prematuramente la señal. */
@@ -458,9 +527,14 @@
             if (!mountedRef.current || sequenceRef.current !== sequence) return;
             clearTimeout(watchdogRef.current);
             try {
-              const records = parseResponse_(response);
+              const parsed = parseResponse_(response);
+              const records = parsed.records;
               window.APPALMACEN_PERF?.mark?.(traceId, "LIST_CONTRACT_VALIDATED", {
                 rows: records.length,
+                contractMode: parsed.contractMode,
+                contractVersion: parsed.responseShape.contractVersion,
+                responseType: parsed.responseShape.type,
+                responseKeys: parsed.responseShape.keys,
                 serverMs: Number(response?.metadata?.elapsedMs || 0),
                 responseChars: Number(response?.metadata?.responseChars || 0),
               });
@@ -518,7 +592,11 @@
               }
             } catch (contractError) {
               setSyncState({ status: "error", message: contractError.message, lastSuccessAt: 0 });
-              window.APPALMACEN_PERF?.end?.(traceId, "error", { stage: "contract", message: contractError.message });
+              window.APPALMACEN_PERF?.end?.(traceId, "error", {
+                stage: "contract",
+                message: contractError.message,
+                responseShape: describeResponse_(response),
+              });
               notify_(contractError.message, "error", 5200, { title: "Respuesta incompatible", sound: true });
             } finally {
               inFlightRef.current = false;
