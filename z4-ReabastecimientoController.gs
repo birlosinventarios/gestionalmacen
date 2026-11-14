@@ -44,7 +44,7 @@
  * - toStr_() y toStrUpper_().
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-CONTROLLER-2026-11-14-07
+ * @version REABASTECIMIENTO-CONTROLLER-2026-11-14-08
  */
 const REABASTECIMIENTO_CONTROLLER_CONFIG = Object.freeze({
   MODULE: "REABASTECIMIENTO",
@@ -58,6 +58,7 @@ const REABASTECIMIENTO_CONTROLLER_CONFIG = Object.freeze({
     CREAR_SOLICITUD: "CREAR_SOLICITUD",
     GET_SOLICITUDES: "GET_SOLICITUDES",
     GET_DETALLE: "GET_DETALLE_SOLICITUD",
+    GET_UBICACIONES_PARTIDA: "GET_UBICACIONES_PARTIDA",
     ATENDER_PARTIDA: "ATENDER_PARTIDA",
     VALIDAR_IDUNICO: "VALIDAR_IDUNICO",
     REGISTRAR_IDUNICO: "REGISTRAR_IDUNICO",
@@ -261,7 +262,7 @@ function ReabastecimientoController_execute_(operation, executor) {
       data: data,
       metadata: {
         contractVersion: REABASTECIMIENTO_CONTROLLER_CONFIG.CONTRACT_VERSION,
-        controllerVersion: "REABASTECIMIENTO-CONTROLLER-2026-11-14-06",
+        controllerVersion: "REABASTECIMIENTO-CONTROLLER-2026-11-14-08",
         elapsedMs: Date.now() - startedAt,
         responseChars: 0
       }
@@ -429,6 +430,35 @@ function ReabastecimientoController_getDetalleSolicitud(idSolicitud) {
  * @param {*} payload Datos de atención.
  * @return {!Object} Sobre con el resultado idempotente.
  */
+/**
+ * Consulta las cajas vigentes pendientes de escaneo y marca automáticamente la
+ * partida como ATENDIDO cuando el Service confirma la consulta.
+ *
+ * @param {*} payload {idSolicitud,idPartidaConsecutivo,usuario}
+ * @return {!Object} Sobre contractual para el drawer de ubicaciones.
+ */
+function ReabastecimientoController_getUbicacionesPartida(payload) {
+  return ReabastecimientoController_execute_(
+    REABASTECIMIENTO_CONTROLLER_CONFIG.OPERATIONS.GET_UBICACIONES_PARTIDA,
+    function(trace) {
+      const input = ReabastecimientoController_requireObject_(payload, "payload");
+      ReabastecimientoController_requireText_(input.idSolicitud, "idSolicitud");
+      ReabastecimientoController_requireText_(
+        input.idPartidaConsecutivo,
+        "idPartidaConsecutivo"
+      );
+      ReabastecimientoController_requireText_(input.usuario, "usuario");
+      const result = ReabastecimientoService.getUbicacionesPartida(input);
+      perfMark_(trace, "CONTROLLER_PART_LOCATIONS_READY", {
+        boxes: Array.isArray(result && result.cajasPorEscanear)
+          ? result.cajasPorEscanear.length
+          : 0
+      });
+      return result;
+    }
+  );
+}
+
 function ReabastecimientoController_atenderPartida(payload) {
   return ReabastecimientoController_execute_(
     REABASTECIMIENTO_CONTROLLER_CONFIG.OPERATIONS.ATENDER_PARTIDA,

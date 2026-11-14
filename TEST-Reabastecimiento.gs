@@ -32,7 +32,7 @@
  * 3. Ejecutar pruebas destructivas solamente con un caso controlado.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version TEST-REABASTECIMIENTO-2026-11-10-02
+ * @version TEST-REABASTECIMIENTO-2026-11-14-03
  */
 
 const TEST_REAB_CONFIG = Object.freeze({
@@ -203,6 +203,7 @@ function TEST_REAB_SAFE_ejecutarTodo(bodega) {
     TEST_REAB_SAFE_validarIntegridadRelacional(),
     TEST_REAB_SAFE_derivarEstados(),
     TEST_REAB_SAFE_listarSolicitudes(),
+    TEST_REAB_SAFE_validarContratoUbicaciones(),
     TEST_REAB_SAFE_validarErroresController(),
     TEST_REAB_SAFE_medirCandidatos(bodega || TEST_REAB_CONFIG.DEFAULT_WAREHOUSE)
   ];
@@ -422,6 +423,29 @@ function TEST_REAB_SAFE_listarSolicitudes() {
 }
 
 /**
+ * Valida de forma no destructiva la disponibilidad del nuevo contrato.
+ * No consulta una partida real porque mostrar ubicaciones marca ATENDIDO.
+ */
+function TEST_REAB_SAFE_validarContratoUbicaciones() {
+  return TEST_REAB_run_("CONTRATO_UBICACIONES_PARTIDA", function() {
+    TEST_REAB_assert_(
+      typeof ReabastecimientoController_getUbicacionesPartida === "function",
+      "Falta ReabastecimientoController_getUbicacionesPartida."
+    );
+    TEST_REAB_assert_(
+      typeof ReabastecimientoService.getUbicacionesPartida === "function",
+      "Falta ReabastecimientoService.getUbicacionesPartida."
+    );
+    TEST_REAB_assertEqual_(
+      REABASTECIMIENTO_CONFIG.PARTIDA_ESTADOS.ATENDIDO,
+      "ATENDIDO",
+      "El estado funcional de consulta cambió."
+    );
+    return { total: 3 };
+  });
+}
+
+/**
  * Comprueba que el Controller rechace payloads incompletos sin escribir.
  *
  * @return {!Object} Resultado de prueba.
@@ -431,6 +455,7 @@ function TEST_REAB_SAFE_validarErroresController() {
     const cases = [
       function() { ReabastecimientoController_crearSolicitud({}); },
       function() { ReabastecimientoController_getDetalleSolicitud(""); },
+      function() { ReabastecimientoController_getUbicacionesPartida({}); },
       function() { ReabastecimientoController_atenderPartida({}); },
       function() { ReabastecimientoController_validarIdUnico({}); },
       function() { ReabastecimientoController_registrarIdUnico({}); },
@@ -518,6 +543,29 @@ function TEST_REAB_DESTRUCTIVO_crearSolicitud(options) {
       creada: true,
       totalPartidas: Number(response.data && response.data.skusSolicitados || 0),
       responseChars: TEST_REAB_jsonChars_(response)
+    };
+  });
+}
+
+/**
+ * Consulta ubicaciones reales y marca automáticamente la partida como atendida.
+ * Requiere confirmación porque modifica el estado operativo.
+ */
+function TEST_REAB_DESTRUCTIVO_mostrarUbicaciones(options) {
+  return TEST_REAB_run_("DESTRUCTIVO_MOSTRAR_UBICACIONES", function() {
+    const input = TEST_REAB_requireDestructiveConfirmation_(options);
+    const response = ReabastecimientoController_getUbicacionesPartida({
+      idSolicitud: input.idSolicitud,
+      idPartidaConsecutivo: input.idPartidaConsecutivo,
+      usuario: input.usuario
+    });
+    TEST_REAB_assert_(response && response.ok === true, "No se obtuvieron ubicaciones.");
+    TEST_REAB_assert_(Array.isArray(response.data.cajasPorEscanear),
+      "cajasPorEscanear debe ser un arreglo.");
+    return {
+      total: response.data.cajasPorEscanear.length,
+      bodegas: Number(response.data.resumen && response.data.resumen.bodegas || 0),
+      atendida: response.data.partida && response.data.partida.estado === "ATENDIDO"
     };
   });
 }

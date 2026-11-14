@@ -37,7 +37,7 @@
  * - Las escrituras son idempotentes cuando el estado ya refleja el resultado.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-SERVICE-2026-11-14-08
+ * @version REABASTECIMIENTO-SERVICE-2026-11-14-09
  */
 const ReabastecimientoService = (() => {
   "use strict";
@@ -733,6 +733,214 @@ const ReabastecimientoService = (() => {
     }
   }
 
+  /**
+   * Obtiene las cajas vigentes pendientes de escaneo para una partida y registra
+   * de forma idempotente que sus ubicaciones fueron consultadas.
+   *
+   * La consulta usa como autoridad EstadoActualExcedentesService.getVigentes().
+   * El navegador solo proporciona solicitud, partida y usuario. Código,
+   * descripción, saldos, bodegas y ubicaciones se reconstruyen en servidor.
+   *
+   * @param {*} payload {idSolicitud,idPartidaConsecutivo,usuario}
+   * @return {!Object} Contrato JSON-safe para el drawer de ubicaciones.
+   */
+  function getPartLocations(payload) {
+    const trace = startTrace_("REABASTECIMIENTO_GET_PART_LOCATIONS", {});
+    try {
+      assertDependencies_();
+      const input = payload && typeof payload === "object" ? payload : {};
+      const id = toStrUpper_(input.idSolicitud);
+      const partId = toStr_(input.idPartidaConsecutivo);
+      const user = validateUser_(input.usuario, trace);
+      if (!id || !partId) {
+        throw domainError_(
+          REABASTECIMIENTO_CONFIG.ERROR_CODES.PAYLOAD_INVALIDO,
+          "Solicitud y partida son obligatorias."
+        );
+      }
+
+      const request = ReabastecimientoSolicitudesRepository.getById(id, trace);
+      if (!request) {
+        throw domainError_(
+          REABASTECIMIENTO_CONFIG.ERROR_CODES.SOLICITUD_NO_ENCONTRADA,
+          "La solicitud no existe."
+        );
+      }
+      const requestState = deriveRequestState_(request);
+      if (requestState === REABASTECIMIENTO_CONFIG.SOLICITUD_ESTADOS_DERIVADOS.CERRADA) {
+        throw domainError_(
+          REABASTECIMIENTO_CONFIG.ERROR_CODES.SOLICITUD_CERRADA,
+          "La solicitud ya está cerrada."
+        );
+      }
+      if (requestState === REABASTECIMIENTO_CONFIG.SOLICITUD_ESTADOS_DERIVADOS.INCONSISTENTE) {
+        throw domainError_(
+          REABASTECIMIENTO_CONFIG.ERROR_CODES.SOLICITUD_INCONSISTENTE,
+          "La solicitud tiene marcas temporales inconsistentes."
+        );
+      }
+
+      const part = ReabastecimientoPartidasRepository.getByKey(id, partId, trace);
+      if (!part) {
+        throw domainError_(
+          REABASTECIMIENTO_CONFIG.ERROR_CODES.PARTIDA_NO_ENCONTRADA,
+          "La partida no existe."
+        );
+      }
+      perfMark_(trace, "PART_REQUEST_READY", {
+        alreadyAttended: part.estado === REABASTECIMIENTO_CONFIG.PARTIDA_ESTADOS.ATENDIDO
+      });
+
+      const excessStartedAt = Date.now();
+      const currentExcess = EstadoActualExcedentesService.getVigentes();
+      perfMark_(trace, "CURRENT_EXCESS_READY", {
+        rows: currentExcess.length,
+        elapsedMs: Date.now() - excessStartedAt
+      });
+
+      const scannedDetails = ReabastecimientoDetallesRepository.getBySolicitud(id, trace);
+      const scannedIds = scannedDetails.reduce(function(set, detail) {
+        const token = toStrUpper_(detail.idUnico);
+        if (token) set[token] = true;
+        return set;
+      }, Object.create(null));
+      perfMark_(trace, "SCANNED_IDS_READY", {
+        rows: scannedDetails.length,
+        uniqueIds: Object.keys(scannedIds).length
+      });
+
+      const code = toStrUpper_(part.codigoSolicitado);
+      const filteredStartedAt = Date.now();
+      const boxes = currentExcess
+        .filter(function(item) {
+          const token = toStrUpper_(item && item.idUnico);
+          return toStrUpper_(item && item.codigo) === code &&
+            item.vigente === true &&
+            item.validoBD === true &&
+            item.conUbicacion === true &&
+            toNum_(item.saldoActual) > 0 &&
+            Boolean(token) &&
+            !scannedIds[token];
+        })
+        .map(function(item) {
+          return {
+            idUnico: toStr_(item.idUnico),
+            cantidad: round2_(toNum_(item.saldoActual)),
+            bodegaExcedente: toStrUpper_(item.bodegaActual),
+            ubicacionExcedente: toStrUpper_(item.ubicacionActual)
+          };
+        });
+      perfMark_(trace, "PENDING_BOXES_FILTERED", {
+        sourceRows: currentExcess.length,
+        rows: boxes.length,
+        elapsedMs: Date.now() - filteredStartedAt
+      });
+
+      const sortStartedAt = Date.now();
+      boxes.sort(function(left, right) {
+        return compareEs_(left.bodegaExcedente, right.bodegaExcedente) ||
+          compareEs_(left.ubicacionExcedente, right.ubicacionExcedente) ||
+          compareEs_(left.idUnico, right.idUnico);
+      });
+      perfMark_(trace, "PENDING_BOXES_SORTED", {
+        rows: boxes.length,
+        elapsedMs: Date.now() - sortStartedAt
+      });
+
+      const attendance = withScriptLock_(
+        "REABASTECIMIENTO_SHOW_PART_LOCATIONS",
+        function() {
+          const currentRequest = ReabastecimientoSolicitudesRepository.getById(id, trace);
+          if (!currentRequest) {
+            throw domainError_(
+              REABASTECIMIENTO_CONFIG.ERROR_CODES.SOLICITUD_NO_ENCONTRADA,
+              "La solicitud no existe."
+            );
+          }
+          const state = deriveRequestState_(currentRequest);
+          if (state === REABASTECIMIENTO_CONFIG.SOLICITUD_ESTADOS_DERIVADOS.CERRADA) {
+            throw domainError_(
+              REABASTECIMIENTO_CONFIG.ERROR_CODES.SOLICITUD_CERRADA,
+              "La solicitud ya está cerrada."
+            );
+          }
+          if (state === REABASTECIMIENTO_CONFIG.SOLICITUD_ESTADOS_DERIVADOS.INCONSISTENTE) {
+            throw domainError_(
+              REABASTECIMIENTO_CONFIG.ERROR_CODES.SOLICITUD_INCONSISTENTE,
+              "La solicitud tiene marcas temporales inconsistentes."
+            );
+          }
+          const temporal = getReabastecimientoTemporalContext_();
+          const update = ReabastecimientoPartidasRepository.markAttendedUnderLock(
+            id,
+            partId,
+            temporal,
+            user.nombre,
+            trace
+          );
+          if (!currentRequest.fechaInicioAtencion && !currentRequest.horaInicioAtencion) {
+            ReabastecimientoSolicitudesRepository.updateTemporalFieldsUnderLock(id, {
+              fechaInicioAtencion: temporal.fecha,
+              horaInicioAtencion: temporal.hora
+            }, trace);
+          }
+          return {
+            alreadyAttended: update.alreadyAttended === true,
+            fecha: temporal.fecha,
+            hora: temporal.hora
+          };
+        },
+        REABASTECIMIENTO_CONFIG.LIMITES.LOCK_TIMEOUT_MS,
+        trace
+      );
+
+      const warehouses = boxes.reduce(function(set, box) {
+        set[box.bodegaExcedente || "SIN BODEGA"] = true;
+        return set;
+      }, Object.create(null));
+      const pieces = round2_(boxes.reduce(function(total, box) {
+        return total + toNum_(box.cantidad);
+      }, 0));
+      const result = {
+        solicitud: {
+          estado: attendance.alreadyAttended
+            ? requestState
+            : REABASTECIMIENTO_CONFIG.SOLICITUD_ESTADOS_DERIVADOS.EN_ATENCION
+        },
+        partida: {
+          idPartidaConsecutivo: part.idPartidaConsecutivo,
+          codigo: part.codigoSolicitado,
+          descripcion: part.descripcionSolicitada,
+          ubicacionSurtido: part.ubicacionSolicitada,
+          estado: REABASTECIMIENTO_CONFIG.PARTIDA_ESTADOS.ATENDIDO
+        },
+        resumen: {
+          cajasEscaneadas: scannedDetails.filter(function(detail) {
+            return toStrUpper_(detail.codigo) === code;
+          }).length,
+          cajasPorEscanear: boxes.length,
+          piezasPorEscanear: pieces,
+          bodegas: Object.keys(warehouses).length
+        },
+        cajasPorEscanear: boxes
+      };
+      clearReabastecimientoCaches_();
+      perfMark_(trace, "PART_LOCATIONS_RESPONSE_READY", {
+        boxes: boxes.length,
+        warehouses: result.resumen.bodegas
+      });
+      finishTrace_(trace, {
+        boxes: boxes.length,
+        warehouses: result.resumen.bodegas,
+        alreadyAttended: attendance.alreadyAttended
+      });
+      return result;
+    } catch (error) {
+      failTrace_(trace, error);
+      throw error;
+    }
+  }
+
   function attendPart(payload) {
     const trace = startTrace_("REABASTECIMIENTO_ATTEND_PART", {});
     try {
@@ -979,6 +1187,7 @@ const ReabastecimientoService = (() => {
     crearSolicitud: createRequest,
     getSolicitudes: getRequests,
     getDetalleSolicitud: getRequestDetail,
+    getUbicacionesPartida: getPartLocations,
     atenderPartida: attendPart,
     validarIdUnico: validateIdUnico,
     registrarIdUnico: registerIdUnico,

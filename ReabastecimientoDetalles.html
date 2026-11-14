@@ -37,7 +37,7 @@
   - ReabastecimientoController_cerrarSolicitud(payload)
 
   @author Sigifredo de la Cruz Ramos
-  @version REABASTECIMIENTO-DETALLES-VIEW-2026-11-11-02
+  @version REABASTECIMIENTO-DETALLES-VIEW-2026-11-14-03
 -->
 <div id="reabastecimiento-detalles-root" aria-live="polite">
   <style>
@@ -130,6 +130,26 @@
     .rd-modal__dialog h2 { margin: 0 0 8px; }
     .rd-modal__dialog p { color: var(--rd-muted); line-height: 1.5; }
     .rd-modal__actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
+
+    .rd-drawer-backdrop { position: fixed; inset: 0; z-index: 1100; background: rgba(15,23,42,.52); backdrop-filter: blur(2px); }
+    .rd-drawer-backdrop[hidden] { display: none; }
+    .rd-drawer { position: absolute; inset: 0 0 0 auto; display: flex; flex-direction: column; width: min(720px, 100%); height: 100%; background: #f8f9fa; box-shadow: -18px 0 44px rgba(15,23,42,.22); animation: rd-drawer-in .22s ease-out; }
+    @keyframes rd-drawer-in { from { transform: translateX(30px); opacity: .5; } to { transform: translateX(0); opacity: 1; } }
+    .rd-drawer__head { display:flex; justify-content:space-between; gap:16px; padding:18px 20px; color:#fff; background:#1c1d1f; }
+    .rd-drawer__title { margin:0; font-size:1.18rem; }
+    .rd-drawer__subtitle { margin:5px 0 0; color:#cbd5e1; font-size:.82rem; line-height:1.4; }
+    .rd-drawer__body { flex:1 1 auto; min-height:0; overflow:auto; padding:18px; }
+    .rd-drawer__metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+    .rd-drawer__metric { padding:12px; border:1px solid var(--rd-border); border-radius:12px; background:#fff; }
+    .rd-drawer__metric span { display:block; color:var(--rd-muted); font-size:.68rem; font-weight:900; letter-spacing:.05em; text-transform:uppercase; }
+    .rd-drawer__metric strong { display:block; margin-top:5px; font-size:1.15rem; }
+    .rd-warehouse-group { margin-bottom:15px; overflow:hidden; border:1px solid var(--rd-border); border-radius:13px; background:#fff; }
+    .rd-warehouse-group__head { display:flex; justify-content:space-between; padding:12px 14px; background:#1c1d1f; color:#fff; font-weight:900; }
+    .rd-box-row { display:grid; grid-template-columns:minmax(135px,.8fr) minmax(170px,1fr) 100px; gap:12px; align-items:center; padding:12px 14px; border-top:1px solid var(--rd-border); }
+    .rd-box-row strong { overflow-wrap:anywhere; }
+    .rd-box-qty { text-align:right; font-weight:900; }
+    .rd-location-button { border-color:#1c1d1f; color:#1c1d1f; background:#fff; }
+    @media (max-width:680px) { .rd-drawer__metrics { grid-template-columns:repeat(2,1fr); } .rd-box-row { grid-template-columns:1fr; } .rd-box-qty { text-align:left; } }
     @media (max-width: 1100px) {
       .rd-summary { grid-template-columns: repeat(3, 1fr); }
       .rd-part__head { grid-template-columns: 64px 1fr 1.4fr auto; }
@@ -197,6 +217,19 @@
     </section>
   </main>
 
+
+  <div id="rd-locations-drawer" class="rd-drawer-backdrop" hidden aria-hidden="true">
+    <aside class="rd-drawer" role="dialog" aria-modal="true" aria-labelledby="rd-locations-title">
+      <header class="rd-drawer__head">
+        <div>
+          <h2 id="rd-locations-title" class="rd-drawer__title">Ubicaciones por surtir</h2>
+          <p id="rd-locations-context" class="rd-drawer__subtitle"></p>
+        </div>
+        <button id="rd-locations-close" class="rd-btn rd-btn--small" type="button">Cerrar</button>
+      </header>
+      <div id="rd-locations-body" class="rd-drawer__body"></div>
+    </aside>
+  </div>
   <div id="rd-close-modal" class="rd-modal" hidden role="dialog" aria-modal="true" aria-labelledby="rd-close-title">
     <div class="rd-card rd-modal__dialog">
       <h2 id="rd-close-title">Confirmar cierre</h2>
@@ -225,6 +258,10 @@
         detail: null,
         activeOperations: new Set(),
         validations: new Map(),
+        locations: null,
+        locationsSequence: 0,
+        locationsTimer: null,
+        previousBodyOverflow: "",
         listeners: []
       };
 
@@ -414,7 +451,7 @@
               <div><div class="rd-muted">Ubicación de surtido</div><strong>${escapeHtml(part.ubicacionSolicitada)}</strong></div>
               <div class="rd-actions">
                 <span class="rd-status rd-status--${attended ? "ATENDIDO" : "PENDIENTE"}">${attended ? "ATENDIDO" : "PENDIENTE"}</span>
-                <button class="rd-btn rd-btn--small" type="button" data-action="attend" data-part-id="${escapeHtml(partId)}" ${readOnly || attended || busy ? "disabled" : ""}>Marcar atendido</button>
+                <button class="rd-btn rd-btn--small" type="button" data-action="locations" data-part-id="${escapeHtml(partId)}" ${readOnly || busy ? "disabled" : ""}>Mostrar ubicaciones</button>
               </div>
             </header>
             <div class="rd-part__body">
@@ -512,6 +549,134 @@
         node.hidden = !message;
         node.className = `rd-banner rd-banner--${type}`;
         node.textContent = message || "";
+      }
+
+      /** Agrupa las cajas pendientes por bodega conservando el orden recibido. */
+      function groupBoxesByWarehouse(boxes) {
+        return (Array.isArray(boxes) ? boxes : []).reduce((groups, box) => {
+          const warehouse = text(box.bodegaExcedente) || "SIN BODEGA";
+          if (!groups[warehouse]) groups[warehouse] = [];
+          groups[warehouse].push(box);
+          return groups;
+        }, Object.create(null));
+      }
+
+      /** Renderiza el contrato validado del drawer. */
+      function renderLocationsDrawer(data) {
+        const part = data.partida || {};
+        const summary = data.resumen || {};
+        const boxes = Array.isArray(data.cajasPorEscanear) ? data.cajasPorEscanear : [];
+        $("#rd-locations-context").textContent =
+          `${part.codigo || ""} · ${part.descripcion || ""} · Piso: ${part.ubicacionSurtido || ""}`;
+        const metrics = `<div class="rd-drawer__metrics">
+          <div class="rd-drawer__metric"><span>Por escanear</span><strong>${Number(summary.cajasPorEscanear || 0)}</strong></div>
+          <div class="rd-drawer__metric"><span>Escaneadas</span><strong>${Number(summary.cajasEscaneadas || 0)}</strong></div>
+          <div class="rd-drawer__metric"><span>Piezas disponibles</span><strong>${Number(summary.piezasPorEscanear || 0).toLocaleString("es-MX")}</strong></div>
+          <div class="rd-drawer__metric"><span>Bodegas</span><strong>${Number(summary.bodegas || 0)}</strong></div>
+        </div>`;
+        if (!boxes.length) {
+          $("#rd-locations-body").innerHTML = metrics +
+            '<div class="rd-card rd-empty">No existen cajas vigentes pendientes de escaneo para este código.</div>';
+          return;
+        }
+        const groups = groupBoxesByWarehouse(boxes);
+        $("#rd-locations-body").innerHTML = metrics + Object.keys(groups).map((warehouse) => `
+          <section class="rd-warehouse-group">
+            <header class="rd-warehouse-group__head"><span>${escapeHtml(warehouse)}</span><span>${groups[warehouse].length} caja(s)</span></header>
+            ${groups[warehouse].map((box) => `<div class="rd-box-row">
+              <div><div class="rd-muted">IDUNICO</div><strong>${escapeHtml(box.idUnico)}</strong></div>
+              <div><div class="rd-muted">Ubicación de excedente</div><strong>${escapeHtml(box.ubicacionExcedente)}</strong></div>
+              <div class="rd-box-qty">${Number(box.cantidad || 0).toLocaleString("es-MX")}</div>
+            </div>`).join("")}
+          </section>`).join("");
+      }
+
+      /** Abre el drawer y bloquea el scroll de fondo. */
+      function openLocationsDrawer(data) {
+        state.locations = data;
+        renderLocationsDrawer(data);
+        const drawer = $("#rd-locations-drawer");
+        drawer.hidden = false;
+        drawer.setAttribute("aria-hidden", "false");
+        state.previousBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        setTimeout(() => $("#rd-locations-close")?.focus(), 0);
+      }
+
+      /** Cierra el drawer sin modificar datos. */
+      function closeLocationsDrawer() {
+        const drawer = $("#rd-locations-drawer");
+        if (!drawer) return;
+        drawer.hidden = true;
+        drawer.setAttribute("aria-hidden", "true");
+        document.body.style.overflow = state.previousBodyOverflow;
+        state.locations = null;
+      }
+
+      /**
+       * Consulta ubicaciones vigentes. La respuesta exitosa marca la partida como
+       * ATENDIDO en servidor antes de abrir el drawer.
+       */
+      async function showLocations(partId) {
+        const cachedUser = text(window.DATA_ALMACEN_CACHE?.reabastecimientoUsuario);
+        const user = text(cachedUser || window.prompt("Usuario responsable registrado:", ""));
+        if (!user) return;
+        const key = operationKey("locations", partId);
+        if (state.activeOperations.has(key)) return;
+        state.activeOperations.add(key);
+        renderParts();
+        const sequence = ++state.locationsSequence;
+        const traceId = window.APPALMACEN_PERF?.start?.("REABASTECIMIENTO_PART_LOCATIONS", {
+          viewId: "ReabastecimientoDetalles",
+          source: "show_locations"
+        }) || null;
+        try {
+          const timeout = new Promise((_, reject) => {
+            state.locationsTimer = setTimeout(() => reject(new Error(
+              "La consulta de ubicaciones excedió 45 segundos."
+            )), 45000);
+          });
+          const response = await Promise.race([
+            callServer("ReabastecimientoController_getUbicacionesPartida", {
+              idSolicitud: state.idSolicitud,
+              idPartidaConsecutivo: partId,
+              usuario: user
+            }),
+            timeout
+          ]);
+          clearTimeout(state.locationsTimer);
+          if (state.destroyed || sequence !== state.locationsSequence) return;
+          const data = response?.data;
+          if (
+            response?.ok !== true ||
+            !data?.partida ||
+            !data?.resumen ||
+            !Array.isArray(data?.cajasPorEscanear)
+          ) {
+            throw new Error("El servidor devolvió un contrato inválido de ubicaciones.");
+          }
+          window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+          window.DATA_ALMACEN_CACHE.reabastecimientoUsuario = user;
+          window.APPALMACEN_PERF?.mark?.(traceId, "LOCATIONS_CONTRACT_VALIDATED", {
+            boxes: data.cajasPorEscanear.length,
+            warehouses: Number(data.resumen.bodegas || 0),
+            serverMs: Number(response?.metadata?.elapsedMs || 0)
+          });
+          openLocationsDrawer(data);
+          await loadDetail({ silent: true });
+          window.APPALMACEN_PERF?.end?.(traceId, "ok", {
+            boxes: data.cajasPorEscanear.length
+          });
+        } catch (error) {
+          clearTimeout(state.locationsTimer);
+          window.APPALMACEN_PERF?.end?.(traceId, "error", {
+            message: publicError(error)
+          });
+          showGlobalMessage(publicError(error));
+        } finally {
+          state.activeOperations.delete(key);
+          if (state.detail && !state.destroyed) render();
+        }
       }
 
       /** Marca una partida como atendida y recarga el contrato completo. */
@@ -663,6 +828,7 @@
         const button = event.target.closest("[data-action][data-part-id]");
         if (!button) return;
         const partId = text(button.dataset.partId);
+        if (button.dataset.action === "locations") showLocations(partId);
         if (button.dataset.action === "attend") attendPart(partId);
         if (button.dataset.action === "validate") validateIdUnico(partId);
         if (button.dataset.action === "register") registerIdUnico(partId);
@@ -689,6 +855,15 @@
         listen($("#rd-close"), "click", openCloseModal);
         listen($("#rd-close-cancel"), "click", closeCloseModal);
         listen($("#rd-close-confirm"), "click", closeRequest);
+        listen($("#rd-locations-close"), "click", closeLocationsDrawer);
+        listen($("#rd-locations-drawer"), "click", (event) => {
+          if (event.target === $("#rd-locations-drawer")) closeLocationsDrawer();
+        });
+        listen(document, "keydown", (event) => {
+          if (event.key === "Escape" && !$("#rd-locations-drawer")?.hidden) {
+            closeLocationsDrawer();
+          }
+        });
         listen($("#rd-close-modal"), "click", (event) => {
           if (event.target === $("#rd-close-modal")) closeCloseModal();
         });
@@ -719,6 +894,9 @@
           target.removeEventListener(eventName, handler);
         });
         state.listeners = [];
+        clearTimeout(state.locationsTimer);
+        state.locationsSequence += 1;
+        closeLocationsDrawer();
         state.activeOperations.clear();
         state.validations.clear();
         state.detail = null;
