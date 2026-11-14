@@ -44,7 +44,7 @@
  * - toStr_() y toStrUpper_().
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-CONTROLLER-2026-11-11-04
+ * @version REABASTECIMIENTO-CONTROLLER-2026-11-14-05
  */
 const REABASTECIMIENTO_CONTROLLER_CONFIG = Object.freeze({
   MODULE: "REABASTECIMIENTO",
@@ -248,7 +248,12 @@ function ReabastecimientoController_execute_(operation, executor) {
       throw new TypeError("El executor del Controller debe ser una función.");
     }
 
+    const serviceStartedAt = Date.now();
     const data = executor(trace);
+    perfMark_(trace, "CONTROLLER_SERVICE_COMPLETED", {
+      elapsedMs: Date.now() - serviceStartedAt,
+      resultType: Array.isArray(data) ? "array" : typeof data
+    });
     const response = {
       ok: true,
       operation: String(operation || "UNKNOWN"),

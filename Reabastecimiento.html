@@ -41,7 +41,7 @@
    * - El servidor permanece como autoridad de los datos operativos.
    *
    * @author Sigifredo de la Cruz Ramos
-   * @version REABASTECIMIENTO-VIEW-2026-11-12-04
+   * @version REABASTECIMIENTO-VIEW-2026-11-14-05
    */
 </script>
 
@@ -291,6 +291,11 @@
   #render-reabastecimiento .rb-action.primary:hover { background: var(--rb-primary-dark); }
   #render-reabastecimiento .rb-empty { min-height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #9ca3af; text-align: center; }
 
+
+  #render-reabastecimiento .rb-sync-banner { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; padding:13px 15px; border:1px solid rgba(197,34,31,.22); border-radius:14px; background:var(--rb-danger-light); color:var(--rb-danger-dark); }
+  #render-reabastecimiento .rb-sync-banner.warning { border-color:rgba(217,119,6,.25); background:var(--rb-warning-light); color:var(--rb-warning-dark); }
+  #render-reabastecimiento .rb-sync-title { font-size:11px; font-weight:950; letter-spacing:.08em; text-transform:uppercase; }
+  #render-reabastecimiento .rb-sync-copy { margin-top:4px; font-size:11px; font-weight:750; line-height:1.45; }
   @media (max-width: 1279px) {
     #render-reabastecimiento .rb-toolbar-label { display: none; }
     #render-reabastecimiento .rb-toolbar-action { width: 44px; padding: 0; }
@@ -355,6 +360,11 @@
       const [searchClosing, setSearchClosing] = useState(false);
       const [activeRow, setActiveRow] = useState(null);
       const [recentRequestId, setRecentRequestId] = useState("");
+      const [syncState, setSyncState] = useState({
+        status: "idle",
+        message: "",
+        lastSuccessAt: 0,
+      });
       const recentRequestRef = useRef(
         String(
           window.REABASTECIMIENTO_ULTIMA_SOLICITUD ||
@@ -364,82 +374,175 @@
       );
       const searchRef = useRef(null);
       const inFlightRef = useRef(false);
+      const pendingRefreshRef = useRef(null);
       const sequenceRef = useRef(0);
       const watchdogRef = useRef(null);
+      const retryTimersRef = useRef(new Set());
+      const mountedRef = useRef(true);
+      const perfTraceRef = useRef(null);
 
       /**
        * Consulta solicitudes y descarta respuestas obsoletas.
        * @param {"init"|"manual"|"auto"} context Origen de la actualización.
        */
-      const refresh = useCallback((context = "init") => {
-        if (inFlightRef.current || typeof google === "undefined" || !google.script?.run) {
-          if (!google?.script?.run) {
-            setLoading(false);
-            notify_("google.script.run no está disponible.", "error", 4200, {
-              title: "Entorno inválido",
-              sound: true,
-            });
-          }
+      /** Valida estrictamente el contrato del Controller. */
+      const parseResponse_ = (response) => {
+        if (!response || response.ok !== true) {
+          throw new Error("El Controller devolvió una respuesta no exitosa.");
+        }
+        if (!response.data || !Array.isArray(response.data.solicitudes)) {
+          throw new Error("Contrato inválido: data.solicitudes debe ser un arreglo.");
+        }
+        if (
+          Number.isFinite(Number(response.data.total)) &&
+          Number(response.data.total) !== response.data.solicitudes.length
+        ) {
+          throw new Error("Contrato inválido: total no coincide con solicitudes.");
+        }
+        return response.data.solicitudes;
+      };
+
+      /** Programa una confirmación del folio sin borrar prematuramente la señal. */
+      const scheduleConfirmationRetry_ = useCallback((attempt) => {
+        const delays = [400, 1200, 3000];
+        if (!mountedRef.current || attempt >= delays.length) return;
+        const timer = setTimeout(() => {
+          retryTimersRef.current.delete(timer);
+          refresh("confirmation", attempt + 1);
+        }, delays[attempt]);
+        retryTimersRef.current.add(timer);
+      }, []);
+
+      /**
+       * Máquina de actualización resistente a solapamientos y respuestas obsoletas.
+       * Mantiene la señal de navegación hasta confirmar el folio recién creado.
+       */
+      const refresh = useCallback((context = "init", confirmationAttempt = 0) => {
+        if (typeof google === "undefined" || !google.script?.run) {
+          setLoading(false);
+          setSyncState({ status: "error", message: "google.script.run no está disponible.", lastSuccessAt: 0 });
+          return;
+        }
+        if (inFlightRef.current) {
+          pendingRefreshRef.current = { context, confirmationAttempt };
           return;
         }
 
-        const sequence = Date.now();
-        sequenceRef.current = sequence;
+        const sequence = ++sequenceRef.current;
+        const traceId = window.APPALMACEN_PERF?.start?.("REABASTECIMIENTO_LIST_REFRESH", {
+          viewId: "Reabastecimiento",
+          source: context,
+          confirmationAttempt,
+          expectedRequest: Boolean(recentRequestRef.current),
+        }) || null;
+        perfTraceRef.current = traceId;
         inFlightRef.current = true;
+        setSyncState((previous) => ({ ...previous, status: "loading", message: "" }));
         if (context !== "auto") setLoading(true);
-
         clearTimeout(watchdogRef.current);
         watchdogRef.current = setTimeout(() => {
-          if (sequenceRef.current !== sequence || !inFlightRef.current) return;
+          if (!mountedRef.current || sequenceRef.current !== sequence) return;
+          sequenceRef.current += 1;
           inFlightRef.current = false;
           setLoading(false);
-          notify_("La consulta tardó demasiado. Intenta actualizar nuevamente.", "warning", 5000, {
-            title: "Carga detenida",
-            sound: true,
-          });
-        }, 20000);
+          setSyncState({ status: "timeout", message: "La consulta excedió 30 segundos.", lastSuccessAt: 0 });
+          window.APPALMACEN_PERF?.end?.(traceId, "timeout", { watchdogMs: 30000 });
+          const pending = pendingRefreshRef.current;
+          pendingRefreshRef.current = null;
+          if (pending) refresh(pending.context, pending.confirmationAttempt);
+        }, 30000);
 
+        const startedAt = performance.now();
         google.script.run
           .withSuccessHandler((response) => {
-            if (sequenceRef.current !== sequence) return;
+            if (!mountedRef.current || sequenceRef.current !== sequence) return;
             clearTimeout(watchdogRef.current);
-            const records = Array.isArray(response?.data?.solicitudes)
-              ? response.data.solicitudes
-              : [];
-            setRequests(records);
-            const recentId = recentRequestRef.current;
-            if (recentId && records.some((item) => item.idSolicitud === recentId)) {
-              setRecentRequestId(recentId);
-              setTimeout(() => setRecentRequestId(""), 8000);
-            }
-            delete window.REABASTECIMIENTO_REFRESH_REQUIRED;
-            delete window.REABASTECIMIENTO_ULTIMA_SOLICITUD;
-            if (window.DATA_ALMACEN_CACHE) {
-              delete window.DATA_ALMACEN_CACHE.reabastecimientoRefreshRequired;
-              delete window.DATA_ALMACEN_CACHE.reabastecimientoUltimaSolicitud;
-            }
-            inFlightRef.current = false;
-            setLoading(false);
-            if (context === "manual") {
-              notify_("Solicitudes actualizadas correctamente.", "success", 1800, {
-                title: "Actualización completada",
-                sound: false,
+            try {
+              const records = parseResponse_(response);
+              window.APPALMACEN_PERF?.mark?.(traceId, "LIST_CONTRACT_VALIDATED", {
+                rows: records.length,
+                serverMs: Number(response?.metadata?.elapsedMs || 0),
+                responseChars: Number(response?.metadata?.responseChars || 0),
               });
+              setRequests(records);
+              const recentId = recentRequestRef.current;
+              const foundRecent = Boolean(
+                recentId && records.some((item) => item.idSolicitud === recentId)
+              );
+
+              if (foundRecent) {
+                setRecentRequestId(recentId);
+                const timer = setTimeout(() => {
+                  retryTimersRef.current.delete(timer);
+                  if (mountedRef.current) setRecentRequestId("");
+                }, 8000);
+                retryTimersRef.current.add(timer);
+              }
+
+              if (!recentId || foundRecent) {
+                delete window.REABASTECIMIENTO_REFRESH_REQUIRED;
+                delete window.REABASTECIMIENTO_ULTIMA_SOLICITUD;
+                if (window.DATA_ALMACEN_CACHE) {
+                  delete window.DATA_ALMACEN_CACHE.reabastecimientoRefreshRequired;
+                  delete window.DATA_ALMACEN_CACHE.reabastecimientoUltimaSolicitud;
+                }
+                recentRequestRef.current = "";
+              } else if (confirmationAttempt < 3) {
+                setSyncState({
+                  status: "confirming",
+                  message: "La solicitud fue creada y se está confirmando en el listado.",
+                  lastSuccessAt: Date.now(),
+                });
+                scheduleConfirmationRetry_(confirmationAttempt);
+              } else {
+                setSyncState({
+                  status: "warning",
+                  message: "El listado respondió, pero todavía no contiene la solicitud recién creada. Usa Actualizar antes de reintentar la creación.",
+                  lastSuccessAt: Date.now(),
+                });
+              }
+
+              if (!recentId || foundRecent) {
+                setSyncState({ status: "ready", message: "", lastSuccessAt: Date.now() });
+              }
+              window.APPALMACEN_PERF?.end?.(traceId, "ok", {
+                rows: records.length,
+                expectedFound: foundRecent,
+                clientMs: Math.round((performance.now() - startedAt) * 100) / 100,
+              });
+              if (context === "manual") {
+                notify_("Solicitudes actualizadas correctamente.", "success", 1800, {
+                  title: "Actualización completada",
+                  sound: false,
+                });
+              }
+            } catch (contractError) {
+              setSyncState({ status: "error", message: contractError.message, lastSuccessAt: 0 });
+              window.APPALMACEN_PERF?.end?.(traceId, "error", { stage: "contract", message: contractError.message });
+              notify_(contractError.message, "error", 5200, { title: "Respuesta incompatible", sound: true });
+            } finally {
+              inFlightRef.current = false;
+              setLoading(false);
+              const pending = pendingRefreshRef.current;
+              pendingRefreshRef.current = null;
+              if (pending) refresh(pending.context, pending.confirmationAttempt);
             }
           })
           .withFailureHandler((error) => {
-            if (sequenceRef.current !== sequence) return;
+            if (!mountedRef.current || sequenceRef.current !== sequence) return;
             clearTimeout(watchdogRef.current);
             inFlightRef.current = false;
             setLoading(false);
-            notify_(error?.message || "No se pudieron cargar las solicitudes.", "error", 4200, {
-              title: "Error de Reabastecimiento",
-              sound: true,
-            });
+            const message = error?.message || "No se pudieron cargar las solicitudes.";
+            setSyncState({ status: "error", message, lastSuccessAt: 0 });
+            window.APPALMACEN_PERF?.end?.(traceId, "error", { stage: "server", message });
+            notify_(message, "error", 5200, { title: "Error de Reabastecimiento", sound: true });
+            const pending = pendingRefreshRef.current;
+            pendingRefreshRef.current = null;
+            if (pending) refresh(pending.context, pending.confirmationAttempt);
           })
           .ReabastecimientoController_getSolicitudes({});
-      }, []);
-
+      }, [scheduleConfirmationRetry_]);
       useEffect(() => {
         const forceRefresh =
           window.REABASTECIMIENTO_REFRESH_REQUIRED === true ||
@@ -448,14 +551,22 @@
       }, [refresh]);
 
       useEffect(() => {
+        mountedRef.current = true;
         const timer = setInterval(() => {
           if (document.visibilityState === "visible") refresh("auto");
         }, 60000);
         return () => {
+          mountedRef.current = false;
           clearInterval(timer);
           clearTimeout(watchdogRef.current);
-          sequenceRef.current = Date.now();
+          retryTimersRef.current.forEach(clearTimeout);
+          retryTimersRef.current.clear();
+          pendingRefreshRef.current = null;
+          sequenceRef.current += 1;
           inFlightRef.current = false;
+          if (perfTraceRef.current) {
+            window.APPALMACEN_PERF?.cancel?.(perfTraceRef.current, { reason: "view_unmounted" });
+          }
         };
       }, [refresh]);
 
@@ -581,6 +692,20 @@
 
       return (
         <div className="space-y-4 rb-fade-in relative">
+          {["error", "timeout", "warning", "confirming"].includes(syncState.status) && (
+            <section className={`rb-sync-banner ${["warning", "confirming"].includes(syncState.status) ? "warning" : ""}`}>
+              <div>
+                <div className="rb-sync-title">
+                  {syncState.status === "confirming" ? "Confirmando solicitud" : "Estado de actualización"}
+                </div>
+                <div className="rb-sync-copy">{syncState.message}</div>
+              </div>
+              <button type="button" className="rb-toolbar-action" onClick={() => refresh("manual")} disabled={loading}>
+                <LocalIcon name="refresh-cw" size={16} className={loading ? "animate-spin" : ""}/>
+                Reintentar
+              </button>
+            </section>
+          )}
           <section className="rb-kpi-grid">
             {[
               ["Abiertas", counts.ABIERTA || 0, "rb-kpi-open", "circle-dot"],

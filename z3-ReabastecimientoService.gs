@@ -35,7 +35,7 @@
  * - Las escrituras son idempotentes cuando el estado ya refleja el resultado.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-SERVICE-2026-11-12-05
+ * @version REABASTECIMIENTO-SERVICE-2026-11-14-06
  */
 const ReabastecimientoService = (() => {
   "use strict";
@@ -281,7 +281,12 @@ const ReabastecimientoService = (() => {
     const trace = startTrace_("REABASTECIMIENTO_GET_MANUAL_EXCESS", {});
     try {
       assertDependencies_();
+      const warehousesStartedAt = Date.now();
       const warehouses = getSalesFloorWarehouses_();
+      perfMark_(trace, "MANUAL_WAREHOUSES_READY", {
+        rows: warehouses.length,
+        elapsedMs: Date.now() - warehousesStartedAt
+      });
       const warehouseId = normalizeSalesFloorWarehouse_(warehouse);
       if (!toStr_(warehouse)) {
         const bootstrap = {
@@ -301,11 +306,26 @@ const ReabastecimientoService = (() => {
           "La bodega de piso de venta no corresponde a un prefijo de ubicación permitido."
         );
       }
+      const sourcesStartedAt = Date.now();
       const supplyLocations = UbicacionesSurtidoRepository.getAll().filter(function(item) {
         return inferSalesFloorWarehouse_(item && item.ubicacion) === warehouseId;
       });
+      perfMark_(trace, "MANUAL_SUPPLY_LOCATIONS_READY", {
+        rows: supplyLocations.length,
+        elapsedMs: Date.now() - sourcesStartedAt
+      });
+      const catalogStartedAt = Date.now();
       const activeCatalog = buildActiveCatalogIndex_();
+      perfMark_(trace, "MANUAL_ACTIVE_CATALOG_READY", {
+        rows: Object.keys(activeCatalog).length,
+        elapsedMs: Date.now() - catalogStartedAt
+      });
+      const excessStartedAt = Date.now();
       const excessByCode = buildCurrentExcessByCode_();
+      perfMark_(trace, "MANUAL_CURRENT_EXCESS_READY", {
+        codes: Object.keys(excessByCode).length,
+        elapsedMs: Date.now() - excessStartedAt
+      });
       const records = [];
       supplyLocations.forEach(function(supply) {
         const code = toStrUpper_(supply.codigo);
@@ -426,7 +446,12 @@ const ReabastecimientoService = (() => {
     const trace = startTrace_("REABASTECIMIENTO_CREATE_REQUEST", {});
     try {
       assertDependencies_();
+      const normalizationStartedAt = Date.now();
       const normalized = normalizeCreationPayload_(payload, trace);
+      perfMark_(trace, "CREATE_PAYLOAD_NORMALIZED", {
+        parts: normalized.partidas.length,
+        elapsedMs: Date.now() - normalizationStartedAt
+      });
       const result = withScriptLock_(
         "REABASTECIMIENTO_CREATE_REQUEST",
         function() {
@@ -469,10 +494,16 @@ const ReabastecimientoService = (() => {
             ReabastecimientoSolicitudesRepository.appendUnderLock(header, trace);
             ReabastecimientoPartidasRepository.appendManyUnderLock(parts, trace);
 
+            perfMark_(trace, "CREATE_WRITES_COMPLETED", { parts: parts.length });
+            const verificationStartedAt = Date.now();
             const persistedHeader = ReabastecimientoSolicitudesRepository
               .getById(identity.idSolicitud, trace);
             const persistedParts = ReabastecimientoPartidasRepository
               .getBySolicitud(identity.idSolicitud, trace);
+            perfMark_(trace, "CREATE_PERSISTENCE_VERIFIED", {
+              persistedParts: persistedParts.length,
+              elapsedMs: Date.now() - verificationStartedAt
+            });
             if (!persistedHeader || persistedParts.length !== parts.length) {
               throw new Error(
                 "No fue posible confirmar la persistencia completa de la solicitud."
@@ -540,10 +571,32 @@ const ReabastecimientoService = (() => {
       const stateFilter = toStrUpper_(config.estado);
       const warehouseFilter = toStrUpper_(config.bodega);
       const requestFilter = toStrUpper_(config.idSolicitud);
-      const results = ReabastecimientoSolicitudesRepository.getAll(trace)
-        .map(function(request) {
-          return Object.assign({}, request, { estado: deriveRequestState_(request) });
-        })
+
+      const readStartedAt = Date.now();
+      const source = ReabastecimientoSolicitudesRepository.getAll(trace);
+      perfMark_(trace, "REQUESTS_SOURCE_READY", {
+        rows: source.length,
+        elapsedMs: Date.now() - readStartedAt
+      });
+
+      const projectionStartedAt = Date.now();
+      const projected = source.map(function(request) {
+        return Object.assign({}, request, {
+          estado: deriveRequestState_(request)
+        });
+      });
+      const stateCounts = projected.reduce(function(counts, request) {
+        counts[request.estado] = (counts[request.estado] || 0) + 1;
+        return counts;
+      }, Object.create(null));
+      perfMark_(trace, "REQUESTS_STATES_DERIVED", {
+        rows: projected.length,
+        stateCounts: stateCounts,
+        elapsedMs: Date.now() - projectionStartedAt
+      });
+
+      const filterStartedAt = Date.now();
+      const results = projected
         .filter(function(request) {
           return (!stateFilter || request.estado === stateFilter) &&
             (!warehouseFilter || request.bodega === warehouseFilter) &&
@@ -555,14 +608,21 @@ const ReabastecimientoService = (() => {
             sensitivity: "base"
           });
         });
-      finishTrace_(trace, { rows: results.length });
+      perfMark_(trace, "REQUESTS_FILTERED_AND_SORTED", {
+        sourceRows: projected.length,
+        resultRows: results.length,
+        hasStateFilter: Boolean(stateFilter),
+        hasWarehouseFilter: Boolean(warehouseFilter),
+        hasRequestFilter: Boolean(requestFilter),
+        elapsedMs: Date.now() - filterStartedAt
+      });
+      finishTrace_(trace, { rows: results.length, stateCounts: stateCounts });
       return results;
     } catch (error) {
       failTrace_(trace, error);
       throw error;
     }
   }
-
   function getRequestDetail(idSolicitud) {
     const trace = startTrace_("REABASTECIMIENTO_GET_REQUEST_DETAIL", {});
     try {

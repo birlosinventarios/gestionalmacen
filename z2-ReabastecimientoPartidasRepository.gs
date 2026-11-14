@@ -30,7 +30,7 @@
  * - Las métricas contienen únicamente cantidades, índices y duraciones.
  * - El Repository no confía en números de fila proporcionados por el navegador.
  * @author Sigifredo de la Cruz Ramos
- * @version REAB-PARTIDAS-REPOSITORY-2026-11-12-03
+ * @version REAB-PARTIDAS-REPOSITORY-2026-11-14-04
  */
 const ReabastecimientoPartidasRepository = (() => {
   "use strict";
@@ -83,10 +83,18 @@ const ReabastecimientoPartidasRepository = (() => {
 
   function getAll(trace) {
     if (!cache_) {
+      const startedAt = Date.now();
+      perfMark_(trace, "PARTS_REPOSITORY_CACHE_MISS");
       validateContract(trace);
       cache_ = readSheetRows_(CFG.SHEET_KEY, CFG.WIDTH, trace)
         .map(function(row, index) { return normalizeRow_(row, index + 2); })
         .filter(function(item) { return Boolean(item.idSolicitud); });
+      perfMark_(trace, "PARTS_REPOSITORY_CACHE_READY", {
+        rows: cache_.length,
+        elapsedMs: Date.now() - startedAt
+      });
+    } else {
+      perfMark_(trace, "PARTS_REPOSITORY_CACHE_HIT", { rows: cache_.length });
     }
     return cache_.map(function(item) { return Object.assign({}, item); });
   }
@@ -134,7 +142,12 @@ const ReabastecimientoPartidasRepository = (() => {
       }
       unique[key] = true;
     });
+    const startedAt = Date.now();
     const result = writeRowsBatch_(CFG.SHEET_KEY, rows, CFG.WIDTH, trace);
+    perfMark_(trace, "REQUEST_PARTS_PERSISTED", {
+      written: result.written,
+      elapsedMs: Date.now() - startedAt
+    });
     cache_ = null;
     return { written: result.written, firstRow: result.firstRow };
   }

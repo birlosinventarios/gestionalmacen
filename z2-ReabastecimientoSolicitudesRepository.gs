@@ -32,7 +32,7 @@
  * - Las métricas contienen únicamente cantidades, índices y duraciones.
  * - El Repository no confía en números de fila proporcionados por el navegador.
  * @author Sigifredo de la Cruz Ramos
- * @version REAB-SOLICITUDES-REPOSITORY-2026-11-12-02
+ * @version REAB-SOLICITUDES-REPOSITORY-2026-11-14-03
  */
 const ReabastecimientoSolicitudesRepository = (() => {
   "use strict";
@@ -117,7 +117,17 @@ const ReabastecimientoSolicitudesRepository = (() => {
   }
 
   function getAll(trace) {
-    if (!cache_) cache_ = readAll_(trace);
+    if (!cache_) {
+      const startedAt = Date.now();
+      perfMark_(trace, "REQUESTS_REPOSITORY_CACHE_MISS");
+      cache_ = readAll_(trace);
+      perfMark_(trace, "REQUESTS_REPOSITORY_CACHE_READY", {
+        rows: cache_.length,
+        elapsedMs: Date.now() - startedAt
+      });
+    } else {
+      perfMark_(trace, "REQUESTS_REPOSITORY_CACHE_HIT", { rows: cache_.length });
+    }
     return cache_.map(function(item) { return Object.assign({}, item); });
   }
 
@@ -176,7 +186,12 @@ const ReabastecimientoSolicitudesRepository = (() => {
       error.code = REABASTECIMIENTO_CONFIG.ERROR_CODES.SOLICITUD_DUPLICADA;
       throw error;
     }
+    const startedAt = Date.now();
     const result = writeRowsBatch_(CFG.SHEET_KEY, [row], CFG.WIDTH, trace);
+    perfMark_(trace, "REQUEST_HEADER_PERSISTED", {
+      written: result.written,
+      elapsedMs: Date.now() - startedAt
+    });
     cache_ = null;
     return {
       created: result.written === 1,

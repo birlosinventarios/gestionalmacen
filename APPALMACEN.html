@@ -44,7 +44,7 @@
   - Los scripts externos y los módulos embebidos en vistas dinámicas no se ejecutan nuevamente.
   - La configuración servidor-cliente debe existir antes de montar la aplicación React.
 
-  Versión: APPALMACEN-SHELL-2026-11-11-04
+  Versión: APPALMACEN-SHELL-2026-11-14-05
 
   Nota:
   Este archivo combina plantilla HTML de Apps Script, CSS y JavaScript del navegador.
@@ -516,6 +516,7 @@
           const cache = window.DATA_ALMACEN_CACHE;
           if (!cache || typeof cache !== "object") return;
           if (!preserveNavigation) delete cache.reabastecimientoNavigation;
+          delete cache.reabastecimientoRefreshRequired;
           delete cache.reabastecimientoUltimaSolicitud;
           delete cache.reabastecimientoUsuario;
         }
@@ -1402,6 +1403,9 @@
       "__NEGATIVOS_BIRLOS_ROOT__",
       "__GESTOR_EXCEDENTES_ROOT__",
       "__MONITOR_REABASTECIMIENTO_ROOT__",
+      "__REABASTECIMIENTO_ROOT__",
+      "__REABASTECIMIENTO_SOLICITUD_ROOT__",
+      "__REABASTECIMIENTO_DETALLES_ROOT__",
       "__PROTOTIPO_TRASPASOS_ROOT__",
       "__CONCILIACION_SALDO_ROOT__",
       "__VERIFICACION_ENTRADA_ROOT__",
