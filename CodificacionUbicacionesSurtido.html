@@ -1,0 +1,621 @@
+<script>
+/**
+ * CodificacionUbicacionesSurtido.html
+ *
+ * Vista de captura de la ubicación detallada de cada producto en
+ * UBICACIONES_SURTIDO, usando el catálogo de áreas de suministro de
+ * APPALMACEN4 (hoja UBICACIONES). Estilo visual de ReabastecimientoDetalles:
+ * workspace de altura completa, encabezado oscuro con métricas de avance,
+ * tabla operativa con captura en línea y barra de acciones.
+ *
+ * FLUJO
+ * 1. Se elige una BODEGA (BODEGA_NOMBRE del catálogo). Su ZONA en
+ *    UBICACIONES_SURTIDO sale de ZONA_POR_BODEGA_CLAVE (1 = B1, 2 = B2,
+ *    3 = B3, 4 = MOS, 5 = CU).
+ * 2. Se muestran los PASILLOS de esa zona como segmentos, con su avance
+ *    (codificadas / total). "SIN PASILLO" agrupa las filas sin pasillo.
+ * 3. Al elegir un pasillo se listan sus productos. El área sugerida es la del
+ *    pasillo (PASILLO 2 → P2) cuando existe en el catálogo de esa bodega.
+ * 4. Por fila se elige ÁREA (áreas de la bodega), NIVEL (niveles del área) y
+ *    BIN (1–99). El código resultante se calcula al instante:
+ *      DIRECCION del catálogo + "/" + "B" + BIN  →  BIR/ALM/B1/P2/N03/B04
+ * 5. "Guardar cambios" envía solo las filas modificadas y completas (o
+ *    vaciadas para limpiar). El servidor valida todo contra el catálogo,
+ *    verifica que cada fila siga siendo el mismo producto y escribe
+ *    BODEGA_CLAVE, AREASUMINISTRO_CLAVE, NIVEL, AREADESUMINISTRO y BIN.
+ *
+ * CAPTURA MASIVA
+ * Con filas seleccionadas se puede aplicar área y nivel a todas y numerar el
+ * BIN de forma consecutiva desde un valor inicial.
+ *
+ * CÓDIGOS REPETIDOS
+ * Un mismo código en varios productos se marca como "Repetido" (no se
+ * bloquea: un BIN puede alojar varios SKU) para revisarlo.
+ *
+ * DEPENDENCIAS DEL SHELL
+ * - REAB (z0-ReabastecimientoCliente.html): rpc medido, perf, util (formato,
+ *   íconos y notificaciones). Se reutiliza como cliente RPC único de la app.
+ *
+ * ENDPOINTS (z4-UbicacionesSurtidoController.gs)
+ * - UbicacionesSurtidoController_getCatalogo({forceRefresh?})
+ * - UbicacionesSurtidoController_getSegmento({bodegaClave, segmento?})
+ * - UbicacionesSurtidoController_guardar({bodegaClave, segmento, filas[]})
+ *
+ * @author Sigifredo de la Cruz Ramos
+ * @version CODIFICACION-UBICACIONES-SURTIDO-VIEW-2026-11-20-01
+ */
+</script>
+
+<style>
+/* =========================================================
+   TOKENS Y CONTENEDOR (sistema visual de ReabastecimientoDetalles)
+   ========================================================= */
+#render-codificacion-ubicaciones{--c:var(--primary,#d93025);--ok:#1e8e3e;--warn:#d97706;--ink:var(--text-main,#1c1d1f);--muted:var(--text-secondary,#5f6368);--border:var(--border-color,#dadce0);height:100%;overflow:hidden;color:var(--ink)}
+#render-codificacion-ubicaciones *{box-sizing:border-box}
+.cus-page{height:100%;padding:16px 24px 24px;overflow:hidden;background:radial-gradient(circle at top right,rgba(217,48,37,.055),transparent 34%),var(--bg-color,#f8f9fa)}
+.cus-workspace{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid var(--border);border-radius:22px;box-shadow:0 24px 60px rgba(15,23,42,.11),0 6px 18px rgba(15,23,42,.05)}
+
+/* Encabezado oscuro con métricas */
+.cus-header{flex:0 0 auto;position:relative;padding:18px 18px 18px 22px;display:grid;grid-template-columns:minmax(260px,1fr) minmax(520px,1.9fr) auto;align-items:center;gap:16px;color:#fff;background:radial-gradient(circle at top right,rgba(217,48,37,.35),transparent 38%),linear-gradient(135deg,#1c1d1f,#25272b 55%,#17181a)}
+.cus-header:before{content:"";position:absolute;inset:0 auto 0 0;width:7px;background:var(--c)}
+.cus-id{position:relative;z-index:2;min-width:0;display:flex;align-items:center;gap:12px}
+.cus-badge{width:46px;height:46px;flex:0 0 46px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.16);border-radius:15px;background:rgba(255,255,255,.09)}
+.cus-eyebrow{margin:0 0 4px;color:rgba(255,255,255,.55);font-size:9px;font-weight:950;letter-spacing:.16em;text-transform:uppercase}
+.cus-title{margin:0;font:950 20px/1.15 "JetBrains Mono",monospace}
+.cus-description{margin:6px 0 0;color:rgba(255,255,255,.65);font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.cus-metrics{position:relative;z-index:2;display:grid;grid-template-columns:repeat(5,minmax(80px,1fr));overflow:hidden;background:rgba(255,255,255,.96);border-radius:15px;box-shadow:0 12px 30px rgba(0,0,0,.13)}
+.cus-metric{min-width:0;min-height:67px;padding:12px 11px 10px;display:flex;flex-direction:column;justify-content:center;gap:6px;position:relative;color:var(--ink);border-right:1px solid var(--border)}
+.cus-metric:last-child{border-right:0}
+.cus-metric:before{content:"";position:absolute;top:0;left:10px;right:10px;height:4px;border-radius:0 0 999px 999px;background:#1c1d1f}
+.cus-metric.ok:before{background:var(--ok)}.cus-metric.warn:before{background:var(--warn)}.cus-metric.bad:before{background:var(--c)}
+.cus-metric-value{font-size:20px;font-weight:950;line-height:1;white-space:nowrap}
+.cus-metric-label{color:var(--muted);font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+.cus-track{height:4px;background:#e2e5e9;border-radius:99px;overflow:hidden}
+.cus-bar{height:100%;border-radius:99px;background:var(--ok);transition:.3s}
+.cus-actions{position:relative;z-index:2;display:flex;gap:8px}
+.cus-action{min-height:44px;padding:0 14px;display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.16);border-radius:13px;background:rgba(255,255,255,.09);color:#fff;font-size:9px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
+.cus-action.primary{border-color:var(--c);background:var(--c)}
+.cus-action:disabled{opacity:.45;pointer-events:none}
+
+/* Barra de bodega y segmentos */
+.cus-toolbar{flex:0 0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#fff,#f8f9fa)}
+.cus-field{display:grid;gap:5px}
+.cus-field>span{color:var(--muted);font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+.cus-select,.cus-input{min-height:40px;padding:0 10px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--ink);font-size:12px;font-weight:850;outline:none}
+.cus-select:focus,.cus-input:focus{border-color:var(--c);box-shadow:0 0 0 4px rgba(217,48,37,.1)}
+.cus-input.invalid,.cus-select.invalid{border-color:var(--c);background:rgba(217,48,37,.05)}
+.cus-segments{flex:1 1 100%;display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.cus-segment{flex:0 0 auto;min-width:118px;padding:8px 11px;display:flex;flex-direction:column;gap:5px;border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--ink);text-align:left;cursor:pointer}
+.cus-segment b{font-size:11px;font-weight:950;letter-spacing:.05em}
+.cus-segment small{color:var(--muted);font-size:9px;font-weight:850;text-transform:uppercase}
+.cus-segment.active{border-color:#1c1d1f;background:#1c1d1f;color:#fff;box-shadow:inset 0 -3px 0 var(--c)}
+.cus-segment.active small{color:rgba(255,255,255,.7)}
+.cus-segment.done{border-color:rgba(30,142,62,.35)}
+.cus-filters{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.cus-chipbtn{min-height:34px;padding:0 11px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--muted);font-size:10px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.cus-chipbtn.active{border-color:#1c1d1f;background:#1c1d1f;color:#fff}
+
+/* Barra de captura masiva */
+.cus-bulk{flex:0 0 auto;margin:10px 16px 0;padding:10px 12px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;border:1px solid rgba(217,48,37,.25);border-radius:13px;background:rgba(217,48,37,.05)}
+.cus-bulk>b{align-self:center;font-size:11px;font-weight:950;letter-spacing:.05em;text-transform:uppercase}
+.cus-btn{min-height:40px;padding:0 13px;display:inline-flex;align-items:center;gap:6px;border:1px solid #1c1d1f;border-radius:10px;background:#1c1d1f;color:#fff;font-size:9px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.cus-btn.primary{border-color:var(--c);background:var(--c)}
+.cus-btn.ghost{background:#fff;color:var(--ink);border-color:var(--border)}
+.cus-btn:disabled{opacity:.45;cursor:not-allowed}
+.cus-banner{flex:0 0 auto;margin:10px 16px 0;padding:10px 14px;display:flex;align-items:center;gap:12px;border:1px solid rgba(217,119,6,.3);border-radius:12px;background:rgba(217,119,6,.08);color:#9a5a04;font-size:11px;font-weight:850}
+.cus-banner>span:last-child{flex:1}
+
+/* Tabla operativa */
+.cus-table-wrap{flex:1 1 auto;min-height:0;overflow:auto;margin-top:10px;background:linear-gradient(180deg,#fff,#fcfcfd)}
+.cus-table-wrap::-webkit-scrollbar{width:7px;height:7px}.cus-table-wrap::-webkit-scrollbar-thumb{background:#c4c7cc;border-radius:99px}
+.cus-table{width:100%;min-width:1180px;border-collapse:separate;border-spacing:0}
+.cus-table th{position:sticky;top:0;z-index:5;height:46px;padding:0 12px;background:linear-gradient(180deg,#25272b,#1c1d1f);color:rgba(255,255,255,.78);border-bottom:3px solid var(--c);font-size:9px;font-weight:950;letter-spacing:.12em;text-align:left;text-transform:uppercase;white-space:nowrap}
+.cus-table td{padding:10px 12px;border-bottom:1px solid #eef1f4;background:#fff;font-size:12px;vertical-align:middle}
+.cus-table tbody tr:nth-child(even) td{background:#fcfcfd}
+.cus-table tbody tr:hover td{background:#fff8f7}
+.cus-table tr.dirty td{background:rgba(217,119,6,.06)!important}
+.cus-table tr.dirty td:first-child{box-shadow:inset 5px 0 0 var(--warn)}
+.cus-table tr.saved td:first-child{box-shadow:inset 5px 0 0 var(--ok)}
+.cus-table .cus-select,.cus-table .cus-input{min-height:36px;width:100%}
+.cus-table .cus-input{max-width:80px;text-align:center}
+.cus-mono{font:950 13px "JetBrains Mono",monospace}
+.cus-code{font:900 12px "JetBrains Mono",monospace;color:#1c1d1f;white-space:nowrap}
+.cus-sub{margin-top:3px;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase}
+.cus-chip{min-height:24px;padding:0 9px;display:inline-flex;align-items:center;border:1px solid transparent;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}
+.cus-chip.green{background:rgba(30,142,62,.13);color:#157337;border-color:rgba(30,142,62,.22)}
+.cus-chip.amber{background:rgba(217,119,6,.13);color:#b45309;border-color:rgba(217,119,6,.22)}
+.cus-chip.red{background:rgba(217,48,37,.12);color:#a50e0e;border-color:rgba(217,48,37,.22)}
+.cus-chip.slate{background:rgba(28,29,31,.07);color:#4b5563;border-color:rgba(28,29,31,.12)}
+.cus-empty{min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#9ca3af;text-align:center;font-size:12px;font-weight:800}
+.cus-spinner{width:38px;height:38px;border:4px solid #eef1f4;border-top-color:var(--c);border-radius:50%;animation:cusSpin .8s linear infinite}
+@keyframes cusSpin{to{transform:rotate(360deg)}}
+@media(max-width:1280px){.cus-header{grid-template-columns:1fr auto}.cus-metrics{grid-column:1/-1;grid-row:2}}
+@media(max-width:760px){.cus-page{padding:8px}.cus-header{display:flex;flex-direction:column;align-items:stretch}.cus-metrics{grid-template-columns:repeat(2,1fr)}}
+</style>
+
+<div id="render-codificacion-ubicaciones"></div>
+
+<script type="text/babel">
+/* ============================================================================
+ * CodificacionUbicacionesSurtido · Lógica de la vista (React + Babel)
+ * ============================================================================
+ *
+ * ESTRUCTURA
+ * 1. Dependencias y utilidades ...... REAB, formato de BIN y código.
+ * 2. Componentes ..................... Icon, Metric, StatusChip.
+ * 3. App ............................. catálogo, bodega, segmentos, captura,
+ *                                       captura masiva y guardado.
+ * 4. Montaje ......................... initVista / cleanup del Shell.
+ *
+ * ESTADO DE CAPTURA
+ * - drafts: Map rowNumber → {areaClave, nivel, bin}: lo que el usuario
+ *   cambió y aún no se guarda. La fila se considera "con cambios" si su
+ *   borrador difiere de lo guardado en la hoja.
+ * - Solo se envían filas con cambios que estén completas (área, nivel y BIN)
+ *   o completamente vacías (limpiar la captura).
+ *
+ * MEDICIÓN
+ * Trazas CODIF_* en la bitácora de rendimiento (si el switch está activo).
+ * ========================================================================== */
+window.cargar_CodificacionUbicacionesSurtido = () => {
+  const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+  // ==========================================================================
+  // 1. DEPENDENCIAS Y UTILIDADES
+  // ==========================================================================
+
+  const REAB = window.REAB;
+  if (!REAB) {
+    (window.notificar || console.error)("Falta la biblioteca z0-ReabastecimientoCliente.", "error");
+    return () => {};
+  }
+  const { str, up, fmt, notify, publicError } = REAB.util;
+  const VIEW = "CodificacionUbicacionesSurtido";
+
+  /** Porcentaje entero seguro. */
+  const pct = (part, total) => (total > 0 ? Math.round((part / total) * 1000) / 10 : 0);
+
+  // ==========================================================================
+  // 2. COMPONENTES
+  // ==========================================================================
+
+  /** Ícono Lucide dibujado solo en su nodo. */
+  function Icon({ name, size = 16 }) {
+    const ref = useRef(null);
+    useEffect(() => { REAB.util.renderIcon(ref.current, name, size); }, [name, size]);
+    return <span ref={ref} className="inline-flex items-center justify-center" />;
+  }
+
+  /** Métrica del encabezado con barra opcional. */
+  function Metric({ label, value, tone, progress }) {
+    return (
+      <div className={`cus-metric ${tone || ""}`}>
+        <div className="cus-metric-value">{value}</div>
+        <div className="cus-metric-label">{label}</div>
+        {progress != null && <div className="cus-track"><div className="cus-bar" style={{ width: `${Math.min(100, progress)}%` }} /></div>}
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // 3. APP
+  // ==========================================================================
+
+  function App() {
+    const [catalog, setCatalog] = useState(null);
+    const [warehouseKey, setWarehouseKey] = useState("");
+    const [view, setView] = useState(null);
+    const [segmentKey, setSegmentKey] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [drafts, setDrafts] = useState(() => new Map());
+    const [selected, setSelected] = useState(() => new Set());
+    const [filter, setFilter] = useState("PENDIENTES");
+    const [search, setSearch] = useState("");
+    const [bulk, setBulk] = useState({ areaClave: "", nivel: "", binDesde: "" });
+    const [warnings, setWarnings] = useState([]);
+    const sequence = useRef(0);
+
+    // ── Catálogo ──────────────────────────────────────────────────────────
+    const loadCatalog = useCallback(async (forceRefresh = false) => {
+      const trace = REAB.perf.begin("CODIF_CATALOGO", { view: VIEW, type: "CONSULTA", meta: { forceRefresh } });
+      try {
+        const { data } = await REAB.rpc("UbicacionesSurtidoController_getCatalogo", { forceRefresh }, { trace, keepOpen: true, required: ["bodegas"] });
+        setCatalog(data);
+        trace.endAfterPaint("ok", { meta: { bodegas: data.bodegas.length } });
+      } catch (error) {
+        if (!trace.ended) trace.end("error", { error });
+        notify(publicError(error), "error", 5000, { title: "No se cargó el catálogo de UBICACIONES" });
+      }
+    }, []);
+    useEffect(() => { loadCatalog(false); }, [loadCatalog]);
+
+    const warehouse = useMemo(() => (catalog?.bodegas || []).find((item) => item.clave === warehouseKey) || null, [catalog, warehouseKey]);
+    /** Índice área → {niveles} de la bodega elegida. */
+    const areaIndex = useMemo(() => {
+      const map = new Map();
+      (warehouse?.areas || []).forEach((area) => map.set(area.clave, area));
+      return map;
+    }, [warehouse]);
+    const binCfg = catalog?.bin || { min: 1, max: 99, prefijo: "B", digitos: 2 };
+
+    /** Código resultante de una captura (o "" si está incompleta o es inválida). */
+    const codeFor = useCallback((areaClave, nivel, bin) => {
+      const area = areaIndex.get(up(areaClave));
+      const level = area?.niveles.find((item) => String(item.nivel) === String(nivel));
+      const binNumber = Number(bin);
+      if (!level || !Number.isInteger(binNumber) || binNumber < binCfg.min || binNumber > binCfg.max) return "";
+      return `${level.direccion}/${binCfg.prefijo}${String(binNumber).padStart(binCfg.digitos, "0")}`;
+    }, [areaIndex, binCfg]);
+
+    // ── Segmentos y filas ─────────────────────────────────────────────────
+    /** Pide al servidor los segmentos de la bodega y, si se indica, las filas de uno. */
+    const loadSegment = useCallback(async (bodegaClave, segmento) => {
+      if (!bodegaClave) return;
+      const current = ++sequence.current;
+      const trace = REAB.perf.begin("CODIF_SEGMENTO", { view: VIEW, type: "CONSULTA", meta: { bodegaClave, segmento: segmento || "" } });
+      setLoading(true);
+      try {
+        const { data } = await REAB.rpc("UbicacionesSurtidoController_getSegmento", { bodegaClave, segmento: segmento || "" }, { trace, keepOpen: true, required: ["segmentos", "resumen"], timeoutMs: 120000 });
+        if (current !== sequence.current) { trace.end("cancelled"); return; }
+        setView(data);
+        setDrafts(new Map());
+        setSelected(new Set());
+        setWarnings([]);
+        trace.endAfterPaint("ok", { meta: { filas: data.filas ? data.filas.length : 0 } });
+      } catch (error) {
+        if (!trace.ended) trace.end("error", { error });
+        notify(publicError(error), "error", 5000, { title: "No se cargó la información" });
+      } finally {
+        if (current === sequence.current) setLoading(false);
+      }
+    }, []);
+
+    /** Confirma descartar cambios sin guardar. */
+    const confirmDiscard = () => drafts.size === 0 || window.confirm(`Tienes ${drafts.size} fila(s) con cambios sin guardar. ¿Descartarlos?`);
+
+    const chooseWarehouse = (clave) => {
+      if (!confirmDiscard()) return;
+      setWarehouseKey(clave);
+      setSegmentKey("");
+      setView(null);
+      if (clave) loadSegment(clave, "");
+    };
+    const chooseSegment = (clave) => {
+      if (clave === segmentKey || !confirmDiscard()) return;
+      setSegmentKey(clave);
+      setBulk({ areaClave: "", nivel: "", binDesde: "" });
+      loadSegment(warehouseKey, clave);
+    };
+
+    const segment = useMemo(() => (view?.segmentos || []).find((item) => item.clave === segmentKey) || null, [view, segmentKey]);
+    const rows = view?.filas || [];
+
+    /** Valor vigente de una fila: borrador o lo guardado (con área sugerida). */
+    const valueOf = useCallback((row) => {
+      const draft = drafts.get(row.rowNumber);
+      if (draft) return draft;
+      return {
+        areaClave: row.areaClave || (row.codigoArea ? "" : segment?.areaSugerida || ""),
+        nivel: row.nivel || "",
+        bin: row.bin || ""
+      };
+    }, [drafts, segment]);
+
+    /** true si el borrador difiere de lo guardado. */
+    const isDirty = useCallback((row) => {
+      const draft = drafts.get(row.rowNumber);
+      if (!draft) return false;
+      return up(draft.areaClave) !== up(row.areaClave) || str(draft.nivel) !== str(row.nivel) || str(draft.bin) !== str(row.bin);
+    }, [drafts]);
+
+    /** Actualiza el borrador de una fila. */
+    const setField = (row, field, value) => {
+      setDrafts((previous) => {
+        const next = new Map(previous);
+        const base = previous.get(row.rowNumber) || valueOf(row);
+        const updated = { ...base, [field]: value };
+        if (field === "areaClave") updated.nivel = "";
+        next.set(row.rowNumber, updated);
+        return next;
+      });
+    };
+
+    // ── Códigos repetidos (guardados + borradores) ────────────────────────
+    const codeOwners = useMemo(() => {
+      const owners = new Map();
+      Object.entries(view?.codigosEnUso || {}).forEach(([code, codes]) => owners.set(code, new Set(codes)));
+      rows.forEach((row) => {
+        if (row.codigoArea && owners.has(row.codigoArea)) owners.get(row.codigoArea).delete(row.codigo);
+        const value = valueOf(row);
+        const code = codeFor(value.areaClave, value.nivel, value.bin);
+        if (!code) return;
+        if (!owners.has(code)) owners.set(code, new Set());
+        owners.get(code).add(row.codigo);
+      });
+      return owners;
+    }, [view, rows, valueOf, codeFor]);
+
+    // ── Filtro y búsqueda ─────────────────────────────────────────────────
+    const visibleRows = useMemo(() => {
+      const term = up(search);
+      return rows.filter((row) => {
+        if (filter === "PENDIENTES" && row.codigoArea && !isDirty(row)) return false;
+        if (filter === "CODIFICADAS" && !row.codigoArea) return false;
+        if (filter === "CAMBIOS" && !isDirty(row)) return false;
+        if (!term) return true;
+        return row.codigo.includes(term) || up(row.descripcion).includes(term) || row.codigoArea.includes(term);
+      });
+    }, [rows, filter, search, isDirty]);
+
+    // ── Métricas ──────────────────────────────────────────────────────────
+    const dirtyRows = rows.filter(isDirty);
+    const readyRows = dirtyRows.filter((row) => {
+      const value = valueOf(row);
+      const empty = !value.areaClave && !str(value.nivel) && !str(value.bin);
+      return empty || Boolean(codeFor(value.areaClave, value.nivel, value.bin));
+    });
+    const incomplete = dirtyRows.length - readyRows.length;
+    const summary = view?.resumen || { total: 0, codificadas: 0, pendientes: 0 };
+
+    // ── Selección y captura masiva ────────────────────────────────────────
+    const toggleRow = (rowNumber) => setSelected((previous) => {
+      const next = new Set(previous);
+      if (next.has(rowNumber)) next.delete(rowNumber); else next.add(rowNumber);
+      return next;
+    });
+    const allVisibleSelected = visibleRows.length > 0 && visibleRows.every((row) => selected.has(row.rowNumber));
+    const toggleAll = () => setSelected(allVisibleSelected ? new Set() : new Set(visibleRows.map((row) => row.rowNumber)));
+
+    /** Aplica área/nivel y BIN consecutivo a las filas seleccionadas (en el orden visible). */
+    const applyBulk = () => {
+      const targets = visibleRows.filter((row) => selected.has(row.rowNumber));
+      if (!targets.length) return;
+      const start = str(bulk.binDesde) ? Number(bulk.binDesde) : null;
+      if (start !== null && (!Number.isInteger(start) || start < binCfg.min || start > binCfg.max)) {
+        notify(`El BIN inicial debe estar entre ${binCfg.min} y ${binCfg.max}.`, "warning");
+        return;
+      }
+      if (start !== null && start + targets.length - 1 > binCfg.max) {
+        notify(`No alcanzan los BIN: ${targets.length} filas desde ${start} superan ${binCfg.max}.`, "warning");
+        return;
+      }
+      setDrafts((previous) => {
+        const next = new Map(previous);
+        targets.forEach((row, index) => {
+          const base = previous.get(row.rowNumber) || valueOf(row);
+          const updated = { ...base };
+          if (bulk.areaClave) { updated.areaClave = bulk.areaClave; updated.nivel = ""; }
+          if (str(bulk.nivel)) updated.nivel = bulk.nivel;
+          if (start !== null) updated.bin = String(start + index);
+          next.set(row.rowNumber, updated);
+        });
+        return next;
+      });
+      notify(`Captura aplicada a ${targets.length} fila(s). Revisa y guarda los cambios.`, "info", 2200);
+    };
+
+    // ── Guardado ──────────────────────────────────────────────────────────
+    const save = async () => {
+      if (!readyRows.length || saving) return;
+      const trace = REAB.perf.begin("CODIF_GUARDAR", { view: VIEW, type: "ACCION", meta: { filas: readyRows.length, bodega: warehouseKey, segmento: segmentKey } });
+      setSaving(true);
+      try {
+        const filas = readyRows.map((row) => {
+          const value = valueOf(row);
+          return { rowNumber: row.rowNumber, codigo: row.codigo, areaClave: up(value.areaClave), nivel: str(value.nivel), bin: str(value.bin) };
+        });
+        const { data } = await REAB.rpc("UbicacionesSurtidoController_guardar", { bodegaClave: warehouseKey, segmento: segmentKey, filas }, { trace, keepOpen: true, required: ["vista"], timeoutMs: 120000 });
+        // Conserva los borradores que no se enviaron (incompletos).
+        const sent = new Set(filas.map((row) => row.rowNumber));
+        setDrafts((previous) => {
+          const next = new Map();
+          previous.forEach((value, key) => { if (!sent.has(key)) next.set(key, value); });
+          return next;
+        });
+        setView(data.vista);
+        setSelected(new Set());
+        setWarnings(data.advertencias || []);
+        notify(`${data.guardadas} fila(s) codificada(s)${data.limpiadas ? `, ${data.limpiadas} limpiada(s)` : ""}.`, "success", 2600, { title: "Cambios guardados" });
+        trace.endAfterPaint("ok", { meta: { guardadas: data.guardadas } });
+      } catch (error) {
+        if (!trace.ended) trace.end("error", { error });
+        notify(publicError(error), "error", 6000, { title: "No se guardaron los cambios", sound: true });
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    // ── Render ────────────────────────────────────────────────────────────
+    const bulkArea = areaIndex.get(bulk.areaClave);
+    return (
+      <div className="cus-page">
+        <div className="cus-workspace">
+          {/* ENCABEZADO: identidad, métricas de avance y acciones */}
+          <header className="cus-header">
+            <div className="cus-id">
+              <div className="cus-badge"><Icon name="map-pinned" size={22} /></div>
+              <div>
+                <p className="cus-eyebrow">Catálogo · UBICACIONES_SURTIDO</p>
+                <h1 className="cus-title">Codificación de ubicaciones</h1>
+                <p className="cus-description">{warehouse ? `${warehouse.nombre} · zona ${warehouse.zona || "sin asignar"}` : "Elige una bodega para comenzar"}</p>
+              </div>
+            </div>
+            <div className="cus-metrics">
+              <Metric label="Productos en la bodega" value={fmt(summary.total)} />
+              <Metric label="Codificados" value={fmt(summary.codificadas)} tone="ok" />
+              <Metric label="Pendientes" value={fmt(summary.pendientes)} tone={summary.pendientes ? "warn" : "ok"} />
+              <Metric label="Avance de la bodega" value={`${pct(summary.codificadas, summary.total)}%`} tone="ok" progress={pct(summary.codificadas, summary.total)} />
+              <Metric label={segment ? `Avance ${segment.nombre}` : "Avance del pasillo"} value={segment ? `${segment.codificadas}/${segment.total}` : "—"} tone={segment && segment.pendientes === 0 ? "ok" : ""} progress={segment ? pct(segment.codificadas, segment.total) : null} />
+            </div>
+            <div className="cus-actions">
+              <button className="cus-action" onClick={() => { if (confirmDiscard()) { loadCatalog(true); if (warehouseKey) loadSegment(warehouseKey, segmentKey); } }} disabled={loading || saving}>
+                <Icon name="refresh-cw" size={15} />Actualizar
+              </button>
+              <button className="cus-action primary" onClick={save} disabled={!readyRows.length || saving || loading}>
+                <Icon name="save" size={15} />{saving ? "Guardando..." : `Guardar ${readyRows.length || ""}`}
+              </button>
+            </div>
+          </header>
+
+          {/* BARRA: bodega, pasillos, filtros y búsqueda */}
+          <div className="cus-toolbar">
+            <label className="cus-field">
+              <span>Bodega</span>
+              <select className="cus-select" value={warehouseKey} onChange={(event) => chooseWarehouse(event.target.value)} disabled={!catalog || loading || saving}>
+                <option value="">{catalog ? "Selecciona una bodega" : "Cargando catálogo..."}</option>
+                {(catalog?.bodegas || []).map((item) => (
+                  <option key={item.clave} value={item.clave}>{item.nombre} ({item.clave}){item.zona ? "" : " · sin zona"}</option>
+                ))}
+              </select>
+            </label>
+            {segment && (
+              <div className="cus-filters">
+                {[["PENDIENTES", "Pendientes"], ["TODAS", "Todas"], ["CODIFICADAS", "Codificadas"], ["CAMBIOS", `Con cambios (${dirtyRows.length})`]].map(([key, label]) => (
+                  <button key={key} className={`cus-chipbtn ${filter === key ? "active" : ""}`} onClick={() => setFilter(key)}>{label}</button>
+                ))}
+                <input className="cus-input" style={{ minWidth: 220 }} placeholder="Buscar código, descripción o código de ubicación" value={search} onChange={(event) => setSearch(event.target.value)} />
+              </div>
+            )}
+            {view && (
+              <div className="cus-segments">
+                {view.segmentos.map((item) => (
+                  <button key={item.clave} className={`cus-segment ${item.clave === segmentKey ? "active" : ""} ${item.pendientes === 0 ? "done" : ""}`} onClick={() => chooseSegment(item.clave)} disabled={loading || saving}>
+                    <b>{item.nombre}{item.areaSugerida ? ` · ${item.areaSugerida}` : ""}</b>
+                    <small>{item.codificadas}/{item.total} codificados</small>
+                    <div className="cus-track"><div className="cus-bar" style={{ width: `${pct(item.codificadas, item.total)}%` }} /></div>
+                  </button>
+                ))}
+                {!view.segmentos.length && <span className="cus-sub">No hay productos con ZONA {view.bodega.zona} en UBICACIONES_SURTIDO.</span>}
+              </div>
+            )}
+          </div>
+
+          {/* CAPTURA MASIVA */}
+          {segment && selected.size > 0 && (
+            <div className="cus-bulk">
+              <b>{selected.size} seleccionada(s)</b>
+              <label className="cus-field">
+                <span>Área</span>
+                <select className="cus-select" value={bulk.areaClave} onChange={(event) => setBulk({ ...bulk, areaClave: event.target.value, nivel: "" })}>
+                  <option value="">Sin cambio</option>
+                  {(warehouse?.areas || []).map((area) => <option key={area.clave} value={area.clave}>{area.clave} · {area.nombre}</option>)}
+                </select>
+              </label>
+              <label className="cus-field">
+                <span>Nivel</span>
+                <select className="cus-select" value={bulk.nivel} onChange={(event) => setBulk({ ...bulk, nivel: event.target.value })} disabled={!bulkArea}>
+                  <option value="">{bulkArea ? "Sin cambio" : "Elige área"}</option>
+                  {(bulkArea?.niveles || []).map((level) => <option key={level.nivel} value={level.nivel}>{level.clave}</option>)}
+                </select>
+              </label>
+              <label className="cus-field">
+                <span>BIN consecutivo desde</span>
+                <input className="cus-input" inputMode="numeric" style={{ width: 110 }} value={bulk.binDesde} placeholder="Sin cambio" onChange={(event) => setBulk({ ...bulk, binDesde: event.target.value.replace(/[^0-9]/g, "") })} />
+              </label>
+              <button className="cus-btn primary" onClick={applyBulk}><Icon name="wand-sparkles" size={14} />Aplicar</button>
+              <button className="cus-btn ghost" onClick={() => setSelected(new Set())}>Quitar selección</button>
+            </div>
+          )}
+
+          {incomplete > 0 && (
+            <div className="cus-banner"><Icon name="triangle-alert" size={16} /><span>{incomplete} fila(s) con cambios incompletos: necesitan área, nivel y BIN para guardarse (o déjalas vacías para limpiar).</span></div>
+          )}
+          {warnings.length > 0 && (
+            <div className="cus-banner"><Icon name="copy" size={16} /><span>Códigos repetidos: {warnings.slice(0, 3).join(" ")}{warnings.length > 3 ? ` y ${warnings.length - 3} más.` : ""}</span></div>
+          )}
+
+          {/* TABLA */}
+          <div className="cus-table-wrap">
+            {!warehouseKey && <div className="cus-empty"><Icon name="warehouse" size={34} />Elige una bodega para ver sus pasillos y el avance de codificación.</div>}
+            {warehouseKey && !segmentKey && !loading && <div className="cus-empty"><Icon name="columns-3" size={34} />Elige un pasillo para capturar la ubicación detallada de sus productos.{view?.fueraDeZona ? <span className="cus-sub">{fmt(view.fueraDeZona)} producto(s) de la hoja tienen una ZONA sin bodega asignada y no aparecen en ninguna bodega.</span> : null}</div>}
+            {loading && <div className="cus-empty"><div className="cus-spinner" />Leyendo UBICACIONES_SURTIDO...</div>}
+            {segment && !loading && (
+              <table className="cus-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 36 }}><input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} /></th>
+                    <th>Producto</th>
+                    <th>Ubicación preliminar</th>
+                    <th style={{ width: 210 }}>Área de suministro</th>
+                    <th style={{ width: 110 }}>Nivel</th>
+                    <th style={{ width: 90 }}>BIN</th>
+                    <th>Código resultante</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRows.length === 0 && <tr><td colSpan={8} className="cus-sub" style={{ textAlign: "center", padding: 24 }}>No hay productos con este filtro.</td></tr>}
+                  {visibleRows.map((row) => {
+                    const value = valueOf(row);
+                    const area = areaIndex.get(up(value.areaClave));
+                    const code = codeFor(value.areaClave, value.nivel, value.bin);
+                    const dirty = isDirty(row);
+                    const empty = !value.areaClave && !str(value.nivel) && !str(value.bin);
+                    const binNumber = Number(value.bin);
+                    const binInvalid = str(value.bin) !== "" && (!Number.isInteger(binNumber) || binNumber < binCfg.min || binNumber > binCfg.max);
+                    const owners = code ? Array.from(codeOwners.get(code) || []).filter((item) => item !== row.codigo) : [];
+                    let status = <span className="cus-chip slate">Pendiente</span>;
+                    if (dirty) status = code || empty ? <span className="cus-chip amber">Sin guardar</span> : <span className="cus-chip red">Incompleta</span>;
+                    else if (row.codigoArea) status = <span className="cus-chip green">Codificada</span>;
+                    return (
+                      <tr key={row.rowNumber} className={dirty ? "dirty" : row.codigoArea ? "saved" : ""}>
+                        <td><input type="checkbox" checked={selected.has(row.rowNumber)} onChange={() => toggleRow(row.rowNumber)} /></td>
+                        <td><div className="cus-mono">{row.codigo}</div><div className="cus-sub">{row.descripcion || "Sin descripción en CATALOGO"}</div></td>
+                        <td>{row.ubicacion || "—"}<div className="cus-sub">Fila {row.rowNumber}{row.anaquel ? ` · anaquel ${row.anaquel}` : ""}{row.repisa ? ` · repisa ${row.repisa}` : ""}</div></td>
+                        <td>
+                          <select className="cus-select" value={up(value.areaClave)} onChange={(event) => setField(row, "areaClave", event.target.value)} disabled={saving}>
+                            <option value="">—</option>
+                            {(warehouse?.areas || []).map((item) => <option key={item.clave} value={item.clave}>{item.clave} · {item.nombre}</option>)}
+                          </select>
+                        </td>
+                        <td>
+                          <select className={`cus-select ${value.areaClave && !str(value.nivel) && dirty ? "invalid" : ""}`} value={str(value.nivel)} onChange={(event) => setField(row, "nivel", event.target.value)} disabled={saving || !area}>
+                            <option value="">—</option>
+                            {(area?.niveles || []).map((level) => <option key={level.nivel} value={level.nivel}>{level.clave}</option>)}
+                          </select>
+                        </td>
+                        <td>
+                          <input className={`cus-input ${binInvalid ? "invalid" : ""}`} inputMode="numeric" value={str(value.bin)} onChange={(event) => setField(row, "bin", event.target.value.replace(/[^0-9]/g, ""))} onWheel={(event) => event.currentTarget.blur()} disabled={saving} placeholder={`${binCfg.min}-${binCfg.max}`} />
+                        </td>
+                        <td>
+                          <div className="cus-code">{code || (row.codigoArea && !dirty ? row.codigoArea : "—")}</div>
+                          {owners.length > 0 && <div className="cus-sub" title={owners.join(", ")}><span className="cus-chip amber">Repetido</span> {owners.slice(0, 2).join(", ")}{owners.length > 2 ? "…" : ""}</div>}
+                        </td>
+                        <td>{status}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // 4. MONTAJE EN EL SHELL
+  // ==========================================================================
+
+  const target = document.getElementById("render-codificacion-ubicaciones");
+  if (!target) {
+    notify("No se encontró el contenedor de la codificación de ubicaciones.", "error");
+    return () => {};
+  }
+  if (window.__CODIFICACION_UBICACIONES_ROOT__) {
+    try { window.__CODIFICACION_UBICACIONES_ROOT__.unmount(); } catch (_) { /* raíz previa ya desmontada */ }
+  }
+  window.__CODIFICACION_UBICACIONES_ROOT__ = ReactDOM.createRoot(target);
+  window.__CODIFICACION_UBICACIONES_ROOT__.render(<App />);
+
+  return () => {
+    if (window.__CODIFICACION_UBICACIONES_ROOT__) {
+      try { window.__CODIFICACION_UBICACIONES_ROOT__.unmount(); } catch (_) { /* sin acción */ }
+      window.__CODIFICACION_UBICACIONES_ROOT__ = null;
+    }
+  };
+};
+window.initVista = window.cargar_CodificacionUbicacionesSurtido;
+</script>

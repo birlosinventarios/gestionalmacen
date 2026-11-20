@@ -156,20 +156,64 @@ const ReabastecimientoService = (() => {
     return withScriptLock_(label, executor, RC.LIMITES.LOCK_TIMEOUT_MS, trace);
   }
 
+  /** Repositorios cuyas hojas tienen copia en caché etiquetada por revisión. */
+  function tableRepositories_() {
+    return [
+      ReabastecimientoSolicitudesRepository,
+      ReabastecimientoPartidasRepository,
+      ReabastecimientoDetallesRepository
+    ].filter(function(repository) {
+      return repository && typeof repository.hasPendingWrites === "function";
+    });
+  }
+
   /**
-   * Incrementa la revisión de cambios. Debe llamarse DENTRO del candado de la
-   * escritura confirmada para que las vistas en tiempo real detecten el cambio.
+   * Confirma y anuncia una escritura. Debe llamarse DENTRO del candado de la
+   * escritura, después de escribir.
+   *
+   * Pasos (cada uno medido por separado en REVISION_BUMPED):
+   * 1. flushMs:   SpreadsheetApp.flush(). Otra ejecución que vea la revisión
+   *               nueva y lea la hoja debe encontrar ya la escritura. La
+   *               liberación del candado haría este flush de todos modos.
+   * 2. storeMs:   sube la revisión global, la del folio y la de cada hoja
+   *               escrita (solo CacheService, ver z0-ReabastecimientoTelemetria).
+   * 3. publishMs: publica el espejo de cada hoja escrita con su revisión nueva,
+   *               para que la siguiente consulta no relea la hoja.
+   *
+   * @param {string} idSolicitud Folio afectado.
+   * @param {Object=} trace Traza activa.
+   * @return {?Object} Resultado de reabRevisionBump_.
    */
   function bumpRevision_(idSolicitud, trace) {
     if (typeof reabRevisionBump_ !== "function") return null;
     const startedAt = Date.now();
-    // Confirma en la hoja lo escrito ANTES de anunciar la revisión nueva: otra
-    // ejecución que vea la revisión y lea la hoja (o guarde su copia en caché)
-    // debe encontrar ya la escritura. La liberación del candado haría este
-    // flush de todos modos; aquí solo se adelanta.
+    const written = tableRepositories_().filter(function(repository) {
+      return repository.hasPendingWrites();
+    });
+
     SpreadsheetApp.flush();
-    const revision = reabRevisionBump_(idSolicitud);
-    perfMark_(trace, "REVISION_BUMPED", { elapsedMs: Date.now() - startedAt, revision: revision.revision });
+    const flushedAt = Date.now();
+
+    const revision = reabRevisionBump_(idSolicitud, written.map(function(repository) {
+      return repository.sheetKey;
+    }));
+    const storedAt = Date.now();
+
+    let published = 0;
+    written.forEach(function(repository) {
+      const tableRevision = revision && revision.tables ? revision.tables[repository.sheetKey] : null;
+      if (tableRevision && repository.publishSnapshot(tableRevision, trace)) published += 1;
+    });
+
+    perfMark_(trace, "REVISION_BUMPED", {
+      elapsedMs: Date.now() - startedAt,
+      flushMs: flushedAt - startedAt,
+      storeMs: storedAt - flushedAt,
+      publishMs: Date.now() - storedAt,
+      revision: revision.revision,
+      tables: written.length,
+      published: published
+    });
     return revision;
   }
 
@@ -611,7 +655,11 @@ const ReabastecimientoService = (() => {
    * @return {!Array<!Object>}
    */
   function readSurtibleExcess_(trace, options) {
-    const revision = typeof appInventoryRevisionRead_ === "function" ? appInventoryRevisionRead_() : -1;
+    // Ensure: si la revisión de inventario no existe (CacheService la perdió),
+    // se siembra bajo candado para poder etiquetar la caché que se guarda.
+    const revision = typeof appInventoryRevisionEnsure_ === "function"
+      ? appInventoryRevisionEnsure_()
+      : (typeof appInventoryRevisionRead_ === "function" ? appInventoryRevisionRead_() : -1);
     const fresh = Boolean(options && options.fresh);
     if (!fresh && revision >= 0) {
       const startedAt = Date.now();
@@ -1253,6 +1301,14 @@ const ReabastecimientoService = (() => {
     try {
       assertDependencies_();
       const config = filters && typeof filters === "object" ? filters : {};
+      // "Actualizar" del listado: lee las hojas aunque haya copia vigente
+      // (muestra al instante ediciones manuales) y deja una copia fresca.
+      if (config.forceRefresh === true) {
+        tableRepositories_().forEach(function(repository) {
+          if (typeof repository.preferSheet === "function") repository.preferSheet();
+        });
+        perfMark_(trace, "REQUESTS_FORCE_REFRESH");
+      }
       const stateFilter = toStrUpper_(config.estado);
       const warehouseFilter = toStrUpper_(config.bodega);
       const requestFilter = toStrUpper_(config.idSolicitud);
@@ -1654,7 +1710,10 @@ const ReabastecimientoService = (() => {
     const context = {
       foliosSurtido: {},
       catalogo: null,
-      filasExcedentes: null
+      filasExcedentes: null,
+      // Usuarios de la caché de Reabastecimiento (6 h): Traspasos no relee la
+      // hoja USUARIOS para validar al solicitante del movimiento.
+      solicitantes: readUsersCatalog_(trace).map(function(user) { return user.nombre; })
     };
     context.foliosSurtido[id] = {
       idUnico: id,
@@ -2002,7 +2061,22 @@ const ReabastecimientoService = (() => {
     return clearReabastecimientoCaches_();
   }
 
+  /**
+   * Anuncia un cambio hecho por otro módulo en las hojas de Reabastecimiento
+   * (por ejemplo, la Administración de excedentes al vaciar un detalle).
+   * Confirma, sube la revisión y publica las copias de las hojas escritas,
+   * igual que una escritura propia. DEBE llamarse dentro del ScriptLock.
+   *
+   * @param {string} idSolicitud Folio afectado.
+   * @param {Object=} trace Traza activa.
+   * @return {?Object} Revisión nueva.
+   */
+  function notifyExternalChange(idSolicitud, trace) {
+    return bumpRevision_(toStrUpper_(idSolicitud), trace);
+  }
+
   return Object.freeze({
+    notificarCambioExterno: notifyExternalChange,
     getExcedentesSolicitudManual: getManualRequestExcess,
     getCandidatosPorBodega: getCandidatesByWarehouse,
     crearSolicitud: createRequest,

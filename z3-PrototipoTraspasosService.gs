@@ -1170,11 +1170,15 @@ const PrototipoTraspasosService = (() => {
    * @param {{
    *   foliosSurtido?: !Object<string, !Object>,
    *   catalogo?: !Object<string, !Object>,
-   *   filasExcedentes?: !Object<string, !Object>
+   *   filasExcedentes?: !Object<string, !Object>,
+   *   solicitantes?: !Array<string>
    * }=} contexto Datos YA VALIDADOS por un módulo del servidor bajo este mismo
    *     candado (p. ej. Reabastecimiento). Solo lo recibe
    *     procesarMovimientosEnCandadoActivo(); el navegador nunca lo envía.
    *     Si no cubre todos los movimientos, se usa el cálculo completo.
+   *     solicitantes: nombres del catálogo USUARIOS que el módulo ya leyó (su
+   *     caché de usuarios); evita releer la hoja (≈0.6 s en la bitácora del
+   *     20/11/2026). Solo se usa si contiene a todos los solicitantes de la cola.
    */
   function _aplicarColaBajoCandado_(cola, perfMovimiento, contexto) {
     let protectedResult = null;
@@ -1186,10 +1190,20 @@ const PrototipoTraspasosService = (() => {
 
     _perfMovimientoMark_(perfMovimiento, "TEMPORAL_CONTEXT_READY");
 
-    const solicitantesSet = _buildSolicitantesSet_();
+    /*
+     * RENDIMIENTO: el catálogo de usuarios solo se lee si el contexto externo
+     * no trae una lista que cubra a todos los solicitantes de la cola.
+     */
+    const solicitantesExternos = Array.isArray(externo.solicitantes)
+      ? new Set(externo.solicitantes.map((nombre) => toStrUpper_(nombre)).filter(Boolean))
+      : null;
+    const solicitantesCubiertos = Boolean(solicitantesExternos) && solicitantesExternos.size > 0 &&
+      cola.every((item) => solicitantesExternos.has(toStrUpper_(item && item.solicitante)));
+    const solicitantesSet = solicitantesCubiertos ? solicitantesExternos : _buildSolicitantesSet_();
 
     _perfMovimientoMark_(perfMovimiento, "SOLICITANTES_READY", {
       total: solicitantesSet.size,
+      externo: solicitantesCubiertos,
     });
 
     /*

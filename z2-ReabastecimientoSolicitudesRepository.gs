@@ -86,9 +86,9 @@ const ReabastecimientoSolicitudesRepository = (() => {
       persistentCache: {
         keyPrefix: REABASTECIMIENTO_CONFIG.REVISION.TABLE_CACHE_PREFIX,
         ttlSeconds: REABASTECIMIENTO_CONFIG.REVISION.TABLE_CACHE_TTL_SECONDS,
-        /** Revisión vigente de Reabastecimiento (null = no usar la copia). */
+        /** Revisión vigente de ESTA hoja (null = no usar la copia). */
         revision: function() {
-          return typeof reabRevisionRead_ === "function" ? reabRevisionRead_().r : null;
+          return typeof reabTableRevisionRead_ === "function" ? reabTableRevisionRead_(CFG.SHEET_KEY) : null;
         }
       }
     }
@@ -279,7 +279,8 @@ const ReabastecimientoSolicitudesRepository = (() => {
       written: result.written,
       elapsedMs: Date.now() - startedAt
     });
-    layout.markDirty();
+    // Refleja la fila nueva en el espejo de la tabla (publicación posterior).
+    layout.recordWrite(result.firstRow, [row]);
     cache_ = null;
     return {
       created: result.written === 1,
@@ -311,7 +312,7 @@ const ReabastecimientoSolicitudesRepository = (() => {
       layout.write(authoritative, sheetLayout, H[field], serializeField_(field, normalizedPatch[field]));
     });
     writeRowAt_(CFG.SHEET_KEY, current.numFila, authoritative, sheetLayout.width, trace);
-    layout.markDirty();
+    layout.recordWrite(current.numFila, [authoritative]);
     patchCache_(normalizeRow_(authoritative, current.numFila, sheetLayout));
     return { updated: true, rowNumber: current.numFila };
   }
@@ -336,7 +337,9 @@ const ReabastecimientoSolicitudesRepository = (() => {
       id,
       trace
     );
+    // Un borrado desplaza filas: no se refleja en el espejo, se descarta.
     layout.markDirty();
+    layout.invalidateMirror();
     cache_ = null;
     return result;
   }
@@ -348,6 +351,16 @@ const ReabastecimientoSolicitudesRepository = (() => {
   }
 
   return Object.freeze({
+    /**
+     * Publicación de la copia en caché (fase 4). El Service, bajo el candado y
+     * después de subir la revisión, consulta hasPendingWrites() y llama
+     * publishSnapshot(revisionNueva). preferSheet() fuerza leer la hoja en la
+     * ejecución actual (botón "Actualizar" del listado).
+     */
+    sheetKey: CFG.SHEET_KEY,
+    hasPendingWrites: layout.isDirty,
+    publishSnapshot: layout.publish,
+    preferSheet: layout.preferSheet,
     getAll,
     getById,
     validateContract,

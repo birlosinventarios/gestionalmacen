@@ -2489,33 +2489,88 @@ function cacheRemoveChunked_(key) {
  * get(trace, true) para agregar las extensiones faltantes bajo el ScriptLock del
  * llamador.
  *
+ * ─────────────────────────────────────────────────────────────────────────────
  * CACHÉ PERSISTENTE OPCIONAL (options.persistentCache)
+ * ─────────────────────────────────────────────────────────────────────────────
  * Con {keyPrefix, ttlSeconds, revision()} readTable() guarda la tabla en
- * CacheService junto con la revisión vigente y la reutiliza mientras la
- * revisión no cambie (≈60–100 ms contra 250–650 ms por hoja). Reglas:
- * - La revisión se lee ANTES de la hoja; así una copia nunca se etiqueta con
- *   una revisión más nueva que sus datos.
- * - Quien escribe debe llamar markDirty(): elimina la copia y, durante el
- *   resto de la ejecución, las lecturas vuelven a la hoja.
- * - El Service hace SpreadsheetApp.flush() antes de subir la revisión, para
- *   que otra ejecución no lea la hoja sin la escritura ya anunciada.
+ * CacheService etiquetada con la revisión de la hoja y la reutiliza mientras
+ * esa revisión no cambie (≈60–120 ms contra 250–750 ms por hoja, más la
+ * apertura del archivo).
+ *
+ * Formato de la copia: { r: revisión, at: epochMs de la lectura de la HOJA,
+ *                        v: [encabezado, ...filas] con fechas codificadas }
+ *
+ * Reglas de consistencia:
+ * 1. La revisión se lee ANTES de la hoja; una copia nunca se etiqueta con una
+ *    revisión más nueva que sus datos. Antes de guardarla se vuelve a leer la
+ *    revisión: si cambió durante la lectura, la copia no se guarda.
+ * 2. Una copia solo se sirve si sus datos salieron de la hoja hace menos de
+ *    ttlSeconds ("at"). Así una edición manual en la hoja (que no sube la
+ *    revisión) se ve a más tardar en ese tiempo.
+ * 3. Quien escribe llama recordWrite() (o markDirty() si la escritura no se
+ *    puede reflejar, como un borrado). Desde ese momento la ejecución lee la
+ *    hoja, no la copia.
+ * 4. ESPEJO Y PUBLICACIÓN (fase 4): el accesor conserva en memoria las filas
+ *    crudas de la última lectura y les aplica cada escritura propia. Después
+ *    de subir la revisión (bajo el mismo candado), el Service llama
+ *    publish(revisionNueva): la copia vuelve a quedar vigente y la siguiente
+ *    consulta, de cualquier usuario, no relee la hoja.
+ *    La bitácora del 20/11/2026 mostró por qué: sin esto, la primera lectura
+ *    después de cada acción releía las tres hojas (hasta 3.7 s).
+ * 5. El Service hace SpreadsheetApp.flush() antes de subir la revisión, para
+ *    que otra ejecución no lea la hoja sin la escritura ya anunciada.
  *
  * @param {string} sheetKey Clave de SHEETS.
  * @param {ReadonlyArray<string>} requiredHeaders Encabezados obligatorios.
  * @param {ReadonlyArray<string>=} extensionHeaders Encabezados de extensión.
- * @param {{persistentCache?:{keyPrefix:string, ttlSeconds:number, revision:function():?number}}=} options
+ * @param {{persistentCache?:{keyPrefix:string, ttlSeconds:number,
+ *     revision:function():?number}}=} options
  * @return {!Object} Accesor inmutable.
  */
 function createHeaderLayoutAccessor_(sheetKey, requiredHeaders, extensionHeaders, options) {
   let layout_ = null;
   const persist_ = options && options.persistentCache ? options.persistentCache : null;
   const persistKey_ = persist_ ? String(persist_.keyPrefix || "APPALMACEN_TABLE_") + sheetKey : "";
-  /** true tras una escritura propia: no se usa ni se guarda la copia persistente. */
+  const ttlMs_ = persist_ ? (Number(persist_.ttlSeconds) || 60) * 1000 : 0;
+
+  /** true tras una escritura propia: la ejecución ya no usa la copia. */
   let dirty_ = false;
+  /** true tras preferSheet(): se lee la hoja aunque haya copia vigente. */
+  let bypass_ = false;
+
+  /**
+   * Espejo de la tabla: encabezado y filas crudas de la última lectura (hoja
+   * o copia), más el momento en que esos datos salieron de la hoja.
+   * mirrorValid_ = false cuando alguna escritura no pudo reflejarse.
+   */
+  let mirrorHeader_ = null;
+  let mirrorRows_ = null;
+  let mirrorReadAt_ = 0;
+  let mirrorValid_ = false;
+
+  /** Revisión actual de la hoja según el proveedor (null = no usar caché). */
+  function currentRevision_() {
+    if (!persist_) return null;
+    try {
+      const value = Number(persist_.revision());
+      return Number.isFinite(value) && value > 0 ? value : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /** Recuerda la tabla leída como base del espejo. */
+  function setMirror_(header, rows, readAt) {
+    mirrorHeader_ = header.slice();
+    mirrorRows_ = rows.map(function(row) { return row.slice(); });
+    mirrorReadAt_ = readAt;
+    mirrorValid_ = true;
+  }
 
   function get(trace, forWrite) {
     const write = forWrite === true;
     if (!layout_ || (write && layout_.missing.length > 0)) {
+      const previousWidth = layout_ ? layout_.width : null;
       layout_ = resolveSheetLayout_(
         sheetKey,
         requiredHeaders,
@@ -2523,6 +2578,9 @@ function createHeaderLayoutAccessor_(sheetKey, requiredHeaders, extensionHeaders
         { appendMissing: write },
         trace
       );
+      // Si se agregaron columnas de extensión, el espejo ya no tiene la forma
+      // de la hoja: se descarta hasta la siguiente lectura completa.
+      if (previousWidth !== null && previousWidth !== layout_.width) mirrorValid_ = false;
     }
     return layout_;
   }
@@ -2548,39 +2606,35 @@ function createHeaderLayoutAccessor_(sheetKey, requiredHeaders, extensionHeaders
   }
 
   /**
-   * Lee encabezados y datos con UNA sola llamada (getDataRange().getValues()).
-   *
-   * RENDIMIENTO: antes se hacían tres llamadas por hoja (fila 1, getLastRow y
-   * rango de datos), ~150–600 ms por hoja según la bitácora del 20/11/2026.
-   * La estructura resultante queda en memoria para las escrituras posteriores
-   * de la misma ejecución.
+   * Lee encabezados y datos con UNA sola llamada (getDataRange().getValues())
+   * o desde la copia persistente si sigue vigente.
    *
    * @param {Object=} trace Traza opcional.
    * @return {{layout:!Object, rows:!Array<!Array<*>>}} Filas de datos (sin encabezado).
    */
   function readTable(trace) {
-    // 1. Copia persistente válida para la revisión actual.
+    // 1. Copia persistente vigente (revisión igual y datos con menos de ttl).
     let revision = null;
     if (persist_ && !dirty_) {
       const cacheStartedAt = Date.now();
-      try {
-        const value = persist_.revision();
-        revision = Number.isFinite(value) && value > 0 ? value : null;
-      } catch (error) {
-        revision = null;
-      }
-      const cached = revision !== null ? cacheGetChunked_(persistKey_) : null;
-      if (cached && cached.r === revision && Array.isArray(cached.v) && cached.v.length) {
-        const cachedValues = decodeTableValues_(cached.v);
-        layout_ = buildSheetLayout_(sheetKey, null, cachedValues[0], requiredHeaders, extensionHeaders, { appendMissing: false }, trace);
-        const cachedRows = cachedValues.slice(1);
-        perfMark_(trace, "SHEET_TABLE_CACHE_HIT", {
-          sheetKey: sheetKey,
-          rows: cachedRows.length,
-          revision: revision,
-          elapsedMs: Date.now() - cacheStartedAt
-        });
-        return { layout: layout_, rows: cachedRows };
+      revision = currentRevision_();
+      if (!bypass_ && revision !== null) {
+        const cached = cacheGetChunked_(persistKey_);
+        const fresh = cached && Number(cached.at) > 0 && Date.now() - Number(cached.at) <= ttlMs_;
+        if (cached && cached.r === revision && fresh && Array.isArray(cached.v) && cached.v.length) {
+          const cachedValues = decodeTableValues_(cached.v);
+          layout_ = buildSheetLayout_(sheetKey, null, cachedValues[0], requiredHeaders, extensionHeaders, { appendMissing: false }, trace);
+          const cachedRows = cachedValues.slice(1);
+          setMirror_(cachedValues[0], cachedRows, Number(cached.at));
+          perfMark_(trace, "SHEET_TABLE_CACHE_HIT", {
+            sheetKey: sheetKey,
+            rows: cachedRows.length,
+            revision: revision,
+            ageSeconds: Math.round((Date.now() - Number(cached.at)) / 1000),
+            elapsedMs: Date.now() - cacheStartedAt
+          });
+          return { layout: layout_, rows: cachedRows };
+        }
       }
     }
 
@@ -2599,9 +2653,11 @@ function createHeaderLayoutAccessor_(sheetKey, requiredHeaders, extensionHeaders
       trace
     );
     const width = layout_.width;
+    const header = values.length ? values[0].slice(0, width) : [];
     const rows = values.slice(1).map(function(row) {
       return row.length > width ? row.slice(0, width) : row;
     });
+    setMirror_(header, rows, startedAt);
     perfMark_(trace, "SHEET_TABLE_READ", {
       sheetKey: sheetKey,
       rows: rows.length,
@@ -2609,12 +2665,12 @@ function createHeaderLayoutAccessor_(sheetKey, requiredHeaders, extensionHeaders
       elapsedMs: elapsedMs
     });
 
-    // 3. Guarda la copia con la revisión leída ANTES de la hoja.
-    if (persist_ && !dirty_ && revision !== null) {
-      const header = values.length ? values[0].slice(0, width) : [];
+    // 3. Guarda la copia con la revisión leída ANTES de la hoja, solo si no
+    //    cambió mientras se leía (regla 1).
+    if (persist_ && !dirty_ && revision !== null && currentRevision_() === revision) {
       cachePutChunked_(
         persistKey_,
-        { r: revision, v: encodeTableValues_([header].concat(rows)) },
+        { r: revision, at: startedAt, v: encodeTableValues_([header].concat(rows)) },
         Number(persist_.ttlSeconds) || 60
       );
     }
@@ -2622,13 +2678,82 @@ function createHeaderLayoutAccessor_(sheetKey, requiredHeaders, extensionHeaders
   }
 
   /**
-   * Registra una escritura propia: descarta la copia persistente y obliga a
-   * releer la hoja durante el resto de la ejecución.
+   * Refleja en el espejo filas recién escritas en la hoja y marca la
+   * ejecución como "con escrituras propias".
+   *
+   * @param {number} firstRow Fila física (base 1) de la primera fila escrita.
+   * @param {!Array<!Array<*>>} rows Filas escritas, en orden.
+   */
+  function recordWrite(firstRow, rows) {
+    markDirty();
+    if (!mirrorValid_ || !Array.isArray(rows) || !(Number(firstRow) >= 2)) {
+      mirrorValid_ = false;
+      return;
+    }
+    const width = mirrorHeader_.length;
+    rows.forEach(function(row, offset) {
+      const index = Number(firstRow) + offset - 2; // fila 1 = encabezado
+      while (mirrorRows_.length < index) mirrorRows_.push(new Array(width).fill(""));
+      const normalized = Array.isArray(row) ? row.slice(0, width) : [];
+      while (normalized.length < width) normalized.push("");
+      mirrorRows_[index] = normalized;
+    });
+  }
+
+  /**
+   * Registra una escritura propia que NO se refleja en el espejo (borrado,
+   * cambio de estructura): descarta la copia persistente y el espejo.
    */
   function markDirty() {
     if (!persist_) return;
+    if (!dirty_) cacheRemoveChunked_(persistKey_);
     dirty_ = true;
-    cacheRemoveChunked_(persistKey_);
+  }
+
+  /** Descarta el espejo (por ejemplo, después de borrar filas). */
+  function invalidateMirror() {
+    mirrorValid_ = false;
+  }
+
+  /** true si la ejecución escribió en la hoja. */
+  function isDirty() {
+    return dirty_;
+  }
+
+  /**
+   * Fuerza leer la hoja en el resto de la ejecución (botón "Actualizar"),
+   * guardando después una copia fresca.
+   */
+  function preferSheet() {
+    bypass_ = true;
+  }
+
+  /**
+   * Publica el espejo como copia vigente para la revisión indicada.
+   * Solo debe llamarse bajo el ScriptLock, inmediatamente después de subir
+   * la revisión de esta hoja (regla 4).
+   *
+   * @param {number} revision Revisión nueva de la hoja.
+   * @param {Object=} trace Traza opcional.
+   * @return {boolean} true si se publicó.
+   */
+  function publish(revision, trace) {
+    if (!persist_ || !mirrorValid_ || !mirrorHeader_ || !(Number(revision) > 0)) return false;
+    if (Date.now() - mirrorReadAt_ > ttlMs_) return false; // regla 2
+    const startedAt = Date.now();
+    const saved = cachePutChunked_(
+      persistKey_,
+      { r: Number(revision), at: mirrorReadAt_, v: encodeTableValues_([mirrorHeader_].concat(mirrorRows_)) },
+      Number(persist_.ttlSeconds) || 60
+    );
+    perfMark_(trace, "SHEET_TABLE_PUBLISHED", {
+      sheetKey: sheetKey,
+      revision: Number(revision),
+      rows: mirrorRows_.length,
+      saved: saved,
+      elapsedMs: Date.now() - startedAt
+    });
+    return saved;
   }
 
   function columnIndex(layout, header) {
@@ -2642,9 +2767,29 @@ function createHeaderLayoutAccessor_(sheetKey, requiredHeaders, extensionHeaders
   function reset() {
     layout_ = null;
     dirty_ = false;
+    bypass_ = false;
+    mirrorHeader_ = null;
+    mirrorRows_ = null;
+    mirrorReadAt_ = 0;
+    mirrorValid_ = false;
   }
 
-  return Object.freeze({ get, read, write, blankRow, columnIndex, readTable, markDirty, reset });
+  return Object.freeze({
+    sheetKey: sheetKey,
+    get,
+    read,
+    write,
+    blankRow,
+    columnIndex,
+    readTable,
+    recordWrite,
+    markDirty,
+    invalidateMirror,
+    isDirty,
+    preferSheet,
+    publish,
+    reset
+  });
 }
 
 /**

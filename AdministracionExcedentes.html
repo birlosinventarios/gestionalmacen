@@ -1,0 +1,896 @@
+<script>
+/**
+ * AdministracionExcedentes.html
+ *
+ * Vista de administración de estados de excedentes (IDUNICO). Permite revisar
+ * el historial completo de una etiqueta y corregir su estado (por ejemplo,
+ * regresar un SURTIDO a ACOMODADO o la etiqueta a DISPONIBLE) deshaciendo
+ * movimientos con todo lo que escribieron. El estilo visual replica
+ * ReabastecimientoDetalles: workspace de altura completa, encabezado oscuro con
+ * métricas, tablas operativas, drawer lateral y modales.
+ *
+ * FLUJO
+ * 1. ACCESO: la vista no muestra nada hasta capturar la contraseña de
+ *    administración. El servidor la valida (nunca el navegador) y entrega un
+ *    token de sesión que solo vive en memoria de esta vista: al salir de la
+ *    vista o recargar la página se vuelve a pedir.
+ * 2. CONSULTA: se escanea o captura el IDUNICO. Se muestran STATUS en
+ *    BD-EXCEDENTES, STATUS esperado según el historial, saldo, ubicación,
+ *    movimientos, sincronización con EXISTENCIAS y detalles de
+ *    Reabastecimiento ligados.
+ * 3. PLAN: cada acción muestra primero QUÉ se revertirá y CÓMO quedará la
+ *    etiqueta, con advertencias (por ejemplo, movimientos sin sincronización).
+ * 4. CONFIRMACIÓN: responsable + motivo + contraseña otra vez. El servidor
+ *    aplica todo bajo candado, sube la revisión de inventario (las demás
+ *    vistas ven el cambio de inmediato) y registra el respaldo en la hoja
+ *    ADMIN_EXCEDENTES_BITACORA.
+ * 5. INCONSISTENCIAS: lista de etiquetas cuyo STATUS no coincide con su
+ *    historial (desfase por ediciones manuales), con acceso directo a cada una.
+ *
+ * ACCIONES
+ * - DESHACER_ULTIMO      Revierte solo el último movimiento.
+ * - VOLVER_ACOMODADO     Revierte los SURTIDO posteriores al último ACOMODO.
+ * - VOLVER_DISPONIBLE    Revierte todos los movimientos.
+ * - SINCRONIZAR_STATUS   Corrige STATUS para que coincida con el historial.
+ *
+ * DEPENDENCIAS DEL SHELL
+ * - REAB (z0-ReabastecimientoCliente.html): REAB.rpc (llamadas medidas y
+ *   sobre {ok, data}), REAB.perf (bitácora de rendimiento), REAB.user
+ *   (catálogo de usuarios y usuario recordado), REAB.util (formato, íconos y
+ *   notificaciones). Se reutiliza para conservar un único cliente RPC.
+ *
+ * ENDPOINTS (z4-AdminExcedentesController.gs)
+ * - AdminExcedentesController_iniciarSesion({password})
+ * - AdminExcedentesController_cerrarSesion({token})
+ * - AdminExcedentesController_consultar({token, idUnico})
+ * - AdminExcedentesController_planificar({token, idUnico, accion})
+ * - AdminExcedentesController_aplicar({token, idUnico, accion, firma, password, responsable, motivo})
+ * - AdminExcedentesController_listarInconsistencias({token})
+ *
+ * SEGURIDAD
+ * - La contraseña nunca se guarda en el navegador: los campos se limpian al
+ *   enviarse y el token se descarta al desmontar la vista.
+ * - El navegador no es autoridad: todo se revalida en el servidor bajo candado
+ *   (firma del plan, identidad de cada fila, contraseña y token).
+ *
+ * @author Sigifredo de la Cruz Ramos
+ * @version ADMINISTRACION-EXCEDENTES-VIEW-2026-11-20-01
+ */
+</script>
+
+<style>
+/* =========================================================
+   TOKENS VISUALES Y CONTENEDOR (mismo sistema que ReabastecimientoDetalles)
+   ========================================================= */
+#render-administracion-excedentes{--c:var(--primary,#d93025);--cd:var(--primary-dark,#a50e0e);--ok:#1e8e3e;--warn:#d97706;--ink:var(--text-main,#1c1d1f);--muted:var(--text-secondary,#5f6368);--border:var(--border-color,#dadce0);height:100%;overflow:hidden;color:var(--ink)}
+#render-administracion-excedentes *{box-sizing:border-box}
+.adx-page{height:100%;padding:16px 24px 24px;overflow:hidden;background:radial-gradient(circle at top right,rgba(217,48,37,.055),transparent 34%),var(--bg-color,#f8f9fa)}
+.adx-workspace{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid var(--border);border-radius:22px;box-shadow:0 24px 60px rgba(15,23,42,.11),0 6px 18px rgba(15,23,42,.05)}
+
+/* =========================================================
+   ENCABEZADO OSCURO
+   ========================================================= */
+.adx-header{flex:0 0 auto;position:relative;padding:18px 18px 18px 22px;display:grid;grid-template-columns:minmax(280px,1fr) minmax(360px,1.3fr) auto;align-items:center;gap:16px;overflow:hidden;color:#fff;background:radial-gradient(circle at top right,rgba(217,48,37,.35),transparent 38%),linear-gradient(135deg,#1c1d1f,#25272b 55%,#17181a)}
+.adx-header:before{content:"";position:absolute;inset:0 auto 0 0;width:7px;background:var(--c)}
+.adx-id{position:relative;z-index:2;min-width:0;display:flex;align-items:center;gap:12px}
+.adx-badge{width:46px;height:46px;flex:0 0 46px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.16);border-radius:15px;background:rgba(255,255,255,.09)}
+.adx-eyebrow{margin:0 0 4px;color:rgba(255,255,255,.55);font-size:9px;font-weight:950;letter-spacing:.16em;text-transform:uppercase}
+.adx-title{margin:0;font:950 20px/1.15 "JetBrains Mono",monospace}
+.adx-description{margin:6px 0 0;color:rgba(255,255,255,.65);font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.adx-search{position:relative;z-index:2;display:flex;gap:8px}
+.adx-search .adx-input{flex:1;min-height:46px;border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.1);color:#fff;font:900 15px "JetBrains Mono",monospace;letter-spacing:.04em}
+.adx-search .adx-input::placeholder{color:rgba(255,255,255,.45)}
+.adx-actions{position:relative;z-index:2;display:flex;gap:8px}
+.adx-action{min-height:46px;padding:0 14px;display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.16);border-radius:13px;background:rgba(255,255,255,.09);color:#fff;font-size:9px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.adx-action.primary{border-color:var(--c);background:var(--c)}
+.adx-action:disabled{opacity:.45;pointer-events:none}
+
+/* =========================================================
+   MÉTRICAS, CHIPS Y AVISOS
+   ========================================================= */
+.adx-metrics{flex:0 0 auto;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-bottom:1px solid var(--border);background:#fff}
+.adx-metric{min-width:0;min-height:78px;padding:13px 14px;display:flex;flex-direction:column;justify-content:center;gap:7px;position:relative;border-right:1px solid var(--border)}
+.adx-metric:last-child{border-right:0}
+.adx-metric:before{content:"";position:absolute;top:0;left:12px;right:12px;height:4px;border-radius:0 0 99px 99px;background:#1c1d1f}
+.adx-metric.ok:before{background:var(--ok)}.adx-metric.warn:before{background:var(--warn)}.adx-metric.bad:before{background:var(--c)}
+.adx-metric strong{font-size:17px;font-weight:950;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adx-metric span{color:var(--muted);font-size:8px;font-weight:950;letter-spacing:.11em;text-transform:uppercase}
+.adx-chip{min-height:25px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid transparent;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}
+.adx-chip.green{background:rgba(30,142,62,.13);color:#157337;border-color:rgba(30,142,62,.22)}
+.adx-chip.amber{background:rgba(217,119,6,.13);color:#b45309;border-color:rgba(217,119,6,.22)}
+.adx-chip.red{background:rgba(217,48,37,.12);color:#a50e0e;border-color:rgba(217,48,37,.22)}
+.adx-chip.slate{background:rgba(28,29,31,.07);color:#4b5563;border-color:rgba(28,29,31,.12)}
+.adx-chip.blue{background:rgba(26,115,232,.1);color:#1557b0;border-color:rgba(26,115,232,.2)}
+.adx-banner{flex:0 0 auto;margin:12px 16px 0;padding:11px 14px;display:flex;align-items:center;gap:12px;border:1px solid rgba(217,119,6,.3);border-radius:12px;background:rgba(217,119,6,.08);color:#9a5a04;font-size:11px;font-weight:850}
+.adx-banner>span:last-child{flex:1}
+.adx-banner.ok{border-color:rgba(30,142,62,.3);background:rgba(30,142,62,.08);color:#157337}
+
+/* =========================================================
+   CUERPO: TARJETAS DE ACCIÓN Y TABLAS
+   ========================================================= */
+.adx-body{flex:1 1 auto;min-height:0;overflow:auto;padding:14px 16px 18px;background:linear-gradient(180deg,#fff,#fcfcfd)}
+.adx-body::-webkit-scrollbar,.adx-drawer-content::-webkit-scrollbar,.adx-modal-scroll::-webkit-scrollbar{width:7px;height:7px}
+.adx-body::-webkit-scrollbar-thumb,.adx-drawer-content::-webkit-scrollbar-thumb,.adx-modal-scroll::-webkit-scrollbar-thumb{background:#c4c7cc;border-radius:99px}
+.adx-section{margin-top:16px}.adx-section:first-child{margin-top:0}
+.adx-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
+.adx-section-title{display:flex;align-items:center;gap:9px}
+.adx-section-icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:#1c1d1f;color:#fff}
+.adx-kicker{display:block;color:var(--c);font-size:8px;font-weight:950;letter-spacing:.14em;text-transform:uppercase}
+.adx-heading{display:block;margin-top:2px;font-size:12px;font-weight:950;letter-spacing:.04em;text-transform:uppercase}
+.adx-count{color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.adx-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.adx-card{position:relative;padding:14px;display:flex;flex-direction:column;gap:10px;border:1px solid var(--border);border-radius:15px;background:#fff;overflow:hidden}
+.adx-card:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:#1c1d1f}
+.adx-card.available:before{background:var(--c)}
+.adx-card.disabled{background:#f8f9fa;color:var(--muted)}
+.adx-card h3{margin:0;font-size:12px;font-weight:950;letter-spacing:.05em;text-transform:uppercase}
+.adx-card p{margin:0;flex:1;color:var(--muted);font-size:11px;line-height:1.45}
+.adx-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.adx-table-card{border:1px solid var(--border);border-radius:15px;overflow:auto}
+.adx-table{width:100%;min-width:880px;border-collapse:separate;border-spacing:0}
+.adx-table th{position:sticky;top:0;z-index:2;height:44px;padding:0 13px;background:linear-gradient(180deg,#25272b,#1c1d1f);color:rgba(255,255,255,.78);border-bottom:3px solid var(--c);font-size:9px;font-weight:950;letter-spacing:.13em;text-align:left;text-transform:uppercase;white-space:nowrap}
+.adx-table td{padding:12px 13px;border-bottom:1px solid #eef1f4;background:#fff;font-size:12px;vertical-align:middle}
+.adx-table tbody tr:nth-child(even) td{background:#fcfcfd}
+.adx-table tbody tr:hover td{background:#fff8f7}
+.adx-table tr.adx-last td{box-shadow:inset 0 1px 0 rgba(217,48,37,.12)}
+.adx-table tr.adx-last td:first-child{box-shadow:inset 5px 0 0 var(--c)}
+.adx-mono{font:950 13px "JetBrains Mono",monospace}
+.adx-sub{margin-top:3px;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase}
+.adx-empty,.adx-loading{min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#9ca3af;text-align:center;font-size:12px;font-weight:800}
+.adx-spinner{width:38px;height:38px;border:4px solid #eef1f4;border-top-color:var(--c);border-radius:50%;animation:adxSpin .8s linear infinite}
+@keyframes adxSpin{to{transform:rotate(360deg)}}
+
+/* =========================================================
+   CONTROLES COMUNES
+   ========================================================= */
+.adx-input,.adx-select,.adx-textarea{min-height:42px;padding:0 12px;border:1px solid var(--border);border-radius:11px;outline:none;font-size:12px;font-weight:800;color:var(--ink);background:#fff}
+.adx-input:focus,.adx-select:focus,.adx-textarea:focus{border-color:var(--c);box-shadow:0 0 0 4px rgba(217,48,37,.1)}
+.adx-textarea{min-height:84px;padding:10px 12px;resize:vertical;font-family:inherit}
+.adx-field{display:grid;gap:5px;margin-top:12px}
+.adx-field label{color:var(--muted);font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+.adx-btn{min-height:40px;padding:0 13px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #1c1d1f;border-radius:11px;background:#1c1d1f;color:#fff;font-size:9px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.adx-btn:hover{background:var(--c);border-color:var(--c)}
+.adx-btn.primary{border-color:var(--c);background:var(--c)}
+.adx-btn.ghost{background:#fff;color:var(--ink);border-color:var(--border)}
+.adx-btn:disabled{opacity:.45;cursor:not-allowed}
+.adx-feedback{min-height:16px;margin-top:8px;font-size:11px;font-weight:850}
+.adx-feedback.error{color:#a50e0e}.adx-feedback.ok{color:#157337}
+
+/* =========================================================
+   ACCESO CON CONTRASEÑA
+   ========================================================= */
+.adx-gate{height:100%;display:grid;place-items:center;padding:24px}
+.adx-gate-card{width:min(440px,100%);overflow:hidden;border:1px solid var(--border);border-radius:22px;background:#fff;box-shadow:0 24px 60px rgba(15,23,42,.14)}
+.adx-gate-head{position:relative;padding:24px;color:#fff;background:radial-gradient(circle at top right,rgba(217,48,37,.4),transparent 45%),linear-gradient(135deg,#1c1d1f,#25272b 55%,#17181a)}
+.adx-gate-head:before{content:"";position:absolute;inset:0 auto 0 0;width:7px;background:var(--c)}
+.adx-gate-body{padding:22px 24px 24px}
+.adx-gate-body p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}
+
+/* =========================================================
+   DRAWER DE INCONSISTENCIAS Y MODAL DE PLAN
+   ========================================================= */
+.adx-layer{position:fixed;inset:0;z-index:10050;display:flex;justify-content:flex-end;overflow:hidden}
+.adx-backdrop{position:absolute;inset:0;border:0;background:rgba(15,23,42,.52);backdrop-filter:blur(5px)}
+.adx-drawer{position:relative;z-index:2;width:min(980px,96vw);height:100%;display:flex;flex-direction:column;background:#fff;box-shadow:-24px 0 70px rgba(15,23,42,.2);animation:adxDrawer .24s cubic-bezier(.16,1,.3,1)}
+@keyframes adxDrawer{from{opacity:0;transform:translateX(42px)}to{opacity:1;transform:none}}
+.adx-drawer-head{position:relative;padding:20px;display:flex;justify-content:space-between;gap:16px;color:#fff;background:radial-gradient(circle at top right,rgba(217,48,37,.35),transparent 42%),linear-gradient(135deg,#1c1d1f,#25272b 55%,#17181a)}
+.adx-drawer-head:before{content:"";position:absolute;inset:0 auto 0 0;width:7px;background:var(--c)}
+.adx-drawer-content{flex:1 1 auto;min-height:0;overflow:auto;padding:14px 16px}
+.adx-close{width:42px;height:42px;border:1px solid rgba(255,255,255,.14);border-radius:13px;background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
+.adx-modal-layer{position:fixed;inset:0;z-index:10100;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.55);backdrop-filter:blur(4px)}
+.adx-modal{width:min(760px,100%);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(15,23,42,.25)}
+.adx-modal-head{position:relative;padding:18px 20px;color:#fff;background:linear-gradient(135deg,#1c1d1f,#25272b 55%,#17181a)}
+.adx-modal-head:before{content:"";position:absolute;inset:0 auto 0 0;width:6px;background:var(--c)}
+.adx-modal-scroll{flex:1 1 auto;min-height:0;overflow:auto;padding:16px 20px}
+.adx-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border);background:#f8f9fa}
+.adx-transition{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px;border:1px solid var(--border);border-radius:13px;background:#f8f9fa}
+.adx-step{padding:11px 12px;margin-top:8px;border:1px solid var(--border);border-radius:12px}
+.adx-step b{font-size:12px}
+.adx-step ul{margin:6px 0 0 18px;padding:0;color:var(--muted);font-size:11px;line-height:1.55}
+.adx-warning{margin-top:10px;padding:10px 12px;border:1px solid rgba(217,119,6,.3);border-radius:12px;background:rgba(217,119,6,.08);color:#9a5a04;font-size:11px;font-weight:800;line-height:1.5}
+
+@media(max-width:1180px){.adx-header{grid-template-columns:1fr auto}.adx-search{grid-column:1/-1;grid-row:2}.adx-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.adx-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:720px){.adx-page{padding:8px}.adx-header{display:flex;flex-direction:column;align-items:stretch}.adx-cards{grid-template-columns:1fr}.adx-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.adx-drawer{width:100%}}
+</style>
+
+<div id="render-administracion-excedentes"></div>
+
+<script type="text/babel">
+/* ============================================================================
+ * AdministracionExcedentes · Lógica de la vista (React + Babel en navegador)
+ * ============================================================================
+ *
+ * ESTRUCTURA
+ * 1. Dependencias y textos ............. REAB, etiquetas de acciones y estados.
+ * 2. Componentes de presentación ....... Icon, StatusChip, Metric.
+ * 3. PasswordGate ...................... acceso a la vista.
+ * 4. PlanModal ......................... plan + confirmación con contraseña.
+ * 5. InconsistenciesDrawer ............. etiquetas con desfase de STATUS.
+ * 6. App ............................... consulta, acciones y sesión.
+ * 7. Montaje ........................... initVista / cleanup del Shell.
+ *
+ * MEDICIÓN
+ * Cada llamada usa REAB.rpc con una traza ADMINEXC_* (view =
+ * "AdministracionExcedentes"); se registra en APPALMACEN_RENDIMIENTO si el
+ * switch de rendimiento está encendido. Ninguna traza incluye la contraseña.
+ * ========================================================================== */
+window.cargar_AdministracionExcedentes = () => {
+  const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+  // ==========================================================================
+  // 1. DEPENDENCIAS Y TEXTOS
+  // ==========================================================================
+
+  const REAB = window.REAB;
+  if (!REAB) {
+    (window.notificar || console.error)("Falta la biblioteca z0-ReabastecimientoCliente.", "error");
+    return () => {};
+  }
+  const { str, up, num, fmt, notify, publicError, errorCode } = REAB.util;
+
+  /** Nombre de la vista en la bitácora de rendimiento. */
+  const VIEW = "AdministracionExcedentes";
+
+  /** Textos y orden de presentación de las acciones del servidor. */
+  const ACTIONS = Object.freeze({
+    DESHACER_ULTIMO: {
+      title: "Deshacer último movimiento",
+      icon: "undo-2",
+      text: "Revierte solo el movimiento más reciente (ACOMODO o SURTIDO) con su efecto en existencias."
+    },
+    VOLVER_ACOMODADO: {
+      title: "Volver a ACOMODADO",
+      icon: "package-check",
+      text: "Revierte los SURTIDO posteriores al último ACOMODO: la caja recupera su saldo en su ubicación."
+    },
+    VOLVER_DISPONIBLE: {
+      title: "Volver a DISPONIBLE",
+      icon: "rotate-ccw",
+      text: "Revierte todos los movimientos: la etiqueta queda impresa y sin acomodar, con su cantidad inicial."
+    },
+    SINCRONIZAR_STATUS: {
+      title: "Sincronizar STATUS",
+      icon: "refresh-cw",
+      text: "No toca movimientos: corrige STATUS en BD-EXCEDENTES para que coincida con el historial."
+    }
+  });
+
+  /** Tono visual de cada STATUS. */
+  const STATUS_TONE = Object.freeze({ DISPONIBLE: "blue", ACOMODADO: "green", PARCIAL: "amber", SURTIDO: "red" });
+
+  // ==========================================================================
+  // 2. COMPONENTES DE PRESENTACIÓN
+  // ==========================================================================
+
+  /** Ícono Lucide dibujado solo en su nodo (REAB.util.renderIcon). */
+  function Icon({ name, size = 16 }) {
+    const ref = useRef(null);
+    useEffect(() => { REAB.util.renderIcon(ref.current, name, size); }, [name, size]);
+    return <span ref={ref} className="inline-flex items-center justify-center" />;
+  }
+
+  /** Chip de STATUS con su tono. */
+  function StatusChip({ value }) {
+    const status = up(value) || "SIN STATUS";
+    return <span className={`adx-chip ${STATUS_TONE[status] || "slate"}`}>{status}</span>;
+  }
+
+  /** Métrica de la franja superior. */
+  function Metric({ label, value, tone }) {
+    return (
+      <div className={`adx-metric ${tone || ""}`}>
+        <strong title={typeof value === "string" ? value : undefined}>{value}</strong>
+        <span>{label}</span>
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // 3. ACCESO CON CONTRASEÑA
+  // ==========================================================================
+
+  /**
+   * Pantalla de acceso. Envía la contraseña al servidor y entrega el token a
+   * la vista; el campo se limpia después de cada intento.
+   *
+   * @param {{onToken:function(string):void}} props
+   */
+  function PasswordGate({ onToken }) {
+    const [password, setPassword] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState("");
+    const inputRef = useRef(null);
+    useEffect(() => { setTimeout(() => inputRef.current?.focus(), 120); }, []);
+
+    const submit = async (event) => {
+      event.preventDefault();
+      if (!password || busy) return;
+      setBusy(true);
+      setError("");
+      const attempt = password;
+      setPassword("");
+      try {
+        const { data } = await REAB.rpc("AdminExcedentesController_iniciarSesion", { password: attempt }, {
+          operation: "ADMINEXC_ACCESO", view: VIEW, type: "ACCION", required: ["token"]
+        });
+        onToken(str(data.token));
+      } catch (failure) {
+        setError(publicError(failure));
+        setTimeout(() => inputRef.current?.focus(), 60);
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    return (
+      <div className="adx-gate">
+        <form className="adx-gate-card" onSubmit={submit}>
+          <div className="adx-gate-head">
+            <p className="adx-eyebrow">Acceso restringido</p>
+            <h1 className="adx-title">Administración de excedentes</h1>
+            <p className="adx-description">Corrección de estados de IDUNICO</p>
+          </div>
+          <div className="adx-gate-body">
+            <p>Esta herramienta revierte movimientos de inventario. Escribe la contraseña de administración para continuar.</p>
+            <div className="adx-field">
+              <label htmlFor="adx-gate-password">Contraseña</label>
+              <input
+                id="adx-gate-password"
+                ref={inputRef}
+                className="adx-input"
+                type="password"
+                autoComplete="off"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                disabled={busy}
+              />
+            </div>
+            <div className={`adx-feedback ${error ? "error" : ""}`}>{error}</div>
+            <button className="adx-btn primary" type="submit" disabled={busy || !password} style={{ width: "100%", marginTop: 8 }}>
+              <Icon name="lock-open" size={15} />{busy ? "Verificando..." : "Entrar"}
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // 4. PLAN Y CONFIRMACIÓN
+  // ==========================================================================
+
+  /**
+   * Modal que muestra el plan de una acción y la confirma con responsable,
+   * motivo y contraseña.
+   *
+   * @param {{plan:!Object, busy:boolean, onCancel:function(), onConfirm:function(!Object)}} props
+   */
+  function PlanModal({ plan, busy, onCancel, onConfirm }) {
+    const users = useMemo(() => REAB.user.catalog(), []);
+    const [responsable, setResponsable] = useState(REAB.user.get());
+    const [motivo, setMotivo] = useState("");
+    const [password, setPassword] = useState("");
+    const meta = ACTIONS[plan.accion] || { title: plan.accion };
+    const ready = Boolean(responsable) && str(motivo).length >= 10 && Boolean(password) && !busy;
+
+    useEffect(() => {
+      const onKey = (event) => { if (event.key === "Escape" && !busy) onCancel(); };
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }, [busy, onCancel]);
+
+    const confirm = () => {
+      if (!ready) return;
+      const secret = password;
+      setPassword("");
+      REAB.user.set(responsable);
+      onConfirm({ responsable, motivo: str(motivo), password: secret });
+    };
+
+    return (
+      <div className="adx-modal-layer" role="dialog" aria-modal="true">
+        <div className="adx-modal">
+          <div className="adx-modal-head">
+            <p className="adx-eyebrow">Plan de cambio · {plan.idUnico}</p>
+            <h2 className="adx-title" style={{ fontSize: 18 }}>{meta.title}</h2>
+          </div>
+          <div className="adx-modal-scroll">
+            <div className="adx-transition">
+              <span className="adx-count">STATUS</span>
+              <StatusChip value={plan.statusAnterior} />
+              <Icon name="arrow-right" size={14} />
+              <StatusChip value={plan.cambiaStatus ? plan.statusNuevo : plan.statusAnterior} />
+              <span className="adx-count" style={{ marginLeft: "auto" }}>Saldo {fmt(plan.saldoAnterior)} → {fmt(plan.saldoNuevo)}</span>
+            </div>
+
+            {plan.pasos.length === 0 && (
+              <div className="adx-step"><b>Solo se corrige STATUS en BD-EXCEDENTES.</b><ul><li>No se revierte ningún movimiento ni se tocan existencias.</li></ul></div>
+            )}
+            {plan.pasos.map((step) => (
+              <div key={step.fila} className="adx-step">
+                <b>Revertir {step.tipo} · {step.fecha} {step.hora} · {fmt(Math.abs(num(step.cantidad)))} pzas</b>
+                <ul>
+                  <li>Bitacora-TRASPASOS: se vacía la fila {step.fila}{step.ubicacion ? ` (${step.ubicacion})` : ""}.</li>
+                  {step.existencias
+                    ? <li>EXISTENCIAS: devuelve {fmt(step.existencias.cantidad)} a {step.existencias.devolverA} y retira de {step.existencias.retirarDe}; la sincronización (fila {step.existencias.filaSincronizacion}) queda REVERTIDO.</li>
+                    : <li><b>Sin sincronización:</b> EXISTENCIAS no se ajusta automáticamente.</li>}
+                  {step.reabDetalle && <li>Reabastecimiento: se elimina el detalle del folio {step.reabDetalle.idSolicitud}.</li>}
+                </ul>
+              </div>
+            ))}
+            {plan.advertencias.length > 0 && (
+              <div className="adx-warning">
+                {plan.advertencias.map((warning, index) => <div key={index}>• {warning}</div>)}
+              </div>
+            )}
+
+            <div className="adx-field">
+              <label>Responsable</label>
+              <select className="adx-select" value={responsable} onChange={(event) => setResponsable(up(event.target.value))} disabled={busy}>
+                <option value="">Selecciona tu usuario...</option>
+                {users.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+            </div>
+            <div className="adx-field">
+              <label>Motivo del cambio (mínimo 10 caracteres)</label>
+              <textarea className="adx-textarea" value={motivo} maxLength={500} onChange={(event) => setMotivo(event.target.value)} disabled={busy} placeholder="Ej. Surtido registrado por error en la caja equivocada" />
+            </div>
+            <div className="adx-field">
+              <label>Contraseña de administración</label>
+              <input className="adx-input" type="password" autoComplete="off" value={password} onChange={(event) => setPassword(event.target.value)} disabled={busy} onKeyDown={(event) => { if (event.key === "Enter") confirm(); }} />
+            </div>
+          </div>
+          <div className="adx-modal-foot">
+            <button className="adx-btn ghost" onClick={onCancel} disabled={busy}>Cancelar</button>
+            <button className="adx-btn primary" onClick={confirm} disabled={!ready}>
+              <Icon name="shield-check" size={15} />{busy ? "Aplicando..." : "Aplicar cambio"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // 5. INCONSISTENCIAS
+  // ==========================================================================
+
+  /**
+   * Drawer con las etiquetas cuyo STATUS no coincide con su historial.
+   *
+   * @param {{token:string, onOpen:function(string):void, onClose:function(), onSessionError:function(*):boolean}} props
+   */
+  function InconsistenciesDrawer({ token, onOpen, onClose, onSessionError }) {
+    const [state, setState] = useState({ loading: true, data: null, error: "" });
+
+    useEffect(() => {
+      let active = true;
+      const trace = REAB.perf.begin("ADMINEXC_INCONSISTENCIAS", { view: VIEW, type: "CONSULTA" });
+      REAB.rpc("AdminExcedentesController_listarInconsistencias", { token }, { trace, keepOpen: true, required: ["items"], timeoutMs: 120000 })
+        .then(({ data }) => {
+          if (!active) return;
+          setState({ loading: false, data, error: "" });
+          trace.endAfterPaint("ok", { meta: { total: data.total } });
+        })
+        .catch((error) => {
+          if (!trace.ended) trace.end("error", { error });
+          if (!active || onSessionError(error)) return;
+          setState({ loading: false, data: null, error: publicError(error) });
+        });
+      const onKey = (event) => { if (event.key === "Escape") onClose(); };
+      window.addEventListener("keydown", onKey);
+      return () => { active = false; window.removeEventListener("keydown", onKey); };
+    }, [token]);
+
+    const items = state.data?.items || [];
+    return (
+      <div className="adx-layer">
+        <button className="adx-backdrop" aria-label="Cerrar" onClick={onClose} />
+        <aside className="adx-drawer">
+          <div className="adx-drawer-head">
+            <div>
+              <p className="adx-eyebrow">Revisión del almacén</p>
+              <h2 className="adx-title">STATUS con desfase</h2>
+              <p className="adx-description">{state.loading ? "Consolidando el estado de todas las etiquetas..." : `${fmt(state.data?.total || 0)} etiqueta(s) con STATUS distinto al de su historial`}</p>
+            </div>
+            <button className="adx-close" onClick={onClose} aria-label="Cerrar"><Icon name="x" size={18} /></button>
+          </div>
+          <div className="adx-drawer-content">
+            {state.loading && <div className="adx-loading"><div className="adx-spinner" />Revisando BD-EXCEDENTES y Bitacora-TRASPASOS...</div>}
+            {!state.loading && state.error && <div className="adx-empty"><Icon name="triangle-alert" size={28} />{state.error}</div>}
+            {!state.loading && !state.error && !items.length && <div className="adx-empty"><Icon name="circle-check" size={28} />No hay etiquetas con desfase de STATUS.</div>}
+            {!state.loading && items.length > 0 && (
+              <div className="adx-table-card">
+                <table className="adx-table">
+                  <thead><tr><th>IDUNICO</th><th>Código</th><th>STATUS BD</th><th>Esperado</th><th>Saldo</th><th>Último movimiento</th><th></th></tr></thead>
+                  <tbody>
+                    {items.map((item) => (
+                      <tr key={item.idUnico}>
+                        <td className="adx-mono">{item.idUnico}</td>
+                        <td><b>{item.codigo}</b><div className="adx-sub">{item.descripcion}</div></td>
+                        <td><StatusChip value={item.statusBD} /></td>
+                        <td><StatusChip value={item.statusEsperado} /></td>
+                        <td className="adx-mono">{fmt(item.saldoActual)}</td>
+                        <td>{item.ultimoMovimiento || "SIN MOVIMIENTOS"}<div className="adx-sub">{item.ultimaFecha}</div></td>
+                        <td><button className="adx-btn" onClick={() => onOpen(item.idUnico)}><Icon name="search" size={14} />Abrir</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {state.data && state.data.total > state.data.mostradas && (
+              <p className="adx-count" style={{ marginTop: 10 }}>Se muestran {state.data.mostradas} de {state.data.total}. Corrige estas y vuelve a revisar.</p>
+            )}
+          </div>
+        </aside>
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // 6. APP
+  // ==========================================================================
+
+  function App() {
+    /** Token de sesión: solo en memoria de esta vista. */
+    const [token, setToken] = useState("");
+    const [query, setQuery] = useState("");
+    const [detail, setDetail] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [plan, setPlan] = useState(null);
+    const [planBusy, setPlanBusy] = useState(false);
+    const [applying, setApplying] = useState(false);
+    const [showInconsistencies, setShowInconsistencies] = useState(false);
+    const [lastResult, setLastResult] = useState(null);
+    const tokenRef = useRef("");
+    const scanRef = useRef(null);
+    useEffect(() => { tokenRef.current = token; }, [token]);
+
+    /** Al desmontar la vista se cierra la sesión del servidor. */
+    useEffect(() => () => {
+      if (tokenRef.current && window.google?.script?.run) {
+        google.script.run.withFailureHandler(() => {}).AdminExcedentesController_cerrarSesion({ token: tokenRef.current });
+      }
+    }, []);
+
+    /**
+     * Si el error es de sesión, vuelve a la pantalla de acceso.
+     * @return {boolean} true si el error se atendió aquí.
+     */
+    const handleSessionError = useCallback((error) => {
+      if (errorCode(error) !== "ADMEXC_SESION_INVALIDA") return false;
+      setToken("");
+      setDetail(null);
+      setPlan(null);
+      notify(publicError(error), "warning", 4500, { title: "Sesión terminada" });
+      return true;
+    }, []);
+
+    /** Consulta un IDUNICO y muestra su detalle. */
+    const loadDetail = useCallback(async (value) => {
+      const idUnico = str(value ?? query);
+      if (!idUnico) { notify("Escanea o captura el IDUNICO.", "warning"); return; }
+      const trace = REAB.perf.begin("ADMINEXC_CONSULTAR", { view: VIEW, type: "CONSULTA", meta: { idUnico } });
+      setLoading(true);
+      setLastResult(null);
+      try {
+        const { data } = await REAB.rpc("AdminExcedentesController_consultar", { token: tokenRef.current, idUnico }, { trace, keepOpen: true, required: ["idUnico", "movimientos", "acciones"] });
+        setDetail(data);
+        setQuery(data.idUnico);
+        trace.endAfterPaint("ok", { meta: { movimientos: data.movimientos.length } });
+      } catch (error) {
+        if (!trace.ended) trace.end("error", { error });
+        if (!handleSessionError(error)) {
+          setDetail(null);
+          notify(publicError(error), "error", 5000, { title: "No se pudo consultar" });
+        }
+      } finally {
+        setLoading(false);
+        setTimeout(() => scanRef.current?.select(), 60);
+      }
+    }, [query, handleSessionError]);
+
+    /** Pide al servidor el plan de una acción. */
+    const openPlan = async (accion) => {
+      if (!detail) return;
+      const trace = REAB.perf.begin("ADMINEXC_PLANIFICAR", { view: VIEW, type: "CONSULTA", meta: { accion } });
+      setPlanBusy(true);
+      try {
+        const { data } = await REAB.rpc("AdminExcedentesController_planificar", { token: tokenRef.current, idUnico: detail.idUnico, accion }, { trace, keepOpen: true, required: ["pasos", "firma"] });
+        setPlan(data);
+        trace.endAfterPaint("ok", { meta: { pasos: data.pasos.length } });
+      } catch (error) {
+        if (!trace.ended) trace.end("error", { error });
+        if (!handleSessionError(error)) notify(publicError(error), "warning", 5000, { title: "Acción no disponible" });
+      } finally {
+        setPlanBusy(false);
+      }
+    };
+
+    /** Aplica el plan confirmado. */
+    const applyPlan = async ({ responsable, motivo, password }) => {
+      if (!plan) return;
+      const trace = REAB.perf.begin("ADMINEXC_APLICAR", { view: VIEW, type: "ACCION", meta: { accion: plan.accion, pasos: plan.pasos.length } });
+      setApplying(true);
+      try {
+        const { data } = await REAB.rpc("AdminExcedentesController_aplicar", {
+          token: tokenRef.current,
+          idUnico: plan.idUnico,
+          accion: plan.accion,
+          firma: plan.firma,
+          responsable,
+          motivo,
+          password
+        }, { trace, keepOpen: true, required: ["statusNuevo", "detalle"], timeoutMs: 120000 });
+        setPlan(null);
+        setDetail(data.detalle);
+        setLastResult(data);
+        notify(`${data.idUnico}: ${data.statusAnterior} → ${data.statusNuevo}. Cambio aplicado y visible en todas las vistas.`, "success", 5000, { title: "Estado corregido" });
+        trace.endAfterPaint("ok", { meta: { movimientos: data.movimientosRevertidos } });
+      } catch (error) {
+        if (!trace.ended) trace.end("error", { error });
+        if (handleSessionError(error)) return;
+        const code = errorCode(error);
+        notify(publicError(error), "error", 6000, { title: code === "ADMEXC_PLAN_CAMBIO" ? "La etiqueta cambió" : "No se aplicó el cambio", sound: true });
+        if (code === "ADMEXC_PLAN_CAMBIO") {
+          setPlan(null);
+          loadDetail(plan.idUnico);
+        }
+      } finally {
+        setApplying(false);
+      }
+    };
+
+    /** Cierra la sesión manualmente. */
+    const logout = () => {
+      if (tokenRef.current && window.google?.script?.run) {
+        google.script.run.withFailureHandler(() => {}).AdminExcedentesController_cerrarSesion({ token: tokenRef.current });
+      }
+      setToken("");
+      setDetail(null);
+      setPlan(null);
+    };
+
+    if (!token) {
+      return (
+        <div className="adx-page">
+          <PasswordGate onToken={(value) => { setToken(value); setTimeout(() => scanRef.current?.focus(), 150); }} />
+        </div>
+      );
+    }
+
+    const estado = detail?.estado;
+    const desfase = Boolean(detail?.desfase);
+
+    return (
+      <div className="adx-page">
+        <div className="adx-workspace">
+          {/* Encabezado: identidad, búsqueda y acciones de sesión */}
+          <header className="adx-header">
+            <div className="adx-id">
+              <div className="adx-badge"><Icon name="shield-check" size={22} /></div>
+              <div>
+                <p className="adx-eyebrow">Administración · sesión activa</p>
+                <h1 className="adx-title">Estados de excedentes</h1>
+                <p className="adx-description">Revierte movimientos con su efecto completo</p>
+              </div>
+            </div>
+            <form className="adx-search" onSubmit={(event) => { event.preventDefault(); loadDetail(); }}>
+              <input
+                ref={scanRef}
+                className="adx-input"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Escanea o captura el IDUNICO"
+                disabled={loading || applying}
+              />
+              <button className="adx-action primary" type="submit" disabled={loading || applying || !str(query)}>
+                <Icon name="search" size={15} />{loading ? "Consultando..." : "Consultar"}
+              </button>
+            </form>
+            <div className="adx-actions">
+              <button className="adx-action" onClick={() => setShowInconsistencies(true)} disabled={applying}><Icon name="list-checks" size={15} />Inconsistencias</button>
+              <button className="adx-action" onClick={logout} disabled={applying}><Icon name="log-out" size={15} />Salir</button>
+            </div>
+          </header>
+
+          {/* Métricas de la etiqueta */}
+          {detail && (
+            <div className="adx-metrics">
+              <Metric label="IDUNICO" value={detail.idUnico} />
+              <Metric label="STATUS en BD" value={<StatusChip value={detail.statusBD} />} tone={desfase ? "bad" : "ok"} />
+              <Metric label="STATUS por historial" value={<StatusChip value={detail.statusEsperado} />} tone={desfase ? "warn" : "ok"} />
+              <Metric label={`Saldo de ${fmt(detail.cantidadInicial)}`} value={fmt(estado ? estado.saldoActual : detail.saldoHistorial)} />
+              <Metric label={estado?.bodegaActual || "Ubicación"} value={estado?.ubicacionActual || "SIN UBICACIÓN"} />
+              <Metric label="Movimientos" value={fmt(detail.movimientos.length)} />
+            </div>
+          )}
+
+          {detail && desfase && (
+            <div className="adx-banner">
+              <Icon name="triangle-alert" size={16} />
+              <span>El STATUS en BD-EXCEDENTES ({detail.statusBD || "vacío"}) no coincide con el historial ({detail.statusEsperado}). Usa “Sincronizar STATUS” o revierte el movimiento que corresponda.</span>
+            </div>
+          )}
+          {lastResult && (
+            <div className="adx-banner ok">
+              <Icon name="circle-check" size={16} />
+              <span>
+                Cambio aplicado: {lastResult.movimientosRevertidos} movimiento(s) revertido(s), {lastResult.existenciasAjustadas} ajuste(s) de existencias
+                {lastResult.reabDetallesEliminados ? `, ${lastResult.reabDetallesEliminados} detalle(s) de Reabastecimiento eliminado(s)` : ""}. Registrado en ADMIN_EXCEDENTES_BITACORA.
+              </span>
+            </div>
+          )}
+
+          <div className="adx-body">
+            {!detail && !loading && (
+              <div className="adx-empty">
+                <Icon name="scan-line" size={34} />
+                Escanea un IDUNICO para revisar su historial y corregir su estado.
+                <button className="adx-btn ghost" onClick={() => setShowInconsistencies(true)}><Icon name="list-checks" size={14} />Ver etiquetas con desfase</button>
+              </div>
+            )}
+            {loading && <div className="adx-loading"><div className="adx-spinner" />Leyendo BD-EXCEDENTES, Bitacora-TRASPASOS y sincronización...</div>}
+
+            {detail && !loading && (
+              <>
+                {/* Acciones disponibles */}
+                <section className="adx-section">
+                  <div className="adx-section-head">
+                    <div className="adx-section-title">
+                      <div className="adx-section-icon"><Icon name="wrench" size={15} /></div>
+                      <div><span className="adx-kicker">Corrección</span><span className="adx-heading">Acciones sobre {detail.codigo || detail.idUnico}</span></div>
+                    </div>
+                    <span className="adx-count">{detail.descripcion}</span>
+                  </div>
+                  <div className="adx-cards">
+                    {detail.acciones.map((action) => {
+                      const meta = ACTIONS[action.accion] || { title: action.accion, icon: "circle", text: "" };
+                      return (
+                        <div key={action.accion} className={`adx-card ${action.disponible ? "available" : "disabled"}`}>
+                          <h3><Icon name={meta.icon} size={14} /> {meta.title}</h3>
+                          <p>{action.disponible ? meta.text : action.motivo}</p>
+                          <div className="adx-card-foot">
+                            {action.disponible ? <StatusChip value={action.statusNuevo} /> : <span className="adx-chip slate">No aplica</span>}
+                            <button className="adx-btn" disabled={!action.disponible || planBusy || applying} onClick={() => openPlan(action.accion)}>
+                              <Icon name="list-ordered" size={14} />Revisar plan
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                {/* Historial de movimientos */}
+                <section className="adx-section">
+                  <div className="adx-section-head">
+                    <div className="adx-section-title">
+                      <div className="adx-section-icon"><Icon name="history" size={15} /></div>
+                      <div><span className="adx-kicker">Bitacora-TRASPASOS</span><span className="adx-heading">Historial de movimientos</span></div>
+                    </div>
+                    <span className="adx-count">Del más antiguo al más reciente</span>
+                  </div>
+                  <div className="adx-table-card">
+                    <table className="adx-table">
+                      <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Origen</th><th>Destino</th><th>Solicitante</th><th>Existencias</th><th>Reabastecimiento</th></tr></thead>
+                      <tbody>
+                        {detail.movimientos.length === 0 && <tr><td colSpan={8} className="adx-sub" style={{ textAlign: "center", padding: 22 }}>Sin movimientos registrados: la etiqueta solo existe en BD-EXCEDENTES.</td></tr>}
+                        {detail.movimientos.map((movement, index) => (
+                          <tr key={movement.fila} className={index === detail.movimientos.length - 1 ? "adx-last" : ""}>
+                            <td className="adx-mono">{movement.fecha}<div className="adx-sub">{movement.hora} · fila {movement.fila}</div></td>
+                            <td><span className={`adx-chip ${movement.tipo === "SURTIDO" ? "red" : "green"}`}>{movement.tipo}</span></td>
+                            <td className="adx-mono">{fmt(Math.abs(num(movement.cantidad)))}</td>
+                            <td>{movement.ubicacionSalida}<div className="adx-sub">{movement.bodegaSalida}</div></td>
+                            <td>{movement.ubicacionEntrada}<div className="adx-sub">{movement.bodegaEntrada}</div></td>
+                            <td>{movement.solicitante}</td>
+                            <td>{movement.sincronizado ? <span className="adx-chip green">Sincronizado</span> : <span className="adx-chip amber">Sin sincronización</span>}</td>
+                            <td>{movement.reabDetalle ? <span className="adx-chip blue">{movement.reabDetalle.idSolicitud}</span> : <span className="adx-sub">—</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                {/* Filas en BD-EXCEDENTES */}
+                <section className="adx-section">
+                  <div className="adx-section-head">
+                    <div className="adx-section-title">
+                      <div className="adx-section-icon"><Icon name="database" size={15} /></div>
+                      <div><span className="adx-kicker">BD-EXCEDENTES</span><span className="adx-heading">Registro de la etiqueta</span></div>
+                    </div>
+                    <span className="adx-count">La fila activa es la que se actualiza</span>
+                  </div>
+                  <div className="adx-table-card">
+                    <table className="adx-table">
+                      <thead><tr><th>Fila</th><th>Fecha</th><th>Código</th><th>Cantidad inicial</th><th>STATUS</th><th>Impresión</th><th></th></tr></thead>
+                      <tbody>
+                        {detail.base.length === 0 && <tr><td colSpan={7} className="adx-sub" style={{ textAlign: "center", padding: 22 }}>La etiqueta no existe en BD-EXCEDENTES.</td></tr>}
+                        {detail.base.map((row) => (
+                          <tr key={row.rowNumber}>
+                            <td className="adx-mono">{row.rowNumber}</td>
+                            <td className="adx-mono">{row.fecha}<div className="adx-sub">{row.hora}</div></td>
+                            <td><b>{row.codigo}</b><div className="adx-sub">{row.descripcion}</div></td>
+                            <td className="adx-mono">{fmt(row.cantidad)}</td>
+                            <td><StatusChip value={row.status} /></td>
+                            <td>{row.responsableImpresion || "—"}</td>
+                            <td>{row.activa ? <span className="adx-chip slate">Activa</span> : null}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                {/* Detalles de Reabastecimiento */}
+                {detail.reabDetalles.length > 0 && (
+                  <section className="adx-section">
+                    <div className="adx-section-head">
+                      <div className="adx-section-title">
+                        <div className="adx-section-icon"><Icon name="package-open" size={15} /></div>
+                        <div><span className="adx-kicker">Reabastecimiento</span><span className="adx-heading">Surtidos ligados a la etiqueta</span></div>
+                      </div>
+                    </div>
+                    <div className="adx-table-card">
+                      <table className="adx-table">
+                        <thead><tr><th>Folio</th><th>Fila</th><th>Cantidad</th><th>Tipo</th><th>Operación</th></tr></thead>
+                        <tbody>
+                          {detail.reabDetalles.map((item) => (
+                            <tr key={item.numFila}>
+                              <td className="adx-mono">{item.idSolicitud}</td>
+                              <td className="adx-mono">{item.numFila}</td>
+                              <td className="adx-mono">{fmt(item.cantidad)}</td>
+                              <td>{item.tipoSurtido || "—"}</td>
+                              <td className="adx-sub">{item.idOperacion || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {plan && <PlanModal plan={plan} busy={applying} onCancel={() => !applying && setPlan(null)} onConfirm={applyPlan} />}
+        {showInconsistencies && (
+          <InconsistenciesDrawer
+            token={token}
+            onClose={() => setShowInconsistencies(false)}
+            onSessionError={handleSessionError}
+            onOpen={(idUnico) => { setShowInconsistencies(false); setQuery(idUnico); loadDetail(idUnico); }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // 7. MONTAJE EN EL SHELL
+  // ==========================================================================
+
+  const target = document.getElementById("render-administracion-excedentes");
+  if (!target) {
+    notify("No se encontró el contenedor de la administración de excedentes.", "error");
+    return () => {};
+  }
+  if (window.__ADMINISTRACION_EXCEDENTES_ROOT__) {
+    try { window.__ADMINISTRACION_EXCEDENTES_ROOT__.unmount(); } catch (_) { /* raíz previa ya desmontada */ }
+  }
+  window.__ADMINISTRACION_EXCEDENTES_ROOT__ = ReactDOM.createRoot(target);
+  window.__ADMINISTRACION_EXCEDENTES_ROOT__.render(<App />);
+
+  /** Limpieza que el Shell ejecuta al salir de la vista (cierra la sesión). */
+  return () => {
+    if (window.__ADMINISTRACION_EXCEDENTES_ROOT__) {
+      try { window.__ADMINISTRACION_EXCEDENTES_ROOT__.unmount(); } catch (_) { /* sin acción */ }
+      window.__ADMINISTRACION_EXCEDENTES_ROOT__ = null;
+    }
+  };
+};
+window.initVista = window.cargar_AdministracionExcedentes;
+</script>

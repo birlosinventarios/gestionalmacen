@@ -55,9 +55,9 @@ const ReabastecimientoPartidasRepository = (() => {
       persistentCache: {
         keyPrefix: REABASTECIMIENTO_CONFIG.REVISION.TABLE_CACHE_PREFIX,
         ttlSeconds: REABASTECIMIENTO_CONFIG.REVISION.TABLE_CACHE_TTL_SECONDS,
-        /** Revisión vigente de Reabastecimiento (null = no usar la copia). */
+        /** Revisión vigente de ESTA hoja (null = no usar la copia). */
         revision: function() {
-          return typeof reabRevisionRead_ === "function" ? reabRevisionRead_().r : null;
+          return typeof reabTableRevisionRead_ === "function" ? reabTableRevisionRead_(CFG.SHEET_KEY) : null;
         }
       }
     }
@@ -204,7 +204,7 @@ const ReabastecimientoPartidasRepository = (() => {
       written: result.written,
       elapsedMs: Date.now() - startedAt
     });
-    layout.markDirty();
+    layout.recordWrite(result.firstRow, rows);
     cache_ = null;
     return { written: result.written, firstRow: result.firstRow };
   }
@@ -263,7 +263,7 @@ const ReabastecimientoPartidasRepository = (() => {
     layout.write(target.row, target.sheetLayout, H.horaAtencion, temporalContext.hora);
     layout.write(target.row, target.sheetLayout, H.usuarioAtencion, toStrUpper_(usuario));
     writeRowAt_(CFG.SHEET_KEY, current.numFila, target.row, target.sheetLayout.width, trace);
-    layout.markDirty();
+    layout.recordWrite(current.numFila, [target.row]);
     patchCache_(normalizeRow_(target.row, current.numFila, target.sheetLayout));
     return { updated: true, estado: STATES.EN_ATENCION, rowNumber: current.numFila };
   }
@@ -295,7 +295,7 @@ const ReabastecimientoPartidasRepository = (() => {
     layout.write(target.row, target.sheetLayout, H.horaConclusion, temporalContext.hora);
     layout.write(target.row, target.sheetLayout, H.usuarioConclusion, toStrUpper_(usuario));
     writeRowAt_(CFG.SHEET_KEY, current.numFila, target.row, target.sheetLayout.width, trace);
-    layout.markDirty();
+    layout.recordWrite(current.numFila, [target.row]);
     patchCache_(normalizeRow_(target.row, current.numFila, target.sheetLayout));
     return { updated: true, estado: state, rowNumber: current.numFila };
   }
@@ -332,7 +332,9 @@ const ReabastecimientoPartidasRepository = (() => {
       id,
       trace
     );
+    // Un borrado desplaza filas: no se refleja en el espejo, se descarta.
     layout.markDirty();
+    layout.invalidateMirror();
     cache_ = null;
     return result;
   }
@@ -344,6 +346,16 @@ const ReabastecimientoPartidasRepository = (() => {
   }
 
   return Object.freeze({
+    /**
+     * Publicación de la copia en caché (fase 4). El Service, bajo el candado y
+     * después de subir la revisión, consulta hasPendingWrites() y llama
+     * publishSnapshot(revisionNueva). preferSheet() fuerza leer la hoja en la
+     * ejecución actual (botón "Actualizar" del listado).
+     */
+    sheetKey: CFG.SHEET_KEY,
+    hasPendingWrites: layout.isDirty,
+    publishSnapshot: layout.publish,
+    preferSheet: layout.preferSheet,
     getAll,
     getBySolicitud,
     getGroupedBySolicitud,

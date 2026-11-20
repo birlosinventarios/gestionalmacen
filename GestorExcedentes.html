@@ -37,6 +37,13 @@
    * - La búsqueda no modifica el conjunto original recibido del servidor.
    * - La exportación opera sobre el conjunto consolidado vigente.
    * - Este archivo no contiene scriptlets de plantilla de Apps Script.
+   *
+   * Presentación (2026-11-20):
+   * - Mismo sistema visual que ReabastecimientoDetalles: workspace de altura
+   *   completa, encabezado oscuro con métricas del resumen, barra de búsqueda
+   *   y bodegas, y tabla con encabezado oscuro fijo (sección 6 de estilos).
+   * - Solo cambió el marcado del render; carga, filtros y exportación son
+   *   los mismos.
    */
 </script>
 
@@ -1154,441 +1161,232 @@
         "Todas las bodegas"
       ];
 
+      /** Tono del chip de estado según la clasificación de obtenerBadgeEstatus. */
+      const toneOf = (badge) => badge.texto === "Con ubicación" ? "green" : badge.texto === "Pendiente" ? "amber" : "slate";
+
+      /*
+       * PRESENTACIÓN (estilo ReabastecimientoDetalles)
+       * - Workspace de altura completa con encabezado oscuro: identidad,
+       *   métricas del resumen y acciones (exportar, actualizar).
+       * - Barra de herramientas: búsqueda y segmentación por bodega.
+       * - Tabla operativa con encabezado oscuro fijo.
+       * La lógica de carga, filtros y exportación no cambia.
+       */
       return (
-        <div className="ge-view-shell">
+        <div className="ge-page">
+          <div className="ge-workspace">
 
-          {/* PANEL SUPERIOR: KPIS + CONTROLES */}
-            <div className="ge-top-panel px-6 md:px-8 pt-2 pb-2 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-2 shrink-0 fade-in-up">
-
-              {/* KPIS IZQUIERDA */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <KPIBlock
-                  title="IDs con ubicación"
-                  value={formatearNumero_(resumen.idsUnicosConUbicacion)}
-                  unit="IDs"
-                  iconName="map-pinned"
-                  indicatorColor="emerald"
-                  minHeight="70px"
-                  className="p-3"
-                  trend={{
-                    text: "Ubicados",
-                    type: "positive",
-                    sub: "Listos para auditoría"
-                  }}
-                />
-
-                <KPIBlock
-                  title="Pendientes por ubicar"
-                  value={formatearNumero_(resumen.idsUnicosPendientes)}
-                  unit="IDs"
-                  iconName="clock-3"
-                  indicatorColor="amber"
-                  minHeight="70px"
-                  className="p-3"
-                  trend={{
-                    text: "Requieren acomodo",
-                    type: "neutral",
-                    sub: "Sin ubicación física"
-                  }}
-                />
-
-                <KPIBlock
-                  title="% pendiente de ubicación"
-                  value={formatearNumero_(porcentajePendientesUbicar, 2)}
-                  unit="%"
-                  iconName="percent"
-                  indicatorColor="red"
-                  minHeight="70px"
-                  className="p-3"
-                  trend={{
-                    text: "Indicador crítico",
-                    type: "negative",
-                    sub: "Pendientes / vigentes"
-                  }}
-                />
+            {/* ENCABEZADO: identidad, métricas y acciones */}
+            <header className="ge-header">
+              <div className="ge-id">
+                <div className="ge-badge"><LocalIcon name="boxes" size={22} /></div>
+                <div className="ge-copy">
+                  <p className="ge-eyebrow">Consultas · excedentes vigentes</p>
+                  <h1 className="ge-title">Control de excedentes</h1>
+                  <p className="ge-description">Existencias, ubicaciones y disponibilidad operativa</p>
+                </div>
               </div>
 
-              {/* CONTROLES DERECHA */}
-              <div className="bg-white border border-[#dadce0] rounded-[1.25rem] p-3 shadow-sm flex flex-col gap-2 min-h-[70px]">
+              <div className="ge-metrics">
+                <div className="ge-metric">
+                  <div className="ge-metric-value">{formatearNumero_(resumen.idsUnicosVigentes)}</div>
+                  <div className="ge-metric-label">IDs vigentes</div>
+                </div>
+                <div className="ge-metric ok">
+                  <div className="ge-metric-value">{formatearNumero_(resumen.idsUnicosConUbicacion)}</div>
+                  <div className="ge-metric-label">Con ubicación</div>
+                </div>
+                <div className="ge-metric warn">
+                  <div className="ge-metric-value">{formatearNumero_(resumen.idsUnicosPendientes)}</div>
+                  <div className="ge-metric-label">Pendientes por ubicar</div>
+                </div>
+                <div className="ge-metric bad">
+                  <div className="ge-metric-value">{formatearNumero_(porcentajePendientesUbicar, 2)}%</div>
+                  <div className="ge-metric-label">Pendiente de ubicación</div>
+                  <div className="ge-track"><div className="ge-bar" style={{ width: Math.min(100, porcentajePendientesUbicar) + "%" }} /></div>
+                </div>
+                <div className="ge-metric">
+                  <div className="ge-metric-value">{formatearNumero_(resumen.stockTotalVigente)}</div>
+                  <div className="ge-metric-label">Piezas vigentes</div>
+                </div>
+              </div>
 
-                {/* Buscador */}
-                <div className="relative">
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    list="lista-busqueda-excedentes"
-                    placeholder="Buscar código o descripcion..."
-                    className="w-full h-11 rounded-xl border border-[#dadce0] bg-gray-50 pl-10 pr-10 text-[12px] font-bold uppercase tracking-[0.04em] text-[#1c1d1f] outline-none transition-all focus:bg-white focus:border-[#d93025] focus:ring-2 focus:ring-red-100"
-                    value={filtro}
-                    onChange={(e) => setFiltro(e.target.value.toUpperCase())}
-                  />
+              <div className="ge-actions">
+                {/* Exportar Excel con menú */}
+                <div className="ge-export" ref={exportMenuRef}>
+                  <button
+                    type="button"
+                    className={"ge-action" + (exportMenuOpen ? " active" : "")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExportMenuOpen(prev => !prev);
+                    }}
+                  >
+                    <LocalIcon name="file-spreadsheet" size={16} />
+                    Exportar
+                    <LocalIcon name={exportMenuOpen ? "chevron-up" : "chevron-down"} size={14} />
+                  </button>
 
-                  <datalist id="lista-busqueda-excedentes">
-                    {opcionesBusquedaExcedentes.map((item, index) => (
-                      <option
-                        key={`${index}-${item.codigo}`}
-                        value={item.codigo}
-                        label={`${item.descripcion || "SIN DESCRIPCIÓN"} | ${item.cajasDisponibles} caja(s) disponibles para surtido`}
-                      >
-                        {item.codigo} | {item.descripcion || "SIN DESCRIPCIÓN"} | {item.cajasDisponibles} caja(s) disponibles para surtido
-                      </option>
-                    ))}
-                  </datalist>
+                  {exportMenuOpen && (
+                    <div className="ge-menu fade-in-up">
+                      <div className="ge-menu-head">
+                        <span className="ge-kicker">Exportar reporte de excedentes</span>
+                        <span className="ge-menu-sub">Elige bodega o código para generar el Excel.</span>
+                      </div>
 
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5f6368]">
-                    <LocalIcon name="search" size={18} />
-                  </div>
+                      <div className="ge-menu-scroll">
+                        <div className="ge-menu-section">
+                          <span className="ge-menu-title"><LocalIcon name="warehouse" size={14} /> Por bodega</span>
+                          {opcionesExportacionBodega.map((bodega) => (
+                            <button key={bodega} type="button" className="ge-menu-item" onClick={() => handleSeleccionExportBodega(bodega)}>
+                              <span>{bodega}</span>
+                              <LocalIcon name="chevron-right" size={14} />
+                            </button>
+                          ))}
+                        </div>
 
-                  {filtro && (
-                    <button
-                      type="button"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 flex items-center justify-center transition-all"
-                      title="Limpiar búsqueda"
-                      onClick={() => setFiltro("")}
-                    >
-                      <LocalIcon name="x" size={14} />
-                    </button>
+                        <div className="ge-menu-section">
+                          <span className="ge-menu-title"><LocalIcon name="barcode" size={14} /> Por código</span>
+                          <input
+                            type="text"
+                            placeholder="Filtrar código..."
+                            className="ge-input ge-input-sm"
+                            value={exportCodigoFiltro}
+                            onChange={(e) => setExportCodigoFiltro(e.target.value.toUpperCase())}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          {codigosExportables.length === 0 ? (
+                            <div className="ge-menu-empty">Sin códigos disponibles</div>
+                          ) : codigosExportablesVisibles.length === 0 ? (
+                            <div className="ge-menu-empty">Sin coincidencias</div>
+                          ) : (
+                            <>
+                              {codigosExportablesVisibles.map((codigo) => (
+                                <button key={codigo} type="button" className="ge-menu-item mono" onClick={() => handleSeleccionExportCodigo(codigo)}>
+                                  <span>{codigo}</span>
+                                  <LocalIcon name="chevron-right" size={14} />
+                                </button>
+                              ))}
+                              {codigosExportables.length > codigosExportablesVisibles.length && (
+                                <div className="ge-menu-empty">Mostrando {codigosExportablesVisibles.length} de {codigosExportables.length}. Usa el filtro para encontrar más.</div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
 
-                {/* Acciones verticales */}
-                <div className="flex flex-col gap-2">
+                <button type="button" className="ge-action primary" onClick={() => refrescarDatos("manual")} disabled={loading}>
+                  <LocalIcon name="refresh-cw" size={16} className={loading ? "animate-spin" : ""} />
+                  {loading ? "Actualizando..." : "Actualizar"}
+                </button>
+              </div>
+            </header>
 
-                  {/* Botón Exportar Excel con menú */}
-                  <div className="relative" ref={exportMenuRef}>
-                    <button
-                      type="button"
-                      className={`h-10 w-full rounded-xl border transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-[0.10em] ${
-                        exportMenuOpen
-                          ? "border-emerald-400 bg-emerald-100 text-emerald-800 shadow-sm"
-                          : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExportMenuOpen(prev => !prev);
-                      }}
+            {/* BARRA: búsqueda y segmentación por bodega */}
+            <div className="ge-toolbar">
+              <div className="ge-search">
+                <span className="ge-search-icon"><LocalIcon name="search" size={17} /></span>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  list="lista-busqueda-excedentes"
+                  placeholder="Buscar código o descripción..."
+                  className="ge-input"
+                  value={filtro}
+                  onChange={(e) => setFiltro(e.target.value.toUpperCase())}
+                />
+                <datalist id="lista-busqueda-excedentes">
+                  {opcionesBusquedaExcedentes.map((item, index) => (
+                    <option
+                      key={index + "-" + item.codigo}
+                      value={item.codigo}
+                      label={(item.descripcion || "SIN DESCRIPCIÓN") + " | " + item.cajasDisponibles + " caja(s) disponibles para surtido"}
                     >
-                      <LocalIcon name="file-spreadsheet" size={17} />
-                      Exportar Excel
-                      <LocalIcon
-                        name={exportMenuOpen ? "chevron-up" : "chevron-down"}
-                        size={14}
-                      />
-                    </button>
-
-                    {exportMenuOpen && (
-                      <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[360px] max-h-[360px] overflow-hidden rounded-2xl border border-[#dadce0] bg-white shadow-2xl fade-in-up">
-
-                        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-                          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
-                            Exportar reporte de excedentes
-                          </p>
-                          <p className="text-[11px] font-semibold text-slate-400 mt-1">
-                            Selecciona un modo de exportación. La generación del Excel se configurará después.
-                          </p>
-                        </div>
-
-                        <div className="max-h-[290px] overflow-y-auto">
-
-                          {/* Exportar por bodega */}
-                          <div className="p-3 border-b border-slate-100">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center">
-                                <LocalIcon name="warehouse" size={16} />
-                              </div>
-
-                              <div className="flex flex-col">
-                                <span className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-700">
-                                  Por bodega
-                                </span>
-                                <span className="text-[10px] font-semibold text-slate-400">
-                                  Exporta registros según ubicación operativa.
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-1.5">
-                              {opcionesExportacionBodega.map((bodega) => (
-                                <button
-                                  key={bodega}
-                                  type="button"
-                                  className="w-full px-3 py-2 rounded-xl text-left bg-white hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all flex items-center justify-between gap-2"
-                                  onClick={() => handleSeleccionExportBodega(bodega)}
-                                >
-                                  <span className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-700">
-                                    {bodega}
-                                  </span>
-
-                                  <LocalIcon name="chevron-right" size={14} className="text-slate-400" />
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Exportar por código */}
-                          <div className="p-3">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="w-8 h-8 rounded-xl bg-red-50 text-red-700 border border-red-100 flex items-center justify-center">
-                                <LocalIcon name="barcode" size={16} />
-                              </div>
-
-                              <div className="flex flex-col">
-                                <span className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-700">
-                                  Por código
-                                </span>
-                                <span className="text-[10px] font-semibold text-slate-400">
-                                  Busca un código con excedente.
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Buscador interno de código */}
-                            <div className="relative mb-2">
-                              <input
-                                type="text"
-                                placeholder="Filtrar código..."
-                                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 text-[11px] font-black uppercase tracking-[0.06em] text-slate-700 outline-none focus:bg-white focus:border-[#d93025] focus:ring-2 focus:ring-red-100"
-                                value={exportCodigoFiltro}
-                                onChange={(e) => setExportCodigoFiltro(e.target.value.toUpperCase())}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-
-                              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                                <LocalIcon name="search" size={14} />
-                              </div>
-
-                              {exportCodigoFiltro && (
-                                <button
-                                  type="button"
-                                  className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white text-slate-400 hover:text-slate-900 border border-slate-200 flex items-center justify-center"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setExportCodigoFiltro("");
-                                  }}
-                                >
-                                  <LocalIcon name="x" size={12} />
-                                </button>
-                              )}
-                            </div>
-
-                            {codigosExportables.length === 0 ? (
-                              <div className="px-3 py-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
-                                <span className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
-                                  Sin códigos disponibles
-                                </span>
-                              </div>
-                            ) : codigosExportablesVisibles.length === 0 ? (
-                              <div className="px-3 py-3 rounded-xl bg-slate-50 border border-slate-100 text-center">
-                                <span className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
-                                  Sin coincidencias
-                                </span>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="grid grid-cols-1 gap-1.5">
-                                  {codigosExportablesVisibles.map((codigo) => (
-                                    <button
-                                      key={codigo}
-                                      type="button"
-                                      className="w-full px-3 py-2 rounded-xl text-left bg-white hover:bg-red-50 border border-transparent hover:border-red-100 transition-all flex items-center justify-between gap-2"
-                                      onClick={() => handleSeleccionExportCodigo(codigo)}
-                                    >
-                                      <span className="text-[11px] font-black uppercase tracking-[0.08em] text-slate-700 font-mono">
-                                        {codigo}
-                                      </span>
-
-                                      <LocalIcon name="chevron-right" size={14} className="text-slate-400" />
-                                    </button>
-                                  ))}
-                                </div>
-
-                                {codigosExportables.length > codigosExportablesVisibles.length && (
-                                  <div className="mt-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-100 text-center">
-                                    <span className="text-[10px] font-bold uppercase tracking-[0.10em] text-slate-400">
-                                      Mostrando {codigosExportablesVisibles.length} de {codigosExportables.length}. Usa el filtro para encontrar más.
-                                    </span>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Botón Actualizar */}
-                  <button
-                    type="button"
-                    className="h-10 rounded-xl border border-slate-300 bg-[#1c1d1f] text-white hover:bg-black transition-all flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-[0.10em] disabled:opacity-50 disabled:pointer-events-none"
-                    onClick={() => refrescarDatos("manual")}
-                    disabled={loading}
-                  >
-                    <LocalIcon
-                      name="refresh-cw"
-                      size={17}
-                      className={loading ? "animate-spin" : ""}
-                    />
-                    Actualizar información
+                      {item.codigo} | {item.descripcion || "SIN DESCRIPCIÓN"} | {item.cajasDisponibles} caja(s) disponibles para surtido
+                    </option>
+                  ))}
+                </datalist>
+                {filtro && (
+                  <button type="button" className="ge-clear" title="Limpiar búsqueda" onClick={() => setFiltro("")}>
+                    <LocalIcon name="x" size={14} />
                   </button>
-                </div>
-                </div>
+                )}
               </div>
 
-          {/* SEGMENTACIÓN POR BODEGA */}
-          <div className="px-6 md:px-8 pb-3 flex flex-wrap gap-2 shrink-0">
-            {opcionBodegas.map((bodega) => {
-              const esActivo = bodegaSeleccionada === bodega;
-              const tieneStockBuscado = bodegasConExistenciaBuscada.has(bodega);
+              <div className="ge-segments">
+                {opcionBodegas.map((bodega) => {
+                  const esActivo = bodegaSeleccionada === bodega;
+                  const tieneStockBuscado = bodegasConExistenciaBuscada.has(bodega);
+                  return (
+                    <button
+                      key={bodega}
+                      onClick={() => setBodegaSeleccionada(bodega)}
+                      className={"ge-segment" + (esActivo ? " active" : tieneStockBuscado ? " bodega-pulso-rojo" : "")}
+                    >
+                      {bodega}
+                    </button>
+                  );
+                })}
+              </div>
 
-              let clasesBordeYFondo = "";
+              <span className="ge-count">{formatearNumero_(datosFiltrados.length)} registro(s)</span>
+            </div>
 
-              if (esActivo) {
-                clasesBordeYFondo = "bg-[#1c1d1f] text-white border-[#1c1d1f] shadow-md";
-              } else if (tieneStockBuscado) {
-                clasesBordeYFondo = "bodega-pulso-rojo shadow-md";
-              } else {
-                clasesBordeYFondo = "bg-white text-[#5f6368] border-[#dadce0] hover:bg-gray-50 hover:text-[#1c1d1f]";
-              }
-
-              return (
-                <button
-                  key={bodega}
-                  onClick={() => setBodegaSeleccionada(bodega)}
-                  className={`px-4 py-2 rounded-xl text-[12px] font-black uppercase tracking-[0.06em] border transition-all duration-300 active:scale-95 ${clasesBordeYFondo}`}
-                >
-                  {bodega}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* TABLA */}
-          <div className="ge-table-zone px-6 md:px-8 pb-4">
-            <div className="ge-table-card">
-
-              <div className="ge-table-scroll gestor-tabla-scroll">
-                <table className="ge-compact-table w-full text-left min-w-[1100px]">
-
-                <thead className="ge-table-head">
+            {/* TABLA OPERATIVA */}
+            <div className="ge-table-wrap gestor-tabla-scroll">
+              <table className="ge-table">
+                <thead>
                   <tr>
-                    <th style={{ fontSize: '20px' }} className="ge-table-th px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[18%]">
-                      SKU / ID único
-                    </th>
-
-                    <th style={{ fontSize: '20px' }} className="ge-table-th px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[34%]">
-                      Descripción
-                    </th>
-
-                    <th style={{ fontSize: '20px' }} className="ge-table-th px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[14%]">
-                      Balance
-                    </th>
-
-                    <th style={{ fontSize: '20px' }} className="ge-table-th px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[18%]">
-                      Ubicación
-                    </th>
-
-                    <th style={{ fontSize: '20px' }} className="ge-table-th px-6 py-2 font-black uppercase tracking-tight text-[#1c1d1f] text-center w-[16%]">
-                      Estado
-                    </th>
+                    <th style={{ width: "18%" }}>SKU / ID único</th>
+                    <th style={{ width: "34%" }}>Descripción</th>
+                    <th style={{ width: "14%" }}>Balance</th>
+                    <th style={{ width: "18%" }}>Ubicación</th>
+                    <th style={{ width: "16%" }}>Estado</th>
                   </tr>
                 </thead>
-
-                <tbody className="divide-y divide-[#f1f3f4] bg-white">
+                <tbody>
                   {datosFiltrados.map((item, idx) => {
                     const badge = obtenerBadgeEstatus(item);
-
                     return (
-                      <tr key={item.eidUnico || idx} className="group hover:bg-[#fcfcfc] transition-colors">
-
-                        {/* SKU / ID */}
-                        <td className="px-6 py-4 text-left">
-                          <div className="flex flex-col items-start gap-1.5">
-                            <span className="text-[18px] font-black text-[#1c1d1f] leading-none ml-0.5">
-                              {item.ecodigo}
-                            </span>
-
-                            <span className="inline-block px-3 py-1 rounded-md bg-[#d93025]/15 border border-[#d93025]/30 text-[#d93025] font-mono text-[15px] font-bold tracking-wider shadow-sm backdrop-blur-sm break-all">
-                              {item.eidUnico}
-                            </span>
-                          </div>
+                      <tr key={item.eidUnico || idx}>
+                        <td>
+                          <div className="ge-code">{item.ecodigo}</div>
+                          <span className="ge-id-chip">{item.eidUnico}</span>
                         </td>
-
-                        {/* DESCRIPCIÓN */}
-                        <td className="px-6 py-4 text-center">
-                          <span className="text-[20px] font-medium text-[#3c4043] leading-tight block uppercase">
-                            {item.edescripcion}
-                          </span>
+                        <td><span className="ge-desc">{item.edescripcion}</span></td>
+                        <td>
+                          <div className="ge-mono ge-balance">{formatearNumero_(item.esaldo || 0, Number(item.esaldo || 0) % 1 ? 2 : 0)}</div>
+                          <div className="ge-sub">Unidades disp.</div>
                         </td>
-
-                        {/* BALANCE */}
-                        <td className="px-8 py-6 text-center">
-                          <div className="inline-flex flex-col items-end">
-                            <span className="text-[20px] font-black text-[#1c1d1f]">
-                              {item.esaldo || 0}
-                            </span>
-                            <span className="text-[15px] font-bold uppercase text-[#9aa0a6] tracking-tighter">
-                              Unidades Disp.
-                            </span>
-                          </div>
+                        <td>
+                          <div className="ge-mono">{item.eserie || "SIN UBICACIÓN"}</div>
+                          <div className="ge-sub">{obtenerNombreBodega(item)}</div>
                         </td>
-
-                        {/* UBICACIÓN */}
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex flex-col items-center">
-                            <span className="text-[20px] text-[#5f6368] font-medium bg-gray-100 px-3 py-0.5 rounded-lg mb-1">
-                              {item.eserie || "Sin ubicación"}
-                            </span>
-
-                            <span className="text-[18px] font-bold text-[#1c1d1f]">
-                              {obtenerNombreBodega(item)}
-                            </span>
-                          </div>
+                        <td>
+                          <span className={"ge-chip " + toneOf(badge)}>{badge.texto}</span>
+                          <div className="ge-sub">{item.estatusRegistro || "Sin dato"}</div>
                         </td>
-
-                        {/* ESTADO */}
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex flex-col items-center gap-2">
-                            <span className={`px-3 py-1.5 rounded-lg text-[12px] font-black uppercase tracking-wide ${badge.clase}`}>
-                              {badge.texto}
-                            </span>
-
-                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
-                              {item.estatusRegistro || "Sin dato"}
-                            </span>
-                          </div>
-                        </td>
-
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-              </div>
 
               {!loading && datosFiltrados.length === 0 && (
-                <div className="p-20 flex flex-col items-center justify-center text-center">
-                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-4">
-                    <LocalIcon name="search-x" size={28} />
-                  </div>
-
-                  <span className="text-[13px] font-black uppercase tracking-widest text-[#5f6368]">
-                    Sin resultados para los filtros actuales
-                  </span>
-
-                  <span className="text-[11px] mt-2 text-slate-400 font-semibold">
-                    Ajusta la búsqueda o cambia la segmentación de bodega.
-                  </span>
+                <div className="ge-empty">
+                  <LocalIcon name="search-x" size={28} />
+                  <b>Sin resultados para los filtros actuales</b>
+                  <span>Ajusta la búsqueda o cambia la segmentación de bodega.</span>
                 </div>
               )}
 
-              {loading && (
-                <div className="p-20 flex flex-col items-center text-[#d93025]">
-                  <LocalIcon name="loader-2" size={40} className="animate-spin mb-2" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-[#5f6368]">
-                    Sincronizando...
-                  </span>
+              {loading && datosFiltrados.length === 0 && (
+                <div className="ge-empty">
+                  <div className="ge-spinner" />
+                  <b>Sincronizando...</b>
                 </div>
               )}
             </div>
@@ -1811,4 +1609,86 @@
     position: relative;
     z-index: 40;
   }
+  /* =========================================================
+     6. SISTEMA VISUAL OPERATIVO (mismo de ReabastecimientoDetalles)
+     ---------------------------------------------------------
+     Workspace de altura completa, encabezado oscuro con barra
+     roja, métricas blancas, tabla con encabezado oscuro fijo y
+     chips de estado. Los tokens toman los colores del tema del
+     Shell cuando existen.
+     ========================================================= */
+  #vista-excedentes-root{--c:var(--primary,#d93025);--ok:#1e8e3e;--warn:#d97706;--ink:var(--text-main,#1c1d1f);--muted:var(--text-secondary,#5f6368);--border:var(--border-color,#dadce0);color:var(--ink)}
+  #vista-excedentes-root *{box-sizing:border-box}
+  #vista-excedentes-root .ge-page{height:100%;padding:16px 24px 24px;overflow:hidden;background:radial-gradient(circle at top right,rgba(217,48,37,.055),transparent 34%),var(--bg-color,#f8f9fa)}
+  #vista-excedentes-root .ge-workspace{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid var(--border);border-radius:22px;box-shadow:0 24px 60px rgba(15,23,42,.11),0 6px 18px rgba(15,23,42,.05)}
+  #vista-excedentes-root .ge-header{flex:0 0 auto;position:relative;z-index:40;padding:18px 18px 18px 22px;display:grid;grid-template-columns:minmax(260px,1fr) minmax(480px,1.8fr) auto;align-items:center;gap:16px;color:#fff;background:radial-gradient(circle at top right,rgba(217,48,37,.35),transparent 38%),linear-gradient(135deg,#1c1d1f,#25272b 55%,#17181a);border-radius:22px 22px 0 0}
+  #vista-excedentes-root .ge-header:before{content:"";position:absolute;inset:0 auto 0 0;width:7px;background:var(--c);border-radius:22px 0 0 0}
+  #vista-excedentes-root .ge-id{position:relative;z-index:2;min-width:0;display:flex;align-items:center;gap:12px}
+  #vista-excedentes-root .ge-badge{width:46px;height:46px;flex:0 0 46px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.16);border-radius:15px;background:rgba(255,255,255,.09)}
+  #vista-excedentes-root .ge-copy{min-width:0}
+  #vista-excedentes-root .ge-eyebrow{margin:0 0 4px;color:rgba(255,255,255,.55);font-size:9px;font-weight:950;letter-spacing:.16em;text-transform:uppercase}
+  #vista-excedentes-root .ge-title{margin:0;font:950 21px/1.15 "JetBrains Mono",monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #vista-excedentes-root .ge-description{margin:6px 0 0;color:rgba(255,255,255,.65);font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+  #vista-excedentes-root .ge-metrics{position:relative;z-index:2;display:grid;grid-template-columns:repeat(5,minmax(80px,1fr));overflow:hidden;background:rgba(255,255,255,.96);border-radius:15px;box-shadow:0 12px 30px rgba(0,0,0,.13)}
+  #vista-excedentes-root .ge-metric{min-width:0;min-height:67px;padding:12px 11px 10px;display:flex;flex-direction:column;justify-content:center;gap:6px;position:relative;color:var(--ink);border-right:1px solid var(--border)}
+  #vista-excedentes-root .ge-metric:last-child{border-right:0}
+  #vista-excedentes-root .ge-metric:before{content:"";position:absolute;top:0;left:10px;right:10px;height:4px;border-radius:0 0 999px 999px;background:#1c1d1f}
+  #vista-excedentes-root .ge-metric.ok:before{background:var(--ok)}
+  #vista-excedentes-root .ge-metric.warn:before{background:var(--warn)}
+  #vista-excedentes-root .ge-metric.bad:before{background:var(--c)}
+  #vista-excedentes-root .ge-metric-value{font-size:20px;font-weight:950;line-height:1;white-space:nowrap}
+  #vista-excedentes-root .ge-metric-label{color:var(--muted);font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+  #vista-excedentes-root .ge-track{height:4px;background:#e2e5e9;border-radius:99px;overflow:hidden}
+  #vista-excedentes-root .ge-bar{height:100%;border-radius:99px;background:var(--c);transition:.3s}
+  #vista-excedentes-root .ge-actions{position:relative;z-index:3;display:flex;gap:8px}
+  #vista-excedentes-root .ge-action{min-height:44px;padding:0 14px;display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.16);border-radius:13px;background:rgba(255,255,255,.09);color:#fff;font-size:9px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+  #vista-excedentes-root .ge-action.primary,#vista-excedentes-root .ge-action.active{border-color:var(--c);background:var(--c)}
+  #vista-excedentes-root .ge-action:disabled{opacity:.45;pointer-events:none}
+  #vista-excedentes-root .ge-export{position:relative}
+  #vista-excedentes-root .ge-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:60;width:340px;max-height:380px;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);border-radius:16px;background:#fff;color:var(--ink);box-shadow:0 24px 60px rgba(15,23,42,.2)}
+  #vista-excedentes-root .ge-menu-head{padding:12px 14px;display:flex;flex-direction:column;gap:3px;border-bottom:1px solid var(--border);background:#f8f9fa}
+  #vista-excedentes-root .ge-kicker{color:var(--c);font-size:8px;font-weight:950;letter-spacing:.14em;text-transform:uppercase}
+  #vista-excedentes-root .ge-menu-sub{color:var(--muted);font-size:10px;font-weight:700}
+  #vista-excedentes-root .ge-menu-scroll{overflow:auto}
+  #vista-excedentes-root .ge-menu-section{padding:10px 12px;display:flex;flex-direction:column;gap:5px;border-bottom:1px solid #eef1f4}
+  #vista-excedentes-root .ge-menu-title{display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:9px;font-weight:950;letter-spacing:.12em;text-transform:uppercase}
+  #vista-excedentes-root .ge-menu-item{min-height:34px;padding:0 10px;display:flex;align-items:center;justify-content:space-between;border:1px solid transparent;border-radius:10px;background:#fff;color:var(--ink);font-size:10px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;text-align:left;cursor:pointer}
+  #vista-excedentes-root .ge-menu-item:hover{border-color:rgba(217,48,37,.2);background:#fff8f7}
+  #vista-excedentes-root .ge-menu-item.mono{font-family:"JetBrains Mono",monospace}
+  #vista-excedentes-root .ge-menu-empty{padding:8px 10px;border-radius:10px;background:#f8f9fa;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.08em;text-align:center;text-transform:uppercase}
+  #vista-excedentes-root .ge-toolbar{flex:0 0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#fff,#f8f9fa)}
+  #vista-excedentes-root .ge-search{position:relative;flex:0 1 380px;min-width:240px;display:flex;align-items:center;color:var(--muted)}
+  #vista-excedentes-root .ge-search-icon{position:absolute;left:12px;display:flex;pointer-events:none}
+  #vista-excedentes-root .ge-input{width:100%;min-height:42px;padding:0 38px;border:1px solid var(--border);border-radius:11px;outline:none;background:#fff;color:var(--ink);font-size:12px;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
+  #vista-excedentes-root .ge-input:focus{border-color:var(--c);box-shadow:0 0 0 4px rgba(217,48,37,.1)}
+  #vista-excedentes-root .ge-input-sm{min-height:34px;padding:0 10px;font-size:10px}
+  #vista-excedentes-root .ge-clear{position:absolute;right:8px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:0;border-radius:50%;background:#eef1f4;color:var(--muted);cursor:pointer}
+  #vista-excedentes-root .ge-segments{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 auto}
+  #vista-excedentes-root .ge-segment{min-height:34px;padding:0 12px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--muted);font-size:10px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:.2s}
+  #vista-excedentes-root .ge-segment:hover{color:var(--ink);background:#f8f9fa}
+  #vista-excedentes-root .ge-segment.active{border-color:#1c1d1f;background:#1c1d1f;color:#fff;box-shadow:inset 0 -3px 0 var(--c)}
+  #vista-excedentes-root .ge-count{margin-left:auto;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+  #vista-excedentes-root .ge-table-wrap{flex:1 1 auto;min-height:0;overflow:auto;background:linear-gradient(180deg,#fff,#fcfcfd)}
+  #vista-excedentes-root .ge-table{width:100%;min-width:1100px;border-collapse:separate;border-spacing:0}
+  #vista-excedentes-root .ge-table th{position:sticky;top:0;z-index:5;height:52px;padding:0 16px;background:linear-gradient(180deg,#25272b,#1c1d1f);color:rgba(255,255,255,.78);border-right:1px solid rgba(255,255,255,.07);border-bottom:3px solid var(--c);font-size:11px;font-weight:950;letter-spacing:.11em;text-align:left;text-transform:uppercase;white-space:nowrap}
+  #vista-excedentes-root .ge-table td{padding:14px 16px;border-right:1px solid #f3f4f6;border-bottom:1px solid #eef1f4;background:#fff;font-size:14px;line-height:1.4;vertical-align:middle}
+  #vista-excedentes-root .ge-table tbody tr:nth-child(even) td{background:#fcfcfd}
+  #vista-excedentes-root .ge-table tbody tr:hover td{background:#fff8f7}
+  #vista-excedentes-root .ge-table tbody tr:hover td:first-child{box-shadow:inset 5px 0 0 var(--c)}
+  #vista-excedentes-root .ge-code{font-size:16px;font-weight:950}
+  #vista-excedentes-root .ge-id-chip{display:inline-block;margin-top:5px;padding:3px 9px;border:1px solid rgba(217,48,37,.25);border-radius:8px;background:rgba(217,48,37,.1);color:#a50e0e;font:900 13px "JetBrains Mono",monospace;letter-spacing:.04em;word-break:break-all}
+  #vista-excedentes-root .ge-desc{font-size:14px;font-weight:700;color:#3c4043;text-transform:uppercase}
+  #vista-excedentes-root .ge-mono{font:950 14px "JetBrains Mono",monospace}
+  #vista-excedentes-root .ge-balance{font-size:18px}
+  #vista-excedentes-root .ge-sub{margin-top:4px;color:var(--muted);font-size:10px;font-weight:850;text-transform:uppercase}
+  #vista-excedentes-root .ge-chip{min-height:27px;padding:0 10px;display:inline-flex;align-items:center;border:1px solid transparent;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}
+  #vista-excedentes-root .ge-chip.green{background:rgba(30,142,62,.13);color:#157337;border-color:rgba(30,142,62,.22)}
+  #vista-excedentes-root .ge-chip.amber{background:rgba(217,119,6,.13);color:#b45309;border-color:rgba(217,119,6,.22)}
+  #vista-excedentes-root .ge-chip.slate{background:rgba(28,29,31,.07);color:#4b5563;border-color:rgba(28,29,31,.12)}
+  #vista-excedentes-root .ge-empty{min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#9ca3af;text-align:center;font-size:11px;font-weight:800}
+  #vista-excedentes-root .ge-empty b{color:var(--muted);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+  #vista-excedentes-root .ge-spinner{width:38px;height:38px;border:4px solid #eef1f4;border-top-color:var(--c);border-radius:50%;animation:geSpin .8s linear infinite}
+  @keyframes geSpin{to{transform:rotate(360deg)}}
+  @media(max-width:1280px){#vista-excedentes-root .ge-header{grid-template-columns:1fr auto}#vista-excedentes-root .ge-metrics{grid-column:1/-1;grid-row:2}}
+  @media(max-width:760px){#vista-excedentes-root .ge-page{padding:8px}#vista-excedentes-root .ge-header{display:flex;flex-direction:column;align-items:stretch}#vista-excedentes-root .ge-metrics{grid-template-columns:repeat(2,1fr)}#vista-excedentes-root .ge-count{margin-left:0}}
 </style>

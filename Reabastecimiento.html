@@ -737,7 +737,9 @@
             pendingRefreshRef.current = null;
             if (pending) refresh(pending.context, pending.confirmationAttempt);
           })
-          .ReabastecimientoController_getSolicitudes({});
+          // "Actualizar" (manual) lee las hojas aunque haya copia en caché, para
+          // reflejar al instante ediciones hechas directamente en la hoja.
+          .ReabastecimientoController_getSolicitudes(context === "manual" ? { forceRefresh: true } : {});
       }, [scheduleConfirmationRetry_]);
       useEffect(() => {
         const forceRefresh =

@@ -63,7 +63,7 @@
  */
 const APPALMACEN_RENDIMIENTO = Object.freeze({
   /** ◀◀◀ SWITCH: true = registrar rendimiento · false = no registrar ▶▶▶ */
-  ENABLED: true,
+  ENABLED: false,
 
   /** Clave en SHEETS de la hoja donde se guardan los eventos. */
   SHEET_KEY: "APPALMACEN_RENDIMIENTO",
@@ -92,7 +92,11 @@ const APPALMACEN_RENDIMIENTO = Object.freeze({
     EXCLUDED_METHOD_PREFIXES: Object.freeze([
       "APPALMACEN_invocarMedido",
       "APPALMACENRendimiento_",
-      "ReabastecimientoController_"
+      "ReabastecimientoController_",
+      // Devuelve su propio desglose (metadata.perf), igual que Reabastecimiento.
+      "AdminExcedentesController_",
+      // Codificación de UBICACIONES_SURTIDO: mismo sobre con metadata.perf.
+      "UbicacionesSurtidoController_"
     ])
   }),
 
@@ -120,11 +124,28 @@ const APPALMACEN_RENDIMIENTO = Object.freeze({
  * @enum {string}
  */
 const FILES = Object.freeze({
+  /** Nombre: APPALMACEN1 
+   *  Link: https://docs.google.com/spreadsheets/d/1xPMnPg_-m7yQQoMq6ku1iwyXRlZC-RjypGpC_2gv4xE/edit?gid=56108103#gid=56108103 */
   GESTION1: "1xPMnPg_-m7yQQoMq6ku1iwyXRlZC-RjypGpC_2gv4xE",
+
+  /** Nombre: APPALMACEN2
+   *  Link: https://docs.google.com/spreadsheets/d/1hXRyADfhVn_teWydRvCisNBEQnqh6U-9wue9A5_zpeo/edit?gid=0#gid=0 */  
   GESTION2: "1hXRyADfhVn_teWydRvCisNBEQnqh6U-9wue9A5_zpeo",
+
+  /** Nombre: APPALMACEN3
+   *  Link: https://docs.google.com/spreadsheets/d/102KnS9dsTzVxr3XX983MopCGpaGmST9ccf0n_KhYbqc/edit?gid=0#gid=0 */
   GESTION3: "102KnS9dsTzVxr3XX983MopCGpaGmST9ccf0n_KhYbqc",
+
+  /** Nombre: APPALMACEN4
+   *  Link: https://docs.google.com/spreadsheets/d/1PI4JkHcIl6mHKM9uCtolBGx0olIYdGhZO-ao3_QaT4Q/edit?gid=814293331#gid=814293331 */
   GESTION4: "1PI4JkHcIl6mHKM9uCtolBGx0olIYdGhZO-ao3_QaT4Q",
+
+  /** Nombre: APPALMACEN5
+   *  Link: https://docs.google.com/spreadsheets/d/1_L_Ur3szSFcJX0Z1gxZpSNXSDoBiJDrV7uJaDuZlOTU/edit?gid=2008264992#gid=2008264992 */
   GESTION5: "1_L_Ur3szSFcJX0Z1gxZpSNXSDoBiJDrV7uJaDuZlOTU",
+
+  /** Nombre: PEDIDOS 2026
+   *  Link: https://docs.google.com/spreadsheets/d/1PJh2JaMH2FVDNOzZ7vTcKlFSJ48R5rYGjsF_HyjMWO0/edit?gid=177457208#gid=177457208 */
   PEDIDOS: "1PJh2JaMH2FVDNOzZ7vTcKlFSJ48R5rYGjsF_HyjMWO0"
 });
 
@@ -197,6 +218,26 @@ const SHEETS = Object.freeze({
   APPALMACEN_RENDIMIENTO: Object.freeze({
     file: "GESTION5",
     name: "APPALMACEN_RENDIMIENTO"
+  }),
+  /**
+   * Bitácora de la Administración de estados de excedentes. Cada cambio
+   * guarda quién, cuándo, por qué y el respaldo completo de lo que se
+   * modificó o vació. La hoja se crea sola si no existe.
+   */
+  ADMIN_EXCEDENTES_BITACORA: Object.freeze({
+    file: "GESTION5",
+    name: "ADMIN_EXCEDENTES_BITACORA"
+  }),
+  /**
+   * Catálogo maestro de áreas de suministro (APPALMACEN4 → UBICACIONES).
+   * Un renglón por bodega + área de suministro + nivel, con su DIRECCION
+   * (p. ej. "BIR/ALM/B1/P2/N03"). Es la fuente de los valores elegibles en la
+   * vista de codificación de UBICACIONES_SURTIDO. No confundir con
+   * UBICACIONES_EXCEDENTES (GESTION1 → UBICACIONES).
+   */
+  UBICACIONES_AREAS_SUMINISTRO: Object.freeze({
+    file: "GESTION4",
+    name: "UBICACIONES"
   })
 });
 
@@ -506,6 +547,181 @@ const REABASTECIMIENTO_RENDIMIENTO_HEADERS = Object.freeze([
 /** Encabezados de la bitácora unificada APPALMACEN_RENDIMIENTO (mismo formato). */
 const APPALMACEN_RENDIMIENTO_HEADERS = REABASTECIMIENTO_RENDIMIENTO_HEADERS;
 
+// ============================================================================
+// CODIFICACIÓN DE UBICACIONES_SURTIDO
+// ============================================================================
+//
+// Vista CodificacionUbicacionesSurtido: asigna a cada producto de
+// UBICACIONES_SURTIDO su ubicación detallada usando el catálogo de áreas de
+// suministro de APPALMACEN4 (hoja UBICACIONES):
+//
+//   Columna UBICACIONES_SURTIDO   Valor que se escribe
+//   ───────────────────────────   ─────────────────────────────────────────────
+//   BODEGA_CLAVE                  Clave de la bodega elegida (B1, B2, B3, MOS)
+//   AREASUMINISTRO_CLAVE          Área de suministro (P2, RMAD01, EXC01, ...)
+//   NIVEL                         Número de nivel (1, 2, ...), como en UBICACIONES
+//   BIN                           Consecutivo dentro del nivel (1..BIN_MAX)
+//   AREADESUMINISTRO              Código completo: DIRECCION + "/" + BIN
+//                                 p. ej. "BIR/ALM/B1/P2/N03/B04"
+//
+// Segmentación del listado (ubicación preliminar ya existente):
+//   ZONA  → bodega (ZONA_POR_BODEGA_CLAVE) y PASILLO → área "P" + pasillo.
+
+/** Encabezados que la codificación administra en UBICACIONES_SURTIDO. */
+const UBICACIONES_SURTIDO_CODIFICACION_HEADERS = Object.freeze({
+  /** Encabezados de la ubicación preliminar (deben existir). */
+  REQUERIDOS: Object.freeze(["CODIGO", "ZONA", "PASILLO", "UBICACION"]),
+  /** Columnas de captura; las faltantes se agregan al final al guardar. */
+  CAPTURA: Object.freeze(["BODEGA_CLAVE", "AREASUMINISTRO_CLAVE", "NIVEL", "AREADESUMINISTRO", "BIN"]),
+  /** Encabezados opcionales que solo se muestran si existen. */
+  OPCIONALES: Object.freeze(["IDUBICACION", "IDPRODUCTO", "ANAQUEL", "REPISA"])
+});
+
+const UBICACIONES_SURTIDO_CODIFICACION_CONFIG = Object.freeze({
+  VERSION: "UBICACIONES-SURTIDO-CODIFICACION-2026-11-20-01",
+  SURTIDO_SHEET_KEY: "UBICACIONES_SURTIDO",
+  CATALOGO_SHEET_KEY: "UBICACIONES_AREAS_SUMINISTRO",
+
+  /**
+   * ZONA de UBICACIONES_SURTIDO que corresponde a cada BODEGA_CLAVE del
+   * catálogo. Definido por almacén: 1 = Bodega 1, 2 = Bodega 2,
+   * 3 = Bodega 3, 4 = Mostrador, 5 = Cuarto alto valor.
+   * Una bodega del catálogo sin ZONA aquí no muestra filas por codificar.
+   */
+  ZONA_POR_BODEGA_CLAVE: Object.freeze({ B1: "1", B2: "2", B3: "3", MOS: "4", CU: "5" }),
+
+  /** Prefijo del área de suministro que corresponde a un PASILLO numérico. */
+  PREFIJO_AREA_PASILLO: "P",
+
+  /** BIN: consecutivo dentro del nivel y su forma en el código. */
+  BIN_MIN: 1,
+  BIN_MAX: 99,
+  BIN_PREFIJO: "B",
+  BIN_DIGITOS: 2,
+
+  /** Máximo de filas por guardado (una llamada). */
+  MAX_FILAS_POR_GUARDADO: 300,
+  LOCK_TIMEOUT_MS: 30000,
+
+  /** Caché del catálogo de UBICACIONES y de descripciones (segundos). */
+  CATALOGO_CACHE_KEY: "APPALMACEN_UBICSURT_CATALOGO_V1",
+  DESCRIPCIONES_CACHE_KEY: "APPALMACEN_UBICSURT_DESCRIPCIONES_V1",
+  CACHE_TTL_SECONDS: 600,
+
+  /** Segmento de filas sin PASILLO dentro de la ZONA de la bodega. */
+  SEGMENTO_SIN_PASILLO: "SIN_PASILLO",
+
+  ERROR_CODES: Object.freeze({
+    PAYLOAD_INVALIDO: "UBICSURT_PAYLOAD_INVALIDO",
+    BODEGA_INVALIDA: "UBICSURT_BODEGA_INVALIDA",
+    AREA_INVALIDA: "UBICSURT_AREA_INVALIDA",
+    NIVEL_INVALIDO: "UBICSURT_NIVEL_INVALIDO",
+    BIN_INVALIDO: "UBICSURT_BIN_INVALIDO",
+    FILA_CAMBIO: "UBICSURT_FILA_CAMBIO",
+    LIMITE_FILAS: "UBICSURT_LIMITE_FILAS",
+    ERROR_INTERNO: "UBICSURT_ERROR_INTERNO"
+  })
+});
+
+// ============================================================================
+// ADMINISTRACIÓN DE ESTADOS DE EXCEDENTES (IDUNICO)
+// ============================================================================
+//
+// Vista AdministracionExcedentes: corrige el estado de una etiqueta deshaciendo
+// movimientos de Bitacora-TRASPASOS con todo lo que cada movimiento escribió
+// (EXISTENCIAS, BITACORA-SINCRONIZACION-EXISTENCIAS, STATUS en BD-EXCEDENTES y,
+// si el surtido vino de Reabastecimiento, el detalle del folio).
+//
+// CONTRASEÑA
+// - Se guarda solo su huella SHA-256 (nunca el texto). Para cambiarla, calcula
+//   la huella de la contraseña nueva y reemplaza PASSWORD_SHA256:
+//     Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, "nueva",
+//       Utilities.Charset.UTF_8)  → bytes → hexadecimal en minúsculas.
+// - Se pide para ENTRAR a la vista y otra vez para APLICAR cada cambio.
+// - Prototipo: para producción conviene moverla a PropertiesService.
+
+/** Encabezados de la hoja ADMIN_EXCEDENTES_BITACORA (orden físico). */
+const ADMIN_EXCEDENTES_BITACORA_HEADERS = Object.freeze([
+  "FECHA",
+  "HORA",
+  "RESPONSABLE",
+  "CORREO",
+  "ACCION",
+  "IDUNICO",
+  "CODIGO",
+  "STATUS_ANTERIOR",
+  "STATUS_NUEVO",
+  "SALDO_ANTERIOR",
+  "SALDO_NUEVO",
+  "MOVIMIENTOS_REVERTIDOS",
+  "EXISTENCIAS_AJUSTADAS",
+  "REAB_DETALLES_ELIMINADOS",
+  "MOTIVO",
+  "ADVERTENCIAS",
+  "RESPALDO_JSON"
+]);
+
+const ADMIN_EXCEDENTES_CONFIG = Object.freeze({
+  /** Huella SHA-256 (hex) de la contraseña de administración. */
+  PASSWORD_SHA256: "cfd74c9633ee89128198237084c87c2aa57299b6dfc0da72c9b1c68b202ac257",
+
+  /** Sesión de la vista: el token vence tras este tiempo sin uso. */
+  TOKEN_TTL_SECONDS: 1800,
+  TOKEN_CACHE_PREFIX: "APPALMACEN_ADMINEXC_TOKEN_",
+
+  /** Bloqueo por intentos fallidos (por usuario de Apps Script). */
+  MAX_FAILED_ATTEMPTS: 5,
+  LOCKOUT_SECONDS: 900,
+  FAIL_CACHE_PREFIX: "APPALMACEN_ADMINEXC_FAIL_",
+
+  /** Espera máxima por el ScriptLock de inventario. */
+  LOCK_TIMEOUT_MS: 30000,
+
+  /** Límites de captura. */
+  MOTIVO_MIN_LENGTH: 10,
+  MOTIVO_MAX_LENGTH: 500,
+  MAX_INCONSISTENCIAS: 500,
+  MAX_JSON_CELL_CHARS: 45000,
+
+  /**
+   * Acciones disponibles. Todas deshacen movimientos del más reciente hacia
+   * atrás (nunca uno intermedio), de modo que el historial restante siempre
+   * es coherente.
+   */
+  ACCIONES: Object.freeze({
+    DESHACER_ULTIMO: "DESHACER_ULTIMO",
+    VOLVER_ACOMODADO: "VOLVER_ACOMODADO",
+    VOLVER_DISPONIBLE: "VOLVER_DISPONIBLE",
+    SINCRONIZAR_STATUS: "SINCRONIZAR_STATUS"
+  }),
+
+  /** STATUS que administra esta herramienta en BD-EXCEDENTES. */
+  STATUS: Object.freeze({
+    DISPONIBLE: "DISPONIBLE",
+    ACOMODADO: "ACOMODADO",
+    PARCIAL: "PARCIAL",
+    SURTIDO: "SURTIDO"
+  }),
+
+  /** Marca que se antepone a la clave de idempotencia revertida. */
+  SYNC_REVERTED_PREFIX: "REVERTIDO",
+  SYNC_REVERTED_RESULT: "REVERTIDO",
+
+  ERROR_CODES: Object.freeze({
+    PASSWORD_INVALIDA: "ADMEXC_PASSWORD_INVALIDA",
+    BLOQUEADO: "ADMEXC_BLOQUEADO",
+    SESION_INVALIDA: "ADMEXC_SESION_INVALIDA",
+    PAYLOAD_INVALIDO: "ADMEXC_PAYLOAD_INVALIDO",
+    IDUNICO_NO_ENCONTRADO: "ADMEXC_IDUNICO_NO_ENCONTRADO",
+    ACCION_INVALIDA: "ADMEXC_ACCION_INVALIDA",
+    ACCION_NO_APLICABLE: "ADMEXC_ACCION_NO_APLICABLE",
+    PLAN_CAMBIO: "ADMEXC_PLAN_CAMBIO",
+    MOTIVO_REQUERIDO: "ADMEXC_MOTIVO_REQUERIDO",
+    RESPONSABLE_REQUERIDO: "ADMEXC_RESPONSABLE_REQUERIDO",
+    ERROR_INTERNO: "ADMEXC_ERROR_INTERNO"
+  })
+});
+
 /**
  * Encabezados de extensión del proceso REABASTECIMIENTO-v1.
  *
@@ -711,19 +927,23 @@ const REABASTECIMIENTO_CONFIG = Object.freeze({
    * CacheService) y recargan datos únicamente cuando cambia.
    */
   REVISION: Object.freeze({
+    /** Histórico: la revisión ya no se guarda en ScriptProperties (fase 4). */
     PROPERTY_KEY: "APPALMACEN_REAB_REVISION",
-    CACHE_KEY: "APPALMACEN_REAB_REVISION",
+    /** Estado de revisión en CacheService (formato con revisión por hoja). */
+    CACHE_KEY: "APPALMACEN_REAB_REVISION_V2",
     CACHE_TTL_SECONDS: 21600,
     MAX_TRACKED_IDS: 120,
     /**
      * Copia de las hojas SOLICITUDES/PARTIDAS/DETALLES en CacheService,
      * válida solo para la revisión con la que se leyó. Toda escritura desde
      * la app incrementa la revisión, así que la copia nunca queda vieja frente
-     * a la app. Las ediciones manuales en la hoja se ven a más tardar en
-     * TABLE_CACHE_TTL_SECONDS.
+     * a la app. Quien escribe vuelve a publicar la copia con la revisión
+     * nueva (fase 4). Una copia nunca se sirve si sus datos se leyeron de la
+     * hoja hace más de TABLE_CACHE_TTL_SECONDS: las ediciones manuales se ven
+     * a más tardar en ese tiempo, o al instante con "Actualizar" del listado.
      */
-    TABLE_CACHE_PREFIX: "APPALMACEN_REAB_TABLE_V1_",
-    TABLE_CACHE_TTL_SECONDS: 60
+    TABLE_CACHE_PREFIX: "APPALMACEN_REAB_TABLE_V2_",
+    TABLE_CACHE_TTL_SECONDS: 600
   }),
   ERROR_CODES: Object.freeze({
     PAYLOAD_INVALIDO: "REAB_PAYLOAD_INVALIDO",
@@ -1441,7 +1661,9 @@ const APPALMACEN_ROUTING = Object.freeze({
     "MonitorReabastecimiento", "AuditoriaExcedentes", "AuditoriaExcedentesCaptura",
     "AuditoriaExcedentesDetalle", "PrototipoExcedentes", "FormularioDetallesProducto",
     "FormularioUbicacionesMaxMin", "Reabastecimiento",
-    "ReabastecimientoSolicitud", "ReabastecimientoDetalles"
+    "ReabastecimientoSolicitud", "ReabastecimientoDetalles",
+    "AdministracionExcedentes",
+    "CodificacionUbicacionesSurtido"
   ]),
   PRINT_PAGES: Object.freeze(["imprimir", "EtiquetaExcedentesImpresa"]),
   TEST_PAGE: "Pruebas",

@@ -1273,7 +1273,193 @@ const ExistenciasRepository = (() => {
   // API PUBLICA
   // =========================================================
 
+  // =========================================================
+  // ADMINISTRACIÓN: CONSULTA Y REVERSIÓN DE MOVIMIENTOS
+  // =========================================================
+  //
+  // La vista AdministracionExcedentes deshace movimientos de traspaso. Cada
+  // movimiento aplicado dejó dos huellas en este dominio:
+  //   1. EXISTENCIAS: la cantidad pasó de la columna de bodegaSalida a la de
+  //      bodegaEntrada en la fila del producto.
+  //   2. BITACORA-SINCRONIZACION-EXISTENCIAS: una fila con la clave de
+  //      idempotencia "idOperacion|idunico|tipo|codigo" y RESULTADO=APLICADO.
+  //
+  // Revertir significa: devolver la cantidad (bodegaEntrada → bodegaSalida) y
+  // marcar la fila de sincronización como REVERTIDO cambiando su clave. Al
+  // cambiar la clave, el mismo idOperacion podría volver a aplicarse en el
+  // futuro (por ejemplo, si se repite el surtido correcto).
+  //
+  // Ninguna de estas funciones adquiere el ScriptLock: el Service llamador
+  // debe tenerlo y confirmar la transacción completa.
+
+  /** Ancho de lectura de la bitácora de sincronización. @private */
+  function syncWidth_() {
+    return COL.SINCRONIZACION_EXISTENCIAS.RESULTADO + 1;
+  }
+
+  /** Convierte una fila de sincronización al contrato público. @private */
+  function normalizeSyncRow_(row, rowNumber) {
+    const C = COL.SINCRONIZACION_EXISTENCIAS;
+    const clave = toStr_(row[C.CLAVE]);
+    return {
+      rowNumber: rowNumber,
+      clave: clave,
+      idOperacion: clave.split("|")[0] || "",
+      idunico: toStr_(row[C.IDUNICO]),
+      tipomovimiento: toStrUpper_(row[C.TIPOMOVIMIENTO]),
+      idproducto: Number(row[C.IDPRODUCTO]) || 0,
+      codigo: toStrUpper_(row[C.CODIGO]),
+      bodegaSalida: toStrUpper_(row[C.BODEGA_SALIDA]),
+      bodegaEntrada: toStrUpper_(row[C.BODEGA_ENTRADA]),
+      cantidad: Math.abs(Number(row[C.CANTIDAD]) || 0),
+      fechaAplicacion: row[C.FECHA_APLICACION] instanceof Date ? row[C.FECHA_APLICACION].getTime() : 0,
+      resultado: toStrUpper_(row[C.RESULTADO])
+    };
+  }
+
+  /**
+   * Filas de BITACORA-SINCRONIZACION-EXISTENCIAS de un IDUNICO.
+   *
+   * Busca con TextFinder solo en la columna IDUNICO (celda completa) y lee las
+   * filas encontradas, en orden físico.
+   *
+   * @param {*} idunico Etiqueta.
+   * @return {!Array<!Object>} Filas normalizadas con rowNumber.
+   */
+  function getSyncRowsByIdUnico_(idunico) {
+    const token = toStr_(idunico);
+    if (!token) return [];
+    const sheet = getSheetByKey_(CFG.SYNC_KEY);
+    const lastRow = sheet.getLastRow();
+    if (lastRow < CFG.FIRST_DATA_ROW) return [];
+    const matches = sheet
+      .getRange(CFG.FIRST_DATA_ROW, COL.SINCRONIZACION_EXISTENCIAS.IDUNICO + 1, lastRow - CFG.HEADER_ROW, 1)
+      .createTextFinder(token)
+      .matchEntireCell(true)
+      .matchCase(false)
+      .findAll();
+    return matches
+      .map(function(cell) {
+        const rowNumber = cell.getRow();
+        return normalizeSyncRow_(sheet.getRange(rowNumber, 1, 1, syncWidth_()).getValues()[0], rowNumber);
+      })
+      .filter(function(item) { return toStrUpper_(item.idunico) === toStrUpper_(token); })
+      .sort(function(a, b) { return a.rowNumber - b.rowNumber; });
+  }
+
+  /**
+   * Revierte movimientos sincronizados. El llamador DEBE tener el ScriptLock.
+   *
+   * Para cada elemento:
+   * - Relee su fila de sincronización y exige que la clave y RESULTADO=APLICADO
+   *   sigan iguales (si alguien la cambió, se detiene todo con error).
+   * - Devuelve la cantidad en EXISTENCIAS (resta en bodegaEntrada, suma en
+   *   bodegaSalida) en la fila del producto.
+   * - Marca la fila: CLAVE = "REVERTIDO|<epochMs>|<clave original>" y
+   *   RESULTADO = "REVERTIDO".
+   *
+   * @param {!Array<{rowNumber:number, clave:string}>} items Filas a revertir.
+   * @param {Object=} trace Traza opcional.
+   * @return {!Array<!Object>} Cambios aplicados (valores antes/después).
+   */
+  function revertSyncMovements_(items, trace) {
+    const list = Array.isArray(items) ? items : [];
+    if (!list.length) return [];
+    const C = COL.SINCRONIZACION_EXISTENCIAS;
+    const syncSheet = getSheetByKey_(CFG.SYNC_KEY);
+    const reverted = typeof ADMIN_EXCEDENTES_CONFIG !== "undefined"
+      ? ADMIN_EXCEDENTES_CONFIG
+      : { SYNC_REVERTED_PREFIX: "REVERTIDO", SYNC_REVERTED_RESULT: "REVERTIDO" };
+
+    // 1. Revalidación de identidad de cada fila de sincronización.
+    const verified = list.map(function(item) {
+      const current = normalizeSyncRow_(
+        syncSheet.getRange(item.rowNumber, 1, 1, syncWidth_()).getValues()[0],
+        item.rowNumber
+      );
+      if (current.clave !== toStr_(item.clave) || current.resultado !== "APLICADO") {
+        throw new Error(
+          "La sincronización de la fila " + item.rowNumber + " cambió o ya fue revertida. Vuelve a consultar."
+        );
+      }
+      return current;
+    });
+
+    // 2. Existencias: lectura única de la matriz y cálculo de celdas.
+    const sheet = getSheet_();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) throw new Error("La hoja EXISTENCIAS esta vacia.");
+    const width = COL.EXISTENCIAS.EXCEDENTECASABLANCA + 1;
+    const values = sheet.getRange(2, 1, lastRow - 1, width).getValues();
+    const writes = new Map();
+    const changes = verified.map(function(sync) {
+      const source = resolveWarehouse_(sync.bodegaSalida);
+      const target = resolveWarehouse_(sync.bodegaEntrada);
+      const row = findExistenceRow_(values, sync.idproducto, sync.codigo);
+      const change = {
+        rowNumberSync: sync.rowNumber,
+        clave: sync.clave,
+        idunico: sync.idunico,
+        tipomovimiento: sync.tipomovimiento,
+        idproducto: sync.idproducto,
+        codigo: sync.codigo,
+        cantidad: sync.cantidad,
+        devolverA: sync.bodegaSalida,
+        retirarDe: sync.bodegaEntrada,
+        filaExistencias: row.rowNumber,
+        antes: {},
+        despues: {}
+      };
+      if (source.column !== target.column) {
+        const cells = values[row.arrayIndex];
+        const sourceBefore = Number(cells[source.column]) || 0;
+        const targetBefore = Number(cells[target.column]) || 0;
+        cells[source.column] = sourceBefore + sync.cantidad;
+        cells[target.column] = targetBefore - sync.cantidad;
+        change.antes[sync.bodegaSalida] = sourceBefore;
+        change.antes[sync.bodegaEntrada] = targetBefore;
+        change.despues[sync.bodegaSalida] = cells[source.column];
+        change.despues[sync.bodegaEntrada] = cells[target.column];
+        writes.set(row.rowNumber + "|" + source.column, { rowNumber: row.rowNumber, column: source.column, value: cells[source.column] });
+        writes.set(row.rowNumber + "|" + target.column, { rowNumber: row.rowNumber, column: target.column, value: cells[target.column] });
+      }
+      return change;
+    });
+
+    // 3. Escrituras: celdas de EXISTENCIAS y marcas de sincronización.
+    writes.forEach(function(write) {
+      sheet.getRange(write.rowNumber, sheetColumn_(write.column)).setValue(write.value);
+    });
+    const stamp = Date.now();
+    verified.forEach(function(sync) {
+      syncSheet.getRange(sync.rowNumber, C.CLAVE + 1).setValue(
+        [reverted.SYNC_REVERTED_PREFIX, stamp, sync.clave].join("|")
+      );
+      syncSheet.getRange(sync.rowNumber, C.RESULTADO + 1).setValue(reverted.SYNC_REVERTED_RESULT);
+    });
+    clearCache_();
+    // perfMark_ global: la traza viene del Service de administración.
+    perfMark_(trace, "EXISTENCIAS_REVERTED", {
+      movimientos: changes.length,
+      celdas: writes.size
+    });
+    return changes;
+  }
+
   return Object.freeze({
+    /** Filas de sincronización de un IDUNICO (Administración de excedentes). */
+    getSincronizacionesPorIdUnico: function (idunico) {
+      return getSyncRowsByIdUnico_(idunico);
+    },
+
+    /**
+     * Revierte movimientos sincronizados (Administración de excedentes).
+     * Requiere el ScriptLock del llamador. Ver revertSyncMovements_.
+     */
+    revertirMovimientosSincronizados: function (items, trace) {
+      return revertSyncMovements_(items, trace);
+    },
+
     /** Devuelve todas las existencias ordenadas por código. */
     getAll: function () {
       return getData_().map(copyItem_).sort((a, b) =>

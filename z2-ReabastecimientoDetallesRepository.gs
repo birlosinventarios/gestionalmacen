@@ -57,9 +57,9 @@ const ReabastecimientoDetallesRepository = (() => {
       persistentCache: {
         keyPrefix: REABASTECIMIENTO_CONFIG.REVISION.TABLE_CACHE_PREFIX,
         ttlSeconds: REABASTECIMIENTO_CONFIG.REVISION.TABLE_CACHE_TTL_SECONDS,
-        /** Revisión vigente de Reabastecimiento (null = no usar la copia). */
+        /** Revisión vigente de ESTA hoja (null = no usar la copia). */
         revision: function() {
-          return typeof reabRevisionRead_ === "function" ? reabRevisionRead_().r : null;
+          return typeof reabTableRevisionRead_ === "function" ? reabTableRevisionRead_(CFG.SHEET_KEY) : null;
         }
       }
     }
@@ -215,7 +215,7 @@ const ReabastecimientoDetallesRepository = (() => {
     const current = layout.get(trace, true);
     const row = buildRow_(source, current);
     const result = writeRowsBatch_(CFG.SHEET_KEY, [row], current.width, trace);
-    layout.markDirty();
+    layout.recordWrite(result.firstRow, [row]);
     // La fila nueva se agrega a la caché de la ejecución: el detalle que se
     // devuelve tras REGISTRAR no necesita releer la hoja.
     if (cache_ && result.written === 1 && result.firstRow) {
@@ -235,6 +235,40 @@ const ReabastecimientoDetallesRepository = (() => {
     return Object.keys(unique).length;
   }
 
+  /**
+   * Vacía la fila de un detalle (Administración de excedentes, al revertir un
+   * surtido que vino de Reabastecimiento). El Service DEBE tener el ScriptLock.
+   *
+   * Se vacía el contenido en lugar de eliminar la fila para no desplazar los
+   * números de fila que otras ejecuciones puedan tener en memoria. Las filas
+   * vacías se ignoran al leer (requieren ID_SOLICITUD e IDUNICO).
+   *
+   * @param {number} rowNumber Fila física del detalle.
+   * @param {{idSolicitud:string, idUnico:string, idOperacion?:string}} expected
+   *     Identidad esperada; si la fila ya no coincide, no se toca.
+   * @param {Object=} trace Traza opcional.
+   * @return {{cleared:boolean, respaldo:?Array<*>}} respaldo: valores previos.
+   */
+  function clearRowUnderLock(rowNumber, expected, trace) {
+    const sheetLayout = layout.get(trace, true);
+    const row = readRowAt_(CFG.SHEET_KEY, rowNumber, sheetLayout.width, trace);
+    if (!row) return { cleared: false, respaldo: null };
+    const sameRequest = toStrUpper_(layout.read(row, sheetLayout, H.idSolicitud)) === toStrUpper_(expected && expected.idSolicitud);
+    const sameBox = toStrUpper_(layout.read(row, sheetLayout, H.idUnico)) === toStrUpper_(expected && expected.idUnico);
+    const expectedOperation = toStr_(expected && expected.idOperacion);
+    const sameOperation = !expectedOperation || toStr_(layout.read(row, sheetLayout, H.idOperacion)) === expectedOperation;
+    if (!sameRequest || !sameBox || !sameOperation) {
+      throw new Error("El detalle de Reabastecimiento de la fila " + rowNumber + " cambió. Vuelve a consultar.");
+    }
+    const blank = layout.blankRow(sheetLayout);
+    writeRowAt_(CFG.SHEET_KEY, rowNumber, blank, sheetLayout.width, trace);
+    layout.recordWrite(rowNumber, [blank]);
+    if (cache_) {
+      cache_ = cache_.filter(function(item) { return item.numFila !== rowNumber; });
+    }
+    return { cleared: true, respaldo: row.slice() };
+  }
+
   function clearCache() {
     cache_ = null;
     layout.reset();
@@ -242,6 +276,16 @@ const ReabastecimientoDetallesRepository = (() => {
   }
 
   return Object.freeze({
+    /**
+     * Publicación de la copia en caché (fase 4). El Service, bajo el candado y
+     * después de subir la revisión, consulta hasPendingWrites() y llama
+     * publishSnapshot(revisionNueva). preferSheet() fuerza leer la hoja en la
+     * ejecución actual (botón "Actualizar" del listado).
+     */
+    sheetKey: CFG.SHEET_KEY,
+    hasPendingWrites: layout.isDirty,
+    publishSnapshot: layout.publish,
+    preferSheet: layout.preferSheet,
     getAll,
     getBySolicitud,
     getGroupedBySolicitud,
@@ -249,6 +293,7 @@ const ReabastecimientoDetallesRepository = (() => {
     hasIdUnicoInSolicitud,
     nextDetailConsecutiveUnderLock,
     appendUnderLock,
+    clearRowUnderLock,
     countUniqueBoxes,
     validateContract,
     clearCache

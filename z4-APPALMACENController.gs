@@ -76,6 +76,10 @@ var APPALMACEN_VISTAS_PERMITIDAS = Object.freeze([
   "ConciliacionSaldo",
   "VerificacionEntrada",
   "Reabastecimiento",
+  // Administración de estados de excedentes (acceso con contraseña).
+  "AdministracionExcedentes",
+  // Codificación de ubicaciones de surtido (catálogo de áreas de APPALMACEN4).
+  "CodificacionUbicacionesSurtido",
   // Vistas ocultas o utilizadas por navegación interna.
   "AuditoriaExcedentesDetalle",
   "AuditoriaExcedentesCaptura",

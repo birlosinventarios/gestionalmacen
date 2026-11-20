@@ -710,7 +710,61 @@ window.cargar_ReabastecimientoDetalles = () => {
         quantityRef.current?.focus();
         return;
       }
-      const trace = REAB.perf.begin("DETALLE_VALIDAR_ETIQUETA", { view: VIEW, type: "ACCION", idSolicitud: model.idSolicitud, meta: { partida: model.partida.idPartidaConsecutivo } });
+      /*
+       * VALIDACIÓN LOCAL (fase 4)
+       * El drawer ya trae, del servidor, las cajas surtibles de ESTE SKU que aún
+       * no se registraron en la solicitud (mismo filtro que el servidor: código,
+       * estatus ACOMODADO/PARCIAL, ubicación vigente, saldo > 0). Si la etiqueta
+       * escaneada está en esa lista, se valida al instante sin llamar al
+       * servidor (ahorra ≈3.9 s por caja según la bitácora del 20/11/2026).
+       *
+       * Seguridad: REGISTRAR vuelve a comprobar TODO bajo candado contra la hoja
+       * (saldo real, estatus, duplicidad). Si otro usuario surtió la caja
+       * mientras tanto, el rechazo llega al registrar con el mensaje exacto.
+       * Si la etiqueta NO está en la lista, se consulta al servidor para dar
+       * el motivo preciso (otro SKU, sin ubicación, inexistente, etc.).
+       */
+      const localBox = boxes.find((box) => up(box.idUnico) === up(token));
+      const alreadyScanned = done.some((box) => up(box.idUnico) === up(token));
+      if (localBox || alreadyScanned) {
+        const localTrace = REAB.perf.begin("DETALLE_VALIDAR_ETIQUETA", {
+          view: VIEW,
+          type: "ACCION",
+          idSolicitud: model.idSolicitud,
+          meta: { partida: model.partida.idPartidaConsecutivo, origen: "LOCAL" }
+        });
+        if (alreadyScanned) {
+          setValidation(null);
+          setQuantity("");
+          setIdUnico("");
+          setMessage({ text: "Rechazada: La etiqueta ya fue registrada en esta solicitud.", type: "error" });
+          localTrace.endAfterPaint("ok", { meta: { rechazada: true } });
+          setTimeout(() => scanRef.current?.focus(), 60);
+          return;
+        }
+        const saldo = num(localBox.cantidad);
+        setValidation({
+          valido: true,
+          origen: "LOCAL",
+          idUnico: str(localBox.idUnico),
+          codigo: up(model.partida.codigo),
+          descripcion: up(model.partida.descripcion),
+          cantidad: saldo,
+          saldoDisponible: saldo,
+          estatus: up(localBox.estatus) || "ACOMODADO",
+          bodega: up(localBox.bodegaExcedente),
+          ubicacion: up(localBox.ubicacionExcedente),
+          fechaExcedente: str(localBox.fechaExcedente),
+          diasAntiguedad: localBox.diasAntiguedad
+        });
+        setQuantity(String(saldo));
+        setMessage({ text: "Etiqueta válida. Confirma la cantidad a surtir y presiona REGISTRAR.", type: "success" });
+        localTrace.endAfterPaint("ok", { meta: { saldo } });
+        setTimeout(() => { quantityRef.current?.focus(); quantityRef.current?.select(); }, 60);
+        return;
+      }
+
+      const trace = REAB.perf.begin("DETALLE_VALIDAR_ETIQUETA", { view: VIEW, type: "ACCION", idSolicitud: model.idSolicitud, meta: { partida: model.partida.idPartidaConsecutivo, origen: "SERVIDOR" } });
       setBusy(true);
       try {
         const { data } = await REAB.rpc("ReabastecimientoController_validarIdUnico", {

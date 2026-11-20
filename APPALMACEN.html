@@ -1165,7 +1165,7 @@
         description: "Consulta existencias, ubicaciones y disponibilidad operativa",
         icon: "boxes",
         category: "Consultas",
-        header: { showIdentity: true },
+        header: { showIdentity: false },
         printing: { showControls: false }
       },
       {
@@ -1203,6 +1203,35 @@
         icon: "clipboard-check",
         category: "Auditorías",
         header: { showIdentity: true },
+        printing: { showControls: false }
+      },
+      /**
+       * Administración de estados de IDUNICO. La vista pide la contraseña de
+       * administración antes de mostrar datos; el servidor la vuelve a exigir
+       * para cada cambio (ver z3-AdminExcedentesService).
+       */
+      {
+        id: "AdministracionExcedentes",
+        fileName: "AdministracionExcedentes",
+        name: "Administración de excedentes",
+        description: "Corrige estados de IDUNICO revirtiendo movimientos con contraseña",
+        icon: "shield-check",
+        category: "Administración",
+        header: { showIdentity: false },
+        printing: { showControls: false }
+      },
+      /**
+       * Codificación detallada de UBICACIONES_SURTIDO: bodega, área de
+       * suministro, nivel y BIN con el catálogo de APPALMACEN4 → UBICACIONES.
+       */
+      {
+        id: "CodificacionUbicacionesSurtido",
+        fileName: "CodificacionUbicacionesSurtido",
+        name: "Codificación de ubicaciones",
+        description: "Asigna bodega, área de suministro, nivel y BIN a cada producto",
+        icon: "map-pinned",
+        category: "Catálogo",
+        header: { showIdentity: false },
         printing: { showControls: false }
       },
       {
