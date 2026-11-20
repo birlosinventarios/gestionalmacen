@@ -3,117 +3,201 @@
  *
  * @fileoverview Persistencia de cabeceras de solicitudes de Reabastecimiento.
  * Una fila representa un ticket. El estado operativo no se persiste; el Service
- * lo deriva a partir de las marcas de inicio y cierre.
+ * lo deriva a partir de marcas de inicio, cierre y el estado de sus partidas.
  *
  * Responsabilidades:
- * - Validar el contrato físico de REABASTECIMIENTO_SOLICITUDES.
+ * - Resolver dinámicamente las columnas de REABASTECIMIENTO_SOLICITUDES por
+ *   nombre de encabezado (fila 1). La posición física no es un contrato.
+ * - Agregar al final de la fila 1 los encabezados de extensión del proceso
+ *   REABASTECIMIENTO-v1 durante la primera escritura bajo ScriptLock.
  * - Normalizar filas físicas a objetos de dominio.
- * - Consultar solicitudes por folio y por fecha de creación.
- * - Calcular el siguiente consecutivo diario dentro de una transacción bloqueada.
- * - Insertar cabeceras y actualizar inicio o cierre bajo un lock externo.
- * - Mantener una caché local válida únicamente durante la ejecución actual.
+ * - Consultar solicitudes por folio y calcular el consecutivo diario.
+ * - Insertar cabeceras y actualizar campos de atención o cierre.
  *
  * Dependencias globales:
- * - REABASTECIMIENTO_CONFIG, REABASTECIMIENTO_HEADERS y
- *   REABASTECIMIENTO_EXPECTED_WIDTHS.
- * - COL y SHEETS.
- * - getSheetByKey_(), readSheetRows_(), readRowAt_(), writeRowsBatch_() y
- *   writeRowAt_().
- * - assertSheetContract_(), toStr_(), toStrUpper_(), toNum_(),
- *   padPositiveInteger_() y perfMark_().
+ * - REABASTECIMIENTO_CONFIG, REABASTECIMIENTO_HEADERS,
+ *   REABASTECIMIENTO_HEADERS_EXTENSION.
+ * - createHeaderLayoutAccessor_(), readSheetRows_(), readRowAt_(),
+ *   writeRowsBatch_(), writeRowAt_(), deleteRowsByTextColumnUnderLock_().
+ * - toStr_(), toStrUpper_(), toNum_(), padPositiveInteger_(),
+ *   buildReabastecimientoFolio_() y perfMark_().
  *
  * Política de concurrencia:
  * - Los métodos cuyo nombre termina en UnderLock no adquieren un candado.
- * - El Service debe ejecutar la transacción completa dentro de withScriptLock_().
- * - Esto permite escribir cabecera, partidas y detalles bajo un único ScriptLock.
+ * - El Service ejecuta la transacción completa dentro de withScriptLock_().
  *
  * Seguridad y observabilidad:
  * - No registra folios, códigos, ubicaciones, IDUNICO ni nombres de usuario.
- * - Las métricas contienen únicamente cantidades, índices y duraciones.
  * - El Repository no confía en números de fila proporcionados por el navegador.
+ *
  * @author Sigifredo de la Cruz Ramos
- * @version REAB-SOLICITUDES-REPOSITORY-2026-11-14-03
+ * @version REAB-SOLICITUDES-REPOSITORY-2026-11-19-01
  */
 const ReabastecimientoSolicitudesRepository = (() => {
   "use strict";
 
   const CFG = Object.freeze({
     SHEET_KEY: REABASTECIMIENTO_CONFIG.SHEET_KEYS.SOLICITUDES,
-    WIDTH: REABASTECIMIENTO_EXPECTED_WIDTHS.REABASTECIMIENTO_SOLICITUDES,
     FIRST_DATA_ROW: 2,
     LOG_PREFIX: "[ReabastecimientoSolicitudesRepository]"
   });
+
+  /** Nombre de encabezado por propiedad de dominio. */
+  const H = Object.freeze({
+    idSolicitud: "ID_SOLICITUD",
+    idSolicitudConsecutivo: "ID_SOLICITUDCONSECUTIVO",
+    fechaCreacion: "SOLICITUD_FECHACREACION",
+    horaCreacion: "SOLICITUD_HORACREACION",
+    solicitante: "SOLICITUD_SOLICITANTE",
+    bodega: "SOLICITUD_BODEGA",
+    skusSolicitados: "SOLICITUD_SKUSOLICITADOS",
+    fechaInicioAtencion: "SOLICITUD_FECHAINICIOATENCION",
+    horaInicioAtencion: "SOLICITUD_HORAINICIOATENCION",
+    fechaCierreAtencion: "SOLICITUD_FECHACIERREATENCION",
+    horaCierreAtencion: "SOLICITUD_HORACIERREATENCION",
+    cajasInvolucradas: "CAJASINVOLUCRADAS",
+    areaSuministro: "SOLICITUD_AREASUMINISTRO",
+    usuarioInicioAtencion: "SOLICITUD_USUARIOINICIOATENCION",
+    auxiliares: "SOLICITUD_AUXILIARES",
+    usuarioCierre: "SOLICITUD_USUARIOCIERRE",
+    cierreConPendientes: "SOLICITUD_CIERRECONPENDIENTES",
+    motivoCierre: "SOLICITUD_MOTIVOCIERRE"
+  });
+
+  /** Campos que admiten actualización posterior a la creación. */
+  const UPDATABLE = Object.freeze([
+    "fechaInicioAtencion",
+    "horaInicioAtencion",
+    "fechaCierreAtencion",
+    "horaCierreAtencion",
+    "cajasInvolucradas",
+    "usuarioInicioAtencion",
+    "auxiliares",
+    "usuarioCierre",
+    "cierreConPendientes",
+    "motivoCierre"
+  ]);
+
+  const layout = createHeaderLayoutAccessor_(
+    CFG.SHEET_KEY,
+    REABASTECIMIENTO_HEADERS.SOLICITUDES,
+    REABASTECIMIENTO_HEADERS_EXTENSION.SOLICITUDES,
+    {
+      persistentCache: {
+        keyPrefix: REABASTECIMIENTO_CONFIG.REVISION.TABLE_CACHE_PREFIX,
+        ttlSeconds: REABASTECIMIENTO_CONFIG.REVISION.TABLE_CACHE_TTL_SECONDS,
+        /** Revisión vigente de Reabastecimiento (null = no usar la copia). */
+        revision: function() {
+          return typeof reabRevisionRead_ === "function" ? reabRevisionRead_().r : null;
+        }
+      }
+    }
+  );
   let cache_ = null;
 
-  function validateDependencies_() {
-    if (!COL.REABASTECIMIENTO_SOLICITUDES) {
-      throw new Error(CFG.LOG_PREFIX + " Falta COL.REABASTECIMIENTO_SOLICITUDES.");
-    }
-    ["readSheetRows_", "readRowAt_", "writeRowsBatch_", "writeRowAt_",
-      "assertSheetContract_", "toStr_", "toStrUpper_", "toNum_",
-      "padPositiveInteger_", "buildReabastecimientoFolio_"]
-      .forEach(function(name) {
-        if (typeof globalThis[name] !== "function") {
-          throw new Error(CFG.LOG_PREFIX + " Falta la utilidad " + name + ".");
-        }
-      });
-  }
-
   function validateContract(trace) {
-    validateDependencies_();
-    return assertSheetContract_(
-      CFG.SHEET_KEY,
-      REABASTECIMIENTO_HEADERS.SOLICITUDES,
-      trace
-    );
-  }
-
-  function normalizeRow_(row, rowNumber) {
-    const c = COL.REABASTECIMIENTO_SOLICITUDES;
+    const current = layout.get(trace, false);
     return {
-      numFila: Number(rowNumber || 0),
-      idSolicitud: toStrUpper_(row[c.ID_SOLICITUD]),
-      idSolicitudConsecutivo: toStr_(row[c.ID_SOLICITUDCONSECUTIVO]),
-      fechaCreacion: row[c.SOLICITUD_FECHACREACION] || "",
-      horaCreacion: row[c.SOLICITUD_HORACREACION] || "",
-      solicitante: toStrUpper_(row[c.SOLICITUD_SOLICITANTE]),
-      bodega: toStrUpper_(row[c.SOLICITUD_BODEGA]),
-      skusSolicitados: toNum_(row[c.SOLICITUD_SKUSOLICITADOS]),
-      fechaInicioAtencion: row[c.SOLICITUD_FECHAINICIOATENCION] || "",
-      horaInicioAtencion: row[c.SOLICITUD_HORAINICIOATENCION] || "",
-      fechaCierreAtencion: row[c.SOLICITUD_FECHACIERREATENCION] || "",
-      horaCierreAtencion: row[c.SOLICITUD_HORACIERREATENCION] || "",
-      cajasInvolucradas: toNum_(row[c.CAJASINVOLUCRADAS])
+      sheetKey: CFG.SHEET_KEY,
+      width: current.width,
+      headersOk: true,
+      extensionesPendientes: current.missing.slice()
     };
   }
 
-  function buildRow_(record) {
-    const row = new Array(CFG.WIDTH).fill("");
-    const c = COL.REABASTECIMIENTO_SOLICITUDES;
-    row[c.ID_SOLICITUD] = toStrUpper_(record.idSolicitud);
-    row[c.ID_SOLICITUDCONSECUTIVO] = toStr_(record.idSolicitudConsecutivo);
-    row[c.SOLICITUD_FECHACREACION] = record.fechaCreacion || "";
-    row[c.SOLICITUD_HORACREACION] = record.horaCreacion || "";
-    row[c.SOLICITUD_SOLICITANTE] = toStrUpper_(record.solicitante);
-    row[c.SOLICITUD_BODEGA] = toStrUpper_(record.bodega);
-    row[c.SOLICITUD_SKUSOLICITADOS] = Math.floor(toNum_(record.skusSolicitados));
-    row[c.SOLICITUD_FECHAINICIOATENCION] = record.fechaInicioAtencion || "";
-    row[c.SOLICITUD_HORAINICIOATENCION] = record.horaInicioAtencion || "";
-    row[c.SOLICITUD_FECHACIERREATENCION] = record.fechaCierreAtencion || "";
-    row[c.SOLICITUD_HORACIERREATENCION] = record.horaCierreAtencion || "";
-    row[c.CAJASINVOLUCRADAS] = record.cajasInvolucradas === ""
-      ? ""
-      : Math.floor(toNum_(record.cajasInvolucradas));
+  function normalizeRow_(row, rowNumber, current) {
+    const read = function(field) { return layout.read(row, current, H[field]); };
+    return {
+      numFila: Number(rowNumber || 0),
+      idSolicitud: toStrUpper_(read("idSolicitud")),
+      idSolicitudConsecutivo: toStr_(read("idSolicitudConsecutivo")),
+      fechaCreacion: read("fechaCreacion") || "",
+      horaCreacion: read("horaCreacion") || "",
+      solicitante: toStrUpper_(read("solicitante")),
+      bodega: toStrUpper_(read("bodega")),
+      skusSolicitados: toNum_(read("skusSolicitados")),
+      fechaInicioAtencion: read("fechaInicioAtencion") || "",
+      horaInicioAtencion: read("horaInicioAtencion") || "",
+      fechaCierreAtencion: read("fechaCierreAtencion") || "",
+      horaCierreAtencion: read("horaCierreAtencion") || "",
+      cajasInvolucradas: toNum_(read("cajasInvolucradas")),
+      areaSuministro: toStrUpper_(read("areaSuministro")),
+      usuarioInicioAtencion: toStrUpper_(read("usuarioInicioAtencion")),
+      auxiliares: splitUsers_(read("auxiliares")),
+      usuarioCierre: toStrUpper_(read("usuarioCierre")),
+      cierreConPendientes: toStrUpper_(read("cierreConPendientes")) === "SI",
+      motivoCierre: toStr_(read("motivoCierre"))
+    };
+  }
+
+  /** Convierte la lista persistida de auxiliares en arreglo único. */
+  function splitUsers_(value) {
+    const seen = Object.create(null);
+    return toStr_(value)
+      .split(",")
+      .map(toStrUpper_)
+      .filter(function(name) {
+        if (!name || seen[name]) return false;
+        seen[name] = true;
+        return true;
+      });
+  }
+
+  function serializeField_(field, value) {
+    if (field === "cajasInvolucradas" || field === "skusSolicitados") {
+      return value === "" || value == null ? "" : Math.floor(toNum_(value));
+    }
+    if (field === "auxiliares") {
+      return (Array.isArray(value) ? value : splitUsers_(value)).join(", ");
+    }
+    if (field === "cierreConPendientes") {
+      if (value === "" || value == null) return "";
+      return value === true || toStrUpper_(value) === "SI" ? "SI" : "NO";
+    }
+    if (field === "motivoCierre" || field === "idSolicitudConsecutivo") {
+      return toStr_(value);
+    }
+    if (/^(fecha|hora)/.test(field)) return value || "";
+    return toStrUpper_(value);
+  }
+
+  function buildRow_(record, current) {
+    const row = layout.blankRow(current);
+    Object.keys(H).forEach(function(field) {
+      if (!Object.prototype.hasOwnProperty.call(record, field)) return;
+      if (current.index[H[field]] === undefined) return;
+      layout.write(row, current, H[field], serializeField_(field, record[field]));
+    });
     return row;
   }
 
+  /** Lee encabezados y datos en una sola llamada (ver createHeaderLayoutAccessor_.readTable). */
   function readAll_(trace) {
-    validateContract(trace);
-    return readSheetRows_(CFG.SHEET_KEY, CFG.WIDTH, trace)
+    const table = layout.readTable(trace);
+    const current = table.layout;
+    return table.rows
       .map(function(row, index) {
-        return normalizeRow_(row, index + CFG.FIRST_DATA_ROW);
+        return normalizeRow_(row, index + CFG.FIRST_DATA_ROW, current);
       })
       .filter(function(item) { return Boolean(item.idSolicitud); });
+  }
+
+  /**
+   * Reemplaza en la caché de la ejecución la fila recién escrita, para no
+   * releer la hoja completa después de una actualización propia.
+   */
+  function patchCache_(item) {
+    if (!cache_) return;
+    const position = cache_.findIndex(function(entry) { return entry.numFila === item.numFila; });
+    if (position === -1 || cache_[position].idSolicitud !== item.idSolicitud) {
+      cache_ = null;
+      return;
+    }
+    cache_[position] = item;
+  }
+
+  function copy_(item) {
+    return Object.assign({}, item, { auxiliares: item.auxiliares.slice() });
   }
 
   function getAll(trace) {
@@ -128,7 +212,7 @@ const ReabastecimientoSolicitudesRepository = (() => {
     } else {
       perfMark_(trace, "REQUESTS_REPOSITORY_CACHE_HIT", { rows: cache_.length });
     }
-    return cache_.map(function(item) { return Object.assign({}, item); });
+    return cache_.map(copy_);
   }
 
   function getById(idSolicitud, trace) {
@@ -147,7 +231,10 @@ const ReabastecimientoSolicitudesRepository = (() => {
     const dateText = toStr_(fechaCreacion);
     let maximum = 0;
     getAll(trace).forEach(function(item) {
-      if (toStr_(item.fechaCreacion) !== dateText) return;
+      const itemDate = item.fechaCreacion instanceof Date
+        ? Utilities.formatDate(item.fechaCreacion, getScriptTz_(), REABASTECIMIENTO_CONFIG.FORMATOS.FECHA)
+        : toStr_(item.fechaCreacion);
+      if (itemDate !== dateText) return;
       const candidate = Math.floor(Number(item.idSolicitudConsecutivo || 0));
       if (candidate > maximum) maximum = candidate;
     });
@@ -177,77 +264,88 @@ const ReabastecimientoSolicitudesRepository = (() => {
   }
 
   function appendUnderLock(record, trace) {
-    const row = buildRow_(record);
-    if (!row[COL.REABASTECIMIENTO_SOLICITUDES.ID_SOLICITUD]) {
-      throw new Error("ID_SOLICITUD es obligatorio.");
-    }
-    if (getById(row[0], trace)) {
+    const current = layout.get(trace, true);
+    const id = toStrUpper_(record && record.idSolicitud);
+    if (!id) throw new Error("ID_SOLICITUD es obligatorio.");
+    if (getById(id, trace)) {
       const error = new Error("La solicitud ya existe.");
       error.code = REABASTECIMIENTO_CONFIG.ERROR_CODES.SOLICITUD_DUPLICADA;
       throw error;
     }
+    const row = buildRow_(record, current);
     const startedAt = Date.now();
-    const result = writeRowsBatch_(CFG.SHEET_KEY, [row], CFG.WIDTH, trace);
+    const result = writeRowsBatch_(CFG.SHEET_KEY, [row], current.width, trace);
     perfMark_(trace, "REQUEST_HEADER_PERSISTED", {
       written: result.written,
       elapsedMs: Date.now() - startedAt
     });
+    layout.markDirty();
     cache_ = null;
     return {
       created: result.written === 1,
       rowNumber: result.firstRow,
-      idSolicitud: row[0]
+      idSolicitud: id
     };
   }
 
-  function updateTemporalFieldsUnderLock(idSolicitud, patch, trace) {
+  /**
+   * Actualiza campos operativos permitidos sobre la fila autoritativa.
+   * Conserva intactas las columnas no administradas por este Repository.
+   */
+  function updateFieldsUnderLock(idSolicitud, patch, trace) {
     const current = getById(idSolicitud, trace);
     if (!current) {
       const error = new Error("La solicitud no existe.");
       error.code = REABASTECIMIENTO_CONFIG.ERROR_CODES.SOLICITUD_NO_ENCONTRADA;
       throw error;
     }
-    const authoritative = readRowAt_(CFG.SHEET_KEY, current.numFila, CFG.WIDTH, trace);
+    const sheetLayout = layout.get(trace, true);
+    const authoritative = readRowAt_(CFG.SHEET_KEY, current.numFila, sheetLayout.width, trace);
     if (!authoritative) throw new Error("No fue posible revalidar la solicitud.");
-    const c = COL.REABASTECIMIENTO_SOLICITUDES;
+    if (toStrUpper_(layout.read(authoritative, sheetLayout, H.idSolicitud)) !== current.idSolicitud) {
+      throw new Error("La fila de la solicitud cambió durante la actualización. Reintente.");
+    }
     const normalizedPatch = patch || {};
-    if (Object.prototype.hasOwnProperty.call(normalizedPatch, "fechaInicioAtencion"))
-      authoritative[c.SOLICITUD_FECHAINICIOATENCION] = normalizedPatch.fechaInicioAtencion || "";
-    if (Object.prototype.hasOwnProperty.call(normalizedPatch, "horaInicioAtencion"))
-      authoritative[c.SOLICITUD_HORAINICIOATENCION] = normalizedPatch.horaInicioAtencion || "";
-    if (Object.prototype.hasOwnProperty.call(normalizedPatch, "fechaCierreAtencion"))
-      authoritative[c.SOLICITUD_FECHACIERREATENCION] = normalizedPatch.fechaCierreAtencion || "";
-    if (Object.prototype.hasOwnProperty.call(normalizedPatch, "horaCierreAtencion"))
-      authoritative[c.SOLICITUD_HORACIERREATENCION] = normalizedPatch.horaCierreAtencion || "";
-    if (Object.prototype.hasOwnProperty.call(normalizedPatch, "cajasInvolucradas"))
-      authoritative[c.CAJASINVOLUCRADAS] = Math.floor(toNum_(normalizedPatch.cajasInvolucradas));
-    writeRowAt_(CFG.SHEET_KEY, current.numFila, authoritative, CFG.WIDTH, trace);
-    cache_ = null;
+    UPDATABLE.forEach(function(field) {
+      if (!Object.prototype.hasOwnProperty.call(normalizedPatch, field)) return;
+      layout.write(authoritative, sheetLayout, H[field], serializeField_(field, normalizedPatch[field]));
+    });
+    writeRowAt_(CFG.SHEET_KEY, current.numFila, authoritative, sheetLayout.width, trace);
+    layout.markDirty();
+    patchCache_(normalizeRow_(authoritative, current.numFila, sheetLayout));
     return { updated: true, rowNumber: current.numFila };
+  }
+
+  /** Alias histórico. */
+  function updateTemporalFieldsUnderLock(idSolicitud, patch, trace) {
+    return updateFieldsUnderLock(idSolicitud, patch, trace);
   }
 
   /**
    * Elimina la cabecera de un folio durante una compensación transaccional.
    * El Service debe mantener adquirido el ScriptLock.
-   *
-   * @param {*} idSolicitud Folio autoritativo.
-   * @param {Object=} trace Traza opcional.
-   * @return {{deleted:number,rowNumbers:!Array<number>}}
    */
   function deleteByIdUnderLock(idSolicitud, trace) {
     const id = toStrUpper_(idSolicitud);
     if (!id) return { deleted: 0, rowNumbers: [] };
+    const current = layout.get(trace, false);
     const result = deleteRowsByTextColumnUnderLock_(
       CFG.SHEET_KEY,
-      CFG.WIDTH,
-      COL.REABASTECIMIENTO_SOLICITUDES.ID_SOLICITUD,
+      current.width,
+      layout.columnIndex(current, H.idSolicitud),
       id,
       trace
     );
+    layout.markDirty();
     cache_ = null;
     return result;
   }
-  function clearCache() { cache_ = null; return true; }
+
+  function clearCache() {
+    cache_ = null;
+    layout.reset();
+    return true;
+  }
 
   return Object.freeze({
     getAll,
@@ -257,6 +355,7 @@ const ReabastecimientoSolicitudesRepository = (() => {
     createIdentityUnderLock,
     appendUnderLock,
     deleteByIdUnderLock,
+    updateFieldsUnderLock,
     updateTemporalFieldsUnderLock,
     clearCache
   });

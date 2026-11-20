@@ -58,8 +58,10 @@ const REABASTECIMIENTO_CONTROLLER_CONFIG = Object.freeze({
     CREAR_SOLICITUD: "CREAR_SOLICITUD",
     GET_SOLICITUDES: "GET_SOLICITUDES",
     GET_DETALLE: "GET_DETALLE_SOLICITUD",
+    TOMAR_SOLICITUD: "TOMAR_SOLICITUD",
     GET_UBICACIONES_PARTIDA: "GET_UBICACIONES_PARTIDA",
     ATENDER_PARTIDA: "ATENDER_PARTIDA",
+    CONCLUIR_PARTIDA: "CONCLUIR_PARTIDA",
     VALIDAR_IDUNICO: "VALIDAR_IDUNICO",
     REGISTRAR_IDUNICO: "REGISTRAR_IDUNICO",
     CERRAR_SOLICITUD: "CERRAR_SOLICITUD"
@@ -255,6 +257,8 @@ function ReabastecimientoController_measureResponse_(value) {
 function ReabastecimientoController_execute_(operation, executor) {
   const trace = ReabastecimientoController_startTrace_(operation);
   const startedAt = Date.now();
+  // Colector de etapas del Service para esta ejecución (z0-ReabastecimientoTelemetria).
+  if (typeof reabPerfSinkReset_ === "function") reabPerfSinkReset_();
 
   try {
     ReabastecimientoController_assertDependencies_();
@@ -285,10 +289,46 @@ function ReabastecimientoController_execute_(operation, executor) {
     perfMark_(trace, "CONTROLLER_RESPONSE_READY", {
       responseChars: response.metadata.responseChars
     });
+
+    /*
+     * Revisión vigente: permite que el navegador registre como "propio" el
+     * cambio que acaba de provocar y no dispare una recarga duplicada.
+     */
+    if (typeof reabRevisionSnapshot_ === "function") {
+      const revisionStartedAt = Date.now();
+      response.metadata.revision = reabRevisionSnapshot_([]).revision;
+      perfMark_(trace, "CONTROLLER_REVISION_READ", { elapsedMs: Date.now() - revisionStartedAt });
+    }
+
     perfEnd_(trace, "ok", {
-      elapsedMs: response.metadata.elapsedMs,
+      elapsedMs: Date.now() - startedAt,
       responseChars: response.metadata.responseChars
     });
+
+    /*
+     * Desglose del servidor para el tracker del navegador:
+     * - serverMs: tiempo total dentro de Apps Script.
+     * - controller: marcas del Controller.
+     * - services: trazas del Service (lecturas, candado, escrituras).
+     */
+    /*
+     * Solo con el switch APPALMACEN_RENDIMIENTO.ENABLED encendido. La traza
+     * del Controller ya está dentro de services (perfEnd_ la agrega al
+     * colector), por eso controller va vacío.
+     */
+    const stages = typeof reabPerfSinkDrain_ === "function" ? reabPerfSinkDrain_() : [];
+    if (
+      typeof isPerformanceLoggingEnabled_ === "function" &&
+      isPerformanceLoggingEnabled_() &&
+      APPALMACEN_RENDIMIENTO.SERVER.RETURN_STAGES === true
+    ) {
+      response.metadata.elapsedMs = Date.now() - startedAt;
+      response.metadata.perf = {
+        serverMs: response.metadata.elapsedMs,
+        controller: [],
+        services: stages
+      };
+    }
     return response;
   } catch (error) {
     perfFail_(trace, error, {
@@ -296,7 +336,79 @@ function ReabastecimientoController_execute_(operation, executor) {
       errorName: toStr_(error && error.name),
       elapsedMs: Date.now() - startedAt
     });
-    throw ReabastecimientoController_toPublicError_(error);
+    if (typeof reabPerfSinkDrain_ === "function") reabPerfSinkDrain_();
+    const publicError = ReabastecimientoController_toPublicError_(error);
+    /*
+     * google.script.run solo transmite el mensaje del error. Con el switch de
+     * rendimiento encendido se agrega el tiempo del servidor con un marcador
+     * que el cliente extrae y elimina antes de mostrarlo: "... ⟦serverMs=123⟧".
+     */
+    if (typeof isPerformanceLoggingEnabled_ === "function" && isPerformanceLoggingEnabled_()) {
+      publicError.message = publicError.message + " ⟦serverMs=" + (Date.now() - startedAt) + "⟧";
+    }
+    throw publicError;
+  }
+}
+
+/**
+ * Devuelve la revisión de cambios de Reabastecimiento.
+ *
+ * Endpoint ligero para la actualización en tiempo real: no lee hojas, solo
+ * CacheService (con respaldo en ScriptProperties). Las vistas lo consultan
+ * cada pocos segundos y recargan datos únicamente cuando el valor cambia.
+ *
+ * @param {Array<string>=} idsSolicitud Folios cuya revisión interesa.
+ * @return {{ok:boolean, data:{revision:number, at:number, ids:Object}, metadata:{serverMs:number}}}
+ */
+function ReabastecimientoController_getRevision(idsSolicitud) {
+  const startedAt = Date.now();
+  try {
+    const snapshot = typeof reabRevisionSnapshot_ === "function"
+      ? reabRevisionSnapshot_(Array.isArray(idsSolicitud) ? idsSolicitud : [])
+      : { revision: 0, at: 0, ids: {} };
+    return {
+      ok: true,
+      operation: "GET_REVISION",
+      data: snapshot,
+      metadata: { serverMs: Date.now() - startedAt }
+    };
+  } catch (error) {
+    console.warn("[ReabastecimientoController] getRevision falló.", error && error.message);
+    return {
+      ok: true,
+      operation: "GET_REVISION",
+      data: { revision: -1, at: 0, ids: {} },
+      metadata: { serverMs: Date.now() - startedAt, degraded: true }
+    };
+  }
+}
+
+/**
+ * Persiste un lote de eventos de rendimiento medidos en el navegador en la
+ * bitácora unificada APPALMACEN_RENDIMIENTO (GESTION5). Alias histórico de
+ * APPALMACENRendimiento_registrar; no escribe si el switch está apagado.
+ *
+ * Nunca lanza errores al cliente: la telemetría no debe interrumpir la
+ * operación del almacén.
+ *
+ * @param {Array<!Object>} events Eventos del tracker cliente.
+ * @return {{ok:boolean, data:{saved:number, skipped:number, elapsedMs:number}}}
+ */
+function ReabastecimientoController_registrarRendimiento(events) {
+  try {
+    return {
+      ok: true,
+      operation: "REGISTRAR_RENDIMIENTO",
+      data: reabPerfPersistEvents_(events)
+    };
+  } catch (error) {
+    console.warn("[ReabastecimientoController] registrarRendimiento falló.", error && error.message);
+    return {
+      ok: false,
+      operation: "REGISTRAR_RENDIMIENTO",
+      data: { saved: 0, skipped: Array.isArray(events) ? events.length : 0 },
+      message: String(error && error.message || "")
+    };
   }
 }
 
@@ -307,17 +419,25 @@ function ReabastecimientoController_execute_(operation, executor) {
  * contiene un clave inferida devuelve una fila por SKU, ubicación de
  * surtido e IDUNICO vigente.
  *
- * @param {*=} bodega Clave inferida por prefijo de UBICACIONES_SURTIDO.UBICACION.
- * @return {!Object} Sobre con bodegas, registros y métricas.
+ * Los catálogos (UBICACIONES_SURTIDO y CATALOGO) se sirven desde una caché de
+ * corta duración. La vista puede forzar la relectura con el botón
+ * "Actualizar catálogos" enviando {bodega, forceRefresh:true}.
+ *
+ * @param {*=} bodega Clave de bodega (texto) u objeto {bodega, forceRefresh}.
+ * @return {!Object} Sobre con bodegas, registros, métricas y catalogosAl.
  */
 function ReabastecimientoController_getExcedentesSolicitudManual(bodega) {
   return ReabastecimientoController_execute_(
     REABASTECIMIENTO_CONTROLLER_CONFIG.OPERATIONS.GET_EXCEDENTES_MANUALES,
     function() {
-      const warehouse = bodega === null || typeof bodega === "undefined"
+      const isObject = bodega !== null && typeof bodega === "object";
+      const rawWarehouse = isObject ? bodega.bodega : bodega;
+      const warehouse = rawWarehouse === null || typeof rawWarehouse === "undefined"
         ? ""
-        : toStr_(bodega);
-      return ReabastecimientoService.getExcedentesSolicitudManual(warehouse);
+        : toStr_(rawWarehouse);
+      return ReabastecimientoService.getExcedentesSolicitudManual(warehouse, {
+        forceRefresh: Boolean(isObject && bodega.forceRefresh === true)
+      });
     }
   );
 }
@@ -361,6 +481,7 @@ function ReabastecimientoController_crearSolicitud(payload) {
       const input = ReabastecimientoController_requireObject_(payload, "payload");
       ReabastecimientoController_requireText_(input.solicitante, "solicitante");
       ReabastecimientoController_requireText_(input.bodega, "bodega");
+      ReabastecimientoController_requireText_(input.areaSuministro, "área de suministro");
       if (!Array.isArray(input.partidas) || input.partidas.length === 0) {
         throw ReabastecimientoController_publicError_(
           REABASTECIMIENTO_CONFIG.ERROR_CODES.PAYLOAD_INVALIDO,
@@ -442,21 +563,46 @@ function ReabastecimientoController_getDetalleSolicitud(idSolicitud) {
 }
 
 /**
- * Marca una partida como atendida y registra el inicio global cuando corresponde.
+ * Toma una solicitud para su atención (botón ATENDER / CONTINUAR).
+ * La primera toma registra auxiliar, fecha y hora de inicio.
  *
- * Payload esperado:
- * {
- *   idSolicitud: string,
- *   idPartidaConsecutivo: string,
- *   usuario: string
- * }
- *
- * @param {*} payload Datos de atención.
- * @return {!Object} Sobre con el resultado idempotente.
+ * @param {*} payload {idSolicitud, usuario}
+ * @return {!Object} Sobre con el estado actualizado.
  */
+function ReabastecimientoController_tomarSolicitud(payload) {
+  return ReabastecimientoController_execute_(
+    REABASTECIMIENTO_CONTROLLER_CONFIG.OPERATIONS.TOMAR_SOLICITUD,
+    function() {
+      const input = ReabastecimientoController_requireObject_(payload, "payload");
+      ReabastecimientoController_requireText_(input.idSolicitud, "idSolicitud");
+      ReabastecimientoController_requireText_(input.usuario, "usuario");
+      return ReabastecimientoService.tomarSolicitud(input);
+    }
+  );
+}
+
 /**
- * Consulta las cajas vigentes pendientes de escaneo y marca automáticamente la
- * partida como ATENDIDO cuando el Service confirma la consulta.
+ * Confirma la atención de un SKU como ATENDIDO o ATENDIDO_PARCIAL.
+ *
+ * @param {*} payload {idSolicitud, idPartidaConsecutivo, usuario, resultado}
+ * @return {!Object} Sobre con el estado de partida y solicitud.
+ */
+function ReabastecimientoController_concluirPartida(payload) {
+  return ReabastecimientoController_execute_(
+    REABASTECIMIENTO_CONTROLLER_CONFIG.OPERATIONS.CONCLUIR_PARTIDA,
+    function() {
+      const input = ReabastecimientoController_requireObject_(payload, "payload");
+      ReabastecimientoController_requireText_(input.idSolicitud, "idSolicitud");
+      ReabastecimientoController_requireText_(input.idPartidaConsecutivo, "idPartidaConsecutivo");
+      ReabastecimientoController_requireText_(input.usuario, "usuario");
+      ReabastecimientoController_requireText_(input.resultado, "resultado");
+      return ReabastecimientoService.concluirPartida(input);
+    }
+  );
+}
+
+/**
+ * Consulta las cajas surtibles del SKU y marca la partida EN_ATENCION.
  *
  * @param {*} payload {idSolicitud,idPartidaConsecutivo,usuario}
  * @return {!Object} Sobre contractual para el drawer de ubicaciones.
@@ -483,6 +629,7 @@ function ReabastecimientoController_getUbicacionesPartida(payload) {
   );
 }
 
+/** Compatibilidad: concluye la partida como ATENDIDO. */
 function ReabastecimientoController_atenderPartida(payload) {
   return ReabastecimientoController_execute_(
     REABASTECIMIENTO_CONTROLLER_CONFIG.OPERATIONS.ATENDER_PARTIDA,

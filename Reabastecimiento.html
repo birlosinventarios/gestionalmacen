@@ -25,8 +25,14 @@
    * - window.notificar o window.lanzarNotificacion.
    * - ExcelExportUtils.exportarAXLSX(), opcional.
    *
-   * CONTROLADOR CONSUMIDO
+   * - window.REAB (z0-ReabastecimientoCliente.html): tracker de rendimiento,
+   *   RPC medido, usuario recordado y sincronización en tiempo real.
+   *
+   * CONTROLADORES CONSUMIDOS
    * - ReabastecimientoController_getSolicitudes({}).
+   * - ReabastecimientoController_tomarSolicitud({idSolicitud, usuario}).
+   * - ReabastecimientoController_getRevision(ids)           (vía REAB.sync).
+   * - ReabastecimientoController_registrarRendimiento(lote) (vía REAB.perf).
    *
    * CONTRATOS GLOBALES EXPUESTOS
    * - window.cargar_Reabastecimiento().
@@ -35,13 +41,15 @@
    *
    * CONSIDERACIONES DE MANTENIMIENTO
    * - Las respuestas obsoletas se descartan mediante un número de secuencia.
-   * - El watchdog visual se activa a los 20 segundos.
-   * - La actualización automática ocurre cada 60 segundos solo con la pestaña visible.
+   * - El watchdog de la consulta se activa a los 30 segundos.
+   * - Tiempo real: REAB.sync revisa cada pocos segundos un contador de cambios
+   *   (sin leer hojas) y recarga el listado solo cuando otro usuario modificó
+   *   datos. Recarga completa de seguridad cada 5 minutos con pestaña visible.
    * - initVista devuelve una función de limpieza compatible con APPALMACEN.html.
    * - El servidor permanece como autoridad de los datos operativos.
    *
    * @author Sigifredo de la Cruz Ramos
-   * @version REABASTECIMIENTO-VIEW-2026-11-14-06
+   * @version REABASTECIMIENTO-VIEW-2026-11-20-01
    */
 </script>
 
@@ -242,6 +250,21 @@
   #render-reabastecimiento .rb-status-attention { color: var(--rb-warning-dark); background: var(--rb-warning-light); border-color: rgba(217,119,6,.22); }
   #render-reabastecimiento .rb-status-closed { color: var(--rb-success-dark); background: var(--rb-success-light); border-color: rgba(30,142,62,.22); }
   #render-reabastecimiento .rb-status-inconsistent { color: var(--rb-danger-dark); background: var(--rb-danger-light); border-color: rgba(197,34,31,.20); }
+  #render-reabastecimiento .rb-status-done { color: #0b5c2a; background: rgba(30,142,62,.08); border-color: rgba(30,142,62,.35); border-style: dashed; }
+  #render-reabastecimiento .rb-progress { display: flex; align-items: center; gap: 8px; min-width: 110px; }
+  #render-reabastecimiento .rb-progress-bar { flex: 1; height: 7px; border-radius: 99px; background: #eceff3; overflow: hidden; }
+  #render-reabastecimiento .rb-progress-fill { height: 100%; border-radius: 99px; background: var(--rb-success); }
+  #render-reabastecimiento .rb-progress-text { font-size: 11px; font-weight: 900; color: var(--rb-text); min-width: 34px; text-align: right; }
+  #render-reabastecimiento .rb-aux { display: block; font-size: 10px; font-weight: 800; color: var(--rb-muted); line-height: 1.4; text-transform: uppercase; }
+  #render-reabastecimiento .rb-action.warning { background: var(--rb-danger); }
+  /* Indicador "En vivo · hh:mm:ss" de la sincronización en tiempo real */
+  #render-reabastecimiento .rb-sync { display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; min-height: 40px; border-radius: 12px; background: rgba(30,142,62,.08); color: var(--rb-success-dark); font-size: 11px; font-weight: 900; white-space: nowrap; }
+  #render-reabastecimiento .rb-sync i { width: 8px; height: 8px; border-radius: 50%; background: var(--rb-success); animation: rbPulse 2s infinite; }
+  #render-reabastecimiento .rb-sync.error { background: var(--rb-danger-light); color: var(--rb-danger-dark); }
+  #render-reabastecimiento .rb-sync.error i { background: var(--rb-danger); animation: none; }
+  #render-reabastecimiento .rb-sync.idle, #render-reabastecimiento .rb-sync.degraded { background: var(--rb-warning-light); color: var(--rb-warning-dark); }
+  #render-reabastecimiento .rb-sync.idle i, #render-reabastecimiento .rb-sync.degraded i { background: var(--rb-warning); animation: none; }
+  @keyframes rbPulse { 0% { box-shadow: 0 0 0 0 rgba(30,142,62,.45); } 70% { box-shadow: 0 0 0 7px rgba(30,142,62,0); } 100% { box-shadow: 0 0 0 0 rgba(30,142,62,0); } }
   #render-reabastecimiento .rb-table-wrap {
     --rb-header-height: 58px;
     --rb-row-height: 102px;
@@ -311,13 +334,46 @@
 <div id="render-reabastecimiento" class="h-full w-full flex flex-col bg-[var(--bg-color)] overflow-y-auto p-4 md:px-8 md:pb-8 md:pt-4"></div>
 
 <script type="text/babel">
+  /* ==========================================================================
+   * Reabastecimiento · Listado / cola de trabajo (React + Babel en navegador)
+   * ==========================================================================
+   *
+   * PROPÓSITO (proceso REABASTECIMIENTO-v1, sección 2, puntos 1 a 4)
+   * - Mostrar las solicitudes vigentes ordenadas por fecha, hora, bodega, área
+   *   y solicitante, con su avance en tiempo real.
+   * - ATENDER / CONTINUAR registra al auxiliar (y el inicio en la primera toma)
+   *   antes de abrir el detalle operativo.
+   *
+   * MEDICIÓN DE RENDIMIENTO (REAB.perf → hoja APPALMACEN_RENDIMIENTO)
+   *   LISTADO_VISTA_MONTADA   initVista → primera tabla pintada
+   *   LISTADO_CARGAR          consulta de solicitudes (motivo en meta.reason:
+   *                           init, manual, sync, confirmation, seguridad)
+   *   LISTADO_ATENDER         clic ATENDER/CONTINUAR → navegación al detalle
+   *   LISTADO_FILTRAR         cambio de filtro, búsqueda u orden (re-render)
+   *   LISTADO_EXPORTAR        exportación a Excel
+   *
+   * TIEMPO REAL
+   * - REAB.sync avisa cuando cambia la revisión global (otro usuario creó,
+   *   tomó, surtió o cerró). El listado se recarga en segundo plano y muestra
+   *   "Información actualizada". Una recarga de seguridad corre cada 5 minutos.
+   * ======================================================================== */
   window.cargar_Reabastecimiento = () => {
     const { useState, useEffect, useMemo, useCallback, useRef } = React;
     const LocalIcon = window.FitoComponents?.Icon?.LocalIcon || window.FitoComponents?.LocalIcon;
+    const REAB = window.REAB;
 
     if (!LocalIcon) {
       throw new Error("No se encontró FitoComponents.Icon.LocalIcon.");
     }
+    if (!REAB) {
+      throw new Error("No se encontró la biblioteca z0-ReabastecimientoCliente (window.REAB).");
+    }
+
+    /** Nombre de la vista en la bitácora de rendimiento. */
+    const VIEW_ = "Reabastecimiento";
+
+    /** Traza de montaje: se cierra con la primera tabla pintada. */
+    const mountTrace_ = REAB.perf.begin("LISTADO_VISTA_MONTADA", { view: VIEW_, type: "CARGA" });
 
     /** Emite una notificación mediante la infraestructura global del Shell. */
     const notify_ = (message, type = "info", timer = 2500, options = {}) => {
@@ -337,22 +393,80 @@
       return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
     };
 
+    /** Estados derivados por el servidor (proceso REABASTECIMIENTO-v1, 7.1). */
+    const OPEN_STATES_ = ["CREADA", "ABIERTA", "ASIGNADA", "EN_ATENCION", "PARCIALMENTE_ATENDIDA", "ATENDIDA"];
+    const WORKING_STATES_ = ["ASIGNADA", "EN_ATENCION", "PARCIALMENTE_ATENDIDA", "ATENDIDA"];
+
     /** Devuelve la clase visual asociada al estado derivado. */
     const statusClass_ = (status) => ({
+      CREADA: "rb-chip rb-status-open",
       ABIERTA: "rb-chip rb-status-open",
+      ASIGNADA: "rb-chip rb-status-attention",
       EN_ATENCION: "rb-chip rb-status-attention",
+      PARCIALMENTE_ATENDIDA: "rb-chip rb-status-attention",
+      ATENDIDA: "rb-chip rb-status-done",
       CERRADA: "rb-chip rb-status-closed",
+      CERRADA_CON_PENDIENTES: "rb-chip rb-status-inconsistent",
       INCONSISTENTE: "rb-chip rb-status-inconsistent",
     }[normalize_(status)] || "rb-chip rb-status-inconsistent");
 
     /** Devuelve la etiqueta legible del estado. */
-    const statusLabel_ = (status) => normalize_(status).replaceAll("_", " ") || "SIN ESTADO";
+    const statusLabel_ = (status) => ({
+      CREADA: "CREADA",
+      ABIERTA: "CREADA",
+      ASIGNADA: "ASIGNADA",
+      EN_ATENCION: "EN ATENCIÓN",
+      PARCIALMENTE_ATENDIDA: "PARCIALMENTE ATENDIDA",
+      ATENDIDA: "ATENDIDA · POR CERRAR",
+      CERRADA: "CERRADA",
+      CERRADA_CON_PENDIENTES: "CERRADA CON PENDIENTES",
+      INCONSISTENTE: "DATOS INCONSISTENTES",
+    }[normalize_(status)] || normalize_(status).replaceAll("_", " ") || "SIN ESTADO");
+
+    /**
+     * Botón de acción según el proceso (2, punto 3):
+     * ATENDER, CONTINUAR, INCONSISTENTE (cerrada con pendientes) o VER DETALLES.
+     */
+    const actionFor_ = (status) => {
+      const value = normalize_(status);
+      if (value === "CREADA" || value === "ABIERTA") return { label: "Atender", icon: "play", className: "primary", take: true };
+      if (WORKING_STATES_.includes(value)) return { label: "Continuar", icon: "play", className: "primary", take: true };
+      if (value === "CERRADA_CON_PENDIENTES") return { label: "Inconsistente", icon: "triangle-alert", className: "warning", take: false };
+      if (value === "INCONSISTENTE") return { label: "Revisar", icon: "triangle-alert", className: "warning", take: false };
+      return { label: "Ver detalles", icon: "arrow-up-right", className: "", take: false };
+    };
+
+    /**
+     * Indicador de sincronización en tiempo real ("En vivo · hh:mm:ss").
+     * Escucha REAB.sync.onStatus(); el punto verde pulsa mientras hay conexión.
+     */
+    const SyncBadge_ = () => {
+      const [status, setStatus] = useState({ state: "idle", lastCheckAt: null });
+      useEffect(() => REAB.sync.onStatus(setStatus), []);
+      const label = status.state === "error"
+        ? "Sin conexión"
+        : status.lastCheckAt
+          ? `En vivo · ${REAB.util.clock(status.lastCheckAt)}`
+          : "Conectando...";
+      return <span className={`rb-sync ${status.state}`} title="Sincronización en tiempo real"><i />{label}</span>;
+    };
+
+    /** Valor ordenable de fecha + hora de creación. */
+    const dateTimeValue_ = (item) => {
+      const base = dateValue_(item?.fechaCreacion);
+      const match = String(item?.horaCreacion || "").match(/^(\d{1,2}):(\d{2})/);
+      return base + (match ? (Number(match[1]) * 60 + Number(match[2])) * 60000 : 0);
+    };
 
     /** Componente principal del listado de Reabastecimiento. */
     const Dashboard = () => {
       const [requests, setRequests] = useState([]);
       const [loading, setLoading] = useState(true);
-      const [statusFilter, setStatusFilter] = useState("TODAS");
+      const [statusFilter, setStatusFilter] = useState("VIGENTES");
+      /** Usuario que atiende en este equipo (prototipo: lista + recordado). */
+      const users = useMemo(() => REAB.user.catalog(), []);
+      const [currentUser, setCurrentUser] = useState(() => REAB.user.get());
+      const [takingId, setTakingId] = useState("");
       const [warehouseFilter, setWarehouseFilter] = useState("TODAS");
       const [sortBy, setSortBy] = useState("FECHA_DESC");
       const [searchQuery, setSearchQuery] = useState("");
@@ -498,16 +612,21 @@
         }
 
         const sequence = ++sequenceRef.current;
-        const traceId = window.APPALMACEN_PERF?.start?.("REABASTECIMIENTO_LIST_REFRESH", {
-          viewId: "Reabastecimiento",
-          source: context,
-          confirmationAttempt,
-          expectedRequest: Boolean(recentRequestRef.current),
-        }) || null;
-        perfTraceRef.current = traceId;
+        /*
+         * Traza LISTADO_CARGAR: RPC_SENT → RPC_RESPONSE → PARSED → RENDERED.
+         * Los contextos silenciosos ("auto", "sync", "seguridad") no muestran
+         * el indicador de carga para no interrumpir la lectura de la tabla.
+         */
+        const trace = REAB.perf.begin("LISTADO_CARGAR", {
+          view: VIEW_,
+          type: context === "sync" ? "SINCRONIZACION" : "CONSULTA",
+          meta: { reason: context, confirmationAttempt, expectedRequest: Boolean(recentRequestRef.current) },
+        });
+        perfTraceRef.current = trace;
+        const silent = ["auto", "sync", "seguridad"].includes(context);
         inFlightRef.current = true;
         setSyncState((previous) => ({ ...previous, status: "loading", message: "" }));
-        if (context !== "auto") setLoading(true);
+        if (!silent) setLoading(true);
         clearTimeout(watchdogRef.current);
         watchdogRef.current = setTimeout(() => {
           if (!mountedRef.current || sequenceRef.current !== sequence) return;
@@ -515,30 +634,33 @@
           inFlightRef.current = false;
           setLoading(false);
           setSyncState({ status: "timeout", message: "La consulta excedió 30 segundos.", lastSuccessAt: 0 });
-          window.APPALMACEN_PERF?.end?.(traceId, "timeout", { watchdogMs: 30000 });
+          trace.mark("WATCHDOG");
+          trace.end("timeout", { meta: { watchdogMs: 30000 } });
           const pending = pendingRefreshRef.current;
           pendingRefreshRef.current = null;
           if (pending) refresh(pending.context, pending.confirmationAttempt);
         }, 30000);
 
-        const startedAt = performance.now();
+        const sentAt = REAB.util.now();
+        trace.mark("RPC_SENT", { method: "ReabastecimientoController_getSolicitudes" });
         google.script.run
           .withSuccessHandler((response) => {
-            if (!mountedRef.current || sequenceRef.current !== sequence) return;
+            if (!mountedRef.current || sequenceRef.current !== sequence) {
+              trace.end("cancelled", { meta: { stale: true } });
+              return;
+            }
             clearTimeout(watchdogRef.current);
+            trace.mark("RPC_RESPONSE");
+            trace.attachServer(response?.metadata?.perf || { serverMs: response?.metadata?.elapsedMs }, REAB.util.now() - sentAt, REAB.util.bytes(response));
+            if (Number.isFinite(Number(response?.metadata?.revision))) REAB.sync.noteRevision(Number(response.metadata.revision));
             try {
               const parsed = parseResponse_(response);
               const records = parsed.records;
-              window.APPALMACEN_PERF?.mark?.(traceId, "LIST_CONTRACT_VALIDATED", {
-                rows: records.length,
-                contractMode: parsed.contractMode,
-                contractVersion: parsed.responseShape.contractVersion,
-                responseType: parsed.responseShape.type,
-                responseKeys: parsed.responseShape.keys,
-                serverMs: Number(response?.metadata?.elapsedMs || 0),
-                responseChars: Number(response?.metadata?.responseChars || 0),
-              });
+              trace.mark("PARSED", { rows: records.length });
+              trace.set({ rows: records.length, contractMode: parsed.contractMode });
               setRequests(records);
+              trace.endAfterPaint("ok");
+              if (!mountTrace_.ended) mountTrace_.endAfterPaint("ok", { meta: { rows: records.length } });
               const recentId = recentRequestRef.current;
               const foundRecent = Boolean(
                 recentId && records.some((item) => item.idSolicitud === recentId)
@@ -579,11 +701,7 @@
               if (!recentId || foundRecent) {
                 setSyncState({ status: "ready", message: "", lastSuccessAt: Date.now() });
               }
-              window.APPALMACEN_PERF?.end?.(traceId, "ok", {
-                rows: records.length,
-                expectedFound: foundRecent,
-                clientMs: Math.round((performance.now() - startedAt) * 100) / 100,
-              });
+              trace.set({ expectedFound: foundRecent });
               if (context === "manual") {
                 notify_("Solicitudes actualizadas correctamente.", "success", 1800, {
                   title: "Actualización completada",
@@ -592,11 +710,7 @@
               }
             } catch (contractError) {
               setSyncState({ status: "error", message: contractError.message, lastSuccessAt: 0 });
-              window.APPALMACEN_PERF?.end?.(traceId, "error", {
-                stage: "contract",
-                message: contractError.message,
-                responseShape: describeResponse_(response),
-              });
+              trace.end("error", { error: contractError, meta: { stage: "contract" } });
               notify_(contractError.message, "error", 5200, { title: "Respuesta incompatible", sound: true });
             } finally {
               inFlightRef.current = false;
@@ -607,13 +721,17 @@
             }
           })
           .withFailureHandler((error) => {
-            if (!mountedRef.current || sequenceRef.current !== sequence) return;
+            if (!mountedRef.current || sequenceRef.current !== sequence) {
+              trace.end("cancelled", { meta: { stale: true } });
+              return;
+            }
             clearTimeout(watchdogRef.current);
             inFlightRef.current = false;
             setLoading(false);
-            const message = error?.message || "No se pudieron cargar las solicitudes.";
+            trace.mark("RPC_FAILURE");
+            trace.end("error", { error, meta: { stage: "server" } });
+            const message = REAB.util.publicError(error) || "No se pudieron cargar las solicitudes.";
             setSyncState({ status: "error", message, lastSuccessAt: 0 });
-            window.APPALMACEN_PERF?.end?.(traceId, "error", { stage: "server", message });
             notify_(message, "error", 5200, { title: "Error de Reabastecimiento", sound: true });
             const pending = pendingRefreshRef.current;
             pendingRefreshRef.current = null;
@@ -628,23 +746,42 @@
         refresh(forceRefresh ? "creation_return" : "init");
       }, [refresh]);
 
+      /**
+       * Tiempo real y recarga de seguridad.
+       *
+       * - REAB.sync consulta solo la revisión de cambios (sin leer hojas) cada
+       *   pocos segundos. Cuando otro usuario modifica cualquier solicitud, el
+       *   listado se recarga en segundo plano y avisa "Información actualizada".
+       * - Además, cada 5 minutos se hace una recarga completa de seguridad.
+       * - Sustituye al refresco fijo de 60 s, que releía las hojas aunque no
+       *   hubiera cambios.
+       */
       useEffect(() => {
         mountedRef.current = true;
-        const timer = setInterval(() => {
-          if (document.visibilityState === "visible") refresh("auto");
-        }, 60000);
+        const unsubscribe = REAB.sync.subscribe(VIEW_, {
+          ids: () => [],
+          onChange: () => {
+            refresh("sync");
+            notify_("Información actualizada.", "info", 1600, { title: "En vivo", sound: false });
+          },
+        });
+        const safetyTimer = setInterval(() => {
+          if (document.visibilityState === "visible") refresh("seguridad");
+        }, REAB.sync.SAFETY_REFRESH_MS);
         return () => {
           mountedRef.current = false;
-          clearInterval(timer);
+          unsubscribe();
+          clearInterval(safetyTimer);
           clearTimeout(watchdogRef.current);
           retryTimersRef.current.forEach(clearTimeout);
           retryTimersRef.current.clear();
           pendingRefreshRef.current = null;
           sequenceRef.current += 1;
           inFlightRef.current = false;
-          if (perfTraceRef.current) {
-            window.APPALMACEN_PERF?.cancel?.(perfTraceRef.current, { reason: "view_unmounted" });
+          if (perfTraceRef.current && !perfTraceRef.current.ended) {
+            perfTraceRef.current.end("cancelled", { meta: { reason: "view_unmounted" } });
           }
+          if (!mountTrace_.ended) mountTrace_.end("cancelled", { meta: { reason: "view_unmounted" } });
         };
       }, [refresh]);
 
@@ -680,7 +817,22 @@
         );
       };
 
-      /** Abre la solicitud seleccionada en la vista operativa. */
+      /** Navega a la vista operativa de la solicitud. */
+      const navigateToDetail_ = (idSolicitud) => {
+        window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+        window.DATA_ALMACEN_CACHE.reabastecimientoNavigation = { idSolicitud };
+        if (currentUser) window.DATA_ALMACEN_CACHE.reabastecimientoUsuario = currentUser;
+        window.irAVistaShell(
+          "ReabastecimientoDetalles",
+          "ReabastecimientoDetalles",
+          { REABASTECIMIENTO_ID_SOLICITUD: idSolicitud },
+        );
+      };
+
+      /**
+       * ATENDER / CONTINUAR registra al auxiliar (y el inicio en la primera
+       * toma) antes de abrir el detalle. Las demás acciones solo consultan.
+       */
       const openRequest = (item) => {
         const idSolicitud = String(item?.idSolicitud || "").trim();
         if (!idSolicitud || typeof window.irAVistaShell !== "function") {
@@ -690,13 +842,66 @@
           });
           return;
         }
-        window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
-        window.DATA_ALMACEN_CACHE.reabastecimientoNavigation = { idSolicitud };
-        window.irAVistaShell(
-          "ReabastecimientoDetalles",
-          "ReabastecimientoDetalles",
-          { REABASTECIMIENTO_ID_SOLICITUD: idSolicitud },
-        );
+        const action = actionFor_(item.estado);
+        if (!action.take) {
+          navigateToDetail_(idSolicitud);
+          return;
+        }
+        if (!currentUser) {
+          notify_("Selecciona tu usuario en la barra superior antes de atender.", "warning", 3600, {
+            title: "Usuario requerido",
+            sound: true,
+          });
+          return;
+        }
+        if (takingId) return;
+        setTakingId(idSolicitud);
+        /* LISTADO_ATENDER: clic → auxiliar registrado → navegación al detalle. */
+        REAB.rpc("ReabastecimientoController_tomarSolicitud", { idSolicitud, usuario: currentUser }, {
+          operation: "LISTADO_ATENDER",
+          view: VIEW_,
+          type: "ACCION",
+          idSolicitud,
+          required: ["idSolicitud"],
+          meta: { accion: action.label },
+        })
+          .then(({ data }) => {
+            if (!mountedRef.current) return;
+            setTakingId("");
+            if (!data?.yaTomada) {
+              notify_(`Atención iniciada por ${currentUser}.`, "success", 2200, { title: idSolicitud });
+            }
+            /*
+             * El servidor devuelve el detalle junto con la toma. Se entrega a la
+             * vista de detalle para que no repita la consulta al abrir (~3 s).
+             */
+            if (data?.detalle) {
+              window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+              window.DATA_ALMACEN_CACHE.reabastecimientoDetallePrecargado = { idSolicitud, detalle: data.detalle, at: Date.now() };
+            }
+            navigateToDetail_(idSolicitud);
+          })
+          .catch((error) => {
+            if (!mountedRef.current) return;
+            setTakingId("");
+            notify_(REAB.util.publicError(error), "error", 4800, { title: "Atención no registrada", sound: true });
+            refresh("manual");
+          });
+      };
+
+      /**
+       * Mide un cambio de interfaz (filtro u orden) hasta que la tabla se
+       * vuelve a pintar. Evento LISTADO_FILTRAR con el control en meta.control.
+       */
+      const trackUi_ = (control, value, apply) => {
+        const trace = REAB.perf.begin("LISTADO_FILTRAR", { view: VIEW_, type: "UI", meta: { control, value, rows: requests.length } });
+        apply();
+        trace.endAfterPaint("ok");
+      };
+
+      /** Cambia y recuerda el usuario que atiende en este equipo. */
+      const changeUser = (value) => {
+        setCurrentUser(REAB.user.set(value));
       };
 
       const warehouses = useMemo(() => [
@@ -712,7 +917,15 @@
       /** Colección derivada tras aplicar filtros, búsqueda y orden. */
       const filtered = useMemo(() => {
         let result = [...requests];
-        if (statusFilter !== "TODAS") {
+        if (statusFilter === "VIGENTES") {
+          result = result.filter((item) => OPEN_STATES_.includes(normalize_(item.estado)));
+        } else if (statusFilter === "EN_ATENCION") {
+          result = result.filter((item) => WORKING_STATES_.includes(normalize_(item.estado)));
+        } else if (statusFilter === "CREADA") {
+          result = result.filter((item) => ["CREADA", "ABIERTA"].includes(normalize_(item.estado)));
+        } else if (statusFilter === "CERRADA_CON_PENDIENTES") {
+          result = result.filter((item) => ["CERRADA_CON_PENDIENTES", "INCONSISTENTE"].includes(normalize_(item.estado)));
+        } else if (statusFilter !== "TODAS") {
           result = result.filter((item) => normalize_(item.estado) === statusFilter);
         }
         if (warehouseFilter !== "TODAS") {
@@ -724,13 +937,20 @@
             item.idSolicitud,
             item.solicitante,
             item.bodega,
+            item.areaSuministro,
             item.estado,
             item.fechaCreacion,
+            (item.auxiliares || []).join(" "),
           ].some((value) => String(value || "").toLowerCase().includes(query)));
         }
+        /* Orden del proceso: fecha, hora, bodega, área y solicitante. */
         result.sort((left, right) => {
-          const difference = dateValue_(left.fechaCreacion) - dateValue_(right.fechaCreacion);
-          return sortBy === "FECHA_ASC" ? difference : -difference;
+          const difference = dateTimeValue_(left) - dateTimeValue_(right);
+          const byDate = sortBy === "FECHA_ASC" ? difference : -difference;
+          return byDate ||
+            normalize_(left.bodega).localeCompare(normalize_(right.bodega), "es-MX", { numeric: true }) ||
+            normalize_(left.areaSuministro).localeCompare(normalize_(right.areaSuministro), "es-MX", { numeric: true }) ||
+            normalize_(left.solicitante).localeCompare(normalize_(right.solicitante), "es-MX");
         });
         return result;
       }, [requests, statusFilter, warehouseFilter, searchQuery, sortBy]);
@@ -751,19 +971,35 @@
           });
           return;
         }
+        const exportTrace = REAB.perf.begin("LISTADO_EXPORTAR", { view: VIEW_, type: "UI", meta: { rows: filtered.length } });
+        window.setTimeout(() => exportTrace.end("ok"), 0);
         window.ExcelExportUtils.exportarAXLSX({
           fileName: `Reabastecimiento_${new Date().toISOString().slice(0, 10)}.xlsx`,
           sheetName: "Solicitudes",
-          rows: filtered,
+          rows: filtered.map((item) => ({
+            ...item,
+            auxiliaresTexto: (item.auxiliares || []).join(", "),
+            avance: Number(item.seguimiento?.porcentajeAvance || 0),
+            cajasSurtidas: Number(item.seguimiento?.cajasSurtidas || 0),
+          })),
           columns: [
             { key: "idSolicitud", label: "Solicitud" },
             { key: "fechaCreacion", label: "Fecha creación" },
             { key: "horaCreacion", label: "Hora creación" },
             { key: "solicitante", label: "Solicitante" },
             { key: "bodega", label: "Bodega" },
+            { key: "areaSuministro", label: "Área de suministro" },
             { key: "skusSolicitados", label: "SKU solicitados" },
-            { key: "cajasInvolucradas", label: "Cajas involucradas" },
+            { key: "auxiliaresTexto", label: "Auxiliares" },
+            { key: "fechaInicioAtencion", label: "Fecha inicio" },
+            { key: "horaInicioAtencion", label: "Hora inicio" },
+            { key: "avance", label: "Avance %" },
+            { key: "cajasSurtidas", label: "Cajas surtidas" },
             { key: "estado", label: "Estado" },
+            { key: "fechaCierreAtencion", label: "Fecha cierre" },
+            { key: "horaCierreAtencion", label: "Hora cierre" },
+            { key: "usuarioCierre", label: "Cerró" },
+            { key: "motivoCierre", label: "Motivo de cierre" },
           ],
         });
       };
@@ -786,10 +1022,10 @@
           )}
           <section className="rb-kpi-grid">
             {[
-              ["Abiertas", counts.ABIERTA || 0, "rb-kpi-open", "circle-dot"],
-              ["En atención", counts.EN_ATENCION || 0, "rb-kpi-attention", "loader-circle"],
+              ["En cola", (counts.CREADA || 0) + (counts.ABIERTA || 0), "rb-kpi-open", "circle-dot"],
+              ["En atención", WORKING_STATES_.reduce((sum, key) => sum + (counts[key] || 0), 0), "rb-kpi-attention", "loader-circle"],
               ["Cerradas", counts.CERRADA || 0, "rb-kpi-closed", "circle-check"],
-              ["Inconsistentes", counts.INCONSISTENTE || 0, "rb-kpi-inconsistent", "triangle-alert"],
+              ["Con pendientes", (counts.CERRADA_CON_PENDIENTES || 0) + (counts.INCONSISTENTE || 0), "rb-kpi-inconsistent", "triangle-alert"],
             ].map(([label, value, colorClass, icon]) => (
               <article key={label} className={`rb-card rb-kpi ${colorClass}`}>
                 <div className="flex items-center justify-between gap-3">
@@ -808,16 +1044,17 @@
               <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   {[
-                    ["TODAS", "Todas"],
-                    ["ABIERTA", "Abiertas"],
+                    ["VIGENTES", "Vigentes"],
+                    ["CREADA", "En cola"],
                     ["EN_ATENCION", "En atención"],
                     ["CERRADA", "Cerradas"],
-                    ["INCONSISTENTE", "Inconsistentes"],
+                    ["CERRADA_CON_PENDIENTES", "Con pendientes"],
+                    ["TODAS", "Todas"],
                   ].map(([id, label]) => (
                     <button
                       key={id}
                       type="button"
-                      onClick={() => setStatusFilter(id)}
+                      onClick={() => trackUi_("estado", id, () => setStatusFilter(id))}
                       className={`rb-filter-btn ${statusFilter === id ? "active-primary" : "idle"}`}
                     >
                       {label}
@@ -826,10 +1063,23 @@
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                  <SyncBadge_ />
+                  <select
+                    className="rb-select"
+                    value={currentUser}
+                    onChange={(event) => changeUser(event.target.value)}
+                    aria-label="Usuario que atiende"
+                    title="Usuario que atiende en este equipo"
+                  >
+                    <option value="">Mi usuario...</option>
+                    {users.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
                   <select
                     className="rb-select"
                     value={warehouseFilter}
-                    onChange={(event) => setWarehouseFilter(event.target.value)}
+                    onChange={(event) => { const value = event.target.value; trackUi_("bodega", value, () => setWarehouseFilter(value)); }}
                     aria-label="Filtrar por bodega"
                   >
                     <option value="TODAS">Todas las bodegas</option>
@@ -840,7 +1090,7 @@
                   <select
                     className="rb-select"
                     value={sortBy}
-                    onChange={(event) => setSortBy(event.target.value)}
+                    onChange={(event) => { const value = event.target.value; trackUi_("orden", value, () => setSortBy(value)); }}
                     aria-label="Ordenar solicitudes"
                   >
                     <option value="FECHA_DESC">Más recientes</option>
@@ -894,8 +1144,9 @@
                   <tr>
                     <th>Solicitud / creación</th>
                     <th>Solicitante</th>
-                    <th>Bodega</th>
+                    <th>Bodega / área</th>
                     <th>SKU</th>
+                    <th>Avance</th>
                     <th>Cajas</th>
                     <th>Estado</th>
                     <th>Acción</th>
@@ -904,7 +1155,10 @@
                 <tbody>
                   {filtered.map((item, index) => {
                     const status = normalize_(item.estado);
-                    const actionable = status === "ABIERTA" || status === "EN_ATENCION";
+                    const action = actionFor_(status);
+                    const tracking = item.seguimiento || {};
+                    const progress = Math.max(0, Math.min(100, Number(tracking.porcentajeAvance || 0)));
+                    const boxes = Number(tracking.cajasSurtidas ?? item.cajasInvolucradas ?? 0);
                     return (
                       <tr
                         key={item.idSolicitud || index}
@@ -915,22 +1169,37 @@
                           <span className="rb-folio">{item.idSolicitud || "SIN FOLIO"}</span>
                           <span className="rb-folio-sub">{item.fechaCreacion || "SIN FECHA"} · {item.horaCreacion || "--"}</span>
                         </td>
-                        <td><span className="rb-cell-strong">{item.solicitante || "SIN SOLICITANTE"}</span></td>
-                        <td><span className="rb-cell-strong">{item.bodega || "SIN BODEGA"}</span></td>
+                        <td>
+                          <span className="rb-cell-strong">{item.solicitante || "SIN SOLICITANTE"}</span>
+                          {(item.auxiliares || []).length > 0 && (
+                            <span className="rb-aux">Atiende: {item.auxiliares.join(", ")}</span>
+                          )}
+                        </td>
+                        <td>
+                          <span className="rb-cell-strong">{item.bodega || "SIN BODEGA"}</span>
+                          <span className="rb-aux">{item.areaSuministro || "SIN ÁREA"}</span>
+                        </td>
                         <td><span className="rb-count">{Number(item.skusSolicitados || 0)}</span></td>
-                        <td><span className="rb-count">{Number(item.cajasInvolucradas || 0)}</span></td>
+                        <td>
+                          <div className="rb-progress" title={`${Number(tracking.concluidos || 0)} de ${Number(tracking.totalSkus || 0)} SKU concluidos`}>
+                            <div className="rb-progress-bar"><div className="rb-progress-fill" style={{ width: `${progress}%` }}></div></div>
+                            <span className="rb-progress-text">{progress}%</span>
+                          </div>
+                        </td>
+                        <td><span className="rb-count">{boxes}</span></td>
                         <td><span className={statusClass_(status)}>{statusLabel_(status)}</span></td>
                         <td>
                           <button
                             type="button"
-                            className={`rb-action ${actionable ? "primary" : ""}`}
+                            className={`rb-action ${action.className}`}
+                            disabled={Boolean(takingId)}
                             onClick={(event) => {
                               event.stopPropagation();
                               openRequest(item);
                             }}
                           >
-                            <LocalIcon name={actionable ? "play" : "arrow-up-right"} size={14} />
-                            {status === "ABIERTA" ? "Atender" : status === "EN_ATENCION" ? "Continuar" : status === "INCONSISTENTE" ? "Revisar" : "Ver resumen"}
+                            <LocalIcon name={takingId === item.idSolicitud ? "loader-circle" : action.icon} size={14} className={takingId === item.idSolicitud ? "animate-spin" : ""} />
+                            {takingId === item.idSolicitud ? "Abriendo..." : action.label}
                           </button>
                         </td>
                       </tr>

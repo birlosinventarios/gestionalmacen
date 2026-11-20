@@ -213,6 +213,17 @@ function APPALMACEN_applyTemplateImports_(template, pagina) {
   );
   template.APPALMACEN_BRAND_JSON = JSON.stringify(APPALMACEN_BRAND);
 
+  /*
+   * Switch de registro de rendimiento (z1-Constants.gs). El navegador solo
+   * recibe ENABLED y los parámetros de cliente; con ENABLED en false el Shell
+   * no instala la medición.
+   */
+  template.APPALMACEN_RENDIMIENTO_JSON = JSON.stringify(
+    typeof APPALMACEN_RENDIMIENTO !== "undefined"
+      ? { ENABLED: APPALMACEN_RENDIMIENTO.ENABLED === true, CLIENT: APPALMACEN_RENDIMIENTO.CLIENT }
+      : { ENABLED: false, CLIENT: {} }
+  );
+
   // Loader inicial.
   template.LOADER_HTML =
     loaderTheme === "white"

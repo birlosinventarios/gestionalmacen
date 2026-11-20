@@ -326,6 +326,23 @@ const CatalogoRepository = (() => {
   }
 
   /**
+   * Busca varios códigos leyendo la columna CODIGO y solo los tramos de filas
+   * coincidentes (readRowsMatchingKeys_), en una sola pasada. Evita una
+   * búsqueda TextFinder por código (≈0.5 s cada una).
+   *
+   * @param {!Array<*>} codigos Códigos solicitados.
+   * @param {Object=} trace Traza opcional.
+   * @return {!Array<!Object>} Coincidencias normalizadas (con duplicados).
+   */
+  function getPorCodigosDirecto(codigos, trace) {
+    const columns = COL.CATALOGO;
+    const sheet = getSheetByKey_(SOURCE_KEY, trace);
+    const width = Math.max(columns.IDPRODUCTO, columns.CODIGO, columns.DESCRIPCION, columns.STATUS) + 1;
+    return readRowsMatchingKeys_(sheet, columns.CODIGO + 1, codigos, width, trace, "CATALOG_DIRECT_CODES_READ")
+      .map(function(entry) { return cloneProduct_(normalize_(entry.values)); });
+  }
+
+  /**
    * Invalida la caché local para que la siguiente consulta relea CATALOGO.
    *
    * @return {boolean} true cuando la caché queda invalidada.
@@ -346,6 +363,7 @@ const CatalogoRepository = (() => {
     getStatus,
     getPorCodigo,
     getPorCodigoDirecto,
+    getPorCodigosDirecto,
     getPorIdProducto,
     getPorDescripcion,
     getPorStatus,

@@ -4,28 +4,74 @@
  *
  * Vista operativa de atención de solicitudes de reabastecimiento. Su composición
  * visual replica el patrón de AuditoriaExcedentesDetalle: workspace de altura
- * completa, encabezado oscuro con métricas, toolbar contextual, tabla compacta y
- * drawer lateral amplio para consultar y registrar cajas.
+ * completa, encabezado oscuro con métricas, tabla operativa ampliada y drawer
+ * lateral para consultar, validar y registrar cajas.
  *
- * REGLAS DE NEGOCIO
- * - Mostrar ubicaciones consulta el estado vigente y marca la partida ATENDIDO.
- * - El surtido físico se acredita únicamente al registrar un IDUNICO.
+ * ARQUITECTURA DE LA VISTA
+ * - App: coordina carga, navegación, seguimiento, ATENDER, cierre y drawer.
+ * - LocationsDrawer: excedentes del SKU, validación de etiqueta, surtido total
+ *   o parcial, impresión del remanente y confirmación del SKU.
+ * - REAB (z0-ReabastecimientoCliente.html, incluido en el Shell):
+ *   · REAB.rpc(): única frontera hacia google.script.run, medida de extremo a
+ *     extremo y con el desglose del servidor adjunto.
+ *   · REAB.perf: tracker de rendimiento; los eventos se guardan en la hoja
+ *     APPALMACEN_RENDIMIENTO si el switch APPALMACEN_RENDIMIENTO.ENABLED de
+ *     z1-Constants.gs está en true (ver lista de operaciones en el script).
+ *   · REAB.sync: actualización en tiempo real por revisión de cambios.
+ *   · REAB.user: usuario responsable recordado en este equipo.
+ * - Los estados del servidor siempre se recargan después de una mutación.
+ *
+ * CAMPO "CANTIDAD A SURTIR"
+ * - Texto con teclado decimal: no cambia con la rueda del ratón ni con flechas.
+ * - Puede vaciarse para capturar otra cantidad; vacío bloquea VALIDAR y
+ *   REGISTRAR y muestra "Captura la cantidad a surtir".
+ *
+ * ESTADO TRANSITORIO DEL NAVEGADOR
+ * - DATA_ALMACEN_CACHE.reabastecimientoNavigation.idSolicitud: folio activo.
+ * - localStorage APPALMACEN_REABASTECIMIENTO_USUARIO: usuario responsable
+ *   recordado en este equipo. Nunca se usa al solicitante como valor por
+ *   defecto; sin usuario elegido no se registran movimientos.
+ * - Ninguno de estos valores sustituye las validaciones del Service.
+ *
+ * REGLAS DE NEGOCIO (proceso REABASTECIMIENTO-v1, sección 2)
+ * - ATENDER registra auxiliar, fecha y hora de inicio.
+ * - Mostrar ubicaciones lista excedentes surtibles y marca el SKU EN_ATENCION.
+ * - REGISTRAR aplica el SURTIDO (total o parcial) en Bitacora-TRASPASOS; un
+ *   surtido parcial imprime la etiqueta del remanente con el mismo IDUNICO.
+ * - El SKU se confirma como ATENDIDO o ATENDIDO_PARCIAL con al menos una caja.
+ * - El cierre bloquea la solicitud; con SKU sin concluir exige motivo.
  * - El navegador nunca es autoridad para código, saldo, bodega o ubicación.
  * - El cierre sigue siendo validado por el Service bajo ScriptLock.
+ * - La vista no persiste datos directamente ni reconstruye saldos localmente.
+ * - El drawer presenta el inventario completo ordenado por el Service; no aplica
+ *   búsquedas o filtros locales que puedan ocultar cajas durante la operación.
+ * - Las respuestas antiguas de carga se descartan mediante una secuencia local.
+ *
+ * CICLO DE VIDA
+ * - window.initVista monta una única raíz React.
+ * - El cleanup desmonta la raíz y evita conservar componentes anteriores.
+ * - El drawer restaura el overflow del documento al cerrarse o desmontarse.
  *
  * ENDPOINTS
  * - ReabastecimientoController_getDetalleSolicitud(idSolicitud)
+ * - ReabastecimientoController_tomarSolicitud(payload)
+ * - ReabastecimientoController_concluirPartida(payload)
  * - ReabastecimientoController_getUbicacionesPartida(payload)
  * - ReabastecimientoController_validarIdUnico(payload)
  * - ReabastecimientoController_registrarIdUnico(payload)
  * - ReabastecimientoController_cerrarSolicitud(payload)
+ * - ReabastecimientoController_getRevision(ids)          (vía REAB.sync)
+ * - ReabastecimientoController_registrarRendimiento(lote) (vía REAB.perf)
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-DETALLES-VIEW-2026-11-14-06
+ * @version REABASTECIMIENTO-DETALLES-VIEW-2026-11-20-01
  */
 </script>
 
 <style>
+/* =========================================================
+   TOKENS VISUALES Y CONTENEDOR PRINCIPAL
+   ========================================================= */
 #render-reabastecimiento-detalles{--c:var(--primary,#d93025);--cd:var(--primary-dark,#a50e0e);--ok:#1e8e3e;--warn:#d97706;--ink:var(--text-main,#1c1d1f);--muted:var(--text-secondary,#5f6368);--border:var(--border-color,#dadce0);height:100%;overflow:hidden;color:var(--ink)}
 #render-reabastecimiento-detalles *{box-sizing:border-box}.rdd-page{height:100%;padding:16px 24px 24px;overflow:hidden;background:radial-gradient(circle at top right,rgba(217,48,37,.055),transparent 34%),var(--bg-color,#f8f9fa)}
 .rdd-workspace{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:#fff;border:1px solid var(--border);border-radius:22px;box-shadow:0 24px 60px rgba(15,23,42,.11),0 6px 18px rgba(15,23,42,.05)}
@@ -35,66 +81,1495 @@
 .rdd-chip{min-height:25px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid transparent;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}.rdd-chip.green{background:rgba(30,142,62,.13);color:#157337;border-color:rgba(30,142,62,.22)}.rdd-chip.amber{background:rgba(217,119,6,.13);color:#b45309;border-color:rgba(217,119,6,.22)}.rdd-chip.red{background:rgba(217,48,37,.12);color:#a50e0e;border-color:rgba(217,48,37,.22)}.rdd-chip.slate{background:rgba(28,29,31,.07);color:#4b5563;border-color:rgba(28,29,31,.12)}
 .rdd-metrics{display:grid;grid-template-columns:minmax(105px,1.25fr) repeat(5,minmax(72px,1fr));overflow:hidden;background:rgba(255,255,255,.96);border-radius:15px;box-shadow:0 12px 30px rgba(0,0,0,.13)}.rdd-metric{min-width:0;min-height:67px;padding:12px 11px 10px;display:flex;flex-direction:column;justify-content:center;gap:6px;position:relative;color:var(--ink);border-right:1px solid var(--border)}.rdd-metric:last-child{border-right:0}.rdd-metric:before{content:"";position:absolute;top:0;left:10px;right:10px;height:4px;border-radius:0 0 999px 999px;background:#1c1d1f}.rdd-metric.ok:before{background:var(--ok)}.rdd-metric.bad:before{background:var(--c)}.rdd-metric-value{font-size:20px;font-weight:950;line-height:1;white-space:nowrap}.rdd-metric-label{color:var(--muted);font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}.rdd-track{height:4px;background:#e2e5e9;border-radius:99px;overflow:hidden}.rdd-bar{height:100%;border-radius:99px;transition:.3s}
 .rdd-actions{display:flex;gap:8px}.rdd-action{min-height:44px;padding:0 14px;display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.16);border-radius:13px;background:rgba(255,255,255,.09);color:#fff;font-size:9px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}.rdd-action.primary{border-color:var(--c);background:var(--c)}.rdd-action:disabled{opacity:.45;pointer-events:none}
-.rdd-toolbar{flex:0 0 auto;min-height:78px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:18px;position:relative;overflow:hidden;background:linear-gradient(135deg,#fff,#f8f9fa);border-bottom:1px solid var(--border)}.rdd-toolbar:before{content:"";position:absolute;inset:0 auto 0 0;width:6px;background:var(--c)}.rdd-toolbar-main{display:flex;align-items:center;gap:13px;position:relative;z-index:2}.rdd-toolbar-icon{width:46px;height:46px;display:flex;align-items:center;justify-content:center;border-radius:14px;background:#1c1d1f;color:#fff}.rdd-toolbar-eyebrow{color:var(--c);font-size:8px;font-weight:950;letter-spacing:.2em;text-transform:uppercase}.rdd-toolbar h3{margin:3px 0;color:var(--ink);font-size:15px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}.rdd-toolbar-description{margin:0;color:var(--muted);font-size:10px;font-weight:750}.rdd-toolbar-context{display:flex;gap:8px;flex-wrap:wrap}.rdd-context{min-height:34px;padding:0 11px;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:11px;background:#fff;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.rdd-context.live{color:#157337;background:rgba(30,142,62,.08);border-color:rgba(30,142,62,.22)}.rdd-dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px rgba(30,142,62,.12)}
-.rdd-table-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:auto;background:linear-gradient(180deg,#fff,#fcfcfd)}.rdd-table-wrap::-webkit-scrollbar,.rdd-drawer-content::-webkit-scrollbar{width:7px;height:7px}.rdd-table-wrap::-webkit-scrollbar-thumb,.rdd-drawer-content::-webkit-scrollbar-thumb{background:#c4c7cc;border-radius:99px}.rdd-table{width:100%;min-width:1250px;border-collapse:separate;border-spacing:0}.rdd-table th{position:sticky;top:0;z-index:5;height:48px;padding:0 14px;background:linear-gradient(180deg,#25272b,#1c1d1f);color:rgba(255,255,255,.78);border-right:1px solid rgba(255,255,255,.07);border-bottom:3px solid var(--c);font-size:9px;font-weight:950;letter-spacing:.13em;text-align:left;text-transform:uppercase;white-space:nowrap}.rdd-table td{padding:13px 14px;border-right:1px solid #f3f4f6;border-bottom:1px solid #eef1f4;background:#fff;font-size:11px;vertical-align:middle}.rdd-table tbody tr:nth-child(even) td{background:#fcfcfd}.rdd-table tbody tr:hover td{background:#fff8f7}.rdd-table tbody tr:hover td:first-child{box-shadow:inset 5px 0 0 var(--c)}.rdd-mono{font:950 13px "JetBrains Mono",monospace}.rdd-sub{margin-top:4px;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase}.rdd-detail-btn{min-height:38px;padding:0 13px;display:inline-flex;align-items:center;gap:6px;border:1px solid #1c1d1f;border-radius:11px;background:#1c1d1f;color:#fff;font-size:9px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}.rdd-detail-btn:hover{background:var(--c);border-color:var(--c)}.rdd-empty,.rdd-loading{min-height:230px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#9ca3af;text-align:center}.rdd-spinner{width:38px;height:38px;border:4px solid #eef1f4;border-top-color:var(--c);border-radius:50%;animation:rddSpin .8s linear infinite}@keyframes rddSpin{to{transform:rotate(360deg)}}
+.rdd-table-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:auto;background:linear-gradient(180deg,#fff,#fcfcfd)}.rdd-table-wrap::-webkit-scrollbar,.rdd-drawer-content::-webkit-scrollbar{width:7px;height:7px}.rdd-table-wrap::-webkit-scrollbar-thumb,.rdd-drawer-content::-webkit-scrollbar-thumb{background:#c4c7cc;border-radius:99px}.rdd-table{width:100%;min-width:1250px;border-collapse:separate;border-spacing:0}.rdd-table th{position:sticky;top:0;z-index:5;height:48px;padding:0 14px;background:linear-gradient(180deg,#25272b,#1c1d1f);color:rgba(255,255,255,.78);border-right:1px solid rgba(255,255,255,.07);border-bottom:3px solid var(--c);font-size:9px;font-weight:950;letter-spacing:.13em;text-align:left;text-transform:uppercase;white-space:nowrap}.rdd-table td{padding:13px 14px;border-right:1px solid #f3f4f6;border-bottom:1px solid #eef1f4;background:#fff;font-size:11px;vertical-align:middle}.rdd-table tbody tr:nth-child(even) td{background:#fcfcfd}.rdd-table tbody tr:hover td{background:#fff8f7}.rdd-table tbody tr:hover td:first-child{box-shadow:inset 5px 0 0 var(--c)}
+/* =========================================================
+   TABLA PRINCIPAL DE CÓDIGOS
+   Aumenta legibilidad sin modificar la tabla interna del drawer.
+   ========================================================= */
+.rdd-main-table th{
+  height:54px;
+  padding:0 16px;
+  font-size:11px;
+  letter-spacing:.11em;
+}
+.rdd-main-table td{
+  padding:16px;
+  font-size:14px;
+  line-height:1.42;
+}
+.rdd-main-table .rdd-mono{
+  font-size:15px;
+  line-height:1.35;
+}
+.rdd-main-table td:nth-child(3) b{
+  font-size:14px;
+  line-height:1.45;
+}
+.rdd-main-table .rdd-chip{
+  min-height:29px;
+  padding:0 11px;
+  font-size:10px;
+}
+.rdd-main-table .rdd-detail-btn{
+  min-height:42px;
+  padding:0 15px;
+  font-size:10px;
+}
+.rdd-mono{font:950 13px "JetBrains Mono",monospace}.rdd-sub{margin-top:4px;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase}.rdd-detail-btn{min-height:38px;padding:0 13px;display:inline-flex;align-items:center;gap:6px;border:1px solid #1c1d1f;border-radius:11px;background:#1c1d1f;color:#fff;font-size:9px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}.rdd-detail-btn:hover{background:var(--c);border-color:var(--c)}.rdd-empty,.rdd-loading{min-height:230px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#9ca3af;text-align:center}.rdd-spinner{width:38px;height:38px;border:4px solid #eef1f4;border-top-color:var(--c);border-radius:50%;animation:rddSpin .8s linear infinite}@keyframes rddSpin{to{transform:rotate(360deg)}}
+/* =========================================================
+   DRAWER OPERATIVO DE UBICACIONES
+   ========================================================= */
 .rdd-drawer-layer{position:fixed;inset:0;z-index:10050;display:flex;justify-content:flex-end;overflow:hidden}.rdd-drawer-backdrop{position:absolute;inset:0;border:0;background:rgba(15,23,42,.52);backdrop-filter:blur(5px)}.rdd-drawer{position:relative;z-index:2;width:min(1020px,96vw);height:100%;display:flex;flex-direction:column;overflow:hidden;background:#fff;border-left:1px solid var(--border);box-shadow:-24px 0 70px rgba(15,23,42,.2);animation:rddDrawer .24s cubic-bezier(.16,1,.3,1)}@keyframes rddDrawer{from{opacity:0;transform:translateX(42px)}to{opacity:1;transform:none}}.rdd-drawer-header{position:relative;padding:20px;color:#fff;background:radial-gradient(circle at top right,rgba(217,48,37,.35),transparent 42%),linear-gradient(135deg,#1c1d1f,#25272b 55%,#17181a)}.rdd-drawer-header:before{content:"";position:absolute;inset:0 auto 0 0;width:7px;background:var(--c)}.rdd-drawer-main{position:relative;z-index:2;display:flex;justify-content:space-between;gap:18px}.rdd-drawer-identity{display:flex;gap:14px;min-width:0}.rdd-drawer-icon{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.16);border-radius:15px;background:rgba(255,255,255,.1)}.rdd-drawer-title{margin:0;font:950 25px/1.1 "JetBrains Mono",monospace}.rdd-drawer-subtitle{margin:7px 0 0;color:rgba(255,255,255,.68);font-size:10px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.rdd-drawer-close{width:42px;height:42px;border:1px solid rgba(255,255,255,.14);border-radius:13px;background:rgba(255,255,255,.08);color:#fff;cursor:pointer}.rdd-drawer-metrics{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid var(--border)}.rdd-drawer-metric{min-height:88px;padding:14px 12px;display:flex;flex-direction:column;justify-content:center;gap:7px;position:relative;border-right:1px solid var(--border)}.rdd-drawer-metric:before{content:"";position:absolute;top:0;left:12px;right:12px;height:4px;border-radius:0 0 99px 99px;background:#1c1d1f}.rdd-drawer-metric.green:before{background:var(--ok)}.rdd-drawer-metric.amber:before{background:var(--warn)}.rdd-drawer-metric.red:before{background:var(--c)}.rdd-drawer-metric strong{font-size:21px}.rdd-drawer-metric span{color:var(--muted);font-size:8px;font-weight:950;letter-spacing:.11em;text-transform:uppercase}
-.rdd-drawer-control{padding:13px 16px;display:grid;grid-template-columns:minmax(210px,1fr) auto;gap:12px;background:#f8f9fa;border-bottom:1px solid var(--border)}.rdd-search{width:100%;min-height:43px;padding:0 14px;border:1px solid var(--border);border-radius:12px;background:#fff;font-size:12px;font-weight:750}.rdd-filters{display:flex;gap:6px;overflow-x:auto}.rdd-filter{min-height:38px;padding:0 11px;border:1px solid var(--border);border-radius:11px;background:#fff;color:var(--muted);font-size:8px;font-weight:950;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;cursor:pointer}.rdd-filter.active{color:#fff;background:#1c1d1f;border-color:#1c1d1f}.rdd-drawer-content{flex:1 1 auto;min-height:0;overflow:auto}.rdd-drawer-footer{padding:12px 16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(420px,1.2fr);gap:14px;align-items:end;border-top:1px solid var(--border);background:#fff}.rdd-form{display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:end}.rdd-field{display:grid;gap:5px}.rdd-field label{color:var(--muted);font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}.rdd-input{min-height:40px;padding:0 11px;border:1px solid var(--border);border-radius:10px;outline:none}.rdd-input:focus{border-color:var(--c);box-shadow:0 0 0 4px rgba(217,48,37,.1)}.rdd-small-btn{min-height:40px;padding:0 12px;border:1px solid #1c1d1f;border-radius:10px;background:#1c1d1f;color:#fff;font-size:9px;font-weight:950;text-transform:uppercase;cursor:pointer}.rdd-small-btn.primary{background:var(--c);border-color:var(--c)}.rdd-small-btn:disabled{opacity:.45}.rdd-message{margin-bottom:8px;font-size:10px;font-weight:800}.rdd-message.error{color:#a50e0e}.rdd-message.success{color:#157337}
+.rdd-drawer-content{flex:1 1 auto;min-height:0;overflow:auto}.rdd-drawer-content{
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+}
+/* =========================================================
+   TABLA DE CAJAS POR ESCANEAR
+   Anchos controlados para priorizar IDUNICO y cantidad.
+   ========================================================= */
+.rdd-locations-table{
+  min-width:820px;
+  table-layout:fixed;
+}
+.rdd-locations-table th:nth-child(1),
+.rdd-locations-table td:nth-child(1){width:15%}
+.rdd-locations-table th:nth-child(2),
+.rdd-locations-table td:nth-child(2){width:22%}
+.rdd-locations-table th:nth-child(3),
+.rdd-locations-table td:nth-child(3){width:23%}
+.rdd-locations-table th:nth-child(4),
+.rdd-locations-table td:nth-child(4){width:12%}
+.rdd-locations-table th:nth-child(5),
+.rdd-locations-table td:nth-child(5){width:12%}
+.rdd-locations-table th:nth-child(6),
+.rdd-locations-table td:nth-child(6){width:16%}
+.rdd-locations-table th,
+.rdd-locations-table td{
+  padding-left:11px;
+  padding-right:11px;
+}
+.rdd-locations-table .rdd-detail-btn{
+  min-height:34px;
+  padding:0 10px;
+  font-size:8px;
+}
+
+/* =========================================================
+   PANEL DE VALIDACIÓN Y REGISTRO
+   Sección preparada para el siguiente ciclo de desarrollo.
+   ========================================================= */
+.rdd-validation-panel{
+  flex:0 0 auto;
+  border-top:1px solid var(--border);
+  background:linear-gradient(135deg,#fff,#f8f9fa);
+}
+.rdd-validation-head{
+  min-height:52px;
+  padding:10px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  border-bottom:1px solid var(--border);
+  background:#fff;
+}
+.rdd-validation-title-wrap{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+.rdd-validation-icon{
+  width:34px;
+  height:34px;
+  flex:0 0 34px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:10px;
+  background:#1c1d1f;
+  color:#fff;
+}
+.rdd-validation-kicker{
+  display:block;
+  color:var(--c);
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+.rdd-validation-title{
+  display:block;
+  margin-top:2px;
+  color:var(--ink);
+  font-size:12px;
+  font-weight:950;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+.rdd-validation-count{
+  color:var(--muted);
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+.rdd-validation-body{
+  padding:12px 16px 14px;
+  display:grid;
+  grid-template-columns:minmax(220px,.75fr) minmax(370px,1.25fr);
+  gap:14px;
+  align-items:stretch;
+}
+.rdd-selected-box{
+  min-height:82px;
+  padding:12px 14px;
+  display:grid;
+  grid-template-columns:38px minmax(0,1fr);
+  gap:11px;
+  align-items:center;
+  border:1px solid var(--border);
+  border-radius:13px;
+  background:#fff;
+}
+.rdd-selected-box.empty{
+  color:var(--muted);
+  background:#f8f9fa;
+}
+.rdd-selected-box-icon{
+  width:38px;
+  height:38px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:11px;
+  background:rgba(217,48,37,.09);
+  color:var(--c);
+}
+.rdd-selected-box-label{
+  color:var(--muted);
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.rdd-selected-box-value{
+  margin-top:3px;
+  color:var(--ink);
+  font:950 14px/1.25 "JetBrains Mono",monospace;
+  overflow-wrap:anywhere;
+}
+.rdd-selected-box-meta{
+  margin-top:4px;
+  color:var(--muted);
+  font-size:9px;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.rdd-validation-workspace{
+  padding:11px;
+  display:grid;
+  grid-template-columns:minmax(150px,1fr) minmax(180px,1.15fr) auto auto;
+  gap:8px;
+  align-items:end;
+  border:1px solid var(--border);
+  border-radius:13px;
+  background:#fff;
+}
+.rdd-field{
+  display:grid;
+  gap:5px;
+}
+.rdd-field label{
+  color:var(--muted);
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.rdd-input{
+  min-height:40px;
+  padding:0 11px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  outline:none;
+  font-size:12px;
+  font-weight:800;
+}
+.rdd-input:focus{
+  border-color:var(--c);
+  box-shadow:0 0 0 4px rgba(217,48,37,.1);
+}
+.rdd-small-btn{
+  min-height:40px;
+  padding:0 12px;
+  border:1px solid #1c1d1f;
+  border-radius:10px;
+  background:#1c1d1f;
+  color:#fff;
+  font-size:9px;
+  font-weight:950;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  cursor:pointer;
+}
+.rdd-small-btn.primary{
+  border-color:var(--c);
+  background:var(--c);
+}
+.rdd-small-btn:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+}
+.rdd-validation-feedback{
+  grid-column:1/-1;
+  min-height:15px;
+  margin-top:2px;
+  font-size:10px;
+  font-weight:850;
+}
+.rdd-validation-feedback.error{color:#a50e0e}
+.rdd-validation-feedback.success{color:#157337}
+.rdd-validation-result{
+  grid-column:1/-1;
+  color:var(--muted);
+  font-size:9px;
+  font-weight:850;
+  letter-spacing:.02em;
+  text-transform:uppercase;
+}
+
+/* =========================================================
+   MODAL DE CIERRE
+   ========================================================= */
 .rdd-modal-layer{position:fixed;inset:0;z-index:10100;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.55);backdrop-filter:blur(4px)}.rdd-modal{width:min(520px,100%);padding:20px;background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(15,23,42,.25)}.rdd-modal h2{margin:0 0 8px}.rdd-modal p{color:var(--muted);line-height:1.5}.rdd-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
-@media(max-width:1180px){.rdd-header{grid-template-columns:1fr auto}.rdd-metrics{grid-column:1/-1;grid-row:2}.rdd-actions{grid-column:2;grid-row:1}}@media(max-width:820px){.rdd-drawer{width:100%}.rdd-drawer-control,.rdd-drawer-footer{grid-template-columns:1fr}.rdd-form{grid-template-columns:1fr 1fr}}@media(max-width:720px){.rdd-page{padding:8px}.rdd-header{display:flex;flex-direction:column;align-items:stretch}.rdd-metrics{grid-template-columns:repeat(3,1fr)}.rdd-toolbar{align-items:flex-start;flex-direction:column}.rdd-drawer-metrics{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:1180px){.rdd-header{grid-template-columns:1fr auto}.rdd-metrics{grid-column:1/-1;grid-row:2}.rdd-actions{grid-column:2;grid-row:1}}@media(max-width:820px){
+  .rdd-drawer{width:100%}
+  .rdd-validation-body{grid-template-columns:1fr}
+  .rdd-validation-workspace{grid-template-columns:1fr 1fr}
+}@media(max-width:720px){.rdd-page{padding:8px}.rdd-header{display:flex;flex-direction:column;align-items:stretch}.rdd-metrics{grid-template-columns:repeat(3,1fr)}.rdd-drawer-metrics{grid-template-columns:repeat(3,1fr)}}
+/* =========================================================
+   PROCESO REABASTECIMIENTO-v1: SEGUIMIENTO, AVISOS Y CIERRE
+   ========================================================= */
+.rdd-tracking{flex:0 0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:0;border-bottom:1px solid var(--border);background:#fff}
+.rdd-tracking>div{padding:10px 16px;border-right:1px solid #eef1f4;min-width:0}
+.rdd-tracking span{display:block;color:var(--muted);font-size:8px;font-weight:950;letter-spacing:.12em;text-transform:uppercase}
+.rdd-tracking b{display:block;margin-top:4px;font-size:12px;font-weight:900;color:var(--ink);overflow-wrap:anywhere}
+.rdd-tracking em{display:block;margin-top:2px;font-style:normal;color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase}
+.rdd-banner{flex:0 0 auto;margin:10px 16px 0;padding:10px 14px;display:flex;align-items:center;gap:12px;border:1px solid rgba(217,119,6,.3);border-radius:12px;background:rgba(217,119,6,.08);color:#9a5a04;font-size:11px;font-weight:850}
+.rdd-banner span{flex:1}
+.rdd-banner.ok{border-color:rgba(30,142,62,.3);background:rgba(30,142,62,.08);color:#157337}
+.rdd-banner.danger{border-color:rgba(197,34,31,.3);background:rgba(197,34,31,.07);color:#8c1d18}
+.rdd-select{min-height:40px;max-width:240px;padding:0 10px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--ink);font-size:11px;font-weight:850;outline:none}
+.rdd-select.dark{min-height:44px;border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.1);color:#fff}
+.rdd-select.dark option{color:#1c1d1f}
+.rdd-user-inline{display:flex;align-items:center;gap:8px}
+.rdd-user-inline>span{color:var(--muted);font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+.rdd-row-selected td{background:rgba(217,48,37,.07)!important}
+.rdd-done{margin:14px;border:1px solid var(--border);border-radius:13px;overflow:hidden}
+.rdd-done-title{display:flex;align-items:center;gap:7px;padding:10px 14px;background:#f8f9fa;color:#157337;font-size:10px;font-weight:950;letter-spacing:.08em;text-transform:uppercase}
+.rdd-done .rdd-table{min-width:0}
+.rdd-validation-result.warn{color:#9a5a04;font-weight:900;text-transform:none;font-size:10px}
+.rdd-conclude{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px 14px;border-top:1px dashed var(--border)}
+.rdd-conclude>span{color:var(--muted);font-size:10px;font-weight:850}
+.rdd-conclude>div{display:flex;gap:8px}
+.rdd-small-btn.ok{border-color:var(--ok);background:var(--ok)}
+.rdd-textarea{min-height:84px;padding:9px 11px;resize:vertical;font-family:inherit}
+.rdd-pending{margin:12px 0;padding:12px;border:1px solid rgba(197,34,31,.25);border-radius:12px;background:rgba(197,34,31,.05)}
+.rdd-pending ul{margin:6px 0 10px 18px;padding:0;font-size:11px;color:#8c1d18}
+.rdd-ok-note{color:#157337!important;font-weight:850}
+.rdd-modal .rdd-field{margin-top:10px}
+.rdd-modal .rdd-select{max-width:none;width:100%}
+/* Indicador de sincronización en tiempo real y validación de cantidad */
+.rdd-sync{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:900;color:#157337}
+.rdd-sync i{width:8px;height:8px;border-radius:50%;background:#1e8e3e;box-shadow:0 0 0 0 rgba(30,142,62,.5);animation:rddPulse 2s infinite}
+.rdd-sync.error{color:#a50e0e}.rdd-sync.error i{background:#d93025;animation:none}
+.rdd-sync.idle i,.rdd-sync.degraded i{background:#d97706;animation:none}.rdd-sync.idle,.rdd-sync.degraded{color:#9a5a04}
+@keyframes rddPulse{0%{box-shadow:0 0 0 0 rgba(30,142,62,.45)}70%{box-shadow:0 0 0 7px rgba(30,142,62,0)}100%{box-shadow:0 0 0 0 rgba(30,142,62,0)}}
+.rdd-input.invalid{border-color:var(--c);background:rgba(217,48,37,.05)}
 </style>
 
 <div id="render-reabastecimiento-detalles"></div>
 
 <script type="text/babel">
-window.cargar_ReabastecimientoDetalles=()=>{
-  const{useState,useEffect,useMemo,useCallback,useRef}=React;
-  const str=v=>String(v==null?"":v).trim(),up=v=>str(v).toUpperCase(),num=v=>Number.isFinite(Number(v))?Number(v):0;
-  const notify=(m,t="info",timer=2800,o={})=>{const f=window.notificar||window.lanzarNotificacion;if(typeof f==="function")f(m,t,timer,o)};
-  const publicError=e=>str(e?.message||e).replace(/^\[[A-Z0-9_]+\]\s*/,"")||"No fue posible completar la operación.";
-  function Icon({name,size=17}){const ref=useRef(null);useEffect(()=>{if(!window.lucide||!ref.current)return;ref.current.innerHTML="";const i=document.createElement("i");i.setAttribute("data-lucide",name);i.style.width=`${size}px`;i.style.height=`${size}px`;ref.current.appendChild(i);window.lucide.createIcons()},[name,size]);return <span ref={ref} className="inline-flex items-center justify-center"/>}
-  const rpc=(method,...args)=>new Promise((resolve,reject)=>{if(!window.google?.script?.run)return reject(new Error("google.script.run no está disponible."));const runner=google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);if(typeof runner[method]!=="function")return reject(new Error(`Endpoint no disponible: ${method}`));runner[method](...args)});
-  const parseEnvelope=(response,required=[])=>{let value=response;if(typeof value==="string")value=JSON.parse(value);if(value?.ok===false)throw new Error(value.message||value.error?.message||"Operación no exitosa.");const data=value?.ok===true?value.data:value;if(!data||typeof data!=="object")throw new Error("El servidor devolvió un contrato vacío.");required.forEach(key=>{if(!(key in data))throw new Error(`El contrato no contiene ${key}.`)});return data};
-  function Metric({label,value,tone,progress}){return <div className={`rdd-metric ${tone||""}`}><div className="rdd-metric-value">{value}</div><div className="rdd-metric-label">{label}</div>{progress!=null&&<div className="rdd-track"><div className="rdd-bar" style={{width:`${Math.min(100,progress)}%`,background:progress===100?"var(--ok)":"var(--c)"}}/></div>}</div>}
-  function DrawerMetric({label,value,tone}){return <div className={`rdd-drawer-metric ${tone||""}`}><strong>{value}</strong><span>{label}</span></div>}
+/* ============================================================================
+ * ReabastecimientoDetalles · Lógica de la vista (React + Babel en navegador)
+ * ============================================================================
+ *
+ * ESTRUCTURA DEL CÓDIGO
+ * ─────────────────────
+ * 1. Dependencias y constantes ........ REAB (z0-ReabastecimientoCliente),
+ *                                        etiquetas y tonos de estados.
+ * 2. Componentes de presentación ...... Icon, Metric, DrawerMetric,
+ *                                        UserPicker, SyncBadge.
+ * 3. Utilidades de cantidad ........... sanitizeQuantity, parseQuantity.
+ * 4. LocationsDrawer .................. vista "UBICACIONES DE EXCEDENTE":
+ *                                        validar etiqueta, surtir, confirmar SKU.
+ * 5. App .............................. vista "DETALLE OPERATIVO":
+ *                                        carga, ATENDER, seguimiento, cierre,
+ *                                        sincronización en tiempo real.
+ * 6. Montaje .......................... initVista / cleanup del Shell.
+ *
+ * MEDICIÓN DE RENDIMIENTO
+ * ───────────────────────
+ * Cada acción crea una traza con REAB.perf.begin(OPERACION, {...}). Las
+ * consultas usan REAB.rpc(), que marca RPC_SENT / RPC_RESPONSE / PARSED y
+ * adjunta el desglose del servidor. La traza se cierra con endAfterPaint()
+ * cuando el resultado ya está pintado en pantalla. Nombres de operación:
+ *
+ *   DETALLE_VISTA_MONTADA          initVista → primer detalle visible
+ *   DETALLE_CARGAR                 lectura del detalle (motivo en meta.reason)
+ *   DETALLE_ATENDER                botón ATENDER dentro del detalle
+ *   DETALLE_MOSTRAR_UBICACIONES    clic → tabla de excedentes visible
+ *   DETALLE_REFRESCAR_UBICACIONES  recarga del drawer tras una acción/cambio
+ *   DETALLE_VALIDAR_ETIQUETA       escaneo/validación de un IDUNICO
+ *   DETALLE_REGISTRAR_SURTIDO      clic REGISTRAR → surtido confirmado y
+ *                                  pantalla actualizada (incluye impresión).
+ *                                  Una sola llamada: el detalle llega en la
+ *                                  respuesta y el drawer se actualiza localmente.
+ *   DETALLE_IMPRIMIR_REMANENTE     envío de la etiqueta del remanente
+ *   DETALLE_CONFIRMAR_SKU          ATENDIDO / ATENDIDO PARCIALMENTE
+ *   DETALLE_CERRAR_SOLICITUD       cierre (con o sin pendientes)
+ *
+ * TIEMPO REAL
+ * ───────────
+ * La vista se suscribe a REAB.sync con su folio. Cuando otro usuario modifica
+ * la solicitud, se recargan detalle y drawer (si no hay una acción en curso) y
+ * se muestra "Información actualizada".
+ * ========================================================================== */
+window.cargar_ReabastecimientoDetalles = () => {
+  const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-  function LocationsDrawer({model,onClose,onRegistered}){
-    const[query,setQuery]=useState(""),[filter,setFilter]=useState("TODAS"),[idUnico,setIdUnico]=useState(""),[user,setUser]=useState(str(window.DATA_ALMACEN_CACHE?.reabastecimientoUsuario)),[validation,setValidation]=useState(null),[busy,setBusy]=useState(false),[message,setMessage]=useState({text:"",type:""});
-    useEffect(()=>{const old=document.body.style.overflow;document.body.style.overflow="hidden";const key=e=>e.key==="Escape"&&onClose();window.addEventListener("keydown",key);return()=>{document.body.style.overflow=old;window.removeEventListener("keydown",key)}},[onClose]);
-    const boxes=Array.isArray(model?.cajasPorEscanear)?model.cajasPorEscanear:[],warehouses=useMemo(()=>[...new Set(boxes.map(x=>str(x.bodegaExcedente)||"SIN BODEGA"))],[boxes]);
-    const filtered=useMemo(()=>{const q=up(query);return boxes.filter(x=>(filter==="TODAS"||up(x.bodegaExcedente)===filter)&&(!q||up([x.idUnico,x.bodegaExcedente,x.ubicacionExcedente,x.cantidad].join(" ")).includes(q)))},[boxes,query,filter]);
-    const selectBox=box=>{setIdUnico(str(box.idUnico));setValidation(null);setMessage({text:"",type:""})};
-    const validate=async()=>{if(!idUnico)return setMessage({text:"Captura o selecciona un IDUNICO.",type:"error"});setBusy(true);try{const response=await rpc("ReabastecimientoController_validarIdUnico",{idSolicitud:model.idSolicitud,idPartidaConsecutivo:model.partida.idPartidaConsecutivo,idUnico});const data=parseEnvelope(response,["valido"]);setValidation(data);setMessage({text:"IDUNICO válido y disponible.",type:"success"})}catch(e){setValidation(null);setMessage({text:publicError(e),type:"error"})}finally{setBusy(false)}};
-    const register=async()=>{if(!validation||up(validation.idUnico)!==up(idUnico))return setMessage({text:"Valida nuevamente el IDUNICO.",type:"error"});if(!str(user))return setMessage({text:"Captura el usuario responsable.",type:"error"});setBusy(true);try{await rpc("ReabastecimientoController_registrarIdUnico",{idSolicitud:model.idSolicitud,idPartidaConsecutivo:model.partida.idPartidaConsecutivo,idUnico,usuario:user});window.DATA_ALMACEN_CACHE=window.DATA_ALMACEN_CACHE||{};window.DATA_ALMACEN_CACHE.reabastecimientoUsuario=user;setValidation(null);setIdUnico("");setMessage({text:"Caja registrada correctamente.",type:"success"});await onRegistered()}catch(e){setMessage({text:publicError(e),type:"error"})}finally{setBusy(false)}};
-    return <div className="rdd-drawer-layer" role="dialog" aria-modal="true"><button className="rdd-drawer-backdrop" onClick={onClose}/><aside className="rdd-drawer">
-      <header className="rdd-drawer-header"><div className="rdd-drawer-main"><div className="rdd-drawer-identity"><div className="rdd-drawer-icon"><Icon name="warehouse" size={23}/></div><div><p className="rdd-eyebrow">Ubicaciones de excedente</p><h2 className="rdd-drawer-title">{model.partida.codigo}</h2><p className="rdd-drawer-subtitle">{model.partida.descripcion} · Piso {model.partida.ubicacionSurtido} · {model.idSolicitud}</p></div></div><button className="rdd-drawer-close" onClick={onClose}><Icon name="x" size={19}/></button></div></header>
-      <section className="rdd-drawer-metrics"><DrawerMetric label="Cajas vigentes" value={boxes.length+num(model.resumen.cajasEscaneadas)}/><DrawerMetric label="Por escanear" value={boxes.length} tone="amber"/><DrawerMetric label="Escaneadas" value={num(model.resumen.cajasEscaneadas)} tone="green"/><DrawerMetric label="Piezas disponibles" value={num(model.resumen.piezasPorEscanear).toLocaleString("es-MX")}/><DrawerMetric label="Bodegas" value={warehouses.length}/></section>
-      <section className="rdd-drawer-control"><input className="rdd-search" placeholder="Buscar IDUNICO, ubicación o bodega..." value={query} onChange={e=>setQuery(e.target.value)}/><div className="rdd-filters"><button className={`rdd-filter ${filter==="TODAS"?"active":""}`} onClick={()=>setFilter("TODAS")}>Todas</button>{warehouses.map(w=><button key={w} className={`rdd-filter ${filter===up(w)?"active":""}`} onClick={()=>setFilter(up(w))}>{w}</button>)}</div></section>
-      <section className="rdd-drawer-content">{filtered.length?<table className="rdd-table"><thead><tr><th>Bodega</th><th>Ubicación de excedente</th><th>IDUNICO</th><th>Piezas</th><th>Estado</th><th>Acción</th></tr></thead><tbody>{filtered.map((box,i)=><tr key={`${box.idUnico}-${i}`}><td><b>{box.bodegaExcedente||"SIN BODEGA"}</b></td><td><span className="rdd-mono">{box.ubicacionExcedente||"SIN UBICACIÓN"}</span></td><td><span className="rdd-mono">{box.idUnico}</span></td><td><b>{num(box.cantidad).toLocaleString("es-MX")}</b></td><td><span className="rdd-chip amber">Pendiente</span></td><td><button className="rdd-detail-btn" onClick={()=>selectBox(box)}><Icon name="scan-line" size={14}/>Seleccionar</button></td></tr>)}</tbody></table>:<div className="rdd-empty"><Icon name="package-open" size={32}/><b>Sin cajas pendientes</b></div>}</section>
-      <footer className="rdd-drawer-footer"><div><div className="rdd-sub">{filtered.length} de {boxes.length} cajas visibles</div>{message.text&&<div className={`rdd-message ${message.type}`}>{message.text}</div>}{validation&&<div className="rdd-sub">Validado: {validation.codigo} · {num(validation.cantidad).toLocaleString("es-MX")} piezas · {validation.ubicacion}</div>}</div><div className="rdd-form"><div className="rdd-field"><label>IDUNICO</label><input className="rdd-input" value={idUnico} onChange={e=>{setIdUnico(e.target.value);setValidation(null)}} placeholder="Escanea o selecciona"/></div><div className="rdd-field"><label>Usuario responsable</label><input className="rdd-input" value={user} onChange={e=>setUser(e.target.value.toUpperCase())}/></div><button className="rdd-small-btn" disabled={busy} onClick={validate}>Validar</button><button className="rdd-small-btn primary" disabled={busy||!validation} onClick={register}>Registrar</button></div></footer>
-    </aside></div>
+  // ==========================================================================
+  // 1. DEPENDENCIAS Y CONSTANTES
+  // ==========================================================================
+
+  /** Biblioteca compartida; sin ella la vista no puede operar. */
+  const REAB = window.REAB;
+  if (!REAB) {
+    (window.notificar || console.error)("Falta la biblioteca z0-ReabastecimientoCliente.", "error");
+    return () => {};
+  }
+  const { str, up, num, fmt, notify, publicError } = REAB.util;
+
+  /** Nombre de la vista en la bitácora de rendimiento. */
+  const VIEW = "ReabastecimientoDetalles";
+
+  /** Momento de montaje para medir DETALLE_VISTA_MONTADA. */
+  const mountTrace = REAB.perf.begin("DETALLE_VISTA_MONTADA", { view: VIEW, type: "CARGA" });
+
+  /** Estados de solicitud cerrados (solo lectura). */
+  const CLOSED = ["CERRADA", "CERRADA_CON_PENDIENTES"];
+
+  /** Estados de partida que cuentan como SKU concluido. */
+  const CONCLUDED = ["ATENDIDO", "ATENDIDO_PARCIAL"];
+
+  /** Etiquetas visibles de los estados de solicitud (proceso 7.1). */
+  const REQUEST_LABEL = {
+    CREADA: "Creada",
+    ABIERTA: "Creada",
+    ASIGNADA: "Asignada",
+    EN_ATENCION: "En atención",
+    PARCIALMENTE_ATENDIDA: "Parcialmente atendida",
+    ATENDIDA: "Atendida · por cerrar",
+    CERRADA: "Cerrada",
+    CERRADA_CON_PENDIENTES: "Cerrada con pendientes",
+    INCONSISTENTE: "Datos inconsistentes"
+  };
+
+  /** Color del chip de estado de solicitud (clases .rdd-chip.*). */
+  const REQUEST_TONE = {
+    CREADA: "slate",
+    ABIERTA: "slate",
+    ASIGNADA: "amber",
+    EN_ATENCION: "amber",
+    PARCIALMENTE_ATENDIDA: "amber",
+    ATENDIDA: "green",
+    CERRADA: "green",
+    CERRADA_CON_PENDIENTES: "red",
+    INCONSISTENTE: "red"
+  };
+
+  /** Etiquetas y colores de los estados de SKU (proceso 7.2). */
+  const PART_LABEL = {
+    PENDIENTE: "Pendiente",
+    EN_ATENCION: "En atención",
+    ATENDIDO_PARCIAL: "Atendido parcialmente",
+    ATENDIDO: "Atendido"
+  };
+  const PART_TONE = { PENDIENTE: "slate", EN_ATENCION: "amber", ATENDIDO_PARCIAL: "amber", ATENDIDO: "green" };
+
+  /** Convierte minutos a "1 h 05 min" / "12 min". */
+  const minutesLabel = (minutes) => {
+    if (minutes == null || !Number.isFinite(Number(minutes))) return "—";
+    const value = Math.max(0, Math.round(Number(minutes)));
+    const hours = Math.floor(value / 60);
+    return hours ? `${hours} h ${String(value % 60).padStart(2, "0")} min` : `${value} min`;
+  };
+
+  // ==========================================================================
+  // 2. COMPONENTES DE PRESENTACIÓN
+  // ==========================================================================
+
+  /**
+   * Ícono Lucide dibujado solo en su propio nodo (REAB.util.renderIcon), sin
+   * el escaneo global de lucide.createIcons() que repetía cada ícono de la
+   * tabla al montar el detalle.
+   * @param {{name:string, size?:number}} props
+   */
+  function Icon({ name, size = 17 }) {
+    const ref = useRef(null);
+    useEffect(() => {
+      REAB.util.renderIcon(ref.current, name, size);
+    }, [name, size]);
+    return <span ref={ref} className="inline-flex items-center justify-center" />;
   }
 
-  function App(){
-    const id=useMemo(()=>str(window.REABASTECIMIENTO_ID_SOLICITUD)||str(window.DATA_ALMACEN_CACHE?.reabastecimientoNavigation?.idSolicitud),[]),[detail,setDetail]=useState(null),[loading,setLoading]=useState(true),[drawer,setDrawer]=useState(null),[drawerLoading,setDrawerLoading]=useState(false),[closing,setClosing]=useState(false),[closeModal,setCloseModal]=useState(false),[closeUser,setCloseUser]=useState(str(window.DATA_ALMACEN_CACHE?.reabastecimientoUsuario));const mounted=useRef(true),loadSeq=useRef(0);
-    const load=useCallback(async(silent=false)=>{if(!id)return;const seq=++loadSeq.current;if(!silent)setLoading(true);try{const response=await rpc("ReabastecimientoController_getDetalleSolicitud",id);const data=parseEnvelope(response,["solicitud","partidas"]);if(mounted.current&&seq===loadSeq.current)setDetail(data)}catch(e){notify(publicError(e),"error",5000,{title:"No se cargó la solicitud"})}finally{if(mounted.current&&seq===loadSeq.current)setLoading(false)}},[id]);
-    useEffect(()=>{mounted.current=true;load();return()=>{mounted.current=false;loadSeq.current++}},[load]);
-    const summary=useMemo(()=>{const parts=detail?.partidas||[],attended=parts.filter(x=>up(x.estado)==="ATENDIDO").length,boxes=num(detail?.cajasUnicas),pieces=parts.reduce((a,p)=>a+(p.detalles||[]).reduce((b,d)=>b+num(d.cantidad),0),0);return{total:parts.length,attended,pending:Math.max(0,parts.length-attended),boxes,pieces,progress:parts.length?attended/parts.length*100:0}},[detail]);
-    const state=up(detail?.solicitud?.estado),canClose=state!=="CERRADA"&&state!=="INCONSISTENTE"&&summary.total>0&&summary.pending===0&&summary.boxes>0;
-    const back=()=>window.irAVistaShell?.("Reabastecimiento","Reabastecimiento");
-    const openLocations=async(part)=>{const cached=str(window.DATA_ALMACEN_CACHE?.reabastecimientoUsuario),user=cached||str(window.prompt("Usuario responsable registrado:",""));if(!user)return;setDrawerLoading(true);setDrawer({idSolicitud:id,partida:{codigo:part.codigoSolicitado,descripcion:part.descripcionSolicitada,ubicacionSurtido:part.ubicacionSolicitada,idPartidaConsecutivo:part.idPartidaConsecutivo},resumen:{},cajasPorEscanear:[]});try{const response=await rpc("ReabastecimientoController_getUbicacionesPartida",{idSolicitud:id,idPartidaConsecutivo:part.idPartidaConsecutivo,usuario:user});const data=parseEnvelope(response,["partida","resumen","cajasPorEscanear"]);window.DATA_ALMACEN_CACHE=window.DATA_ALMACEN_CACHE||{};window.DATA_ALMACEN_CACHE.reabastecimientoUsuario=user;setDrawer({...data,idSolicitud:id});await load(true)}catch(e){setDrawer(null);notify(publicError(e),"error",5000,{title:"No se cargaron las ubicaciones"})}finally{setDrawerLoading(false)}};
-    const refreshDrawer=async()=>{if(!drawer)return;const user=str(window.DATA_ALMACEN_CACHE?.reabastecimientoUsuario);const response=await rpc("ReabastecimientoController_getUbicacionesPartida",{idSolicitud:id,idPartidaConsecutivo:drawer.partida.idPartidaConsecutivo,usuario:user});setDrawer({...parseEnvelope(response,["partida","resumen","cajasPorEscanear"]),idSolicitud:id});await load(true)};
-    const closeRequest=async()=>{if(!str(closeUser))return notify("Captura el usuario responsable.","warning");setClosing(true);try{await rpc("ReabastecimientoController_cerrarSolicitud",{idSolicitud:id,usuario:closeUser});setCloseModal(false);await load(true);notify("Solicitud cerrada correctamente.","success")}catch(e){notify(publicError(e),"error",5000)}finally{setClosing(false)}};
-    if(!id)return <div className="rdd-page"><div className="rdd-workspace"><div className="rdd-empty"><b>No se recibió ID_SOLICITUD</b></div></div></div>;
-    const request=detail?.solicitud||{},parts=detail?.partidas||[],tone=state==="CERRADA"?"green":state==="INCONSISTENTE"?"red":state==="EN_ATENCION"?"amber":"slate";
-    return <div className="rdd-page"><section className="rdd-workspace">
-      <header className="rdd-header"><div className="rdd-id"><button className="rdd-back" onClick={back}><Icon name="arrow-left"/></button><div className="rdd-copy"><p className="rdd-eyebrow">Detalle operativo de reabastecimiento</p><div className="rdd-title-row"><h2 className="rdd-title">{request.idSolicitud||id}</h2>{state&&<span className={`rdd-chip ${tone}`}>{state.replaceAll("_"," ")}</span>}</div><p className="rdd-description">{request.solicitante||"SIN SOLICITANTE"} · {request.bodega||"SIN BODEGA"} · {request.fechaCreacion||"SIN FECHA"} {request.horaCreacion||""}</p></div></div>
-      <div className="rdd-metrics"><Metric label="Avance" value={`${summary.progress.toFixed(0)}%`} progress={summary.progress}/><Metric label="Partidas" value={summary.total}/><Metric label="Atendidas" value={summary.attended} tone="ok"/><Metric label="Pendientes" value={summary.pending} tone={summary.pending?"bad":"ok"}/><Metric label="Cajas" value={summary.boxes}/><Metric label="Piezas" value={summary.pieces.toLocaleString("es-MX")}/></div>
-      <div className="rdd-actions"><button className="rdd-action" onClick={()=>load()} disabled={loading}><Icon name="refresh-cw"/><span>{loading?"Actualizando":"Actualizar"}</span></button><button className="rdd-action primary" disabled={!canClose} onClick={()=>setCloseModal(true)}><Icon name="circle-check"/><span>Cerrar</span></button></div></header>
-      <div className="rdd-toolbar"><div className="rdd-toolbar-main"><div className="rdd-toolbar-icon"><Icon name="list-checks" size={21}/></div><div><span className="rdd-toolbar-eyebrow">Control operativo</span><h3>Códigos por surtir</h3><p className="rdd-toolbar-description">Consulta disponibilidad, registra cajas y da seguimiento a cada código</p></div></div><div className="rdd-toolbar-context"><span className={`rdd-context ${state==="EN_ATENCION"?"live":""}`}>{state==="EN_ATENCION"&&<span className="rdd-dot"/>}{state||"CARGANDO"}</span><span className="rdd-context"><Icon name="rows-3" size={14}/>{parts.length} registros</span></div></div>
-      <div className="rdd-table-wrap"><table className="rdd-table"><thead><tr>{["Partida","SKU","Descripción","Piso de venta","Estado","Cajas","Fecha atención","Hora","Responsable","Ubicaciones"].map(x=><th key={x}>{x}</th>)}</tr></thead><tbody>{parts.map(part=><tr key={part.idPartidaConsecutivo}><td><span className="rdd-mono">{part.idPartidaConsecutivo}</span></td><td><span className="rdd-mono">{part.codigoSolicitado}</span></td><td><b>{part.descripcionSolicitada}</b></td><td><span className="rdd-mono">{part.ubicacionSolicitada}</span></td><td><span className={`rdd-chip ${up(part.estado)==="ATENDIDO"?"green":"amber"}`}>{part.estado}</span></td><td><b>{num(part.cajasEscaneadas)}</b></td><td>{part.fechaAtencion||"—"}</td><td>{part.horaAtencion||"—"}</td><td>{part.usuarioAtencion||"—"}</td><td><button className="rdd-detail-btn" disabled={state==="CERRADA"||state==="INCONSISTENTE"} onClick={()=>openLocations(part)}><Icon name="panel-right-open" size={14}/>Mostrar ubicaciones</button></td></tr>)}</tbody></table>{loading&&<div className="rdd-loading"><div className="rdd-spinner"/><b>Cargando detalle de solicitud...</b></div>}{!loading&&!parts.length&&<div className="rdd-empty"><Icon name="package-open" size={30}/><b>SIN PARTIDAS REGISTRADAS</b></div>}</div>
-    </section>{drawer&&<LocationsDrawer model={drawer} loading={drawerLoading} onClose={()=>setDrawer(null)} onRegistered={refreshDrawer}/>} {closeModal&&<div className="rdd-modal-layer"><div className="rdd-modal"><h2>Confirmar cierre</h2><p>La solicitud quedará en modo de solo lectura.</p><div className="rdd-field"><label>Usuario responsable</label><input className="rdd-input" value={closeUser} onChange={e=>setCloseUser(e.target.value.toUpperCase())}/></div><div className="rdd-modal-actions"><button className="rdd-small-btn" onClick={()=>setCloseModal(false)}>Cancelar</button><button className="rdd-small-btn primary" disabled={closing} onClick={closeRequest}>Confirmar cierre</button></div></div></div>}</div>
+  /** Indicador del encabezado con barra de progreso opcional. */
+  function Metric({ label, value, tone, progress }) {
+    return (
+      <div className={`rdd-metric ${tone || ""}`}>
+        <div className="rdd-metric-value">{value}</div>
+        <div className="rdd-metric-label">{label}</div>
+        {progress != null && (
+          <div className="rdd-track">
+            <div className="rdd-bar" style={{ width: `${Math.min(100, progress)}%`, background: progress >= 100 ? "var(--ok)" : "var(--c)" }} />
+          </div>
+        )}
+      </div>
+    );
   }
-  const target=document.getElementById("render-reabastecimiento-detalles");if(!target){notify("No se encontró el contenedor de detalle.","error");return()=>{}};if(window.__REABASTECIMIENTO_DETALLES_ROOT__){try{window.__REABASTECIMIENTO_DETALLES_ROOT__.unmount()}catch(_){}}window.__REABASTECIMIENTO_DETALLES_ROOT__=ReactDOM.createRoot(target);window.__REABASTECIMIENTO_DETALLES_ROOT__.render(<App/>);return()=>{if(window.__REABASTECIMIENTO_DETALLES_ROOT__){try{window.__REABASTECIMIENTO_DETALLES_ROOT__.unmount()}catch(_){}window.__REABASTECIMIENTO_DETALLES_ROOT__=null}};
+
+  /** Indicador del encabezado del drawer. */
+  function DrawerMetric({ label, value, tone }) {
+    return (
+      <div className={`rdd-drawer-metric ${tone || ""}`}>
+        <strong>{value}</strong>
+        <span>{label}</span>
+      </div>
+    );
+  }
+
+  /**
+   * Selector del usuario responsable. El valor se recuerda en este equipo
+   * mediante REAB.user.set() (prototipo: sin autenticación).
+   */
+  function UserPicker({ value, onChange, disabled, dark }) {
+    const users = useMemo(() => REAB.user.catalog(), []);
+    return (
+      <select
+        className={`rdd-select ${dark ? "dark" : ""}`}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(up(event.target.value))}
+        title="Usuario responsable en este equipo"
+      >
+        <option value="">Selecciona tu usuario...</option>
+        {users.map((name) => <option key={name} value={name}>{name}</option>)}
+      </select>
+    );
+  }
+
+  /**
+   * Indicador de sincronización en tiempo real: "Actualizado hh:mm:ss".
+   * Escucha REAB.sync.onStatus().
+   */
+  function SyncBadge() {
+    const [status, setStatus] = useState({ state: "idle", lastCheckAt: null });
+    useEffect(() => REAB.sync.onStatus(setStatus), []);
+    const label = status.state === "error"
+      ? "Sin conexión"
+      : status.lastCheckAt
+        ? `En vivo · ${REAB.util.clock(status.lastCheckAt)}`
+        : "Conectando...";
+    return <span className={`rdd-sync ${status.state}`} title="Sincronización en tiempo real"><i />{label}</span>;
+  }
+
+  // ==========================================================================
+  // 3. UTILIDADES DE CANTIDAD
+  // ==========================================================================
+
+  /**
+   * Limpia lo que el usuario escribe en "Cantidad a surtir".
+   * - Permite el campo vacío (para poder borrar y capturar de nuevo).
+   * - Acepta dígitos y un separador decimal (punto o coma) con 2 decimales.
+   * - Devuelve null si el texto no es válido (se ignora la tecla).
+   */
+  const sanitizeQuantity = (text) => {
+    const value = String(text == null ? "" : text).replace(/\s+/g, "").replace(",", ".");
+    if (value === "") return "";
+    return /^\d*(\.\d{0,2})?$/.test(value) ? value : null;
+  };
+
+  /** Convierte la cantidad capturada a número; NaN si está vacía o es inválida. */
+  const parseQuantity = (text) => {
+    const value = String(text == null ? "" : text).trim();
+    if (value === "" || value === ".") return NaN;
+    return Number(value);
+  };
+
+  // ==========================================================================
+  // 4. DRAWER · UBICACIONES DE EXCEDENTE
+  // ==========================================================================
+
+  /**
+   * Drawer operativo del SKU (proceso 2, puntos 8 a 17).
+   *
+   * Flujo:
+   * 1. El auxiliar escanea (o elige en la tabla) la etiqueta → VALIDAR.
+   * 2. Se muestra la cantidad disponible; el auxiliar ajusta la cantidad a
+   *    surtir (puede borrarla; vacía bloquea VALIDAR y REGISTRAR).
+   * 3. REGISTRAR aplica el SURTIDO. Si es parcial se imprime la etiqueta del
+   *    remanente con el mismo identificador.
+   * 4. Con al menos una caja surtida, confirma el SKU como ATENDIDO o
+   *    ATENDIDO PARCIALMENTE.
+   *
+   * @param {{
+   *   model:!Object,           Contrato de getUbicacionesPartida (+ idSolicitud).
+   *   user:string,             Usuario responsable actual.
+   *   onUserChange:function,   Cambia el usuario responsable.
+   *   onClose:function,        Cierra el drawer.
+   *   onChanged:function(Object),             Aplica el resultado de una acción
+   *                                           (caja registrada / SKU confirmado)
+   *                                           sin llamadas adicionales.
+   *   onBusyChange:function(boolean),         Informa acciones en curso (sync).
+   *   locked:boolean           Solicitud no operable (cerrada o no tomada).
+   * }} props
+   */
+  function LocationsDrawer({ model, user, onUserChange, onClose, onChanged, onBusyChange, locked }) {
+    const [idUnico, setIdUnico] = useState("");
+    const [selectedBox, setSelectedBox] = useState(null);
+    const [validation, setValidation] = useState(null);
+    const [quantity, setQuantity] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [concluding, setConcluding] = useState(false);
+    const [message, setMessage] = useState({ text: "", type: "" });
+    const scanRef = useRef(null);
+    const quantityRef = useRef(null);
+
+    /** Informa al detalle si hay una acción en curso para pausar recargas automáticas. */
+    useEffect(() => { onBusyChange(busy || concluding); }, [busy, concluding, onBusyChange]);
+
+    /** Bloquea el scroll del documento y cierra con Escape mientras el drawer está abierto. */
+    useEffect(() => {
+      const previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      const onKey = (event) => { if (event.key === "Escape" && !busy) onClose(); };
+      window.addEventListener("keydown", onKey);
+      const focusTimer = setTimeout(() => scanRef.current?.focus(), 120);
+      return () => {
+        document.body.style.overflow = previousOverflow;
+        window.removeEventListener("keydown", onKey);
+        clearTimeout(focusTimer);
+      };
+    }, [onClose, busy]);
+
+    const loadingModel = !model?.resumen || model.loading === true;
+    const boxes = Array.isArray(model?.cajasPorEscanear) ? model.cajasPorEscanear : [];
+    const done = Array.isArray(model?.cajasSurtidas) ? model.cajasSurtidas : [];
+    const warehouses = useMemo(() => [...new Set(boxes.map((box) => str(box.bodegaExcedente) || "SIN BODEGA"))], [boxes]);
+    const partState = up(model?.partida?.estado);
+    const scannedCount = num(model?.resumen?.cajasEscaneadas);
+
+    /** Saldo disponible de la etiqueta validada. */
+    const available = num(validation?.saldoDisponible ?? validation?.cantidad);
+    /** Cantidad capturada como número (NaN si está vacía). */
+    const quantityNumber = parseQuantity(quantity);
+    const quantityEmpty = Boolean(validation) && str(quantity) === "";
+    const quantityValid = Boolean(validation) && Number.isFinite(quantityNumber) && quantityNumber > 0 && quantityNumber <= available;
+    const isPartial = quantityValid && quantityNumber < available;
+    const disabled = busy || concluding || locked;
+
+    /** Limpia la etiqueta en curso y regresa el foco al escáner. */
+    const resetScan = () => {
+      setValidation(null);
+      setSelectedBox(null);
+      setIdUnico("");
+      setQuantity("");
+      setTimeout(() => scanRef.current?.focus(), 80);
+    };
+
+    /**
+     * VALIDAR: existencia, SKU, estatus ACOMODADO, ubicación vigente, saldo y
+     * no duplicidad. Con una etiqueta ya validada y la cantidad vacía, la
+     * validación se bloquea (regla solicitada: no validar con campo vacío).
+     *
+     * @param {string=} value IDUNICO; por defecto el capturado.
+     */
+    const validateId = async (value) => {
+      const token = str(value ?? idUnico);
+      if (!token) {
+        setMessage({ text: "Escanea o captura la etiqueta del excedente.", type: "error" });
+        return;
+      }
+      if (validation && up(validation.idUnico) === up(token) && quantityEmpty) {
+        setMessage({ text: "Captura la cantidad a surtir antes de validar o registrar.", type: "error" });
+        quantityRef.current?.focus();
+        return;
+      }
+      const trace = REAB.perf.begin("DETALLE_VALIDAR_ETIQUETA", { view: VIEW, type: "ACCION", idSolicitud: model.idSolicitud, meta: { partida: model.partida.idPartidaConsecutivo } });
+      setBusy(true);
+      try {
+        const { data } = await REAB.rpc("ReabastecimientoController_validarIdUnico", {
+          idSolicitud: model.idSolicitud,
+          idPartidaConsecutivo: model.partida.idPartidaConsecutivo,
+          idUnico: token
+        }, { trace, keepOpen: true, required: ["valido"] });
+        setValidation(data);
+        setQuantity(String(num(data.saldoDisponible ?? data.cantidad)));
+        setMessage({ text: "Etiqueta válida. Confirma la cantidad a surtir y presiona REGISTRAR.", type: "success" });
+        trace.endAfterPaint("ok", { meta: { saldo: num(data.saldoDisponible) } });
+        setTimeout(() => { quantityRef.current?.focus(); quantityRef.current?.select(); }, 60);
+      } catch (error) {
+        trace.end("error", { error });
+        setValidation(null);
+        setQuantity("");
+        setIdUnico("");
+        setMessage({ text: `Rechazada: ${publicError(error)}`, type: "error" });
+        setTimeout(() => scanRef.current?.focus(), 60);
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    /** Selecciona una caja de la tabla y la valida inmediatamente. */
+    const selectBox = (box) => {
+      setSelectedBox(box);
+      setIdUnico(str(box.idUnico));
+      setValidation(null);
+      setQuantity("");
+      setMessage({ text: "", type: "" });
+      setTimeout(() => validateId(str(box.idUnico)), 0);
+    };
+
+    /**
+     * Envía la etiqueta del remanente al módulo global de impresión.
+     * LOCAL abre una ventana (se pre-abre antes del RPC para evitar el
+     * bloqueo de ventanas emergentes); ONLINE la envía al puente.
+     */
+    const printRemnant = (impresion, localWindow) => {
+      if (!impresion) {
+        if (localWindow && !localWindow.closed) localWindow.close();
+        return;
+      }
+      const trace = REAB.perf.begin("DETALLE_IMPRIMIR_REMANENTE", { view: VIEW, type: "IMPRESION", idSolicitud: model.idSolicitud, meta: { modo: window.ImpresionModoUtilidades?.getMode?.() || "" } });
+      if (!window.ImpresionModoUtilidades?.imprimirResultado) {
+        if (localWindow && !localWindow.closed) localWindow.close();
+        trace.end("error", { error: "Módulo de impresión no disponible" });
+        notify("El surtido parcial se registró, pero el módulo de impresión no está disponible. Reimprime la etiqueta desde REIMPRESIÓN DE EXCEDENTES.", "warning", 7000, { title: "Imprime el remanente", sound: true });
+        return;
+      }
+      window.ImpresionModoUtilidades.imprimirResultado(impresion, { titulo: "Etiqueta de remanente", fallbackLocal: true, ventanaLocal: localWindow });
+      trace.end("ok");
+      notify("Coloca la nueva etiqueta en la caja; el remanente permanece en su ubicación inicial.", "info", 6000, { title: "Etiqueta de remanente", sound: true });
+    };
+
+    /**
+     * REGISTRAR: aplica el SURTIDO total o parcial y anota la caja.
+     * La traza cubre: clic → surtido confirmado → impresión → drawer y
+     * detalle recargados y pintados.
+     */
+    const register = async () => {
+      if (!validation || up(validation.idUnico) !== up(idUnico)) {
+        setMessage({ text: "Valida nuevamente la etiqueta.", type: "error" });
+        return;
+      }
+      if (!user) {
+        setMessage({ text: "Selecciona tu usuario responsable.", type: "error" });
+        return;
+      }
+      if (quantityEmpty) {
+        setMessage({ text: "Captura la cantidad a surtir.", type: "error" });
+        quantityRef.current?.focus();
+        return;
+      }
+      if (!quantityValid) {
+        setMessage({ text: `La cantidad debe ser mayor que cero y no mayor que ${fmt(available)}.`, type: "error" });
+        return;
+      }
+
+      // Pre-abre la ventana LOCAL dentro del gesto del usuario (anti pop-up).
+      let localWindow = null;
+      if (isPartial && window.ImpresionModoUtilidades?.getMode?.() === "LOCAL") {
+        localWindow = window.open("", "_blank", "width=900,height=700");
+        if (!localWindow) {
+          setMessage({ text: "Permite las ventanas emergentes para imprimir la etiqueta del remanente.", type: "error" });
+          return;
+        }
+        localWindow.document.write("<p style='font-family:Arial;padding:24px;color:#5f6368'>Aplicando surtido y preparando etiqueta del remanente...</p>");
+      }
+
+      const trace = REAB.perf.begin("DETALLE_REGISTRAR_SURTIDO", {
+        view: VIEW,
+        type: "ACCION",
+        idSolicitud: model.idSolicitud,
+        meta: { partida: model.partida.idPartidaConsecutivo, parcial: isPartial }
+      });
+      setBusy(true);
+      try {
+        const { data } = await REAB.rpc("ReabastecimientoController_registrarIdUnico", {
+          idSolicitud: model.idSolicitud,
+          idPartidaConsecutivo: model.partida.idPartidaConsecutivo,
+          idUnico,
+          usuario: user,
+          cantidad: quantityNumber
+        }, { trace, keepOpen: true, required: ["idUnico"] });
+
+        REAB.user.set(user);
+        const partial = up(data.tipoSurtido) === "PARCIAL";
+        setMessage({
+          text: partial
+            ? `Surtido parcial: ${fmt(data.cantidad)} piezas. Quedan ${fmt(data.saldoRestante)} en la caja.`
+            : `Caja surtida completa: ${fmt(data.cantidad)} piezas.`,
+          type: "success"
+        });
+        notify(partial ? "Surtido parcial registrado." : "Caja surtida registrada.", "success", 2400, { title: data.idUnico });
+
+        printRemnant(data.impresion, localWindow);
+        trace.mark("PRINT_DISPATCHED", { remanente: Boolean(data.impresion) });
+
+        resetScan();
+        /*
+         * Sin llamadas extra: el drawer se actualiza localmente con la caja
+         * surtida y el detalle llega en la misma respuesta (data.detalle).
+         */
+        onChanged({ registered: data });
+        trace.mark("LOCAL_UPDATE_DONE");
+        trace.endAfterPaint("ok");
+      } catch (error) {
+        if (localWindow && !localWindow.closed) localWindow.close();
+        trace.end(trace.ended ? "ok" : "error", { error });
+        setMessage({ text: publicError(error), type: "error" });
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    /**
+     * Confirma el SKU (proceso 2, punto 18).
+     * @param {"ATENDIDO"|"ATENDIDO_PARCIAL"} result Resultado elegido.
+     */
+    const conclude = async (result) => {
+      if (!user) {
+        setMessage({ text: "Selecciona tu usuario responsable.", type: "error" });
+        return;
+      }
+      const trace = REAB.perf.begin("DETALLE_CONFIRMAR_SKU", { view: VIEW, type: "ACCION", idSolicitud: model.idSolicitud, meta: { resultado: result } });
+      setConcluding(true);
+      try {
+        const { data } = await REAB.rpc("ReabastecimientoController_concluirPartida", {
+          idSolicitud: model.idSolicitud,
+          idPartidaConsecutivo: model.partida.idPartidaConsecutivo,
+          usuario: user,
+          resultado: result
+        }, { trace, keepOpen: true, required: ["estado"] });
+        REAB.user.set(user);
+        notify(result === "ATENDIDO" ? "SKU marcado como atendido." : "SKU marcado como atendido parcialmente.", "success", 2400, { title: model.partida.codigo });
+        // Cierra el drawer y aplica el detalle que llegó en la misma respuesta.
+        onChanged({ closeAfter: true, detalle: data.detalle });
+        trace.mark("LOCAL_UPDATE_DONE");
+        trace.endAfterPaint("ok");
+      } catch (error) {
+        trace.end(trace.ended ? "ok" : "error", { error });
+        setMessage({ text: publicError(error), type: "error" });
+      } finally {
+        setConcluding(false);
+      }
+    };
+
+    /** Cambio en el campo de cantidad: permite vaciar; ignora caracteres inválidos. */
+    const onQuantityChange = (event) => {
+      const clean = sanitizeQuantity(event.target.value);
+      if (clean === null) return;
+      setQuantity(clean);
+      setMessage(clean === "" ? { text: "Captura la cantidad a surtir.", type: "error" } : { text: "", type: "" });
+    };
+
+    return (
+      <div className="rdd-drawer-layer" role="dialog" aria-modal="true">
+        <button className="rdd-drawer-backdrop" onClick={() => !busy && onClose()} aria-label="Cerrar" />
+        <aside className="rdd-drawer">
+
+          {/* ── Encabezado del SKU ─────────────────────────────────────── */}
+          <header className="rdd-drawer-header">
+            <div className="rdd-drawer-main">
+              <div className="rdd-drawer-identity">
+                <div className="rdd-drawer-icon"><Icon name="warehouse" size={23} /></div>
+                <div>
+                  <p className="rdd-eyebrow">Ubicaciones de excedente</p>
+                  <h2 className="rdd-drawer-title">{model.partida.codigo}</h2>
+                  <p className="rdd-drawer-subtitle">
+                    {model.partida.descripcion} · Consumo {model.partida.ubicacionSurtido} · {model.idSolicitud}
+                    {partState ? ` · ${PART_LABEL[partState] || partState}` : ""}
+                  </p>
+                </div>
+              </div>
+              <button className="rdd-drawer-close" onClick={onClose} disabled={busy} title="Cerrar"><Icon name="x" size={19} /></button>
+            </div>
+          </header>
+
+          {/* ── Indicadores del SKU ────────────────────────────────────── */}
+          <section className="rdd-drawer-metrics">
+            <DrawerMetric label="Cajas disponibles" value={boxes.length} tone="amber" />
+            <DrawerMetric label="Piezas disponibles" value={fmt(model.resumen?.piezasPorEscanear)} />
+            <DrawerMetric label="Cajas surtidas" value={scannedCount} tone="green" />
+            <DrawerMetric label="Piezas surtidas" value={fmt(model.resumen?.piezasSurtidas)} tone="green" />
+            <DrawerMetric label="Bodegas" value={warehouses.length} />
+          </section>
+
+          {/* ── Excedentes disponibles y cajas ya surtidas ─────────────── */}
+          <section className="rdd-drawer-content">
+            {loadingModel ? (
+              <div className="rdd-loading"><div className="rdd-spinner" /><b>Consultando excedentes disponibles...</b></div>
+            ) : boxes.length ? (
+              <table className="rdd-table rdd-locations-table">
+                <thead>
+                  <tr><th>Bodega</th><th>Ubicación de excedente</th><th>Identificador</th><th>Piezas</th><th>Antigüedad</th><th>Acción</th></tr>
+                </thead>
+                <tbody>
+                  {boxes.map((box, index) => (
+                    <tr key={`${box.idUnico}-${index}`} className={up(selectedBox?.idUnico) === up(box.idUnico) ? "rdd-row-selected" : ""}>
+                      <td><b>{box.bodegaExcedente || "SIN BODEGA"}</b></td>
+                      <td><span className="rdd-mono">{box.ubicacionExcedente || "SIN UBICACIÓN"}</span></td>
+                      <td><span className="rdd-mono">{box.idUnico}</span></td>
+                      <td><b>{fmt(box.cantidad)}</b></td>
+                      <td>{box.diasAntiguedad == null ? "—" : <><b>{box.diasAntiguedad} d</b><div className="rdd-sub">{box.fechaExcedente}</div></>}</td>
+                      <td><button className="rdd-detail-btn" disabled={disabled} onClick={() => selectBox(box)}><Icon name="scan-line" size={14} />Seleccionar</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="rdd-empty">
+                <Icon name="package-open" size={32} />
+                <b>Sin excedentes disponibles para este SKU</b>
+                <span className="rdd-sub">Si no hay material, deja el SKU pendiente y justifícalo al cerrar.</span>
+              </div>
+            )}
+
+            {done.length > 0 && (
+              <div className="rdd-done">
+                <div className="rdd-done-title"><Icon name="package-check" size={15} />Cajas surtidas en esta solicitud</div>
+                <table className="rdd-table">
+                  <thead><tr><th>Identificador</th><th>Origen</th><th>Surtido</th><th>Tipo</th><th>Remanente</th><th>Responsable</th><th>Hora</th></tr></thead>
+                  <tbody>
+                    {done.map((detail) => (
+                      <tr key={detail.idUnico}>
+                        <td><span className="rdd-mono">{detail.idUnico}</span></td>
+                        <td>{[detail.bodegaOrigen, detail.ubicacionOrigen].filter(Boolean).join(" · ") || "—"}</td>
+                        <td><b>{fmt(detail.cantidad)}</b></td>
+                        <td><span className={`rdd-chip ${up(detail.tipoSurtido) === "PARCIAL" ? "amber" : "green"}`}>{detail.tipoSurtido || "ESCANEO"}</span></td>
+                        <td>{detail.saldoRestante == null ? "—" : fmt(detail.saldoRestante)}</td>
+                        <td>{detail.usuarioResponsable || "—"}</td>
+                        <td>{detail.horaEscaneo || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {/* ── Registro de surtido ────────────────────────────────────── */}
+          <section className="rdd-validation-panel" aria-labelledby="rdd-validation-title">
+            <header className="rdd-validation-head">
+              <div className="rdd-validation-title-wrap">
+                <div className="rdd-validation-icon"><Icon name="scan-line" size={17} /></div>
+                <div>
+                  <span className="rdd-validation-kicker">Registrar surtido</span>
+                  <strong id="rdd-validation-title" className="rdd-validation-title">Escanea la etiqueta del excedente</strong>
+                </div>
+              </div>
+              <div className="rdd-user-inline">
+                <span>Usuario responsable</span>
+                <UserPicker value={user} onChange={onUserChange} disabled={disabled} />
+              </div>
+            </header>
+
+            <div className="rdd-validation-body">
+              <div className={`rdd-selected-box ${validation ? "" : "empty"}`}>
+                <div className="rdd-selected-box-icon"><Icon name={validation ? "package-check" : "package-search"} size={18} /></div>
+                <div>
+                  <div className="rdd-selected-box-label">Etiqueta</div>
+                  <div className="rdd-selected-box-value">{validation?.idUnico || selectedBox?.idUnico || idUnico || "Sin escanear"}</div>
+                  <div className="rdd-selected-box-meta">
+                    {validation
+                      ? `${validation.bodega || "SIN BODEGA"} · ${validation.ubicacion || "SIN UBICACIÓN"} · ${fmt(available)} piezas · ${validation.estatus || ""}`
+                      : "Escanea el QR o elige una caja de la tabla"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rdd-validation-workspace">
+                <div className="rdd-field">
+                  <label>Identificador</label>
+                  <input
+                    ref={scanRef}
+                    className="rdd-input"
+                    value={idUnico}
+                    disabled={disabled}
+                    placeholder="Escanea la etiqueta"
+                    onChange={(event) => {
+                      setIdUnico(event.target.value);
+                      setSelectedBox(null);
+                      setValidation(null);
+                      setQuantity("");
+                      setMessage({ text: "", type: "" });
+                    }}
+                    onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); validateId(); } }}
+                  />
+                </div>
+
+                {/*
+                  Cantidad a surtir:
+                  - type="text" + inputMode="decimal": teclado numérico en móvil y
+                    sin cambio de valor con la rueda del ratón ni flechas.
+                  - Puede quedar vacío; vacío bloquea VALIDAR y REGISTRAR.
+                */}
+                <div className="rdd-field">
+                  <label>Cantidad a surtir {validation ? `(máx. ${fmt(available)})` : ""}</label>
+                  <input
+                    ref={quantityRef}
+                    className={`rdd-input ${quantityEmpty ? "invalid" : ""}`}
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={validation ? quantity : ""}
+                    disabled={disabled || !validation}
+                    placeholder={validation ? "Captura la cantidad" : "Valida primero la etiqueta"}
+                    onChange={onQuantityChange}
+                    onWheel={(event) => event.currentTarget.blur()}
+                    onKeyDown={(event) => {
+                      if (event.key === "ArrowUp" || event.key === "ArrowDown") event.preventDefault();
+                      if (event.key === "Enter") { event.preventDefault(); register(); }
+                    }}
+                  />
+                </div>
+
+                <button className="rdd-small-btn" disabled={disabled || !str(idUnico) || quantityEmpty} onClick={() => validateId()}>Validar</button>
+                <button className="rdd-small-btn primary" disabled={disabled || !validation || !user || !quantityValid} onClick={register}>{busy ? "Aplicando..." : "Registrar"}</button>
+
+                {isPartial && (
+                  <div className="rdd-validation-result warn">
+                    Surtido parcial: se registrarán {fmt(quantityNumber)} piezas y se imprimirá una etiqueta nueva con {fmt(available - quantityNumber)} piezas y el mismo identificador. La caja permanece en su ubicación inicial.
+                  </div>
+                )}
+                {message.text && <div className={`rdd-validation-feedback ${message.type}`}>{message.text}</div>}
+              </div>
+            </div>
+
+            {/* ── Confirmación del SKU ───────────────────────────────────── */}
+            <footer className="rdd-conclude">
+              <span>{scannedCount > 0 ? "¿Terminaste con este SKU?" : "Registra al menos una caja para confirmar el SKU."}</span>
+              <div>
+                <button className="rdd-small-btn" disabled={disabled || scannedCount < 1 || partState === "ATENDIDO_PARCIAL"} onClick={() => conclude("ATENDIDO_PARCIAL")}>Atendido parcialmente</button>
+                <button className="rdd-small-btn ok" disabled={disabled || scannedCount < 1 || partState === "ATENDIDO"} onClick={() => conclude("ATENDIDO")}>{concluding ? "Guardando..." : "SKU atendido"}</button>
+              </div>
+            </footer>
+          </section>
+        </aside>
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // 5. VISTA PRINCIPAL · DETALLE OPERATIVO
+  // ==========================================================================
+
+  /**
+   * Detalle operativo de una solicitud (proceso 2).
+   *
+   * Responsabilidades:
+   * - Cargar cabecera, seguimiento y partidas.
+   * - ATENDER cuando se llega sin haber tomado la solicitud.
+   * - Abrir el drawer de ubicaciones por SKU.
+   * - Cerrar la solicitud (con motivo si hay SKU sin concluir).
+   * - Mantener la información al día con REAB.sync.
+   */
+  function App() {
+    /** Folio activo recibido del listado por el Shell. */
+    const id = useMemo(
+      () => str(window.REABASTECIMIENTO_ID_SOLICITUD) || str(window.DATA_ALMACEN_CACHE?.reabastecimientoNavigation?.idSolicitud),
+      []
+    );
+
+    const [detail, setDetail] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [drawer, setDrawer] = useState(null);
+    const [closing, setClosing] = useState(false);
+    const [closeModal, setCloseModal] = useState(false);
+    const [closeReason, setCloseReason] = useState("");
+    const [taking, setTaking] = useState(false);
+    const [user, setUser] = useState(() => REAB.user.get());
+
+    const mounted = useRef(true);
+    const loadSequence = useRef(0);
+    const firstPaintDone = useRef(false);
+    /** true mientras el drawer ejecuta una acción; pausa recargas automáticas. */
+    const drawerBusy = useRef(false);
+    /** Referencia actual del drawer para la sincronización (evita cierres obsoletos). */
+    const drawerRef = useRef(null);
+    useEffect(() => { drawerRef.current = drawer; }, [drawer]);
+
+    /** Cambia y recuerda el usuario responsable de este equipo. */
+    const changeUser = (name) => setUser(REAB.user.set(name));
+
+    /**
+     * Carga el detalle de la solicitud.
+     * Las respuestas obsoletas se descartan por número de secuencia.
+     *
+     * @param {{silent?:boolean, reason?:string}=} options
+     *   silent: no muestra el indicador de carga (recargas en segundo plano).
+     *   reason: motivo para la bitácora (init, manual, accion, sync, seguridad).
+     */
+    const load = useCallback(async ({ silent = false, reason = "init" } = {}) => {
+      if (!id) return;
+      const sequence = ++loadSequence.current;
+      const trace = REAB.perf.begin("DETALLE_CARGAR", { view: VIEW, type: "CONSULTA", idSolicitud: id, meta: { reason } });
+      if (!silent) setLoading(true);
+      try {
+        const { data } = await REAB.rpc("ReabastecimientoController_getDetalleSolicitud", id, {
+          trace, keepOpen: true, required: ["solicitud", "partidas"], idSolicitud: id
+        });
+        if (!mounted.current || sequence !== loadSequence.current) {
+          trace.end("cancelled", { meta: { stale: true } });
+          return;
+        }
+        setDetail(data);
+        trace.set({ partidas: data.partidas.length, cajas: num(data.cajasUnicas) });
+        trace.endAfterPaint("ok");
+        if (!firstPaintDone.current) {
+          firstPaintDone.current = true;
+          mountTrace.endAfterPaint("ok", { meta: { idSolicitud: id } });
+        }
+      } catch (error) {
+        trace.end("error", { error });
+        notify(publicError(error), "error", 5000, { title: "No se cargó la solicitud" });
+      } finally {
+        if (mounted.current && sequence === loadSequence.current) setLoading(false);
+      }
+    }, [id]);
+
+    /**
+     * Consulta las ubicaciones del SKU (marca EN_ATENCION en el servidor).
+     * @param {string} partId Consecutivo de partida.
+     * @param {Object=} trace Traza a la que se asocia la consulta.
+     */
+    const fetchLocations = useCallback(async (partId, trace) => {
+      const { data } = await REAB.rpc("ReabastecimientoController_getUbicacionesPartida", {
+        idSolicitud: id,
+        idPartidaConsecutivo: partId,
+        usuario: REAB.user.get()
+      }, { trace, keepOpen: Boolean(trace), required: ["partida", "resumen", "cajasPorEscanear"], idSolicitud: id, operation: "DETALLE_REFRESCAR_UBICACIONES", view: VIEW });
+      return { ...data, idSolicitud: id };
+    }, [id]);
+
+    /** Montaje: carga inicial, suscripción en tiempo real y recarga de seguridad. */
+    useEffect(() => {
+      mounted.current = true;
+
+      /*
+       * Detalle precargado: si se llegó con ATENDER/CONTINUAR desde el listado,
+       * el servidor ya devolvió el detalle en esa misma respuesta. Se usa si
+       * tiene menos de 20 s, y se evita repetir la consulta (~3 s).
+       */
+      const cache = window.DATA_ALMACEN_CACHE || {};
+      const preloaded = cache.reabastecimientoDetallePrecargado;
+      delete cache.reabastecimientoDetallePrecargado;
+      if (preloaded && up(preloaded.idSolicitud) === up(id) && Date.now() - Number(preloaded.at || 0) < 20000 && preloaded.detalle?.solicitud) {
+        setDetail(preloaded.detalle);
+        setLoading(false);
+        firstPaintDone.current = true;
+        mountTrace.set({ precargado: true });
+        mountTrace.endAfterPaint("ok", { meta: { idSolicitud: id } });
+      } else {
+        load({ reason: "init" });
+      }
+
+      /*
+       * Tiempo real: si otro usuario modifica esta solicitud, se recarga el
+       * detalle y, si está abierto y sin acción en curso, el drawer.
+       */
+      const unsubscribe = REAB.sync.subscribe(`${VIEW}:${id}`, {
+        ids: () => [id],
+        onChange: async (info) => {
+          if (!info.changedIds.includes(up(id))) return;
+          const trace = REAB.perf.begin("DETALLE_SYNC_RECARGA", { view: VIEW, type: "SINCRONIZACION", idSolicitud: id, meta: { revision: info.revision } });
+          await load({ silent: true, reason: "sync" });
+          const current = drawerRef.current;
+          if (current && !drawerBusy.current && !current.loading) {
+            try {
+              const data = await fetchLocations(current.partida.idPartidaConsecutivo);
+              if (mounted.current && drawerRef.current) setDrawer(data);
+            } catch (_) { /* el drawer conserva su último estado */ }
+          }
+          trace.endAfterPaint("ok");
+          notify("Información actualizada por otro usuario.", "info", 1800, { title: "En vivo", sound: false });
+        }
+      });
+
+      /** Recarga completa de seguridad cada 5 minutos con la pestaña visible. */
+      const safetyTimer = setInterval(() => {
+        if (document.visibilityState === "visible" && !drawerRef.current) load({ silent: true, reason: "seguridad" });
+      }, REAB.sync.SAFETY_REFRESH_MS);
+
+      return () => {
+        mounted.current = false;
+        loadSequence.current += 1;
+        unsubscribe();
+        clearInterval(safetyTimer);
+      };
+    }, [load, fetchLocations, id]);
+
+    // ── Datos derivados ─────────────────────────────────────────────────────
+    const request = detail?.solicitud || {};
+    const parts = detail?.partidas || [];
+    const tracking = request.seguimiento || {};
+    const state = up(request.estado);
+    const closed = CLOSED.includes(state);
+    const inconsistent = state === "INCONSISTENTE";
+    const taken = Boolean(request.fechaInicioAtencion);
+    const pendingParts = parts.filter((part) => !CONCLUDED.includes(up(part.estado)));
+    const canOperate = !closed && !inconsistent && taken;
+    const progress = num(tracking.porcentajeAvance);
+
+    /** Regresa al listado de solicitudes. */
+    const back = () => window.irAVistaShell?.("Reabastecimiento", "Reabastecimiento");
+
+    /**
+     * Aplica el detalle que el servidor devuelve junto con cada acción
+     * (ver withDetail_ en el Service). Si no viene, se recarga con una llamada.
+     *
+     * @param {?Object} detalle Contrato de getDetalleSolicitud.
+     * @return {!Promise<void>}
+     */
+    const applyDetail = async (detalle) => {
+      if (detalle && detalle.solicitud && Array.isArray(detalle.partidas)) {
+        loadSequence.current += 1; // descarta cargas en vuelo con datos anteriores
+        setDetail(detalle);
+        return;
+      }
+      await load({ silent: true, reason: "accion" });
+    };
+
+    /** ATENDER desde el detalle: registra auxiliar, fecha y hora de inicio. */
+    const take = async () => {
+      if (!user) {
+        notify("Selecciona tu usuario responsable.", "warning", 3600, { title: "Usuario requerido" });
+        return;
+      }
+      const trace = REAB.perf.begin("DETALLE_ATENDER", { view: VIEW, type: "ACCION", idSolicitud: id });
+      setTaking(true);
+      try {
+        const { data } = await REAB.rpc("ReabastecimientoController_tomarSolicitud", { idSolicitud: id, usuario: user }, { trace, keepOpen: true, required: ["idSolicitud"], idSolicitud: id });
+        REAB.user.set(user);
+        notify(`Atención iniciada por ${user}.`, "success", 2400, { title: id });
+        await applyDetail(data.detalle);
+        trace.endAfterPaint("ok");
+      } catch (error) {
+        trace.end(trace.ended ? "ok" : "error", { error });
+        notify(publicError(error), "error", 5000, { title: "No se tomó la solicitud" });
+      } finally {
+        setTaking(false);
+      }
+    };
+
+    /** MOSTRAR UBICACIONES: abre el drawer y mide hasta que la tabla es visible. */
+    const openLocations = async (part) => {
+      if (!user) {
+        notify("Selecciona tu usuario responsable antes de mostrar ubicaciones.", "warning", 4200, { title: "Usuario requerido" });
+        return;
+      }
+      const trace = REAB.perf.begin("DETALLE_MOSTRAR_UBICACIONES", { view: VIEW, type: "CONSULTA", idSolicitud: id, meta: { partida: part.idPartidaConsecutivo } });
+      setDrawer({
+        idSolicitud: id,
+        loading: true,
+        partida: {
+          codigo: part.codigoSolicitado,
+          descripcion: part.descripcionSolicitada,
+          ubicacionSurtido: part.ubicacionSolicitada,
+          idPartidaConsecutivo: part.idPartidaConsecutivo,
+          estado: part.estado
+        },
+        cajasPorEscanear: [],
+        cajasSurtidas: []
+      });
+      try {
+        const data = await fetchLocations(part.idPartidaConsecutivo, trace);
+        REAB.user.set(user);
+        if (mounted.current) {
+          setDrawer(data);
+          // El SKU pasó a EN ATENCIÓN: el detalle actualizado viene en la misma respuesta.
+          applyDetail(data.detalle);
+        }
+        trace.set({ cajas: data.cajasPorEscanear.length });
+        trace.endAfterPaint("ok");
+      } catch (error) {
+        trace.end("error", { error });
+        setDrawer(null);
+        notify(publicError(error), "error", 5000, { title: "No se cargaron las ubicaciones" });
+      }
+    };
+
+    /**
+     * Actualiza la pantalla tras una acción del drawer SIN llamadas extra.
+     *
+     * - registered: respuesta de registrarIdUnico. La caja surtida se quita de
+     *   la tabla (surtido total) o se actualiza su saldo (surtido parcial), se
+     *   agrega a "Cajas surtidas" y se recalculan los indicadores del drawer.
+     * - closeAfter: SKU confirmado; se cierra el drawer.
+     * - detalle: contrato de getDetalleSolicitud recibido en la misma respuesta.
+     *
+     * Los cambios de otros usuarios llegan por REAB.sync.
+     *
+     * @param {{registered?:Object, closeAfter?:boolean, detalle?:Object}} change
+     */
+    const refreshAfterAction = (change = {}) => {
+      const registered = change.registered || null;
+      if (change.closeAfter) setDrawer(null);
+
+      if (registered) {
+        setDrawer((current) => {
+          if (!current) return current;
+          const token = up(registered.idUnico);
+          // Total o parcial, la etiqueta ya no puede registrarse otra vez en
+          // esta solicitud (regla del Service): se retira de la tabla.
+          const pending = (current.cajasPorEscanear || []).filter((box) => up(box.idUnico) !== token);
+          const done = [...(current.cajasSurtidas || []), registered];
+          return {
+            ...current,
+            partida: { ...current.partida, estado: current.partida.estado === "PENDIENTE" ? "EN_ATENCION" : current.partida.estado },
+            cajasPorEscanear: pending,
+            cajasSurtidas: done,
+            resumen: {
+              ...(current.resumen || {}),
+              cajasEscaneadas: done.length,
+              piezasSurtidas: done.reduce((sum, item) => sum + num(item.cantidad), 0),
+              cajasPorEscanear: pending.length,
+              piezasPorEscanear: pending.reduce((sum, box) => sum + num(box.cantidad), 0),
+              bodegas: new Set(pending.map((box) => str(box.bodegaExcedente) || "SIN BODEGA")).size
+            }
+          };
+        });
+      }
+      applyDetail(change.detalle || (registered && registered.detalle));
+    };
+
+    /** CERRAR SOLICITUD: bloquea la solicitud y registra fecha, hora y usuario. */
+    const closeRequest = async () => {
+      if (!user) {
+        notify("Selecciona tu usuario responsable.", "warning");
+        return;
+      }
+      if (pendingParts.length && str(closeReason).length < 5) {
+        notify("Escribe el motivo del cierre con pendientes.", "warning", 4200, { title: "Motivo requerido" });
+        return;
+      }
+      const trace = REAB.perf.begin("DETALLE_CERRAR_SOLICITUD", { view: VIEW, type: "ACCION", idSolicitud: id, meta: { pendientes: pendingParts.length } });
+      setClosing(true);
+      try {
+        const { data } = await REAB.rpc("ReabastecimientoController_cerrarSolicitud", { idSolicitud: id, usuario: user, motivo: str(closeReason) }, { trace, keepOpen: true, required: ["cerrada"], idSolicitud: id });
+        REAB.user.set(user);
+        setCloseModal(false);
+        setCloseReason("");
+        await applyDetail(data.detalle);
+        trace.endAfterPaint("ok");
+        notify(up(data.estado) === "CERRADA_CON_PENDIENTES" ? "Solicitud cerrada con pendientes justificados." : "Solicitud cerrada y bloqueada.", "success", 3200, { title: id, sound: true });
+      } catch (error) {
+        trace.end(trace.ended ? "ok" : "error", { error });
+        notify(publicError(error), "error", 5000, { title: "No se cerró la solicitud" });
+      } finally {
+        setClosing(false);
+      }
+    };
+
+    if (!id) {
+      return <div className="rdd-page"><div className="rdd-workspace"><div className="rdd-empty"><b>No se recibió ID_SOLICITUD</b></div></div></div>;
+    }
+
+    return (
+      <div className="rdd-page">
+        <section className="rdd-workspace">
+
+          {/* ── Encabezado: folio, estado, indicadores y acciones ─────── */}
+          <header className="rdd-header">
+            <div className="rdd-id">
+              <button className="rdd-back" onClick={back} title="Volver"><Icon name="arrow-left" /></button>
+              <div className="rdd-copy">
+                <p className="rdd-eyebrow">Detalle operativo de reabastecimiento</p>
+                <div className="rdd-title-row">
+                  <h2 className="rdd-title">{request.idSolicitud || id}</h2>
+                  {state && <span className={`rdd-chip ${REQUEST_TONE[state] || "slate"}`}>{REQUEST_LABEL[state] || state.replaceAll("_", " ")}</span>}
+                </div>
+                <p className="rdd-description">
+                  Solicitó {request.solicitante || "—"} · {request.bodega || "SIN BODEGA"} · {request.areaSuministro || "SIN ÁREA"} · {request.fechaCreacion || ""} {request.horaCreacion || ""}
+                </p>
+              </div>
+            </div>
+            <div className="rdd-metrics">
+              <Metric label="Avance" value={`${progress}%`} progress={progress} />
+              <Metric label="SKU" value={num(tracking.totalSkus) || parts.length} />
+              <Metric label="Pendientes" value={num(tracking.pendientes)} tone={num(tracking.pendientes) ? "bad" : "ok"} />
+              <Metric label="En atención" value={num(tracking.enAtencion)} />
+              <Metric label="Atendidos" value={num(tracking.concluidos)} tone="ok" />
+              <Metric label="Cajas surtidas" value={num(tracking.cajasSurtidas)} />
+            </div>
+            <div className="rdd-actions">
+              <UserPicker value={user} onChange={changeUser} disabled={closing || taking} dark />
+              <button className="rdd-action" onClick={() => load({ reason: "manual" })} disabled={loading}><Icon name="refresh-cw" /><span>{loading ? "Actualizando" : "Actualizar"}</span></button>
+              <button className="rdd-action primary" disabled={!canOperate || loading} onClick={() => setCloseModal(true)}><Icon name="lock" /><span>Cerrar solicitud</span></button>
+            </div>
+          </header>
+
+          {/* ── Seguimiento (proceso 1, punto 12) ──────────────────────── */}
+          <section className="rdd-tracking">
+            <div><span>Auxiliares</span><b>{(request.auxiliares || []).join(", ") || "Sin asignar"}</b></div>
+            <div><span>Inicio de atención</span><b>{taken ? `${request.fechaInicioAtencion} ${request.horaInicioAtencion}` : "—"}</b>{request.usuarioInicioAtencion && <em>por {request.usuarioInicioAtencion}</em>}</div>
+            <div><span>{closed ? "Duración" : "Tiempo transcurrido"}</span><b>{minutesLabel(tracking.minutosTranscurridos)}</b></div>
+            <div><span>Conclusión estimada</span><b>{tracking.fechaHoraEstimadaConclusion || (closed ? "—" : "Se calcula al concluir el primer SKU")}</b></div>
+            <div><span>Piezas surtidas</span><b>{fmt(tracking.piezasSurtidas)}</b></div>
+            {closed && <div><span>Cierre</span><b>{request.fechaCierreAtencion} {request.horaCierreAtencion}</b>{request.usuarioCierre && <em>por {request.usuarioCierre}</em>}</div>}
+            <div><span>Sincronización</span><b><SyncBadge /></b></div>
+          </section>
+
+          {/* ── Avisos de estado ───────────────────────────────────────── */}
+          {!loading && !taken && !closed && !inconsistent && (
+            <div className="rdd-banner">
+              <Icon name="hand" size={18} />
+              <span>Esta solicitud aún no ha sido tomada. Al presionar ATENDER se registra tu usuario, la fecha y la hora de inicio.</span>
+              <button className="rdd-small-btn primary" disabled={taking || !user} onClick={take}>{taking ? "Registrando..." : "Atender"}</button>
+            </div>
+          )}
+          {closed && (
+            <div className={`rdd-banner ${state === "CERRADA_CON_PENDIENTES" ? "danger" : "ok"}`}>
+              <Icon name="lock" size={18} />
+              <span>
+                Solicitud {state === "CERRADA_CON_PENDIENTES" ? "cerrada con pendientes" : "cerrada"} y bloqueada.
+                {request.motivoCierre ? ` Motivo: ${request.motivoCierre}.` : ""} Para modificarla, repórtalo al encargado.
+              </span>
+            </div>
+          )}
+          {inconsistent && (
+            <div className="rdd-banner danger">
+              <Icon name="triangle-alert" size={18} />
+              <span>La solicitud tiene marcas de atención inválidas en la hoja. Repórtala al administrador.</span>
+            </div>
+          )}
+
+          {/* ── SKU por reabastecer (proceso 2, punto 6) ───────────────── */}
+          <div className="rdd-table-wrap">
+            <table className="rdd-table rdd-main-table">
+              <thead>
+                <tr>{["Código", "Descripción", "Ubicación de consumo", "Estado", "Cajas", "Piezas", "Fecha atención", "Hora", "Responsable", "Ubicaciones"].map((title) => <th key={title}>{title}</th>)}</tr>
+              </thead>
+              <tbody>
+                {parts.map((part) => {
+                  const partState = up(part.estado);
+                  const responsible = (part.responsables || []).length ? part.responsables.join(", ") : (part.usuarioAtencion || "—");
+                  return (
+                    <tr key={part.idPartidaConsecutivo}>
+                      <td><span className="rdd-mono">{part.codigoSolicitado}</span><div className="rdd-sub">Partida {part.idPartidaConsecutivo}</div></td>
+                      <td><b>{part.descripcionSolicitada}</b></td>
+                      <td><span className="rdd-mono">{part.ubicacionSolicitada}</span></td>
+                      <td><span className={`rdd-chip ${PART_TONE[partState] || "slate"}`}>{PART_LABEL[partState] || partState}</span></td>
+                      <td><b>{num(part.cajasEscaneadas)}</b></td>
+                      <td>{fmt(part.piezasSurtidas)}</td>
+                      <td>{part.fechaAtencion || "—"}</td>
+                      <td>{part.horaAtencion || "—"}</td>
+                      <td>{responsible}</td>
+                      <td>
+                        <button className="rdd-detail-btn" disabled={!canOperate} onClick={() => openLocations(part)} title={!taken ? "Primero presiona ATENDER" : ""}>
+                          <Icon name="panel-right-open" size={14} />Mostrar ubicaciones
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {loading && !detail && <div className="rdd-loading"><div className="rdd-spinner" /><b>Cargando detalle de solicitud...</b></div>}
+            {!loading && !parts.length && <div className="rdd-empty"><Icon name="package-open" size={30} /><b>SIN PARTIDAS REGISTRADAS</b></div>}
+          </div>
+        </section>
+
+        {/* ── Drawer de ubicaciones ──────────────────────────────────────── */}
+        {drawer && (
+          <LocationsDrawer
+            model={drawer}
+            user={user}
+            onUserChange={changeUser}
+            locked={!canOperate}
+            onBusyChange={(value) => { drawerBusy.current = value; }}
+            onClose={() => setDrawer(null)}
+            onChanged={refreshAfterAction}
+          />
+        )}
+
+        {/* ── Confirmación de cierre (proceso 2, puntos 19 a 22) ─────────── */}
+        {closeModal && (
+          <div className="rdd-modal-layer">
+            <div className="rdd-modal">
+              <h2>Cerrar solicitud {id}</h2>
+              <p>Una vez cerrada, la solicitud quedará <b>bloqueada y no podrá modificarse</b>. Se registrarán la fecha, la hora y tu usuario.</p>
+              {pendingParts.length > 0 ? (
+                <div className="rdd-pending">
+                  <b>{pendingParts.length} SKU sin concluir:</b>
+                  <ul>
+                    {pendingParts.slice(0, 8).map((part) => <li key={part.idPartidaConsecutivo}>{part.codigoSolicitado} · {PART_LABEL[up(part.estado)] || part.estado}</li>)}
+                    {pendingParts.length > 8 && <li>y {pendingParts.length - 8} más…</li>}
+                  </ul>
+                  <div className="rdd-field">
+                    <label>Motivo del cierre con pendientes (obligatorio)</label>
+                    <textarea className="rdd-input rdd-textarea" value={closeReason} maxLength={500} onChange={(event) => setCloseReason(event.target.value)} placeholder="Ej. Sin excedente físico en ubicación, material dañado..." />
+                  </div>
+                </div>
+              ) : (
+                <p className="rdd-ok-note">Todos los SKU están concluidos.</p>
+              )}
+              <div className="rdd-field">
+                <label>Usuario responsable del cierre</label>
+                <UserPicker value={user} onChange={changeUser} disabled={closing} />
+              </div>
+              <div className="rdd-modal-actions">
+                <button className="rdd-small-btn" onClick={() => setCloseModal(false)} disabled={closing}>Cancelar</button>
+                <button className="rdd-small-btn primary" disabled={closing || !user || (pendingParts.length > 0 && str(closeReason).length < 5)} onClick={closeRequest}>
+                  {closing ? "Cerrando..." : pendingParts.length ? "Cerrar con pendientes" : "Confirmar cierre"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // 6. MONTAJE EN EL SHELL
+  // ==========================================================================
+
+  const target = document.getElementById("render-reabastecimiento-detalles");
+  if (!target) {
+    notify("No se encontró el contenedor de detalle.", "error");
+    mountTrace.end("error", { error: "Contenedor no encontrado" });
+    return () => {};
+  }
+  if (window.__REABASTECIMIENTO_DETALLES_ROOT__) {
+    try { window.__REABASTECIMIENTO_DETALLES_ROOT__.unmount(); } catch (_) { /* raíz previa ya desmontada */ }
+  }
+  window.__REABASTECIMIENTO_DETALLES_ROOT__ = ReactDOM.createRoot(target);
+  window.__REABASTECIMIENTO_DETALLES_ROOT__.render(<App />);
+
+  /** Limpieza que el Shell ejecuta al salir de la vista. */
+  return () => {
+    if (!mountTrace.ended) mountTrace.end("cancelled", { meta: { reason: "view_unmounted" } });
+    if (window.__REABASTECIMIENTO_DETALLES_ROOT__) {
+      try { window.__REABASTECIMIENTO_DETALLES_ROOT__.unmount(); } catch (_) { /* sin acción */ }
+      window.__REABASTECIMIENTO_DETALLES_ROOT__ = null;
+    }
+  };
 };
-window.initVista=window.cargar_ReabastecimientoDetalles;
+window.initVista = window.cargar_ReabastecimientoDetalles;
 </script>

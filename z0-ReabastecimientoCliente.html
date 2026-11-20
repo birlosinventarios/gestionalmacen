@@ -1,0 +1,852 @@
+<script>
+/**
+ * z0-ReabastecimientoCliente.html
+ *
+ * Biblioteca cliente compartida por las vistas de Reabastecimiento:
+ * - Reabastecimiento.html             (listado / cola de trabajo)
+ * - ReabastecimientoSolicitud.html    (rondín / nueva solicitud)
+ * - ReabastecimientoDetalles.html     (detalle operativo y surtido)
+ *
+ * Se incluye una sola vez en el Shell APPALMACEN.html y expone window.REAB.
+ * Es JavaScript plano (sin JSX) para que esté disponible antes de que Babel
+ * transforme las vistas.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * MÓDULOS
+ * ─────────────────────────────────────────────────────────────────────────
+ * REAB.user   Usuario responsable recordado en este equipo (localStorage).
+ * REAB.perf   Tracker de rendimiento: mide cada consulta, acción y render.
+ * REAB.rpc    Envoltorio de google.script.run medido de extremo a extremo.
+ * REAB.sync   Actualización en tiempo real basada en revisiones del servidor.
+ * REAB.util   Utilidades de formato compartidas.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * CÓMO SE MIDE UN EVENTO (ejemplo: registrar una caja)
+ * ─────────────────────────────────────────────────────────────────────────
+ *   clic ──► RPC_SENT ──► (red + cola + servidor) ──► RPC_RESPONSE ──► PARSED
+ *        ──► (React actualiza estado) ──► RENDERED (siguiente cuadro pintado)
+ *
+ * - TOTAL_CLIENTE_MS = clic → RENDERED (lo que percibe el usuario).
+ * - SERVIDOR_MS      = tiempo dentro de Apps Script (response.metadata.perf).
+ * - RED_COLA_MS      = (RPC_RESPONSE − RPC_SENT) − SERVIDOR_MS.
+ *                      Incluye red, cola de google.script.run y arranque en frío.
+ * - RENDER_MS        = PARSED → RENDERED.
+ * - ETAPAS_SERVIDOR  = marcas del Controller y del Service (lecturas de hoja,
+ *                      espera de candado, surtido en Traspasos, escrituras).
+ *
+ * Los eventos se acumulan en memoria (y en localStorage como respaldo) y se
+ * envían por lotes a ReabastecimientoController_registrarRendimiento(), que
+ * los guarda en la hoja APPALMACEN_RENDIMIENTO de GESTION5.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * CÓMO FUNCIONA LA ACTUALIZACIÓN EN TIEMPO REAL
+ * ─────────────────────────────────────────────────────────────────────────
+ * 1. Cada escritura del servidor incrementa una revisión global y la del folio.
+ * 2. REAB.sync consulta solo esa revisión (endpoint ligero, sin leer hojas)
+ *    cada POLL_VISIBLE_MS mientras la pestaña está visible.
+ * 3. Si la revisión cambió, avisa a las vistas suscritas; cada vista recarga
+ *    únicamente lo que le corresponde y muestra "Información actualizada".
+ * 4. Las respuestas de las mutaciones propias traen la revisión nueva; REAB la
+ *    registra como conocida para no recargar dos veces por el mismo cambio.
+ *
+ * Consola (diagnóstico):
+ *   REAB.perf.history()     últimos eventos medidos
+ *   REAB.perf.summary()     tabla resumida por operación
+ *   REAB.perf.exportCsv()   descarga los eventos locales en CSV
+ *   REAB.perf.flush()       envía de inmediato los eventos pendientes
+ *
+ * @author Sigifredo de la Cruz Ramos
+ * @version REAB-CLIENTE-2026-11-20-05
+ */
+(function () {
+  "use strict";
+
+  if (window.REAB && window.REAB.__version) return;
+
+  // ===========================================================================
+  // CONFIGURACIÓN
+  // ===========================================================================
+
+  /**
+   * Medición global de la aplicación (z0-APPALMACENRendimientoCliente.html).
+   * El switch es APPALMACEN_RENDIMIENTO.ENABLED en z1-Constants.gs: si está en
+   * false, REAB.perf no registra ni envía nada.
+   */
+  const GLOBAL_PERF = window.APPALMACEN_RENDIMIENTO || null;
+  const PERF_ENABLED = Boolean(GLOBAL_PERF && GLOBAL_PERF.enabled === true);
+
+  /** Parámetros del tracker y de la sincronización. Ajustables sin tocar vistas. */
+  const CONFIG = Object.freeze({
+    /** Registro de eventos de rendimiento (sigue el switch global). */
+    TRACKING_ENABLED: PERF_ENABLED,
+    /** Envío a la bitácora unificada APPALMACEN_RENDIMIENTO (vía medición global). */
+    PERSIST_ENABLED: PERF_ENABLED,
+    /** Intervalo de envío por lotes de la bitácora. */
+    FLUSH_INTERVAL_MS: 20000,
+    /** Tamaño de lote que dispara un envío inmediato. */
+    FLUSH_BATCH_SIZE: 15,
+    /** Máximo de eventos por lote (coincide con el límite del servidor). */
+    MAX_BATCH: 60,
+    /** Eventos conservados en memoria/localStorage para diagnóstico. */
+    HISTORY_SIZE: 500,
+    /** Consulta de revisión con la pestaña visible. */
+    POLL_VISIBLE_MS: 6000,
+    /** Recarga completa de seguridad aunque no cambie la revisión. */
+    SAFETY_REFRESH_MS: 300000,
+    /** Claves de almacenamiento local. */
+    STORAGE_USER: "APPALMACEN_REABASTECIMIENTO_USUARIO",
+    STORAGE_PENDING: "APPALMACEN_REAB_PERF_PENDING",
+    /** Prefijo que el Controller agrega al mensaje de error con el tiempo del servidor. */
+    SERVER_MS_PATTERN: /\s*⟦serverMs=(\d+)⟧\s*$/
+  });
+
+  // ===========================================================================
+  // UTILIDADES
+  // ===========================================================================
+
+  /** Espera máxima por los dos cuadros de pintado antes de cerrar la medición. */
+  const PAINT_FALLBACK_MS = 1000;
+
+  /**
+   * Ejecuta callback después de dos cuadros de pintado.
+   *
+   * MEDICIÓN: con la ventana minimizada o en otra pestaña el navegador no
+   * pinta y requestAnimationFrame no se ejecuta hasta que el usuario vuelve
+   * (bitácora 20/11/2026: un "render" de 54 s que en realidad fue espera).
+   * Por eso, si la página está oculta, o si los cuadros no llegan en
+   * PAINT_FALLBACK_MS, se cierra igual y se informa hidden=true.
+   *
+   * @param {function({hidden:boolean}):void} callback Recibe si la página estaba oculta.
+   */
+  function afterPaint(callback) {
+    let done = false;
+    const finish = (hidden) => {
+      if (done) return;
+      done = true;
+      callback({ hidden: Boolean(hidden) });
+    };
+    if (document.hidden || typeof window.requestAnimationFrame !== "function") {
+      setTimeout(() => finish(document.hidden), 0);
+      return;
+    }
+    setTimeout(() => finish(true), PAINT_FALLBACK_MS);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => finish(false)));
+  }
+
+  /** SVG base por "nombre|tamaño" para util.renderIcon (se clonan). */
+  const ICON_TEMPLATES = new Map();
+
+  const util = {
+    /** Texto sin espacios exteriores; null/undefined → "". */
+    str: (value) => String(value == null ? "" : value).trim(),
+    /** Texto normalizado en mayúsculas. */
+    up: (value) => String(value == null ? "" : value).trim().toUpperCase(),
+    /** Número finito o 0. */
+    num: (value) => (Number.isFinite(Number(value)) ? Number(value) : 0),
+    /** Número con formato es-MX y hasta dos decimales. */
+    fmt: (value) => (Number.isFinite(Number(value)) ? Number(value) : 0)
+      .toLocaleString("es-MX", { maximumFractionDigits: 2 }),
+    /** Reloj de alta resolución en milisegundos. */
+    now: () => (window.performance && performance.now ? performance.now() : Date.now()),
+    /** Redondea a milisegundos enteros. */
+    ms: (value) => Math.max(0, Math.round(Number(value || 0))),
+    /** Hora local hh:mm:ss para indicadores de sincronización. */
+    clock: (date) => (date instanceof Date ? date : new Date()).toLocaleTimeString("es-MX", { hour12: false }),
+    /**
+     * Elimina el código público "[REAB_X] " y el marcador de tiempo del
+     * servidor de un mensaje de error para mostrarlo al usuario.
+     */
+    publicError: (error) => util.str(error && error.message ? error.message : error)
+      .replace(CONFIG.SERVER_MS_PATTERN, "")
+      .replace(/^\[[A-Z0-9_]+\]\s*/, "") || "No fue posible completar la operación.",
+    /** Código público "REAB_X" de un error, si existe. */
+    errorCode: (error) => {
+      const match = /^\[([A-Z0-9_]+)\]/.exec(util.str(error && error.message ? error.message : error));
+      return match ? match[1] : "";
+    },
+    /** Tamaño aproximado en bytes de una respuesta serializable. */
+    bytes: (value) => {
+      try { return new Blob([typeof value === "string" ? value : JSON.stringify(value)]).size; } catch (_) { return 0; }
+    },
+    /** Notificación del Shell (window.notificar / lanzarNotificacion). */
+    notify: (message, type = "info", timer = 2800, options = {}) => {
+      const handler = window.notificar || window.lanzarNotificacion;
+      if (typeof handler === "function") handler(message, type, timer, options);
+    },
+    /**
+     * Dibuja un ícono Lucide dentro de host SIN recorrer todo el documento.
+     *
+     * lucide.createIcons() busca todos los [data-lucide] de la página en cada
+     * llamada; con tablas de cientos de filas cada ícono provocaba un escaneo
+     * completo (≈1–2 s acumulados al montar el detalle). Aquí se construye el
+     * SVG de un solo ícono con lucide.createElement y se reutiliza una copia
+     * en caché por nombre y tamaño.
+     *
+     * @param {Element} host Contenedor del ícono.
+     * @param {string} name Nombre Lucide en kebab-case ("check-circle").
+     * @param {number=} size Tamaño en píxeles.
+     * @return {boolean} true si se dibujó el ícono.
+     */
+    renderIcon: (host, name, size = 17) => {
+      if (!host) return false;
+      host.textContent = "";
+      const lib = window.lucide;
+      if (!lib || !name) return false;
+      const key = name + "|" + size;
+      let template = ICON_TEMPLATES.get(key);
+      if (!template && lib.icons && typeof lib.createElement === "function") {
+        const pascal = String(name).split("-").map((part) => part ? part[0].toUpperCase() + part.slice(1) : "").join("");
+        const node = lib.icons[pascal];
+        if (node) {
+          try {
+            template = lib.createElement(node);
+            template.setAttribute("width", String(size));
+            template.setAttribute("height", String(size));
+            template.setAttribute("class", "lucide lucide-" + name);
+            ICON_TEMPLATES.set(key, template);
+          } catch (_) {
+            template = null;
+          }
+        }
+      }
+      if (template) {
+        host.appendChild(template.cloneNode(true));
+        return true;
+      }
+      /* Respaldo para versiones de Lucide sin createElement: escaneo global. */
+      if (typeof lib.createIcons !== "function") return false;
+      const icon = document.createElement("i");
+      icon.setAttribute("data-lucide", name);
+      icon.style.width = size + "px";
+      icon.style.height = size + "px";
+      host.appendChild(icon);
+      lib.createIcons();
+      return true;
+    }
+  };
+
+  /** Identificador de la sesión del navegador para correlacionar eventos. */
+  const SESSION_ID = (GLOBAL_PERF && GLOBAL_PERF.SESSION_ID) ||
+    ("S-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase());
+
+  // ===========================================================================
+  // USUARIO RESPONSABLE (prototipo: se elige de la lista y se recuerda)
+  // ===========================================================================
+
+  const user = {
+    /** Catálogo de nombres en mayúsculas tomado del bootstrap del Shell. */
+    catalog() {
+      return (Array.isArray(window.usuariosGlobal) ? window.usuariosGlobal : [])
+        .map((item) => util.up(item && item.nombre))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, "es-MX"));
+    },
+    /** Usuario recordado en este equipo, solo si sigue en el catálogo. */
+    get() {
+      let stored = "";
+      try { stored = util.up(window.localStorage.getItem(CONFIG.STORAGE_USER)); } catch (_) { stored = ""; }
+      if (!stored) stored = util.up(window.DATA_ALMACEN_CACHE && window.DATA_ALMACEN_CACHE.reabastecimientoUsuario);
+      const names = user.catalog();
+      return !names.length || names.includes(stored) ? stored : "";
+    },
+    /** Recuerda el usuario en este equipo y en el caché del Shell. */
+    set(name) {
+      const value = util.up(name);
+      try {
+        if (value) window.localStorage.setItem(CONFIG.STORAGE_USER, value);
+        else window.localStorage.removeItem(CONFIG.STORAGE_USER);
+      } catch (_) { /* almacenamiento bloqueado: se conserva solo en memoria */ }
+      window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
+      window.DATA_ALMACEN_CACHE.reabastecimientoUsuario = value;
+      return value;
+    }
+  };
+
+  // ===========================================================================
+  // TRACKER DE RENDIMIENTO
+  // ===========================================================================
+
+  /** Historial local y cola pendiente de envío. */
+  const perfState = {
+    history: [],
+    pending: [],
+    flushing: false,
+    timer: null
+  };
+
+  /** Recupera eventos que no se alcanzaron a enviar en una sesión anterior. */
+  (function restorePending() {
+    if (!CONFIG.PERSIST_ENABLED || GLOBAL_PERF) return;
+    try {
+      const raw = window.localStorage.getItem(CONFIG.STORAGE_PENDING);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) perfState.pending = parsed.slice(-CONFIG.HISTORY_SIZE);
+    } catch (_) { perfState.pending = []; }
+  })();
+
+  /** Guarda la cola pendiente en localStorage como respaldo. */
+  function persistPending() {
+    try {
+      window.localStorage.setItem(CONFIG.STORAGE_PENDING, JSON.stringify(perfState.pending.slice(-CONFIG.HISTORY_SIZE)));
+    } catch (_) { /* cuota excedida o almacenamiento bloqueado */ }
+  }
+
+  /**
+   * Convierte el desglose del servidor (response.metadata.perf) en una lista
+   * plana de etapas: [{op, stage, segmentMs, totalMs, meta?}].
+   */
+  function flattenServerStages(perf) {
+    if (!perf || typeof perf !== "object") return [];
+    const stages = [];
+    (Array.isArray(perf.controller) ? perf.controller : []).forEach((mark) => {
+      stages.push({ op: "CONTROLLER", stage: mark[0], segmentMs: mark[1], totalMs: mark[2] });
+    });
+    (Array.isArray(perf.services) ? perf.services : []).forEach((service) => {
+      stages.push({ op: service.op, stage: "TOTAL", segmentMs: service.ms, totalMs: service.ms, status: service.status });
+      (Array.isArray(service.marks) ? service.marks : []).forEach((mark) => {
+        const row = { op: service.op, stage: mark[0], segmentMs: mark[1], totalMs: mark[2] };
+        if (mark[3]) row.meta = mark[3];
+        stages.push(row);
+      });
+    });
+    return stages;
+  }
+
+  /**
+   * Crea una traza de rendimiento.
+   *
+   * @param {string} operation Nombre estable, por ejemplo "DETALLE_REGISTRAR_CAJA".
+   * @param {{view?:string,type?:string,idSolicitud?:string,meta?:Object}=} options
+   * @return {!Object} Traza con mark(), attachServer(), end() y endAfterPaint().
+   */
+  function begin(operation, options = {}) {
+    const startedAt = util.now();
+    const trace = {
+      operation: util.str(operation) || "OPERACION",
+      view: util.str(options.view),
+      type: util.up(options.type) || "ACCION",
+      idSolicitud: util.up(options.idSolicitud),
+      meta: Object.assign({}, options.meta || {}),
+      startedAt,
+      lastAt: startedAt,
+      marks: [],
+      server: null,
+      serverMs: null,
+      networkMs: null,
+      bytes: null,
+      parsedAt: null,
+      ended: false,
+
+      /** Agrega una etapa del cliente con tiempo del segmento y acumulado. */
+      mark(stage, meta) {
+        if (trace.ended) return trace;
+        const at = util.now();
+        const row = [util.str(stage), util.ms(at - trace.lastAt), util.ms(at - trace.startedAt)];
+        if (meta && typeof meta === "object" && Object.keys(meta).length) row.push(meta);
+        trace.marks.push(row);
+        trace.lastAt = at;
+        if (stage === "PARSED") trace.parsedAt = at;
+        return trace;
+      },
+
+      /** Asocia el desglose del servidor y calcula red/cola. */
+      attachServer(perf, rpcMs, bytes) {
+        trace.server = perf || null;
+        trace.serverMs = perf && Number.isFinite(Number(perf.serverMs)) ? Number(perf.serverMs) : trace.serverMs;
+        if (Number.isFinite(rpcMs) && Number.isFinite(trace.serverMs)) {
+          trace.networkMs = util.ms(rpcMs - trace.serverMs);
+        }
+        if (Number.isFinite(bytes)) trace.bytes = bytes;
+        return trace;
+      },
+
+      /** Agrega metadatos adicionales al evento. */
+      set(meta) {
+        Object.assign(trace.meta, meta || {});
+        return trace;
+      },
+
+      /**
+       * Cierra la traza y la encola para la bitácora.
+       * @param {"ok"|"error"|"cancelled"|"timeout"} status Resultado.
+       * @param {{error?:*, meta?:Object}=} extra Error y metadatos finales.
+       */
+      end(status = "ok", extra = {}) {
+        if (trace.ended) return null;
+        trace.ended = true;
+        const endedAt = util.now();
+        const event = {
+          ts: new Date().toISOString(),
+          session: SESSION_ID,
+          view: trace.view,
+          type: trace.type,
+          operation: trace.operation,
+          status: util.str(status) || "ok",
+          clientMs: util.ms(endedAt - trace.startedAt),
+          serverMs: trace.serverMs == null ? "" : util.ms(trace.serverMs),
+          networkMs: trace.networkMs == null ? "" : trace.networkMs,
+          renderMs: trace.parsedAt == null ? "" : util.ms(endedAt - trace.parsedAt),
+          bytes: trace.bytes == null ? "" : trace.bytes,
+          idSolicitud: trace.idSolicitud,
+          user: user.get(),
+          clientStages: trace.marks,
+          serverStages: flattenServerStages(trace.server),
+          meta: Object.assign({}, trace.meta, extra.meta || {}),
+          error: extra.error ? util.publicError(extra.error) : ""
+        };
+        record(event);
+        return event;
+      },
+
+      /**
+       * Cierra la traza cuando el navegador pinta el siguiente cuadro, es decir,
+       * cuando el usuario ya ve el resultado en pantalla.
+       */
+      endAfterPaint(status = "ok", extra = {}) {
+        afterPaint(({ hidden }) => {
+          if (hidden) trace.set({ paginaOculta: true });
+          trace.mark("RENDERED", hidden ? { paginaOculta: true } : undefined);
+          trace.end(status, extra);
+        });
+        return null;
+      }
+    };
+    return trace;
+  }
+
+  /** Registra un evento cerrado en el historial y en la cola de envío. */
+  function record(event) {
+    if (!CONFIG.TRACKING_ENABLED) return;
+    perfState.history.push(event);
+    if (perfState.history.length > CONFIG.HISTORY_SIZE) perfState.history.splice(0, perfState.history.length - CONFIG.HISTORY_SIZE);
+
+    if (window.console && console.debug) {
+      console.debug(
+        `[REAB][PERF][${event.view}] ${event.operation} · ${event.clientMs} ms` +
+        (event.serverMs !== "" ? ` (servidor ${event.serverMs} ms, red/cola ${event.networkMs} ms)` : "") +
+        ` · ${event.status}`
+      );
+    }
+
+    if (!CONFIG.PERSIST_ENABLED) return;
+    // La medición global se encarga del envío por lotes a APPALMACEN_RENDIMIENTO.
+    if (GLOBAL_PERF && typeof GLOBAL_PERF.record === "function") {
+      GLOBAL_PERF.record(event);
+      return;
+    }
+    perfState.pending.push(event);
+    persistPending();
+    if (perfState.pending.length >= CONFIG.FLUSH_BATCH_SIZE) flush();
+  }
+
+  /**
+   * Envía la cola pendiente a la hoja APPALMACEN_RENDIMIENTO.
+   * El envío no se mide a sí mismo para no generar eventos recursivos.
+   */
+  function flush() {
+    if (GLOBAL_PERF && typeof GLOBAL_PERF.flush === "function") {
+      GLOBAL_PERF.flush();
+      return;
+    }
+    if (!CONFIG.PERSIST_ENABLED || perfState.flushing || !perfState.pending.length) return;
+    if (!(window.google && google.script && google.script.run)) return;
+    const batch = perfState.pending.slice(0, CONFIG.MAX_BATCH);
+    perfState.flushing = true;
+    google.script.run
+      .withSuccessHandler((response) => {
+        perfState.flushing = false;
+        if (response && response.ok !== false) {
+          perfState.pending.splice(0, batch.length);
+          persistPending();
+          if (perfState.pending.length) setTimeout(flush, 1500);
+        }
+      })
+      .withFailureHandler(() => {
+        perfState.flushing = false;
+      })
+      .ReabastecimientoController_registrarRendimiento(batch);
+  }
+
+  /**
+   * Envío periódico propio: solo si no existe la medición global (por ejemplo
+   * una vista abierta fuera del Shell) y el registro está activo.
+   */
+  if (CONFIG.PERSIST_ENABLED && !GLOBAL_PERF) {
+    perfState.timer = setInterval(flush, CONFIG.FLUSH_INTERVAL_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flush();
+    });
+  }
+
+  /** Descarga los eventos locales en CSV (respaldo si falla la hoja). */
+  function exportCsv() {
+    const columns = ["ts", "session", "view", "type", "operation", "status", "clientMs", "serverMs", "networkMs", "renderMs", "bytes", "idSolicitud", "user", "clientStages", "serverStages", "meta", "error"];
+    const escape = (value) => {
+      const text = typeof value === "object" ? JSON.stringify(value) : String(value == null ? "" : value);
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+    const lines = [columns.join(",")].concat(perfState.history.map((event) => columns.map((key) => escape(event[key])).join(",")));
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `reabastecimiento_rendimiento_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => { URL.revokeObjectURL(link.href); link.remove(); }, 500);
+  }
+
+  const perf = {
+    begin,
+    flush,
+    exportCsv,
+    history: () => perfState.history.slice(),
+    pending: () => perfState.pending.length,
+    summary: () => {
+      const groups = {};
+      perfState.history.forEach((event) => {
+        const key = `${event.view} · ${event.operation}`;
+        if (!groups[key]) groups[key] = { eventos: 0, totalMs: 0, maxMs: 0, servidorMs: 0, conServidor: 0 };
+        const group = groups[key];
+        group.eventos += 1;
+        group.totalMs += event.clientMs;
+        group.maxMs = Math.max(group.maxMs, event.clientMs);
+        if (event.serverMs !== "") { group.servidorMs += Number(event.serverMs); group.conServidor += 1; }
+      });
+      const rows = Object.keys(groups).map((key) => ({
+        operacion: key,
+        eventos: groups[key].eventos,
+        promedio_ms: Math.round(groups[key].totalMs / groups[key].eventos),
+        maximo_ms: groups[key].maxMs,
+        promedio_servidor_ms: groups[key].conServidor ? Math.round(groups[key].servidorMs / groups[key].conServidor) : ""
+      }));
+      if (console.table) console.table(rows);
+      return rows;
+    }
+  };
+
+  // ===========================================================================
+  // ACTIVIDAD PROPIA (coordina RPC y sincronización)
+  // ===========================================================================
+
+  /**
+   * Cuenta las llamadas propias en curso.
+   * - active: llamadas pendientes de respuesta.
+   * - sequence: aumenta con cada llamada iniciada; el vigilante la compara para
+   *   descartar respuestas de revisión que se cruzaron con una acción propia.
+   */
+  const ownActivity = {
+    active: 0,
+    sequence: 0,
+    begin() { ownActivity.active += 1; ownActivity.sequence += 1; },
+    end() { ownActivity.active = Math.max(0, ownActivity.active - 1); }
+  };
+
+  // ===========================================================================
+  // RPC MEDIDO
+  // ===========================================================================
+
+  /**
+   * Extrae data de un sobre {ok, data} y valida campos obligatorios.
+   *
+   * @param {*} response Respuesta de google.script.run.
+   * @param {!Array<string>} required Campos que deben existir en data.
+   * @return {!Object} data verificada.
+   */
+  function parseEnvelope(response, required = []) {
+    let value = response;
+    if (typeof value === "string") value = JSON.parse(value);
+    if (value && value.ok === false) throw new Error(value.message || (value.error && value.error.message) || "Operación no exitosa.");
+    const data = value && value.ok === true ? value.data : value;
+    if (!data || typeof data !== "object") throw new Error("El servidor devolvió un contrato vacío.");
+    required.forEach((key) => {
+      if (!(key in data)) throw new Error(`El contrato no contiene ${key}.`);
+    });
+    return data;
+  }
+
+  /**
+   * Invoca un endpoint del Controller midiendo toda la operación.
+   *
+   * @param {string} method Función global del Controller.
+   * @param {*} payload Argumento único serializable.
+   * @param {{
+   *   operation:string, view:string, type?:string, idSolicitud?:string,
+   *   required?:Array<string>, trace?:Object, keepOpen?:boolean,
+   *   timeoutMs?:number, meta?:Object
+   * }} options
+   *   - trace: traza existente (la acción ya la inició en el clic).
+   *   - keepOpen: true si la vista cerrará la traza tras renderizar
+   *     (trace.endAfterPaint()); de lo contrario se cierra al responder.
+   * @return {!Promise<{data:!Object, response:*, trace:!Object}>}
+   */
+  function rpc(method, payload, options = {}) {
+    const trace = options.trace || begin(options.operation || method, {
+      view: options.view,
+      type: options.type || "CONSULTA",
+      idSolicitud: options.idSolicitud,
+      meta: options.meta
+    });
+    return new Promise((resolve, reject) => {
+      if (!(window.google && google.script && google.script.run)) {
+        const error = new Error("google.script.run no está disponible.");
+        trace.end("error", { error });
+        reject(error);
+        return;
+      }
+      const runner = google.script.run;
+      if (typeof runner[method] !== "function") {
+        const error = new Error(`Endpoint no disponible: ${method}`);
+        trace.end("error", { error });
+        reject(error);
+        return;
+      }
+
+      let settled = false;
+      let timer = null;
+      const sentAt = util.now();
+      trace.mark("RPC_SENT", { method });
+
+      /*
+       * Actividad propia en curso: pausa el vigilante de revisiones para que un
+       * cambio provocado por esta llamada no se confunda con uno externo.
+       */
+      ownActivity.begin();
+      const release = () => ownActivity.end();
+
+      if (Number(options.timeoutMs) > 0) {
+        timer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          const error = new Error(`La operación superó ${Math.round(options.timeoutMs / 1000)} segundos. Pudo concluir en el servidor; actualiza antes de reintentar.`);
+          error.code = "REAB_CLIENT_TIMEOUT";
+          trace.mark("RPC_TIMEOUT");
+          trace.end("timeout", { error });
+          release();
+          reject(error);
+        }, Number(options.timeoutMs));
+      }
+
+      runner
+        .withSuccessHandler((response) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          const rpcMs = util.now() - sentAt;
+          trace.mark("RPC_RESPONSE");
+          const metadata = response && response.metadata ? response.metadata : {};
+          trace.attachServer(metadata.perf || { serverMs: metadata.serverMs ?? metadata.elapsedMs }, rpcMs, util.bytes(response));
+          if (Number.isFinite(Number(metadata.revision))) sync.noteRevision(Number(metadata.revision), trace.idSolicitud);
+          release();
+          try {
+            const data = parseEnvelope(response, options.required || []);
+            trace.mark("PARSED");
+            if (!options.keepOpen) trace.end("ok");
+            resolve({ data, response, trace });
+          } catch (error) {
+            trace.end("error", { error });
+            reject(error);
+          }
+        })
+        .withFailureHandler((error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          const rpcMs = util.now() - sentAt;
+          trace.mark("RPC_FAILURE");
+          release();
+          const match = CONFIG.SERVER_MS_PATTERN.exec(util.str(error && error.message));
+          if (match) trace.attachServer({ serverMs: Number(match[1]) }, rpcMs, null);
+          trace.set({ code: util.errorCode(error) });
+          trace.end("error", { error });
+          reject(error);
+        })[method](payload);
+    });
+  }
+
+  // ===========================================================================
+  // SINCRONIZACIÓN EN TIEMPO REAL
+  // ===========================================================================
+
+  /**
+   * Estado del vigilante de revisiones.
+   * - known: última revisión global conocida.
+   * - ids: última revisión conocida por folio.
+   * - subscribers: vistas suscritas.
+   */
+  const syncState = {
+    known: null,
+    ids: {},
+    subscribers: new Map(),
+    timer: null,
+    inFlight: false,
+    lastCheckAt: null,
+    lastChangeAt: null,
+    statusListeners: new Set()
+  };
+
+  /** Emite el estado de sincronización a los indicadores visuales. */
+  function emitStatus(status) {
+    const snapshot = Object.assign({ lastCheckAt: syncState.lastCheckAt, lastChangeAt: syncState.lastChangeAt }, status || {});
+    syncState.statusListeners.forEach((listener) => {
+      try { listener(snapshot); } catch (_) { /* un indicador no debe romper a otro */ }
+    });
+  }
+
+  /** Folios de interés de todas las vistas suscritas. */
+  function watchedIds() {
+    const ids = new Set();
+    syncState.subscribers.forEach((subscriber) => {
+      const list = typeof subscriber.ids === "function" ? subscriber.ids() : [];
+      (Array.isArray(list) ? list : []).forEach((id) => { if (util.up(id)) ids.add(util.up(id)); });
+    });
+    return Array.from(ids);
+  }
+
+  /**
+   * Consulta la revisión y notifica cambios a los suscriptores.
+   *
+   * Reglas para no confundir cambios propios con externos:
+   * - No se consulta mientras haya una llamada propia en curso.
+   * - Si una llamada propia empezó mientras esta consulta viajaba, la respuesta
+   *   se descarta (la revisión pudo cambiar por esa acción propia).
+   *
+   * Bitácora: solo se registran las consultas que detectan un cambio, con el
+   * tiempo real de ida y vuelta. Las consultas sin cambios no se guardan.
+   */
+  function checkRevision(reason = "poll") {
+    if (syncState.inFlight || !syncState.subscribers.size) return;
+    if (ownActivity.active > 0) return;
+    if (!(window.google && google.script && google.script.run)) return;
+    const ids = watchedIds();
+    const sequenceAtSend = ownActivity.sequence;
+    const trace = begin("SYNC_REVISION", { view: "SYNC", type: "SINCRONIZACION", meta: { reason, ids: ids.length } });
+    trace.mark("RPC_SENT");
+    const startedAt = util.now();
+    syncState.inFlight = true;
+    google.script.run
+      .withSuccessHandler((response) => {
+        syncState.inFlight = false;
+        const elapsed = util.ms(util.now() - startedAt);
+        const data = response && response.data ? response.data : {};
+        const revision = Number(data.revision);
+        syncState.lastCheckAt = new Date();
+        if (!Number.isFinite(revision) || revision < 0) {
+          emitStatus({ state: "degraded" });
+          return;
+        }
+        if (ownActivity.active > 0 || ownActivity.sequence !== sequenceAtSend) {
+          // Se cruzó con una acción propia: la siguiente consulta decidirá.
+          emitStatus({ state: "ok", changed: false, elapsedMs: elapsed });
+          return;
+        }
+
+        const first = syncState.known === null;
+        const globalChanged = !first && revision !== syncState.known;
+        const changedIds = [];
+        Object.keys(data.ids || {}).forEach((id) => {
+          const value = Number(data.ids[id] || 0);
+          if (!first && syncState.ids[id] !== undefined && syncState.ids[id] !== value) changedIds.push(id);
+          syncState.ids[id] = value;
+        });
+        syncState.known = revision;
+
+        // Solo se registran en la bitácora las consultas que detectaron un cambio.
+        if (globalChanged) {
+          trace.mark("RPC_RESPONSE");
+          trace.attachServer({ serverMs: response && response.metadata ? response.metadata.serverMs : null }, elapsed, null);
+          trace.end("ok", { meta: { revision, changed: true, changedIds: changedIds.length } });
+        }
+
+        if (globalChanged) {
+          syncState.lastChangeAt = new Date();
+          const info = { revision, changedIds, reason };
+          syncState.subscribers.forEach((subscriber) => {
+            try { subscriber.onChange(info); } catch (error) { console.warn("[REAB][SYNC] Suscriptor falló", error); }
+          });
+        }
+        emitStatus({ state: "ok", changed: globalChanged, elapsedMs: elapsed });
+      })
+      .withFailureHandler(() => {
+        syncState.inFlight = false;
+        emitStatus({ state: "error" });
+      })
+      .ReabastecimientoController_getRevision(ids);
+  }
+
+  /** Arranca o detiene el ciclo según haya suscriptores y la pestaña esté visible. */
+  function schedule() {
+    clearInterval(syncState.timer);
+    syncState.timer = null;
+    if (!syncState.subscribers.size || document.visibilityState !== "visible") return;
+    syncState.timer = setInterval(() => checkRevision("poll"), CONFIG.POLL_VISIBLE_MS);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    schedule();
+    if (document.visibilityState === "visible") checkRevision("visible");
+  });
+
+  const sync = {
+    /**
+     * Suscribe una vista a los cambios.
+     *
+     * @param {string} key Identificador único de la vista.
+     * @param {{ids?:function():Array<string>, onChange:function(Object):void}} subscriber
+     * @return {function():void} Función para cancelar la suscripción.
+     */
+    subscribe(key, subscriber) {
+      syncState.subscribers.set(key, subscriber);
+      schedule();
+      checkRevision("subscribe");
+      return () => {
+        syncState.subscribers.delete(key);
+        schedule();
+      };
+    },
+
+    /** Escucha el estado de sincronización (para el indicador "Actualizado hh:mm:ss"). */
+    onStatus(listener) {
+      syncState.statusListeners.add(listener);
+      return () => syncState.statusListeners.delete(listener);
+    },
+
+    /**
+     * Registra una revisión recibida en la respuesta de una acción propia para
+     * que el vigilante no la trate como cambio externo.
+     *
+     * @param {number} revision Revisión global devuelta por el Controller.
+     * @param {string=} idSolicitud Folio modificado por la acción propia.
+     */
+    noteRevision(revision, idSolicitud) {
+      if (!Number.isFinite(revision) || revision <= 0) return;
+      if (syncState.known === null || revision > syncState.known) {
+        syncState.known = revision;
+        const id = util.up(idSolicitud);
+        if (id && syncState.ids[id] !== undefined) syncState.ids[id] = revision;
+      }
+    },
+
+    /** Fuerza una consulta inmediata de revisión. */
+    checkNow: () => checkRevision("manual"),
+
+    /** Intervalo de recarga completa de seguridad. */
+    SAFETY_REFRESH_MS: CONFIG.SAFETY_REFRESH_MS
+  };
+
+  // ===========================================================================
+  // API PÚBLICA
+  // ===========================================================================
+
+  window.REAB = Object.freeze({
+    __version: "REAB-CLIENTE-2026-11-20-05",
+    CONFIG,
+    SESSION_ID,
+    util,
+    user,
+    perf,
+    rpc,
+    parseEnvelope,
+    sync
+  });
+})();
+</script>

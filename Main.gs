@@ -363,29 +363,6 @@ function abrirGestorExcedentes() {
   );
 }
 
-/** Abre la consulta histórica de excedentes. */
-function abrirConsultaExcedentes() {
-  APPALMACEN_openModal_(
-    "ConsultaExcedentes",
-    "📋 Consulta de excedentes"
-  );
-}
-
-/** Abre el historial de traspasos. */
-function abrirHistorialTraspasos() {
-  APPALMACEN_openModal_(
-    "HistorialTraspasos",
-    "📋 Historial de Traspasos"
-  );
-}
-
-/** Abre el formulario histórico de traspasos. */
-function abrirFormularioTraspasos() {
-  APPALMACEN_openModal_(
-    "FormularioTraspasos",
-    "📋 Registrar Traspasos"
-  );
-}
 
 /**
  * Abre el shell APPALMACEN en un diálogo modal y aplica sus imports.
@@ -433,23 +410,6 @@ function abrirFormularioEtiquetasExcedentesReimpresion() {
   );
 }
 
-/** Abre el generador histórico de etiquetas. */
-function abrirFormularioEtiquetas() {
-  APPALMACEN_openModal_(
-    "FormularioEtiquetas",
-    "🏷️ Generador de Etiquetas"
-  );
-}
-
-/** Abre el monitor de traspasos. */
-function abrirFormularioMonitorTraspasos() {
-  APPALMACEN_openModal_(
-    "MonitorTraspasos",
-    "📋 Monitor de Traspasos",
-    1600,
-    1200
-  );
-}
 
 /**
  * Evalúa e incluye un archivo HTML parcial.

@@ -1135,6 +1135,602 @@ const PrototipoTraspasosService = (() => {
   }
 
   /**
+   * Valida y aplica una cola de movimientos. El llamador DEBE tener adquirido
+   * el ScriptLock global de inventario; esta función no adquiere candados.
+   *
+   * Es el núcleo compartido por procesarMovimientosFinal() y por los módulos que
+   * necesitan aplicar ACOMODO o SURTIDO dentro de su propia transacción, como
+   * Reabastecimiento.
+   *
+   * @param {!Array<!Object>} cola Movimientos validados en forma.
+   * @param {Object} perfMovimiento Traza activa.
+   * @return {!Object} Resultado protegido de la operación.
+   * @private
+   */
+  /**
+   * Indica si un contexto externo cubre todos los movimientos de la cola.
+   * @private
+   */
+  function _contextoCubre_(cola, mapa, claveDe) {
+    if (!mapa || typeof mapa !== "object") return false;
+    return cola.every((item) => {
+      const clave = claveDe(item);
+      return Boolean(clave) && Object.prototype.hasOwnProperty.call(mapa, clave);
+    });
+  }
+
+  /** Identificador escaneado de un movimiento de la cola (misma regla que la validación). @private */
+  function _idUnicoDeCola_(item) {
+    return toStr_(item.codigo || item.idUnico || (item.idSeleccionado && item.idSeleccionado.idUnico));
+  }
+
+  /**
+   * @param {!Array<!Object>} cola Movimientos.
+   * @param {Object} perfMovimiento Traza activa.
+   * @param {{
+   *   foliosSurtido?: !Object<string, !Object>,
+   *   catalogo?: !Object<string, !Object>,
+   *   filasExcedentes?: !Object<string, !Object>
+   * }=} contexto Datos YA VALIDADOS por un módulo del servidor bajo este mismo
+   *     candado (p. ej. Reabastecimiento). Solo lo recibe
+   *     procesarMovimientosEnCandadoActivo(); el navegador nunca lo envía.
+   *     Si no cubre todos los movimientos, se usa el cálculo completo.
+   */
+  function _aplicarColaBajoCandado_(cola, perfMovimiento, contexto) {
+    let protectedResult = null;
+    {
+    const externo = contexto && typeof contexto === "object" ? contexto : {};
+    const ssExcedentes = getSpreadsheetByFileKey_(SHEETS.EXCEDENTES.file);
+
+    const config = _obtenerContextoTemporal_(ssExcedentes);
+
+    _perfMovimientoMark_(perfMovimiento, "TEMPORAL_CONTEXT_READY");
+
+    const solicitantesSet = _buildSolicitantesSet_();
+
+    _perfMovimientoMark_(perfMovimiento, "SOLICITANTES_READY", {
+      total: solicitantesSet.size,
+    });
+
+    /*
+     * RENDIMIENTO: el catálogo completo (~16 mil filas, ~1.3 s) solo se lee si
+     * el contexto externo no trae los productos de la cola.
+     */
+    const catalogoExterno = _contextoCubre_(cola, externo.catalogo, (item) => toStrUpper_(item.sku));
+    const mapaCatalogo = catalogoExterno
+      ? Object.assign(Object.create(null), externo.catalogo)
+      : _buildMapaCatalogo_();
+
+    _perfMovimientoMark_(perfMovimiento, "CATALOGO_READY", {
+      total: Object.keys(mapaCatalogo).length,
+      externo: catalogoExterno,
+    });
+
+    /*
+     * Se limpian caches de lectura dentro del candado para volver
+     * a validar los saldos vigentes y evitar usar datos obsoletos.
+     */
+    if (ExcedentesRepository.clearCache) {
+      ExcedentesRepository.clearCache();
+    }
+    if (TraspasosRepository.clearCache) {
+      TraspasosRepository.clearCache();
+    }
+    if (GestorExcedentesService.clearCache) {
+      GestorExcedentesService.clearCache();
+    }
+
+    _perfMovimientoMark_(perfMovimiento, "VALIDATION_CACHES_CLEARED");
+
+    /*
+     * Solo se construyen los folios del tipo de movimiento presente en la cola.
+     * Un surtido de Reabastecimiento (una caja) no necesita los folios de
+     * acomodo de todo el almacén, y viceversa.
+     */
+    const requiereAcomodo = cola.some((item) => toStrUpper_(item && item.tipo) === DOMAIN.TIPOS.ACOMODO);
+    const requiereSurtido = cola.some((item) => toStrUpper_(item && item.tipo) === DOMAIN.TIPOS.SURTIDO);
+
+    const foliosAcomodo = requiereAcomodo ? _obtenerFoliosParaAcomodo_() : [];
+
+    _perfMovimientoMark_(perfMovimiento, "FOLIOS_ACOMODO_READY", {
+      total: foliosAcomodo.length,
+    });
+
+    /*
+     * RENDIMIENTO: los folios de surtido de todo el almacén (~3 s) solo se
+     * construyen si el contexto externo no trae ya validados los folios de la
+     * cola. Reabastecimiento los valida con el estado vigente de la etiqueta
+     * bajo este mismo candado.
+     */
+    const surtidosCola = cola.filter((item) => toStrUpper_(item && item.tipo) === DOMAIN.TIPOS.SURTIDO);
+    const foliosExternos = requiereSurtido && _contextoCubre_(surtidosCola, externo.foliosSurtido, _idUnicoDeCola_);
+    const foliosSurtido = !requiereSurtido
+      ? []
+      : foliosExternos
+        ? surtidosCola.map((item) => externo.foliosSurtido[_idUnicoDeCola_(item)])
+        : _obtenerFoliosParaSurtido_();
+
+    _perfMovimientoMark_(perfMovimiento, "FOLIOS_SURTIDO_READY", {
+      total: foliosSurtido.length,
+      externo: foliosExternos,
+    });
+
+    /* RENDIMIENTO: el índice de filas de BD-EXCEDENTES (~0.7 s) solo si hace falta. */
+    const filasExternas = _contextoCubre_(cola, externo.filasExcedentes, _idUnicoDeCola_);
+    const indiceFilasExcedentes = filasExternas
+      ? new Map(cola.map((item) => [_idUnicoDeCola_(item), externo.filasExcedentes[_idUnicoDeCola_(item)]]))
+      : _buildIndiceFilasExcedentes_();
+
+    _perfMovimientoMark_(perfMovimiento, "INDICE_FILAS_EXCEDENTES_READY", {
+      total: indiceFilasExcedentes.size,
+      externo: filasExternas,
+    });
+
+    const movimientosTraspaso = [];
+
+    const remanentesGenerados = [];
+
+    const actualizacionesStatus = [];
+
+    const operacionesYaAplicadas = [];
+
+    const operacionesNuevas = [];
+
+    cola.forEach((item, index) => {
+      const tipo = _validarTipo_(item.tipo);
+      const solicitante = _validarSolicitante_(item.solicitante, solicitantesSet);
+
+      const idOperacion = toStr_(item.id || item.idOperacion || "");
+
+      if (!idOperacion) {
+        throw new Error(`El movimiento ${index + 1} no tiene un identificador de operación.`);
+      }
+
+      /*
+       * Evita repetir el mismo idOperacion dentro de la propia cola.
+       */
+      if (operacionesNuevas.some((operacion) => operacion.idOperacion === idOperacion)) {
+        throw new Error(`La cola contiene el idOperacion duplicado: ${idOperacion}.`);
+      }
+
+      operacionesNuevas.push({
+        idOperacion: idOperacion,
+        indice: index,
+      });
+
+      const idUnicoEscaneado = toStr_(
+        item.codigo || item.idUnico || (item.idSeleccionado && item.idSeleccionado.idUnico),
+      );
+
+      const folioActual = _validarFolioPorTipo_(
+        idUnicoEscaneado,
+        tipo,
+        foliosAcomodo,
+        foliosSurtido,
+      );
+
+      const sku = toStrUpper_(
+        item.sku || (item.idSeleccionado && item.idSeleccionado.sku) || folioActual.sku,
+      );
+
+      const descripcion = toStrUpper_(
+        item.descripcion ||
+          (item.idSeleccionado && item.idSeleccionado.descripcion) ||
+          folioActual.descripcion,
+      );
+
+      if (!sku) {
+        throw new Error(`El folio "${idUnicoEscaneado}" no tiene SKU asociado.`);
+      }
+
+      if (!descripcion) {
+        throw new Error(`El folio "${idUnicoEscaneado}" no tiene descripción asociada.`);
+      }
+
+      const saldoDisponible = round2_(Number(folioActual.balance || 0));
+
+      const filaExcedente = indiceFilasExcedentes.get(idUnicoEscaneado) || null;
+
+      if (!filaExcedente) {
+        throw new Error(
+          `No se encontró la fila física del folio ` + `"${idUnicoEscaneado}" en BD-EXCEDENTES.`,
+        );
+      }
+
+      if (tipo === DOMAIN.TIPOS.ACOMODO) {
+        const nuevaUbicacion = toStrUpper_(item.ubicacion);
+
+        if (!nuevaUbicacion) {
+          throw new Error(
+            `Debes indicar una ubicación destino para el acomodo ` +
+              `del folio "${idUnicoEscaneado}".`,
+          );
+        }
+
+        actualizacionesStatus.push({
+          idOperacion: idOperacion,
+
+          rowNumber: filaExcedente.rowNumber,
+
+          status: DOMAIN.STATUS_ACOMODADO,
+        });
+
+        movimientosTraspaso.push({
+          tipo: DOMAIN.TIPOS.ACOMODO,
+          serie: nuevaUbicacion,
+          bodegaSalida: DOMAIN.BODEGA_PRINCIPAL,
+          ubicacionSalida: DOMAIN.BODEGA_PRINCIPAL,
+          bodegaEntrada: _inferirBodegaPorUbicacion_(nuevaUbicacion),
+          ubicacionEntrada: nuevaUbicacion,
+          solicitante,
+          codigo: sku,
+          descripcion,
+          cantidad: Math.abs(saldoDisponible),
+          idUnicoBase: idUnicoEscaneado,
+          idOperacion,
+        });
+
+        return;
+      }
+
+      if (tipo === DOMAIN.TIPOS.SURTIDO) {
+        if (!Number.isFinite(saldoDisponible) || saldoDisponible <= 0) {
+          throw new Error(`El folio "${idUnicoEscaneado}" no tiene saldo disponible.`);
+        }
+
+        const cantidadSurtida = round2_(
+          _validarCantidad_(item.cantidad, saldoDisponible, "cantidad surtida"),
+        );
+
+        const saldoPosterior = round2_(saldoDisponible - cantidadSurtida);
+
+        if (saldoPosterior < 0) {
+          throw new Error(
+            `La cantidad solicitada para el folio ` +
+              `"${idUnicoEscaneado}" excede el saldo vigente ` +
+              `de ${saldoDisponible}.`,
+          );
+        }
+
+        const esParcial = saldoPosterior > 0;
+        const statusNuevo = esParcial ? DOMAIN.STATUS_PARCIAL : DOMAIN.STATUS_SURTIDO;
+
+        const ubicacionActual = toStrUpper_(folioActual.ubicacionActual);
+
+        const bodegaOrigen =
+          toStrUpper_(folioActual.bodegaActual) || _inferirBodegaPorUbicacion_(ubicacionActual);
+
+        actualizacionesStatus.push({
+          idOperacion: idOperacion,
+
+          rowNumber: filaExcedente.rowNumber,
+
+          status: statusNuevo,
+        });
+
+        movimientosTraspaso.push({
+          tipo: DOMAIN.TIPOS.SURTIDO,
+          serie: ubicacionActual,
+          bodegaSalida: bodegaOrigen,
+          ubicacionSalida: ubicacionActual,
+          bodegaEntrada: DOMAIN.BODEGA_PRINCIPAL,
+          ubicacionEntrada: DOMAIN.BODEGA_PRINCIPAL,
+          solicitante,
+          codigo: sku,
+          descripcion,
+          cantidad: -Math.abs(cantidadSurtida),
+          idUnicoBase: idUnicoEscaneado,
+          idOperacion,
+        });
+
+        if (esParcial) {
+          remanentesGenerados.push({
+            idOperacion: idOperacion,
+
+            idUnico: idUnicoEscaneado,
+
+            idproducto: toStr_(filaExcedente.item.idproducto),
+
+            codigo: sku,
+
+            descripcion: descripcion,
+
+            cantidad: saldoPosterior,
+
+            cantidadInicial: Number(filaExcedente.item.cantidad || 0),
+
+            saldoAnterior: saldoDisponible,
+
+            cantidadSurtida: cantidadSurtida,
+
+            saldoActual: saldoPosterior,
+
+            ubicacionActual: ubicacionActual,
+
+            status: DOMAIN.STATUS_PARCIAL,
+          });
+        }
+      }
+    });
+
+    _perfMovimientoMark_(perfMovimiento, "COLA_VALIDATED_AND_MAPPED", {
+      movimientos: movimientosTraspaso.length,
+
+      remanentes: remanentesGenerados.length,
+
+      statuses: actualizacionesStatus.length,
+    });
+
+    const movimientosExistencias =
+      movimientosTraspaso.length > 0
+        ? _buildMovimientosExistencias_(movimientosTraspaso, mapaCatalogo)
+        : [];
+
+    _perfMovimientoMark_(perfMovimiento, "EXISTENCIAS_PAYLOAD_READY", {
+      total: movimientosExistencias.length,
+    });
+
+    let resultadoExistencias = {
+      correcto: true,
+      recibidos: 0,
+      aplicados: 0,
+      ignorados: 0,
+      cambios: [],
+      duplicados: [],
+    };
+
+    /*
+     * Estos arreglos deben existir fuera del bloque if porque
+     * también se utilizan al construir protectedResult.
+     */
+    let movimientosAplicados = [];
+
+    let actualizacionesStatusAplicadas = [];
+
+    let remanentesAplicados = [];
+
+    if (movimientosTraspaso.length > 0) {
+      /*
+       * IMPORTANTE:
+       * ExistenciasRepository debe usar idOperacion en su clave
+       * de idempotencia. Ver lista de pendientes.
+       */
+      _perfMovimientoMark_(perfMovimiento, "EXISTENCIAS_APPLY_START", {
+        total: movimientosExistencias.length,
+      });
+
+      resultadoExistencias =
+        ExistenciasRepository.aplicarMovimientosTraspaso(movimientosExistencias);
+
+      const idsOperacionAplicados = new Set(
+        (Array.isArray(resultadoExistencias.cambios) ? resultadoExistencias.cambios : [])
+          .map(function (change) {
+            return toStr_(change.idOperacion || "");
+          })
+          .filter(Boolean),
+      );
+
+      const idsOperacionIgnorados = new Set(
+        (Array.isArray(resultadoExistencias.duplicados) ? resultadoExistencias.duplicados : [])
+          .map(function (change) {
+            return toStr_(change.idOperacion || "");
+          })
+          .filter(Boolean),
+      );
+
+      movimientosAplicados = movimientosTraspaso.filter(function (movement) {
+        return idsOperacionAplicados.has(toStr_(movement.idOperacion || ""));
+      });
+
+      actualizacionesStatusAplicadas = actualizacionesStatus.filter(function (update) {
+        return idsOperacionAplicados.has(toStr_(update.idOperacion || ""));
+      });
+
+      remanentesAplicados = remanentesGenerados.filter(function (remanente) {
+        return idsOperacionAplicados.has(toStr_(remanente.idOperacion || ""));
+      });
+
+      operacionesYaAplicadas.push.apply(
+        operacionesYaAplicadas,
+        Array.from(idsOperacionIgnorados),
+      );
+
+      _perfMovimientoMark_(perfMovimiento, "EXISTENCIAS_APPLY_COMPLETED", {
+        recibidos: Number(resultadoExistencias.recibidos || 0),
+
+        aplicados: Number(resultadoExistencias.aplicados || 0),
+
+        ignorados: Number(resultadoExistencias.ignorados || 0),
+
+        duplicados: Array.isArray(resultadoExistencias.duplicados)
+          ? resultadoExistencias.duplicados.length
+          : 0,
+      });
+
+      /*
+       * Solo se registra la bitácora cuando la afectación de
+       * existencias terminó sin error.
+       */
+      _appendTraspasoRows_(movimientosAplicados, config);
+
+      _perfMovimientoMark_(perfMovimiento, "TRASPASOS_APPENDED", {
+        total: movimientosAplicados.length,
+      });
+
+      /*
+       * STATUS se actualiza al final de la fase de escritura.
+       * CANTIDAD nunca se modifica.
+       */
+      actualizacionesStatusAplicadas.forEach(function (update) {
+        _actualizarExcedenteExistente_(update.rowNumber, {
+          status: update.status,
+        });
+      });
+
+      _perfMovimientoMark_(perfMovimiento, "STATUSES_UPDATED", {
+        total: actualizacionesStatusAplicadas.length,
+      });
+
+      /*
+       * Revisión de inventario: invalida las cachés de "estado de excedentes"
+       * de todos los módulos (p. ej. Reabastecimiento) cuando se aplica
+       * cualquier ACOMODO o SURTIDO, venga de donde venga.
+       */
+      if (movimientosAplicados.length > 0 && typeof appInventoryRevisionBump_ === "function") {
+        appInventoryRevisionBump_();
+        _perfMovimientoMark_(perfMovimiento, "INVENTORY_REVISION_BUMPED");
+      }
+    }
+
+    _perfMovimientoMark_(perfMovimiento, "FLUSH_START");
+
+    SpreadsheetApp.flush();
+
+    _perfMovimientoMark_(perfMovimiento, "FLUSH_COMPLETED");
+
+    protectedResult = {
+      config: config,
+
+      totalProcesados: cola.length,
+
+      totalNuevos: movimientosAplicados.length,
+
+      totalYaAplicados: operacionesYaAplicadas.length,
+
+      operacionesYaAplicadas: operacionesYaAplicadas.slice(),
+
+      remanentesGenerados: remanentesAplicados,
+
+      resultadoExistencias: resultadoExistencias,
+    };
+    }
+    return protectedResult;
+  }
+
+  /**
+   * Construye la respuesta pública y el paquete de impresión de remanentes.
+   * No requiere candado.
+   *
+   * @param {!Object} protectedResult Resultado de _aplicarColaBajoCandado_().
+   * @param {Object} perfMovimiento Traza activa.
+   * @return {!Object} Resultado operativo y payload opcional de impresión.
+   * @private
+   */
+  function _construirResultadoMovimientos_(protectedResult, perfMovimiento) {
+    /*
+     * Trabajo que no necesita candado.
+     */
+    _limpiarCachesOperacionales_();
+
+    _perfMovimientoMark_(perfMovimiento, "POST_OPERATION_CACHES_CLEARED");
+
+    const config = protectedResult.config;
+    const remanentesGenerados = protectedResult.remanentesGenerados;
+    const resultadoExistencias = protectedResult.resultadoExistencias;
+    const fechaHora = `${config.fecha} ${config.hora}`;
+
+    const htmlImpresion = _crearHtmlRemanentes_(remanentesGenerados, config, DOMAIN.LOCAL_MODE);
+
+    const htmlOnline = _prepararHtmlOnline_(
+      _crearHtmlRemanentes_(remanentesGenerados, config, DOMAIN.ONLINE_MODE),
+    );
+
+    const printJob =
+      remanentesGenerados.length > 0
+        ? {
+            tipo: "SALDO_PARCIAL_TRASPASOS",
+            origen: "PrototipoTraspasos",
+            formato: "HTML",
+            html: htmlOnline,
+            content: htmlOnline,
+            meta: {
+              modulo: "PrototipoTraspasos",
+              total: remanentesGenerados.length,
+              fechaHora,
+              etiqueta: "SALDO_PARCIAL_EXCEDENTE",
+              formatoEtiqueta: "HTML",
+              papel: "150x100mm",
+            },
+          }
+        : null;
+
+    _perfMovimientoMark_(perfMovimiento, "PRINT_PAYLOAD_READY", {
+      remanentes: remanentesGenerados.length,
+
+      htmlLocalChars: String(htmlImpresion || "").length,
+
+      htmlOnlineChars: String(htmlOnline || "").length,
+
+      hasPrintJob: Boolean(printJob),
+    });
+
+    const perfResult = _perfMovimientoEnd_(perfMovimiento, "ok", {
+      totalProcesados: protectedResult.totalProcesados,
+
+      totalNuevos: protectedResult.totalNuevos,
+
+      totalYaAplicados: protectedResult.totalYaAplicados,
+
+      remanentes: remanentesGenerados.length,
+
+      existenciasAplicadas: Number(resultadoExistencias.aplicados || 0),
+
+      existenciasIgnoradas: Number(resultadoExistencias.ignorados || 0),
+    });
+
+    /*
+     * Cuando la invoca Reabastecimiento, la traza interna (folios, índice de
+     * BD-EXCEDENTES, existencias, bitácora, STATUS) se agrega al colector de
+     * etapas para aparecer en REABASTECIMIENTO_RENDIMIENTO. Fuera de ese flujo
+     * el colector está inactivo y esta llamada no hace nada.
+     */
+    if (typeof reabPerfSinkPush_ === "function") reabPerfSinkPush_(perfResult);
+
+    return {
+      ok: true,
+
+      totalProcesados: protectedResult.totalProcesados,
+
+      totalNuevos: protectedResult.totalNuevos,
+
+      totalYaAplicados: protectedResult.totalYaAplicados,
+
+      operacionesYaAplicadas: protectedResult.operacionesYaAplicadas,
+
+      remanentesGenerados: remanentesGenerados.length,
+
+      existencias: {
+        recibidos: Number(resultadoExistencias.recibidos || 0),
+
+        aplicados: Number(resultadoExistencias.aplicados || 0),
+
+        ignorados: Number(resultadoExistencias.ignorados || 0),
+
+        cambios: Array.isArray(resultadoExistencias.cambios) ? resultadoExistencias.cambios : [],
+
+        duplicados: Array.isArray(resultadoExistencias.duplicados)
+          ? resultadoExistencias.duplicados
+          : [],
+      },
+
+      htmlImpresion: htmlImpresion,
+
+      printJob: printJob,
+    };
+  }
+
+  /** Valida la forma general de una cola recibida. */
+  function _validarFormaCola_(cola) {
+    if (!Array.isArray(cola) || cola.length === 0) {
+      throw new Error("La cola de movimientos está vacía.");
+    }
+
+    if (!cola.every((item) => item && typeof item === "object")) {
+      throw new Error("La cola contiene elementos inválidos.");
+    }
+  }
+
+  /**
    * Valida y aplica la cola final bajo candado global de inventario.
    *
    * La operación es idempotente por idOperacion. Solo los cambios confirmados
@@ -1204,385 +1800,7 @@ const PrototipoTraspasosService = (() => {
         }),
       );
 
-      const ssExcedentes = getSpreadsheetByFileKey_(SHEETS.EXCEDENTES.file);
-
-      const config = _obtenerContextoTemporal_(ssExcedentes);
-
-      _perfMovimientoMark_(perfMovimiento, "TEMPORAL_CONTEXT_READY");
-
-      const solicitantesSet = _buildSolicitantesSet_();
-
-      _perfMovimientoMark_(perfMovimiento, "SOLICITANTES_READY", {
-        total: solicitantesSet.size,
-      });
-
-      const mapaCatalogo = _buildMapaCatalogo_();
-
-      _perfMovimientoMark_(perfMovimiento, "CATALOGO_READY", {
-        total: Object.keys(mapaCatalogo).length,
-      });
-
-      /*
-       * Se limpian caches de lectura dentro del candado para volver
-       * a validar los saldos vigentes y evitar usar datos obsoletos.
-       */
-      if (ExcedentesRepository.clearCache) {
-        ExcedentesRepository.clearCache();
-      }
-      if (TraspasosRepository.clearCache) {
-        TraspasosRepository.clearCache();
-      }
-      if (GestorExcedentesService.clearCache) {
-        GestorExcedentesService.clearCache();
-      }
-
-      _perfMovimientoMark_(perfMovimiento, "VALIDATION_CACHES_CLEARED");
-
-      const foliosAcomodo = _obtenerFoliosParaAcomodo_();
-
-      _perfMovimientoMark_(perfMovimiento, "FOLIOS_ACOMODO_READY", {
-        total: foliosAcomodo.length,
-      });
-
-      const foliosSurtido = _obtenerFoliosParaSurtido_();
-
-      _perfMovimientoMark_(perfMovimiento, "FOLIOS_SURTIDO_READY", {
-        total: foliosSurtido.length,
-      });
-
-      const indiceFilasExcedentes = _buildIndiceFilasExcedentes_();
-
-      _perfMovimientoMark_(perfMovimiento, "INDICE_FILAS_EXCEDENTES_READY", {
-        total: indiceFilasExcedentes.size,
-      });
-
-      const movimientosTraspaso = [];
-
-      const remanentesGenerados = [];
-
-      const actualizacionesStatus = [];
-
-      const operacionesYaAplicadas = [];
-
-      const operacionesNuevas = [];
-
-      cola.forEach((item, index) => {
-        const tipo = _validarTipo_(item.tipo);
-        const solicitante = _validarSolicitante_(item.solicitante, solicitantesSet);
-
-        const idOperacion = toStr_(item.id || item.idOperacion || "");
-
-        if (!idOperacion) {
-          throw new Error(`El movimiento ${index + 1} no tiene un identificador de operación.`);
-        }
-
-        /*
-         * Evita repetir el mismo idOperacion dentro de la propia cola.
-         */
-        if (operacionesNuevas.some((operacion) => operacion.idOperacion === idOperacion)) {
-          throw new Error(`La cola contiene el idOperacion duplicado: ${idOperacion}.`);
-        }
-
-        operacionesNuevas.push({
-          idOperacion: idOperacion,
-          indice: index,
-        });
-
-        const idUnicoEscaneado = toStr_(
-          item.codigo || item.idUnico || (item.idSeleccionado && item.idSeleccionado.idUnico),
-        );
-
-        const folioActual = _validarFolioPorTipo_(
-          idUnicoEscaneado,
-          tipo,
-          foliosAcomodo,
-          foliosSurtido,
-        );
-
-        const sku = toStrUpper_(
-          item.sku || (item.idSeleccionado && item.idSeleccionado.sku) || folioActual.sku,
-        );
-
-        const descripcion = toStrUpper_(
-          item.descripcion ||
-            (item.idSeleccionado && item.idSeleccionado.descripcion) ||
-            folioActual.descripcion,
-        );
-
-        if (!sku) {
-          throw new Error(`El folio "${idUnicoEscaneado}" no tiene SKU asociado.`);
-        }
-
-        if (!descripcion) {
-          throw new Error(`El folio "${idUnicoEscaneado}" no tiene descripción asociada.`);
-        }
-
-        const saldoDisponible = round2_(Number(folioActual.balance || 0));
-
-        const filaExcedente = indiceFilasExcedentes.get(idUnicoEscaneado) || null;
-
-        if (!filaExcedente) {
-          throw new Error(
-            `No se encontró la fila física del folio ` + `"${idUnicoEscaneado}" en BD-EXCEDENTES.`,
-          );
-        }
-
-        if (tipo === DOMAIN.TIPOS.ACOMODO) {
-          const nuevaUbicacion = toStrUpper_(item.ubicacion);
-
-          if (!nuevaUbicacion) {
-            throw new Error(
-              `Debes indicar una ubicación destino para el acomodo ` +
-                `del folio "${idUnicoEscaneado}".`,
-            );
-          }
-
-          actualizacionesStatus.push({
-            idOperacion: idOperacion,
-
-            rowNumber: filaExcedente.rowNumber,
-
-            status: DOMAIN.STATUS_ACOMODADO,
-          });
-
-          movimientosTraspaso.push({
-            tipo: DOMAIN.TIPOS.ACOMODO,
-            serie: nuevaUbicacion,
-            bodegaSalida: DOMAIN.BODEGA_PRINCIPAL,
-            ubicacionSalida: DOMAIN.BODEGA_PRINCIPAL,
-            bodegaEntrada: _inferirBodegaPorUbicacion_(nuevaUbicacion),
-            ubicacionEntrada: nuevaUbicacion,
-            solicitante,
-            codigo: sku,
-            descripcion,
-            cantidad: Math.abs(saldoDisponible),
-            idUnicoBase: idUnicoEscaneado,
-            idOperacion,
-          });
-
-          return;
-        }
-
-        if (tipo === DOMAIN.TIPOS.SURTIDO) {
-          if (!Number.isFinite(saldoDisponible) || saldoDisponible <= 0) {
-            throw new Error(`El folio "${idUnicoEscaneado}" no tiene saldo disponible.`);
-          }
-
-          const cantidadSurtida = round2_(
-            _validarCantidad_(item.cantidad, saldoDisponible, "cantidad surtida"),
-          );
-
-          const saldoPosterior = round2_(saldoDisponible - cantidadSurtida);
-
-          if (saldoPosterior < 0) {
-            throw new Error(
-              `La cantidad solicitada para el folio ` +
-                `"${idUnicoEscaneado}" excede el saldo vigente ` +
-                `de ${saldoDisponible}.`,
-            );
-          }
-
-          const esParcial = saldoPosterior > 0;
-          const statusNuevo = esParcial ? DOMAIN.STATUS_PARCIAL : DOMAIN.STATUS_SURTIDO;
-
-          const ubicacionActual = toStrUpper_(folioActual.ubicacionActual);
-
-          const bodegaOrigen =
-            toStrUpper_(folioActual.bodegaActual) || _inferirBodegaPorUbicacion_(ubicacionActual);
-
-          actualizacionesStatus.push({
-            idOperacion: idOperacion,
-
-            rowNumber: filaExcedente.rowNumber,
-
-            status: statusNuevo,
-          });
-
-          movimientosTraspaso.push({
-            tipo: DOMAIN.TIPOS.SURTIDO,
-            serie: ubicacionActual,
-            bodegaSalida: bodegaOrigen,
-            ubicacionSalida: ubicacionActual,
-            bodegaEntrada: DOMAIN.BODEGA_PRINCIPAL,
-            ubicacionEntrada: DOMAIN.BODEGA_PRINCIPAL,
-            solicitante,
-            codigo: sku,
-            descripcion,
-            cantidad: -Math.abs(cantidadSurtida),
-            idUnicoBase: idUnicoEscaneado,
-            idOperacion,
-          });
-
-          if (esParcial) {
-            remanentesGenerados.push({
-              idOperacion: idOperacion,
-
-              idUnico: idUnicoEscaneado,
-
-              idproducto: toStr_(filaExcedente.item.idproducto),
-
-              codigo: sku,
-
-              descripcion: descripcion,
-
-              cantidad: saldoPosterior,
-
-              cantidadInicial: Number(filaExcedente.item.cantidad || 0),
-
-              saldoAnterior: saldoDisponible,
-
-              cantidadSurtida: cantidadSurtida,
-
-              saldoActual: saldoPosterior,
-
-              ubicacionActual: ubicacionActual,
-
-              status: DOMAIN.STATUS_PARCIAL,
-            });
-          }
-        }
-      });
-
-      _perfMovimientoMark_(perfMovimiento, "COLA_VALIDATED_AND_MAPPED", {
-        movimientos: movimientosTraspaso.length,
-
-        remanentes: remanentesGenerados.length,
-
-        statuses: actualizacionesStatus.length,
-      });
-
-      const movimientosExistencias =
-        movimientosTraspaso.length > 0
-          ? _buildMovimientosExistencias_(movimientosTraspaso, mapaCatalogo)
-          : [];
-
-      _perfMovimientoMark_(perfMovimiento, "EXISTENCIAS_PAYLOAD_READY", {
-        total: movimientosExistencias.length,
-      });
-
-      let resultadoExistencias = {
-        correcto: true,
-        recibidos: 0,
-        aplicados: 0,
-        ignorados: 0,
-        cambios: [],
-        duplicados: [],
-      };
-
-      /*
-       * Estos arreglos deben existir fuera del bloque if porque
-       * también se utilizan al construir protectedResult.
-       */
-      let movimientosAplicados = [];
-
-      let actualizacionesStatusAplicadas = [];
-
-      let remanentesAplicados = [];
-
-      if (movimientosTraspaso.length > 0) {
-        /*
-         * IMPORTANTE:
-         * ExistenciasRepository debe usar idOperacion en su clave
-         * de idempotencia. Ver lista de pendientes.
-         */
-        _perfMovimientoMark_(perfMovimiento, "EXISTENCIAS_APPLY_START", {
-          total: movimientosExistencias.length,
-        });
-
-        resultadoExistencias =
-          ExistenciasRepository.aplicarMovimientosTraspaso(movimientosExistencias);
-
-        const idsOperacionAplicados = new Set(
-          (Array.isArray(resultadoExistencias.cambios) ? resultadoExistencias.cambios : [])
-            .map(function (change) {
-              return toStr_(change.idOperacion || "");
-            })
-            .filter(Boolean),
-        );
-
-        const idsOperacionIgnorados = new Set(
-          (Array.isArray(resultadoExistencias.duplicados) ? resultadoExistencias.duplicados : [])
-            .map(function (change) {
-              return toStr_(change.idOperacion || "");
-            })
-            .filter(Boolean),
-        );
-
-        movimientosAplicados = movimientosTraspaso.filter(function (movement) {
-          return idsOperacionAplicados.has(toStr_(movement.idOperacion || ""));
-        });
-
-        actualizacionesStatusAplicadas = actualizacionesStatus.filter(function (update) {
-          return idsOperacionAplicados.has(toStr_(update.idOperacion || ""));
-        });
-
-        remanentesAplicados = remanentesGenerados.filter(function (remanente) {
-          return idsOperacionAplicados.has(toStr_(remanente.idOperacion || ""));
-        });
-
-        operacionesYaAplicadas.push.apply(
-          operacionesYaAplicadas,
-          Array.from(idsOperacionIgnorados),
-        );
-
-        _perfMovimientoMark_(perfMovimiento, "EXISTENCIAS_APPLY_COMPLETED", {
-          recibidos: Number(resultadoExistencias.recibidos || 0),
-
-          aplicados: Number(resultadoExistencias.aplicados || 0),
-
-          ignorados: Number(resultadoExistencias.ignorados || 0),
-
-          duplicados: Array.isArray(resultadoExistencias.duplicados)
-            ? resultadoExistencias.duplicados.length
-            : 0,
-        });
-
-        /*
-         * Solo se registra la bitácora cuando la afectación de
-         * existencias terminó sin error.
-         */
-        _appendTraspasoRows_(movimientosAplicados, config);
-
-        _perfMovimientoMark_(perfMovimiento, "TRASPASOS_APPENDED", {
-          total: movimientosAplicados.length,
-        });
-
-        /*
-         * STATUS se actualiza al final de la fase de escritura.
-         * CANTIDAD nunca se modifica.
-         */
-        actualizacionesStatusAplicadas.forEach(function (update) {
-          _actualizarExcedenteExistente_(update.rowNumber, {
-            status: update.status,
-          });
-        });
-
-        _perfMovimientoMark_(perfMovimiento, "STATUSES_UPDATED", {
-          total: actualizacionesStatusAplicadas.length,
-        });
-      }
-
-      _perfMovimientoMark_(perfMovimiento, "FLUSH_START");
-
-      SpreadsheetApp.flush();
-
-      _perfMovimientoMark_(perfMovimiento, "FLUSH_COMPLETED");
-
-      protectedResult = {
-        config: config,
-
-        totalProcesados: cola.length,
-
-        totalNuevos: movimientosAplicados.length,
-
-        totalYaAplicados: operacionesYaAplicadas.length,
-
-        operacionesYaAplicadas: operacionesYaAplicadas.slice(),
-
-        remanentesGenerados: remanentesAplicados,
-
-        resultadoExistencias: resultadoExistencias,
-      };
+      protectedResult = _aplicarColaBajoCandado_(cola, perfMovimiento);
     } catch (error) {
       _perfMovimientoMark_(perfMovimiento, "FAILED", {
         message: error && error.message ? error.message : String(error || ""),
@@ -1616,103 +1834,50 @@ const PrototipoTraspasosService = (() => {
       }
     }
 
-    /*
-     * Trabajo que no necesita candado.
-     */
-    _limpiarCachesOperacionales_();
+    return _construirResultadoMovimientos_(protectedResult, perfMovimiento);
+  }
 
-    _perfMovimientoMark_(perfMovimiento, "POST_OPERATION_CACHES_CLEARED");
+  /**
+   * Aplica una cola de movimientos dentro de un ScriptLock que el llamador ya
+   * adquirió (por ejemplo mediante withScriptLock_()).
+   *
+   * No adquiere ni libera el candado: hacerlo liberaría el candado del llamador.
+   * Mantiene la idempotencia por idOperacion y devuelve el mismo contrato que
+   * procesarMovimientosFinal(), incluido el paquete de impresión de remanentes.
+   *
+   * @param {!Array<!Object>} cola Movimientos.
+   * @return {!Object} Resultado operativo.
+   * @public
+   */
+  function procesarMovimientosEnCandadoActivo(cola, contexto) {
+    _assertDependencies_();
+    _validarFormaCola_(cola);
 
-    const config = protectedResult.config;
-    const remanentesGenerados = protectedResult.remanentesGenerados;
-    const resultadoExistencias = protectedResult.resultadoExistencias;
-    const fechaHora = `${config.fecha} ${config.hora}`;
-
-    const htmlImpresion = _crearHtmlRemanentes_(remanentesGenerados, config, DOMAIN.LOCAL_MODE);
-
-    const htmlOnline = _prepararHtmlOnline_(
-      _crearHtmlRemanentes_(remanentesGenerados, config, DOMAIN.ONLINE_MODE),
-    );
-
-    const printJob =
-      remanentesGenerados.length > 0
-        ? {
-            tipo: "SALDO_PARCIAL_TRASPASOS",
-            origen: "PrototipoTraspasos",
-            formato: "HTML",
-            html: htmlOnline,
-            content: htmlOnline,
-            meta: {
-              modulo: "PrototipoTraspasos",
-              total: remanentesGenerados.length,
-              fechaHora,
-              etiqueta: "SALDO_PARCIAL_EXCEDENTE",
-              formatoEtiqueta: "HTML",
-              papel: "150x100mm",
-            },
-          }
-        : null;
-
-    _perfMovimientoMark_(perfMovimiento, "PRINT_PAYLOAD_READY", {
-      remanentes: remanentesGenerados.length,
-
-      htmlLocalChars: String(htmlImpresion || "").length,
-
-      htmlOnlineChars: String(htmlOnline || "").length,
-
-      hasPrintJob: Boolean(printJob),
+    const perfMovimiento = _perfMovimientoStart_("TRASPASOS_PROCESAR_MOVIMIENTOS_EXTERNO", {
+      totalMovimientos: cola.length,
     });
 
-    _perfMovimientoEnd_(perfMovimiento, "ok", {
-      totalProcesados: protectedResult.totalProcesados,
+    let protectedResult;
+    try {
+      protectedResult = _aplicarColaBajoCandado_(cola, perfMovimiento, contexto);
+    } catch (error) {
+      _perfMovimientoMark_(perfMovimiento, "FAILED", {
+        message: error && error.message ? error.message : String(error || ""),
+      });
+      _perfMovimientoEnd_(perfMovimiento, "error", { externalLock: true });
+      throw new Error(
+        "No se pudieron procesar los movimientos: " +
+          (error && error.message ? error.message : String(error || "")),
+      );
+    }
 
-      totalNuevos: protectedResult.totalNuevos,
-
-      totalYaAplicados: protectedResult.totalYaAplicados,
-
-      remanentes: remanentesGenerados.length,
-
-      existenciasAplicadas: Number(resultadoExistencias.aplicados || 0),
-
-      existenciasIgnoradas: Number(resultadoExistencias.ignorados || 0),
-    });
-
-    return {
-      ok: true,
-
-      totalProcesados: protectedResult.totalProcesados,
-
-      totalNuevos: protectedResult.totalNuevos,
-
-      totalYaAplicados: protectedResult.totalYaAplicados,
-
-      operacionesYaAplicadas: protectedResult.operacionesYaAplicadas,
-
-      remanentesGenerados: remanentesGenerados.length,
-
-      existencias: {
-        recibidos: Number(resultadoExistencias.recibidos || 0),
-
-        aplicados: Number(resultadoExistencias.aplicados || 0),
-
-        ignorados: Number(resultadoExistencias.ignorados || 0),
-
-        cambios: Array.isArray(resultadoExistencias.cambios) ? resultadoExistencias.cambios : [],
-
-        duplicados: Array.isArray(resultadoExistencias.duplicados)
-          ? resultadoExistencias.duplicados
-          : [],
-      },
-
-      htmlImpresion: htmlImpresion,
-
-      printJob: printJob,
-    };
+    return _construirResultadoMovimientos_(protectedResult, perfMovimiento);
   }
 
   return Object.freeze({
     getBootstrap,
     obtenerEstadoFolios,
     procesarMovimientosFinal,
+    procesarMovimientosEnCandadoActivo,
   });
 })();

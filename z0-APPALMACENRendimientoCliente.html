@@ -1,0 +1,438 @@
+<script>
+/**
+ * z0-APPALMACENRendimientoCliente.html
+ *
+ * Medición de rendimiento de TODA la aplicación en el navegador.
+ *
+ * Se incluye una vez en el Shell (APPALMACEN.html) y expone
+ * window.APPALMACEN_RENDIMIENTO. Es JavaScript plano (sin JSX).
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * SWITCH
+ * ─────────────────────────────────────────────────────────────────────────
+ * Lee window.APPALMACEN_RENDIMIENTO_CONFIG, que el servidor llena desde
+ * APPALMACEN_RENDIMIENTO.ENABLED (z1-Constants.gs) al cargar la página.
+ * Con ENABLED = false:
+ *   - no se intercepta google.script.run (las llamadas viajan directas),
+ *   - no se registran eventos ni se envía nada al servidor,
+ *   - todas las funciones públicas son no-op seguras.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * QUÉ SE MIDE CON ENABLED = true
+ * ─────────────────────────────────────────────────────────────────────────
+ * 1. RPC (TIPO_EVENTO = "RPC")
+ *    Cada llamada google.script.run de cualquier vista. Se redirige al
+ *    despachador del servidor APPALMACEN_invocarMedido(method, args), que
+ *    ejecuta la función original y devuelve su resultado junto con el tiempo
+ *    y las etapas del servidor. Aquí se desempaqueta y la vista recibe su
+ *    resultado exactamente como antes.
+ *      OPERACION = nombre del endpoint · VISTA = vista activa del Shell.
+ *    Excepciones que viajan directas (CONFIG.CLIENT.EXCLUDED_METHOD_PREFIXES):
+ *    la propia bitácora y Reabastecimiento (que se mide con REAB.perf), y las
+ *    llamadas que envían un <form> (subida de archivos).
+ *
+ * 2. VISTAS Y BOOTSTRAP (TIPO_EVENTO = "VISTA" / "CARGA")
+ *    Trazas VIEW_READY y BOOTSTRAP del Shell: navegación → pantalla pintada,
+ *    con etapas (petición, HTML recibido, scripts, initVista, dos pintados).
+ *
+ * 3. ACCIONES (TIPO_EVENTO = "ACCION")
+ *    Operaciones de las vistas que usan APPALMACEN_ACTIONS.run().
+ *
+ * Todos los eventos van a la hoja APPALMACEN_RENDIMIENTO (GESTION5) mediante
+ * APPALMACENRendimiento_registrar(lote), cada CLIENT.FLUSH_INTERVAL_MS o al
+ * juntar CLIENT.FLUSH_BATCH_SIZE eventos, y al ocultar la pestaña.
+ *
+ * Consola:
+ *   APPALMACEN_RENDIMIENTO.enabled      estado del switch
+ *   APPALMACEN_RENDIMIENTO.summary()    resumen por vista y operación
+ *   APPALMACEN_RENDIMIENTO.exportCsv()  descarga los eventos locales
+ *   APPALMACEN_RENDIMIENTO.flush()      envía de inmediato lo pendiente
+ *
+ * @author Sigifredo de la Cruz Ramos
+ * @version APPALMACEN-RENDIMIENTO-CLIENTE-2026-11-20-01
+ */
+(function () {
+  "use strict";
+
+  if (window.APPALMACEN_RENDIMIENTO && window.APPALMACEN_RENDIMIENTO.__version) return;
+
+  // ===========================================================================
+  // CONFIGURACIÓN (desde el servidor)
+  // ===========================================================================
+
+  const SERVER_CONFIG = window.APPALMACEN_RENDIMIENTO_CONFIG || {};
+  const CLIENT = Object.assign({
+    MEASURE_ALL_RPC: true,
+    MEASURE_VIEWS: true,
+    MEASURE_ACTIONS: true,
+    FLUSH_INTERVAL_MS: 20000,
+    FLUSH_BATCH_SIZE: 15,
+    MAX_BATCH: 60,
+    HISTORY_SIZE: 500,
+    EXCLUDED_METHOD_PREFIXES: ["APPALMACEN_invocarMedido", "APPALMACENRendimiento_", "ReabastecimientoController_"]
+  }, SERVER_CONFIG.CLIENT || {});
+
+  /** Estado del switch para esta carga de página. */
+  const ENABLED = SERVER_CONFIG.ENABLED === true;
+
+  const STORAGE_PENDING = "APPALMACEN_RENDIMIENTO_PENDIENTE";
+  const STORAGE_USER = "APPALMACEN_REABASTECIMIENTO_USUARIO";
+  const SERVER_MS_PATTERN = /\s*⟦serverMs=(\d+)⟧\s*$/;
+  const ENVELOPE_KEY = "__appalmacenPerf";
+
+  /** Identificador de la sesión del navegador (compartido con REAB). */
+  const SESSION_ID = "S-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+
+  // ===========================================================================
+  // UTILIDADES
+  // ===========================================================================
+
+  const now = () => (window.performance && performance.now ? performance.now() : Date.now());
+  const ms = (value) => Math.max(0, Math.round(Number(value || 0)));
+  const bytesOf = (value) => {
+    try { return new Blob([typeof value === "string" ? value : JSON.stringify(value)]).size; } catch (_) { return 0; }
+  };
+  const currentView = () => String(window.__APPALMACEN_VISTA_ACTIVA__ || "SHELL");
+  const currentUser = () => {
+    try { return String(window.localStorage.getItem(STORAGE_USER) || "").toUpperCase(); } catch (_) { return ""; }
+  };
+  /** Mensaje sin marcador de tiempo del servidor ni código público. */
+  const cleanMessage = (error) => String(error && error.message ? error.message : error || "")
+    .replace(SERVER_MS_PATTERN, "")
+    .replace(/^\[[A-Z0-9_]+\]\s*/, "");
+
+  /** Aplana el desglose del servidor en [{op, stage, segmentMs, totalMs, meta?}]. */
+  function flattenServerStages(perf) {
+    if (!perf || typeof perf !== "object") return [];
+    const stages = [];
+    (Array.isArray(perf.controller) ? perf.controller : []).forEach((mark) => {
+      stages.push({ op: "CONTROLLER", stage: mark[0], segmentMs: mark[1], totalMs: mark[2] });
+    });
+    (Array.isArray(perf.services) ? perf.services : []).forEach((service) => {
+      stages.push({ op: service.op, stage: "TOTAL", segmentMs: service.ms, totalMs: service.ms, status: service.status });
+      (Array.isArray(service.marks) ? service.marks : []).forEach((mark) => {
+        const row = { op: service.op, stage: mark[0], segmentMs: mark[1], totalMs: mark[2] };
+        if (mark[3]) row.meta = mark[3];
+        stages.push(row);
+      });
+    });
+    return stages;
+  }
+
+  // ===========================================================================
+  // REGISTRO Y ENVÍO POR LOTES
+  // ===========================================================================
+
+  const state = { history: [], pending: [], flushing: false, realRun: null };
+
+  /** Recupera eventos no enviados en una sesión anterior. */
+  if (ENABLED) {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_PENDING);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) state.pending = parsed.slice(-CLIENT.HISTORY_SIZE);
+    } catch (_) { state.pending = []; }
+  }
+
+  function persistPending() {
+    try { window.localStorage.setItem(STORAGE_PENDING, JSON.stringify(state.pending.slice(-CLIENT.HISTORY_SIZE))); } catch (_) { /* almacenamiento bloqueado */ }
+  }
+
+  /**
+   * Registra un evento terminado. Formato común con REAB.perf:
+   * {ts, session, view, type, operation, status, clientMs, serverMs, networkMs,
+   *  renderMs, bytes, idSolicitud, user, clientStages, serverStages, meta, error}
+   *
+   * @param {!Object} event Evento.
+   */
+  function record(event) {
+    if (!ENABLED || !event) return;
+    const normalized = Object.assign({
+      ts: new Date().toISOString(),
+      session: SESSION_ID,
+      view: currentView(),
+      user: currentUser()
+    }, event);
+    state.history.push(normalized);
+    if (state.history.length > CLIENT.HISTORY_SIZE) state.history.splice(0, state.history.length - CLIENT.HISTORY_SIZE);
+    state.pending.push(normalized);
+    persistPending();
+    if (state.pending.length >= CLIENT.FLUSH_BATCH_SIZE) flush();
+  }
+
+  /**
+   * Envía lo pendiente a APPALMACENRendimiento_registrar. Usa el
+   * google.script.run original (sin interceptar) para no medirse a sí mismo.
+   */
+  function flush() {
+    if (!ENABLED || state.flushing || !state.pending.length) return;
+    const run = state.realRun || (window.google && google.script && google.script.run);
+    if (!run) return;
+    const batch = state.pending.slice(0, CLIENT.MAX_BATCH);
+    state.flushing = true;
+    run
+      .withSuccessHandler((response) => {
+        state.flushing = false;
+        if (response && response.ok !== false) {
+          state.pending.splice(0, batch.length);
+          persistPending();
+          if (state.pending.length) setTimeout(flush, 1500);
+        }
+      })
+      .withFailureHandler(() => { state.flushing = false; })
+      .APPALMACENRendimiento_registrar(batch);
+  }
+
+  if (ENABLED) {
+    setInterval(flush, CLIENT.FLUSH_INTERVAL_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flush();
+    });
+  }
+
+  // ===========================================================================
+  // TRAZAS DEL SHELL (VIEW_READY, BOOTSTRAP, APPALMACEN_ACTIONS)
+  // ===========================================================================
+
+  /**
+   * Convierte una traza del Shell (perfEnd_ de APPALMACEN.html) en evento.
+   * @param {!Object} result {operation, status, totalMs, metadata, marks[]}.
+   */
+  function recordShellTrace(result) {
+    if (!ENABLED || !result) return;
+    const operation = String(result.operation || "");
+    const metadata = result.metadata || {};
+    const isView = operation === "VIEW_READY";
+    const isBoot = operation === "BOOTSTRAP";
+    if ((isView || isBoot) && !CLIENT.MEASURE_VIEWS) return;
+    if (!isView && !isBoot && !CLIENT.MEASURE_ACTIONS) return;
+
+    const marks = Array.isArray(result.marks) ? result.marks : [];
+    const sent = marks.find((mark) => mark.stage === "SERVER_REQUEST_SENT");
+    const received = marks.find((mark) => mark.stage === "SERVER_RESPONSE_RECEIVED" || mark.stage === "BOOTSTRAP_DATA_RECEIVED");
+    const meta = {};
+    Object.keys(metadata).slice(0, 20).forEach((key) => {
+      const value = metadata[key];
+      if (value == null || typeof value === "function") return;
+      meta[key] = typeof value === "object" ? JSON.parse(JSON.stringify(value)) : value;
+    });
+
+    record({
+      view: isView ? String(metadata.viewId || currentView()) : (isBoot ? "SHELL" : String(metadata.viewId || currentView())),
+      type: isView ? "VISTA" : (isBoot ? "CARGA" : "ACCION"),
+      operation: isView ? `VISTA_CARGA:${metadata.viewId || ""}` : operation,
+      status: String(result.status || "ok"),
+      clientMs: ms(result.totalMs),
+      serverMs: "",
+      networkMs: sent && received ? ms(received.totalMs - sent.totalMs) : "",
+      renderMs: received ? ms(result.totalMs - received.totalMs) : "",
+      bytes: "",
+      idSolicitud: "",
+      clientStages: marks.map((mark) => [String(mark.stage), ms(mark.segmentMs), ms(mark.totalMs)]),
+      serverStages: [],
+      meta,
+      error: meta.message || ""
+    });
+  }
+
+  // ===========================================================================
+  // INTERCEPTOR DE google.script.run
+  // ===========================================================================
+
+  /** Indica si un método viaja directo, sin despachador ni medición RPC. */
+  function isExcluded(method) {
+    return (CLIENT.EXCLUDED_METHOD_PREFIXES || []).some((prefix) => String(method).indexOf(prefix) === 0);
+  }
+
+  /** true si algún argumento es un formulario (google.script.run lo serializa de forma especial). */
+  function hasFormArgument(args) {
+    return args.some((arg) => typeof HTMLFormElement !== "undefined" && arg instanceof HTMLFormElement);
+  }
+
+  /**
+   * Ejecuta una llamada interceptada.
+   *
+   * @param {string} method Endpoint solicitado por la vista.
+   * @param {!Array<*>} args Argumentos.
+   * @param {{success?:Function, failure?:Function, userObject?:*, hasUserObject:boolean}} handlers
+   */
+  function invoke(method, args, handlers) {
+    let runner = state.realRun;
+
+    // Llamadas directas: misma cadena de manejadores que pidió la vista.
+    if (isExcluded(method) || hasFormArgument(args)) {
+      if (handlers.success) runner = runner.withSuccessHandler(handlers.success);
+      if (handlers.failure) runner = runner.withFailureHandler(handlers.failure);
+      if (handlers.hasUserObject) runner = runner.withUserObject(handlers.userObject);
+      return runner[method].apply(runner, args);
+    }
+
+    const startedAt = now();
+    const view = currentView();
+    const clientStages = [["RPC_SENT", 0, 0]];
+
+    runner = runner
+      .withSuccessHandler((response, userObject) => {
+        const rpcMs = now() - startedAt;
+        const wrapped = response && typeof response === "object" && response[ENVELOPE_KEY] === 1;
+        const result = wrapped ? response.result : response;
+        const perf = wrapped ? response.perf : null;
+        const serverMs = perf && Number.isFinite(Number(perf.serverMs)) ? Number(perf.serverMs) : null;
+        clientStages.push(["RPC_RESPONSE", ms(rpcMs), ms(rpcMs)]);
+
+        // La vista recibe su resultado como si no hubiera intermediario.
+        const handlerStartedAt = now();
+        let handlerError = null;
+        try {
+          if (handlers.success) handlers.success(result, userObject);
+        } catch (error) {
+          handlerError = error;
+        }
+        const handlerMs = now() - handlerStartedAt;
+        clientStages.push(["VIEW_HANDLER_DONE", ms(handlerMs), ms(rpcMs + handlerMs)]);
+
+        record({
+          view,
+          type: "RPC",
+          operation: method,
+          status: handlerError ? "handler_error" : "ok",
+          clientMs: ms(rpcMs + handlerMs),
+          serverMs: serverMs == null ? "" : ms(serverMs),
+          networkMs: serverMs == null ? "" : ms(rpcMs - serverMs),
+          renderMs: ms(handlerMs),
+          bytes: bytesOf(result),
+          idSolicitud: "",
+          clientStages,
+          serverStages: flattenServerStages(perf),
+          meta: { args: args.length, wrapped },
+          error: handlerError ? cleanMessage(handlerError) : ""
+        });
+        if (handlerError) throw handlerError;
+      })
+      .withFailureHandler((error, userObject) => {
+        const rpcMs = now() - startedAt;
+        const match = SERVER_MS_PATTERN.exec(String(error && error.message || ""));
+        const serverMs = match ? Number(match[1]) : null;
+        if (error && typeof error.message === "string") {
+          // La vista ve el mensaje original, sin el marcador de tiempo.
+          try { error.message = error.message.replace(SERVER_MS_PATTERN, ""); } catch (_) { /* mensaje de solo lectura */ }
+        }
+        clientStages.push(["RPC_FAILURE", ms(rpcMs), ms(rpcMs)]);
+        record({
+          view,
+          type: "RPC",
+          operation: method,
+          status: "error",
+          clientMs: ms(rpcMs),
+          serverMs: serverMs == null ? "" : serverMs,
+          networkMs: serverMs == null ? "" : ms(rpcMs - serverMs),
+          renderMs: "",
+          bytes: "",
+          idSolicitud: "",
+          clientStages,
+          serverStages: [],
+          meta: { args: args.length },
+          error: cleanMessage(error)
+        });
+        if (handlers.failure) handlers.failure(error, userObject);
+        else console.error(`[APPALMACEN][RPC] ${method} falló:`, error);
+      });
+    if (handlers.hasUserObject) runner = runner.withUserObject(handlers.userObject);
+    return runner.APPALMACEN_invocarMedido(method, args);
+  }
+
+  /**
+   * Crea un runner compatible con google.script.run que conserva la cadena
+   * withSuccessHandler / withFailureHandler / withUserObject.
+   */
+  function makeRunner(handlers) {
+    return new Proxy({}, {
+      get(_, prop) {
+        if (prop === "withSuccessHandler") return (fn) => makeRunner(Object.assign({}, handlers, { success: fn }));
+        if (prop === "withFailureHandler") return (fn) => makeRunner(Object.assign({}, handlers, { failure: fn }));
+        if (prop === "withUserObject") return (obj) => makeRunner(Object.assign({}, handlers, { userObject: obj, hasUserObject: true }));
+        if (typeof prop !== "string" || prop === "then" || prop === "toJSON") return undefined;
+        return (...args) => invoke(prop, args, handlers);
+      }
+    });
+  }
+
+  /** Instala el interceptor. Si el entorno no lo permite, se omite sin error. */
+  function installInterceptor() {
+    if (!ENABLED || !CLIENT.MEASURE_ALL_RPC) return false;
+    if (typeof Proxy !== "function" || !(window.google && google.script && google.script.run)) return false;
+    state.realRun = google.script.run;
+    const proxy = makeRunner({ hasUserObject: false });
+    try {
+      Object.defineProperty(google.script, "run", { value: proxy, configurable: true, writable: true });
+    } catch (_) {
+      try { google.script.run = proxy; } catch (__) { /* no reemplazable */ }
+    }
+    const installed = google.script.run === proxy;
+    if (!installed) state.realRun = null;
+    return installed;
+  }
+
+  const interceptorInstalled = installInterceptor();
+  if (ENABLED) {
+    console.info(`[APPALMACEN][RENDIMIENTO] Registro ACTIVO · interceptor RPC: ${interceptorInstalled ? "sí" : "no"} · sesión ${SESSION_ID}`);
+  }
+
+  // ===========================================================================
+  // DIAGNÓSTICO
+  // ===========================================================================
+
+  function summary() {
+    const groups = {};
+    state.history.forEach((event) => {
+      const key = `${event.view} · ${event.operation}`;
+      if (!groups[key]) groups[key] = { eventos: 0, total: 0, max: 0, servidor: 0, conServidor: 0 };
+      const group = groups[key];
+      group.eventos += 1;
+      group.total += Number(event.clientMs || 0);
+      group.max = Math.max(group.max, Number(event.clientMs || 0));
+      if (event.serverMs !== "" && event.serverMs != null) { group.servidor += Number(event.serverMs); group.conServidor += 1; }
+    });
+    const rows = Object.keys(groups).map((key) => ({
+      operacion: key,
+      eventos: groups[key].eventos,
+      promedio_ms: Math.round(groups[key].total / groups[key].eventos),
+      maximo_ms: groups[key].max,
+      promedio_servidor_ms: groups[key].conServidor ? Math.round(groups[key].servidor / groups[key].conServidor) : ""
+    }));
+    if (console.table) console.table(rows);
+    return rows;
+  }
+
+  function exportCsv() {
+    const columns = ["ts", "session", "view", "type", "operation", "status", "clientMs", "serverMs", "networkMs", "renderMs", "bytes", "idSolicitud", "user", "clientStages", "serverStages", "meta", "error"];
+    const escape = (value) => `"${(typeof value === "object" ? JSON.stringify(value) : String(value == null ? "" : value)).replace(/"/g, '""')}"`;
+    const lines = [columns.join(",")].concat(state.history.map((event) => columns.map((key) => escape(event[key])).join(",")));
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `appalmacen_rendimiento_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => { URL.revokeObjectURL(link.href); link.remove(); }, 500);
+  }
+
+  // ===========================================================================
+  // API PÚBLICA
+  // ===========================================================================
+
+  window.APPALMACEN_RENDIMIENTO = Object.freeze({
+    __version: "APPALMACEN-RENDIMIENTO-CLIENTE-2026-11-20-01",
+    enabled: ENABLED,
+    interceptorInstalled,
+    SESSION_ID,
+    record,
+    recordShellTrace,
+    flush,
+    summary,
+    exportCsv,
+    history: () => state.history.slice(),
+    pending: () => state.pending.length
+  });
+})();
+</script>

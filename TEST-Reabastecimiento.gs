@@ -589,8 +589,9 @@ function TEST_REAB_DESTRUCTIVO_crearSolicitud(options) {
 }
 
 /**
- * Consulta ubicaciones reales y marca automáticamente la partida como atendida.
- * Requiere confirmación porque modifica el estado operativo.
+ * Consulta ubicaciones reales y marca la partida EN_ATENCION.
+ * Requiere confirmación porque modifica el estado operativo y exige que la
+ * solicitud haya sido tomada con ReabastecimientoController_tomarSolicitud().
  */
 function TEST_REAB_DESTRUCTIVO_mostrarUbicaciones(options) {
   return TEST_REAB_run_("DESTRUCTIVO_MOSTRAR_UBICACIONES", function() {
@@ -606,7 +607,9 @@ function TEST_REAB_DESTRUCTIVO_mostrarUbicaciones(options) {
     return {
       total: response.data.cajasPorEscanear.length,
       bodegas: Number(response.data.resumen && response.data.resumen.bodegas || 0),
-      atendida: response.data.partida && response.data.partida.estado === "ATENDIDO"
+      estadoPartida: response.data.partida ? response.data.partida.estado : "",
+      enAtencion: Boolean(response.data.partida) &&
+        response.data.partida.estado !== REABASTECIMIENTO_CONFIG.PARTIDA_ESTADOS.PENDIENTE
     };
   });
 }
@@ -628,8 +631,8 @@ function TEST_REAB_DESTRUCTIVO_atenderPartida(options) {
     });
     TEST_REAB_assert_(response && response.ok === true, "No se atendió la partida.");
     return {
-      atendida: Boolean(response.data && response.data.atendida),
-      yaAtendida: Boolean(response.data && response.data.yaAtendida)
+      estado: String(response.data && response.data.estado || ""),
+      actualizada: Boolean(response.data && response.data.actualizada)
     };
   });
 }

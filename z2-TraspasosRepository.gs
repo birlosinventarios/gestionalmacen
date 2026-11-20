@@ -788,6 +788,45 @@ const TraspasosRepository = (() => {
     return result;
   }
 
+  /**
+   * Lectura directa de los movimientos de un solo IDUNICO para el estado.
+   *
+   * RENDIMIENTO: readForEstadoFresh_() lee toda la bitácora. Aquí se usa
+   * TextFinder sobre la columna IDUNICO y se leen solo las filas encontradas,
+   * con el mismo formato (normalizeForEstado_) para que el estado se calcule
+   * con el mismo código.
+   *
+   * @param {*} idunico Identificador buscado.
+   * @return {!Array<!Object>} Movimientos del IDUNICO.
+   */
+  function readForEstadoPorIdUnico_(idunico) {
+    assertConfiguration_();
+    const token = toStr_(idunico);
+    if (!token) return [];
+    const sheet = getSheet_();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < FIRST_DATA_ROW_) return [];
+
+    const width = COL.TRASPASOS.IDUNICO + 1;
+    const matches = sheet
+      .getRange(FIRST_DATA_ROW_, COL.TRASPASOS.IDUNICO + 1, lastRow - HEADER_ROW_, 1)
+      .createTextFinder(token)
+      .matchEntireCell(true)
+      .matchCase(false)
+      .findAll();
+
+    const result = [];
+    matches.forEach(function (cell) {
+      const rowNumber = cell.getRow();
+      const item = normalizeForEstado_(
+        sheet.getRange(rowNumber, 1, 1, width).getValues()[0],
+        rowNumber
+      );
+      if (toStrUpper_(item.idunico) === toStrUpper_(token)) result.push(item);
+    });
+    return result;
+  }
+
   /** Lee y mide el dataset completo utilizado por conciliación. */
   function getAllForConciliacionFresh_() {
     assertConfiguration_();
@@ -1371,6 +1410,11 @@ const TraspasosRepository = (() => {
     /** Devuelve una lectura fresca optimizada para estado operativo. */
     getAllForEstado: function () {
       return readForEstadoFresh_();
+    },
+
+    /** Movimientos de un solo IDUNICO (lectura directa con TextFinder). */
+    getForEstadoPorIdUnico: function (idunico) {
+      return readForEstadoPorIdUnico_(idunico);
     },
 
     /** Ordena cronológicamente y desempata por fila física. */

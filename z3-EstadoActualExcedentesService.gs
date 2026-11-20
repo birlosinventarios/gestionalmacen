@@ -194,6 +194,8 @@ const EstadoActualExcedentesService = (() => {
     console.log(
       CFG.PERF_PREFIX + " " + JSON.stringify(result)
     );
+    // Registro de rendimiento global (solo si el switch y el colector están activos).
+    if (typeof appPerfSinkPush_ === "function") appPerfSinkPush_(result);
     return result;
   }
 
@@ -585,9 +587,11 @@ const EstadoActualExcedentesService = (() => {
    * @return {*} Resultado de la operación.
    * @private
    */
-  function _indexarExcedentesPorIdUnico_() {
-    const rows =
-          typeof ExcedentesRepository.getAllForEstado === "function"
+  function _indexarExcedentesPorIdUnico_(rowsOverride) {
+    // rowsOverride: filas de un solo IDUNICO (búsqueda directa). Mismo cálculo.
+    const rows = Array.isArray(rowsOverride)
+      ? rowsOverride.filter(item => _toSafeStr_(item && item.idunico))
+      : typeof ExcedentesRepository.getAllForEstado === "function"
             ? ExcedentesRepository.getAllForEstado()
             : (
                 ExcedentesRepository.getAllRaw
@@ -1031,17 +1035,28 @@ const EstadoActualExcedentesService = (() => {
    * @return {*} Resultado de la operación.
    * @private
    */
-  function _construirEstado_(trace) {
+  /**
+   * Construye el estado consolidado.
+   *
+   * @param {Object=} trace Traza opcional.
+   * @param {{base:Array<Object>, movimientos:Array<Object>}=} sources Filas ya
+   *     leídas (búsqueda directa de un IDUNICO). Si se omite, se lee todo.
+   * @return {!Array<!Object>} Estado por IDUNICO.
+   * @private
+   */
+  function _construirEstado_(trace, sources) {
     _assertDependencies_();
     const baseStartedAt = Date.now();
-    const mapaBase = _indexarExcedentesPorIdUnico_();
+    const mapaBase = _indexarExcedentesPorIdUnico_(sources ? sources.base : undefined);
     _perfEstadoMark_(trace, "INDEXAR_EXCEDENTES", {
       elapsedMs: Date.now() - baseStartedAt,
       ids: Object.keys(mapaBase).length
     });
 
     const movimientosStartedAt = Date.now();
-    const movimientos = _obtenerMovimientos_();
+    const movimientos = sources && Array.isArray(sources.movimientos)
+      ? sources.movimientos.filter(item => _toSafeStr_(item && item.idunico))
+      : _obtenerMovimientos_();
     _perfEstadoMark_(trace, "OBTENER_MOVIMIENTOS", {
       elapsedMs: Date.now() - movimientosStartedAt,
       rows: Array.isArray(movimientos) ? movimientos.length : 0
@@ -1419,6 +1434,66 @@ const EstadoActualExcedentesService = (() => {
   }
 
   /**
+   * Estado de un solo IDUNICO SIN consolidar todo el almacén.
+   *
+   * RENDIMIENTO: getUnoPorIdUnico() consolida BD-EXCEDENTES y toda la bitácora
+   * de traspasos (~2.5 s) para devolver una etiqueta. Aquí se leen solo las
+   * filas de ese IDUNICO (TextFinder en ambos repositorios) y se calcula con
+   * el MISMO código (_construirEstado_), por lo que el resultado es idéntico.
+   *
+   * Si en esta ejecución ya existe el consolidado en memoria, se usa ese.
+   * Si los repositorios no ofrecen la lectura directa, se cae a la ruta
+   * completa.
+   *
+   * @param {*} idUnico Identificador buscado.
+   * @return {?Object} Estado del IDUNICO o null si no existe.
+   * @public
+   */
+  function getUnoPorIdUnicoDirecto(idUnico) {
+    const id = _toSafeUpper_(idUnico);
+    if (!id) return null;
+    if (cacheEstado_ !== null) return getUnoPorIdUnico(id);
+    if (
+      typeof ExcedentesRepository.getForEstadoPorIdUnico !== "function" ||
+      typeof TraspasosRepository.getForEstadoPorIdUnico !== "function"
+    ) {
+      return getUnoPorIdUnico(id);
+    }
+    const trace = _perfEstadoStart_("ESTADO_GET_UNO_DIRECTO");
+    try {
+      const base = ExcedentesRepository.getForEstadoPorIdUnico(idUnico);
+      _perfEstadoMark_(trace, "BASE_DIRECTA", { rows: base.length });
+      const movimientos = TraspasosRepository.getForEstadoPorIdUnico(idUnico);
+      _perfEstadoMark_(trace, "MOVIMIENTOS_DIRECTOS", { rows: movimientos.length });
+      const estado = _construirEstado_(trace, { base: base, movimientos: movimientos });
+      const found = estado.find(item => _toSafeUpper_(item.idUnico) === id) || null;
+      _perfEstadoEnd_(trace, "ok", { found: Boolean(found) });
+      if (!found) return null;
+      const result = _clone_(found);
+      /*
+       * filaBaseBD: última fila física del IDUNICO en BD-EXCEDENTES (mismo
+       * criterio que el índice de Traspasos: la última aparición gana). Permite
+       * aplicar el surtido sin indexar toda la hoja.
+       */
+      const lastBase = base
+        .filter(row => Number(row.rowNumber) >= 2)
+        .sort((a, b) => Number(a.rowNumber) - Number(b.rowNumber))
+        .pop();
+      if (lastBase) {
+        result.filaBaseBD = {
+          rowNumber: Number(lastBase.rowNumber),
+          idproducto: _toSafeStr_(lastBase.idproducto),
+          cantidad: _toSafeNum_(lastBase.cantidad)
+        };
+      }
+      return result;
+    } catch (error) {
+      _perfEstadoEnd_(trace, "error", { message: error && error.message });
+      throw error;
+    }
+  }
+
+  /**
    * Busca excedentes por ubicación actual.
    *
    * @param {*} ubicacion Valor utilizado por la operación.
@@ -1581,6 +1656,7 @@ const EstadoActualExcedentesService = (() => {
     getAuditables,
     getPorIdUnico,
     getUnoPorIdUnico,
+    getUnoPorIdUnicoDirecto,
     getPorUbicacion,
     getPorBodega,
     getResumen,

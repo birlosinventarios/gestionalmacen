@@ -1312,6 +1312,12 @@ function perfEnd_(trace, status, metadata) {
     );
   }
 
+  /*
+   * Registro de rendimiento (switch APPALMACEN_RENDIMIENTO.ENABLED): si hay un
+   * colector activo en esta ejecución, la traza se devuelve al navegador.
+   */
+  if (typeof appPerfSinkPush_ === "function") appPerfSinkPush_(result);
+
   if (
     Number(cfg.WARN_TOTAL_MS || 0) > 0 &&
     totalMs > Number(cfg.WARN_TOTAL_MS)
@@ -2200,6 +2206,469 @@ function assertSheetContract_(sheetKey, expectedHeaders, trace) {
 }
 
 /**
+ * Resuelve dinámicamente la estructura de una hoja a partir de su fila 1.
+ *
+ * Las columnas se localizan por nombre de encabezado normalizado; la posición
+ * física deja de ser un contrato. El ancho efectivo es la última columna con
+ * encabezado no vacío.
+ *
+ * - requiredHeaders: deben existir; si falta alguno se lanza un error.
+ * - extensionHeaders: columnas nuevas opcionales. Si faltan y
+ *   options.appendMissing === true, se agregan al final de la fila 1. Solo debe
+ *   solicitarse appendMissing dentro de un ScriptLock ya adquirido por el
+ *   llamador; esta función nunca adquiere candados.
+ * - Los encabezados duplicados se rechazan porque harían ambigua la escritura.
+ *
+ * @param {string} sheetKey Clave de SHEETS.
+ * @param {ReadonlyArray<string>} requiredHeaders Encabezados obligatorios.
+ * @param {ReadonlyArray<string>=} extensionHeaders Encabezados opcionales.
+ * @param {{appendMissing:boolean=}=} options Opciones.
+ * @param {Object=} trace Traza opcional.
+ * @return {{sheetKey:string,width:number,headers:!Array<string>,index:!Object<string,number>,missing:!Array<string>}}
+ */
+function resolveSheetLayout_(sheetKey, requiredHeaders, extensionHeaders, options, trace) {
+  const key = String(sheetKey || "").trim();
+  const config = options || {};
+  const sheet = getSheetByKey_(key, trace);
+  const lastColumn = Math.max(1, sheet.getLastColumn());
+  const raw = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0];
+  return buildSheetLayout_(key, sheet, raw, requiredHeaders, extensionHeaders, config, trace);
+}
+
+/**
+ * Construye la estructura de columnas a partir de una fila de encabezados ya
+ * leída (sin llamadas adicionales a la hoja salvo que se agreguen extensiones).
+ *
+ * @param {string} key Clave de SHEETS.
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet Hoja (para agregar extensiones).
+ * @param {!Array<*>} headerRow Valores de la fila 1.
+ * @param {ReadonlyArray<string>} requiredHeaders Encabezados obligatorios.
+ * @param {ReadonlyArray<string>=} extensionHeaders Encabezados de extensión.
+ * @param {{appendMissing:boolean=}} config Opciones.
+ * @param {Object=} trace Traza opcional.
+ * @return {!Object} Estructura {sheetKey,width,headers,index,missing}.
+ * @private
+ */
+function buildSheetLayout_(key, sheet, headerRow, requiredHeaders, extensionHeaders, config, trace) {
+  const required = (Array.isArray(requiredHeaders) ? requiredHeaders : []).map(toStrUpper_);
+  const extension = (Array.isArray(extensionHeaders) ? extensionHeaders : []).map(toStrUpper_);
+  const raw = (Array.isArray(headerRow) ? headerRow : []).map(toStrUpper_);
+
+  let width = 0;
+  raw.forEach(function(header, position) {
+    if (header) width = position + 1;
+  });
+  const headers = raw.slice(0, width);
+  const index = Object.create(null);
+  const duplicates = [];
+  headers.forEach(function(header, position) {
+    if (!header) return;
+    if (Object.prototype.hasOwnProperty.call(index, header)) {
+      duplicates.push(header);
+      return;
+    }
+    index[header] = position;
+  });
+  if (duplicates.length) {
+    const duplicateError = new Error(
+      "Encabezados duplicados en " + key + ": " + duplicates.join(", ") + "."
+    );
+    duplicateError.code = "SHEET_HEADERS_DUPLICATED";
+    throw duplicateError;
+  }
+
+  const missingRequired = required.filter(function(header) {
+    return !Object.prototype.hasOwnProperty.call(index, header);
+  });
+  if (missingRequired.length) {
+    const missingError = new Error(
+      "Faltan encabezados obligatorios en " + key + ": " + missingRequired.join(", ") + "."
+    );
+    missingError.code = "SHEET_HEADERS_MISSING";
+    throw missingError;
+  }
+
+  let missing = extension.filter(function(header) {
+    return !Object.prototype.hasOwnProperty.call(index, header);
+  });
+  if (missing.length && config && config.appendMissing === true) {
+    const requiredColumns = width + missing.length;
+    const maxColumns = sheet.getMaxColumns();
+    if (requiredColumns > maxColumns) {
+      sheet.insertColumnsAfter(maxColumns, requiredColumns - maxColumns);
+    }
+    sheet.getRange(1, width + 1, 1, missing.length).setValues([missing]);
+    missing.forEach(function(header, offset) {
+      index[header] = width + offset;
+      headers.push(header);
+    });
+    width += missing.length;
+    perfMark_(trace, "SHEET_HEADERS_APPENDED", { sheetKey: key, appended: missing.length });
+    missing = [];
+  }
+
+  perfMark_(trace, "SHEET_LAYOUT_RESOLVED", {
+    sheetKey: key,
+    width: width,
+    missingExtensions: missing.length
+  });
+
+  return {
+    sheetKey: key,
+    width: width,
+    headers: headers,
+    index: index,
+    missing: missing
+  };
+}
+
+// =========================================================
+// LECTURA DIRIGIDA POR CLAVE (sin leer la hoja completa)
+// =========================================================
+//
+// Para validar pocos códigos en hojas de ~16 mil filas (CATALOGO,
+// UBICACIONES_SURTIDO) leer la hoja entera cuesta 1.5–3.5 s. Esta utilidad:
+//   1. lee SOLO la columna clave (una columna, ≈0.3 s);
+//   2. ubica las filas coincidentes;
+//   3. las agrupa en tramos contiguos (uniendo huecos pequeños) y lee cada
+//      tramo con una sola llamada getValues().
+// Si los tramos son demasiados, lee un único bloque desde la primera hasta la
+// última coincidencia, que nunca es peor que leer la hoja completa.
+
+/** Filas de separación que todavía se leen como un mismo tramo. */
+var KEYED_READ_MAX_GAP_ = 150;
+/** Máximo de tramos antes de leer un solo bloque envolvente. */
+var KEYED_READ_MAX_RUNS_ = 6;
+
+/**
+ * Lee las filas cuyo valor en keyColumn coincide con alguna de las claves.
+ *
+ * @param {!GoogleAppsScript.Spreadsheet.Sheet} sheet Hoja de origen.
+ * @param {number} keyColumn Columna clave (base 1).
+ * @param {!Array<*>} keys Claves buscadas (se comparan en mayúsculas).
+ * @param {number} width Columnas a devolver desde la columna 1.
+ * @param {Object=} trace Traza opcional.
+ * @param {string=} label Nombre de la etapa en la traza.
+ * @return {!Array<{rowNumber:number, values:!Array<*>}>} Filas en orden físico.
+ */
+function readRowsMatchingKeys_(sheet, keyColumn, keys, width, trace, label) {
+  const wanted = Object.create(null);
+  (Array.isArray(keys) ? keys : []).forEach(function(key) {
+    const value = toStrUpper_(key);
+    if (value) wanted[value] = true;
+  });
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2 || !Object.keys(wanted).length) return [];
+
+  const startedAt = Date.now();
+  const keyValues = sheet.getRange(2, keyColumn, lastRow - 1, 1).getValues();
+  const rowNumbers = [];
+  for (let i = 0; i < keyValues.length; i++) {
+    if (wanted[toStrUpper_(keyValues[i][0])]) rowNumbers.push(i + 2);
+  }
+  const keyColumnMs = Date.now() - startedAt;
+  if (!rowNumbers.length) {
+    perfMark_(trace, label || "SHEET_KEYED_ROWS_READ", { elapsedMs: keyColumnMs, keys: Object.keys(wanted).length, matches: 0, blocks: 0 });
+    return [];
+  }
+
+  // Tramos contiguos de filas coincidentes.
+  const runs = [];
+  let runStart = rowNumbers[0];
+  let runEnd = rowNumbers[0];
+  for (let i = 1; i < rowNumbers.length; i++) {
+    if (rowNumbers[i] - runEnd <= KEYED_READ_MAX_GAP_) {
+      runEnd = rowNumbers[i];
+    } else {
+      runs.push([runStart, runEnd]);
+      runStart = runEnd = rowNumbers[i];
+    }
+  }
+  runs.push([runStart, runEnd]);
+  const blocks = runs.length > KEYED_READ_MAX_RUNS_
+    ? [[rowNumbers[0], rowNumbers[rowNumbers.length - 1]]]
+    : runs;
+
+  const result = [];
+  const columns = Math.max(1, Math.min(width, sheet.getLastColumn()));
+  blocks.forEach(function(block) {
+    const values = sheet.getRange(block[0], 1, block[1] - block[0] + 1, columns).getValues();
+    values.forEach(function(row, offset) {
+      if (wanted[toStrUpper_(row[keyColumn - 1])]) {
+        result.push({ rowNumber: block[0] + offset, values: row });
+      }
+    });
+  });
+  perfMark_(trace, label || "SHEET_KEYED_ROWS_READ", {
+    elapsedMs: Date.now() - startedAt,
+    keyColumnMs: keyColumnMs,
+    keys: Object.keys(wanted).length,
+    matches: result.length,
+    blocks: blocks.length,
+    sourceRows: lastRow - 1
+  });
+  return result;
+}
+
+// =========================================================
+// CACHÉ POR BLOQUES (valores mayores a 100 KB)
+// =========================================================
+
+/** Tamaño de cada bloque (CacheService admite hasta 100 KB por valor). */
+var CHUNKED_CACHE_PART_CHARS_ = 90000;
+
+/**
+ * Guarda un valor serializable en CacheService dividido en bloques.
+ * Estructura: <key>__META = {parts, chars} y <key>__0..n con el JSON.
+ *
+ * @param {string} key Clave base.
+ * @param {*} value Valor serializable.
+ * @param {number} ttlSeconds Vigencia en segundos.
+ * @return {boolean} true si se guardó.
+ */
+function cachePutChunked_(key, value, ttlSeconds) {
+  try {
+    const json = JSON.stringify(value);
+    const parts = Math.max(1, Math.ceil(json.length / CHUNKED_CACHE_PART_CHARS_));
+    if (parts > 40) return false; // ~3.6 MB: demasiado grande para caché.
+    const entries = {};
+    for (let i = 0; i < parts; i++) {
+      entries[key + "__" + i] = json.slice(i * CHUNKED_CACHE_PART_CHARS_, (i + 1) * CHUNKED_CACHE_PART_CHARS_);
+    }
+    entries[key + "__META"] = JSON.stringify({ parts: parts, chars: json.length });
+    CacheService.getScriptCache().putAll(entries, Math.max(1, Math.floor(Number(ttlSeconds) || 60)));
+    return true;
+  } catch (error) {
+    console.warn("[CACHE_CHUNKED] No se pudo guardar " + key, error && error.message);
+    return false;
+  }
+}
+
+/**
+ * Lee un valor guardado con cachePutChunked_. Devuelve null si falta algún
+ * bloque o el contenido está corrupto.
+ *
+ * @param {string} key Clave base.
+ * @return {*} Valor o null.
+ */
+function cacheGetChunked_(key) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const metaRaw = cache.get(key + "__META");
+    if (!metaRaw) return null;
+    const meta = JSON.parse(metaRaw);
+    const keys = [];
+    for (let i = 0; i < Number(meta.parts || 0); i++) keys.push(key + "__" + i);
+    const values = cache.getAll(keys);
+    let json = "";
+    for (let i = 0; i < keys.length; i++) {
+      if (typeof values[keys[i]] !== "string") return null;
+      json += values[keys[i]];
+    }
+    if (json.length !== Number(meta.chars)) return null;
+    return JSON.parse(json);
+  } catch (error) {
+    return null;
+  }
+}
+
+/** Elimina un valor guardado con cachePutChunked_. */
+function cacheRemoveChunked_(key) {
+  try {
+    CacheService.getScriptCache().remove(key + "__META");
+  } catch (error) {
+    /* sin acción */
+  }
+}
+
+/**
+ * Crea un accesor de columnas por encabezado para un Repository.
+ *
+ * Conserva la estructura resuelta durante la ejecución actual. Las lecturas
+ * toleran extensiones aún inexistentes (devuelven ""); las escrituras solicitan
+ * get(trace, true) para agregar las extensiones faltantes bajo el ScriptLock del
+ * llamador.
+ *
+ * CACHÉ PERSISTENTE OPCIONAL (options.persistentCache)
+ * Con {keyPrefix, ttlSeconds, revision()} readTable() guarda la tabla en
+ * CacheService junto con la revisión vigente y la reutiliza mientras la
+ * revisión no cambie (≈60–100 ms contra 250–650 ms por hoja). Reglas:
+ * - La revisión se lee ANTES de la hoja; así una copia nunca se etiqueta con
+ *   una revisión más nueva que sus datos.
+ * - Quien escribe debe llamar markDirty(): elimina la copia y, durante el
+ *   resto de la ejecución, las lecturas vuelven a la hoja.
+ * - El Service hace SpreadsheetApp.flush() antes de subir la revisión, para
+ *   que otra ejecución no lea la hoja sin la escritura ya anunciada.
+ *
+ * @param {string} sheetKey Clave de SHEETS.
+ * @param {ReadonlyArray<string>} requiredHeaders Encabezados obligatorios.
+ * @param {ReadonlyArray<string>=} extensionHeaders Encabezados de extensión.
+ * @param {{persistentCache?:{keyPrefix:string, ttlSeconds:number, revision:function():?number}}=} options
+ * @return {!Object} Accesor inmutable.
+ */
+function createHeaderLayoutAccessor_(sheetKey, requiredHeaders, extensionHeaders, options) {
+  let layout_ = null;
+  const persist_ = options && options.persistentCache ? options.persistentCache : null;
+  const persistKey_ = persist_ ? String(persist_.keyPrefix || "APPALMACEN_TABLE_") + sheetKey : "";
+  /** true tras una escritura propia: no se usa ni se guarda la copia persistente. */
+  let dirty_ = false;
+
+  function get(trace, forWrite) {
+    const write = forWrite === true;
+    if (!layout_ || (write && layout_.missing.length > 0)) {
+      layout_ = resolveSheetLayout_(
+        sheetKey,
+        requiredHeaders,
+        extensionHeaders,
+        { appendMissing: write },
+        trace
+      );
+    }
+    return layout_;
+  }
+
+  function read(row, layout, header) {
+    const position = layout.index[toStrUpper_(header)];
+    if (position === undefined || !Array.isArray(row)) return "";
+    const value = row[position];
+    return value == null ? "" : value;
+  }
+
+  function write(row, layout, header, value) {
+    const position = layout.index[toStrUpper_(header)];
+    if (position === undefined) {
+      throw new Error("La hoja " + sheetKey + " no contiene el encabezado " + header + ".");
+    }
+    row[position] = value;
+    return row;
+  }
+
+  function blankRow(layout) {
+    return new Array(layout.width).fill("");
+  }
+
+  /**
+   * Lee encabezados y datos con UNA sola llamada (getDataRange().getValues()).
+   *
+   * RENDIMIENTO: antes se hacían tres llamadas por hoja (fila 1, getLastRow y
+   * rango de datos), ~150–600 ms por hoja según la bitácora del 20/11/2026.
+   * La estructura resultante queda en memoria para las escrituras posteriores
+   * de la misma ejecución.
+   *
+   * @param {Object=} trace Traza opcional.
+   * @return {{layout:!Object, rows:!Array<!Array<*>>}} Filas de datos (sin encabezado).
+   */
+  function readTable(trace) {
+    // 1. Copia persistente válida para la revisión actual.
+    let revision = null;
+    if (persist_ && !dirty_) {
+      const cacheStartedAt = Date.now();
+      try {
+        const value = persist_.revision();
+        revision = Number.isFinite(value) && value > 0 ? value : null;
+      } catch (error) {
+        revision = null;
+      }
+      const cached = revision !== null ? cacheGetChunked_(persistKey_) : null;
+      if (cached && cached.r === revision && Array.isArray(cached.v) && cached.v.length) {
+        const cachedValues = decodeTableValues_(cached.v);
+        layout_ = buildSheetLayout_(sheetKey, null, cachedValues[0], requiredHeaders, extensionHeaders, { appendMissing: false }, trace);
+        const cachedRows = cachedValues.slice(1);
+        perfMark_(trace, "SHEET_TABLE_CACHE_HIT", {
+          sheetKey: sheetKey,
+          rows: cachedRows.length,
+          revision: revision,
+          elapsedMs: Date.now() - cacheStartedAt
+        });
+        return { layout: layout_, rows: cachedRows };
+      }
+    }
+
+    // 2. Lectura de la hoja (una sola llamada).
+    const sheet = getSheetByKey_(sheetKey, trace);
+    const startedAt = Date.now();
+    const values = sheet.getDataRange().getValues();
+    const elapsedMs = Date.now() - startedAt;
+    layout_ = buildSheetLayout_(
+      sheetKey,
+      sheet,
+      values.length ? values[0] : [],
+      requiredHeaders,
+      extensionHeaders,
+      { appendMissing: false },
+      trace
+    );
+    const width = layout_.width;
+    const rows = values.slice(1).map(function(row) {
+      return row.length > width ? row.slice(0, width) : row;
+    });
+    perfMark_(trace, "SHEET_TABLE_READ", {
+      sheetKey: sheetKey,
+      rows: rows.length,
+      width: width,
+      elapsedMs: elapsedMs
+    });
+
+    // 3. Guarda la copia con la revisión leída ANTES de la hoja.
+    if (persist_ && !dirty_ && revision !== null) {
+      const header = values.length ? values[0].slice(0, width) : [];
+      cachePutChunked_(
+        persistKey_,
+        { r: revision, v: encodeTableValues_([header].concat(rows)) },
+        Number(persist_.ttlSeconds) || 60
+      );
+    }
+    return { layout: layout_, rows: rows };
+  }
+
+  /**
+   * Registra una escritura propia: descarta la copia persistente y obliga a
+   * releer la hoja durante el resto de la ejecución.
+   */
+  function markDirty() {
+    if (!persist_) return;
+    dirty_ = true;
+    cacheRemoveChunked_(persistKey_);
+  }
+
+  function columnIndex(layout, header) {
+    const position = layout.index[toStrUpper_(header)];
+    if (position === undefined) {
+      throw new Error("La hoja " + sheetKey + " no contiene el encabezado " + header + ".");
+    }
+    return position;
+  }
+
+  function reset() {
+    layout_ = null;
+    dirty_ = false;
+  }
+
+  return Object.freeze({ get, read, write, blankRow, columnIndex, readTable, markDirty, reset });
+}
+
+/**
+ * Prepara valores de hoja para JSON conservando las fechas
+ * (Date → {"__d": epochMs}); JSON.stringify las convertiría en texto.
+ */
+function encodeTableValues_(values) {
+  return values.map(function(row) {
+    return row.map(function(value) {
+      return value instanceof Date ? { __d: value.getTime() } : value;
+    });
+  });
+}
+
+/** Inverso de encodeTableValues_. */
+function decodeTableValues_(values) {
+  return values.map(function(row) {
+    return row.map(function(value) {
+      return value && typeof value === "object" && typeof value.__d === "number" ? new Date(value.__d) : value;
+    });
+  });
+}
+
+/**
  * Valida los contratos físicos de MAT_DOCUMENTOS y MAT_DOCUMENTODETALLE.
  * No escribe información.
  *
@@ -2253,18 +2722,25 @@ function assertReabastecimientoSheets_(trace) {
       "Los contratos de encabezados de Reabastecimiento no están disponibles."
     );
   }
+  const extensions =
+    typeof REABASTECIMIENTO_HEADERS_EXTENSION !== "undefined"
+      ? REABASTECIMIENTO_HEADERS_EXTENSION
+      : {};
   const contracts = [
     {
       sheetKey: "REABASTECIMIENTO_SOLICITUDES",
-      headers: REABASTECIMIENTO_HEADERS.SOLICITUDES
+      headers: REABASTECIMIENTO_HEADERS.SOLICITUDES,
+      extension: extensions.SOLICITUDES
     },
     {
       sheetKey: "REABASTECIMIENTO_PARTIDAS",
-      headers: REABASTECIMIENTO_HEADERS.PARTIDAS
+      headers: REABASTECIMIENTO_HEADERS.PARTIDAS,
+      extension: extensions.PARTIDAS
     },
     {
       sheetKey: "REABASTECIMIENTO_DETALLES",
-      headers: REABASTECIMIENTO_HEADERS.DETALLES
+      headers: REABASTECIMIENTO_HEADERS.DETALLES,
+      extension: extensions.DETALLES
     }
   ];
   return contracts.map(function(contract) {
@@ -2274,23 +2750,25 @@ function assertReabastecimientoSheets_(trace) {
         contract.sheetKey + " debe estar configurada en GESTION5."
       );
     }
-    const expectedWidth = Number(
-      REABASTECIMIENTO_EXPECTED_WIDTHS[contract.sheetKey] || 0
-    );
-    if (
-      !Array.isArray(contract.headers) ||
-      expectedWidth < 1 ||
-      contract.headers.length !== expectedWidth
-    ) {
-      throw new Error(
-        "Contrato de encabezados inválido para " + contract.sheetKey + "."
-      );
-    }
-    return assertSheetContract_(
+    /*
+     * Las columnas se resuelven por nombre. Se valida que existan los
+     * encabezados obligatorios; las extensiones faltantes se reportan sin
+     * escribir en la hoja.
+     */
+    const layout = resolveSheetLayout_(
       contract.sheetKey,
       contract.headers,
+      contract.extension,
+      { appendMissing: false },
       trace
     );
+    return {
+      sheetKey: contract.sheetKey,
+      sheetName: descriptor.name,
+      width: layout.width,
+      headersOk: true,
+      extensionesPendientes: layout.missing
+    };
   });
 }
 

@@ -81,7 +81,17 @@
     window.APPALMACEN_COMPONENTS = <?!= APPALMACEN_COMPONENTS_JSON ?>;
     window.APPALMACEN_TESTING = <?!= APPALMACEN_TESTING_JSON ?>;
 
+    /**
+     * Switch de registro de rendimiento: APPALMACEN_RENDIMIENTO.ENABLED en
+     * z1-Constants.gs. Debe definirse antes de cargar z0-APPALMACENRendimientoCliente.
+     */
+    window.APPALMACEN_RENDIMIENTO_CONFIG = <?!= APPALMACEN_RENDIMIENTO_JSON ?>;
   </script>
+
+  <!-- Medición global de rendimiento (inactiva si el switch está en false). -->
+  <?!= incluir('z0-APPALMACENRendimientoCliente') ?>
+  <!-- Biblioteca de Reabastecimiento (usa la medición global si está activa). -->
+  <?!= incluir('z0-ReabastecimientoCliente') ?>
 
   <style>
     <?!= incluir('Estilos_Globales') ?>
@@ -684,6 +694,16 @@
       state.active.delete(id);
       state.history.push(result);
 
+      /*
+       * Registro de rendimiento global (switch APPALMACEN_RENDIMIENTO.ENABLED):
+       * las trazas del Shell (VIEW_READY, BOOTSTRAP y acciones de
+       * APPALMACEN_ACTIONS) se envían a la bitácora APPALMACEN_RENDIMIENTO.
+       * Si el switch está apagado, recordShellTrace no hace nada.
+       */
+      if (window.APPALMACEN_RENDIMIENTO && typeof window.APPALMACEN_RENDIMIENTO.recordShellTrace === "function") {
+        window.APPALMACEN_RENDIMIENTO.recordShellTrace(result);
+      }
+
       const keepLast = Math.max(10, APPALMACEN_PERF_CONFIG.keepLast || 100);
       if (state.history.length > keepLast) {
         state.history.splice(0, state.history.length - keepLast);
@@ -780,11 +800,11 @@
         perfMark_(traceId, "ACTION_ACCEPTED", { viewId, controller });
 
         const waitForTwoPaints = () => new Promise(resolve => {
-          if (!waitForPaint || typeof requestAnimationFrame !== "function") {
+          if (!waitForPaint) {
             resolve();
             return;
           }
-          requestAnimationFrame(() => requestAnimationFrame(resolve));
+          esperarPintado_(resolve);
         });
 
         return new Promise((resolve, reject) => {
@@ -1268,7 +1288,7 @@
         visibleInSidebar: false,
         header: DEFAULT_HEADER_CONFIG,
         printing: DEFAULT_PRINTING_CONFIG
-      }), 
+      }),
       ReabastecimientoSolicitud: Object.freeze({
         id: "ReabastecimientoSolicitud",
         fileName: "ReabastecimientoSolicitud",
@@ -1438,6 +1458,120 @@
     }
 
     /**
+     * Ejecuta callback tras dos cuadros de pintado. Si la ventana está oculta
+     * (minimizada u otra pestaña) el navegador no pinta; en ese caso, o si los
+     * cuadros no llegan en 1 s, se continúa igual e informa hidden=true para
+     * no registrar como "render" el tiempo que el usuario estuvo fuera.
+     *
+     * @param {function({hidden:boolean}):void} callback
+     * @return {void}
+     */
+    function esperarPintado_(callback) {
+      let done = false;
+      const finish = hidden => {
+        if (done) return;
+        done = true;
+        callback({ hidden: Boolean(hidden) });
+      };
+      if (document.hidden || typeof requestAnimationFrame !== "function") {
+        setTimeout(() => finish(document.hidden), 0);
+        return;
+      }
+      setTimeout(() => finish(true), 1000);
+      requestAnimationFrame(() => requestAnimationFrame(() => finish(false)));
+    }
+
+    /* ======================================================
+       Caché de HTML de vistas
+       ======================================================
+       Cada vista es una plantilla estática (sin scriptlets dinámicos), por lo
+       que su HTML no cambia mientras la página esté abierta: solo cambia con
+       un nuevo despliegue, y un despliegue obliga a recargar la página.
+
+       - Primera visita: se pide al servidor (≈1.5–3 s por llamada
+         google.script.run en la bitácora del 20/11/2026).
+       - Visitas siguientes: se sirve desde memoria (≈0 ms de red).
+       - Precarga: al abrir una vista se piden en segundo plano sus vistas
+         hermanas de navegación interna (p. ej. Reabastecimiento → Solicitud y
+         Detalles), una a la vez y con retraso para no competir con las
+         consultas propias de la vista.
+       - Una precarga en curso se reutiliza si el usuario navega a esa vista.
+       ====================================================== */
+
+    /** HTML ya recibido por nombre de archivo. */
+    const VIEW_HTML_CACHE_ = new Map();
+    /** Promesas de descarga en curso por nombre de archivo. */
+    const VIEW_HTML_INFLIGHT_ = new Map();
+    /** Retraso antes de precargar (deja pasar las consultas iniciales). */
+    const VIEW_PREFETCH_DELAY_MS_ = 3500;
+    /** Vistas hermanas que conviene precargar al abrir cada vista. */
+    const VIEW_PREFETCH_ = Object.freeze({
+      Reabastecimiento: ["ReabastecimientoDetalles", "ReabastecimientoSolicitud"],
+      ReabastecimientoSolicitud: ["Reabastecimiento", "ReabastecimientoDetalles"],
+      ReabastecimientoDetalles: ["Reabastecimiento"],
+      AuditoriaExcedentes: ["AuditoriaExcedentesDetalle"],
+      AuditoriaExcedentesDetalle: ["AuditoriaExcedentes", "AuditoriaExcedentesCaptura"]
+    });
+
+    /**
+     * Obtiene el HTML de una vista desde memoria, una descarga en curso o el
+     * servidor.
+     *
+     * @param {string} fileName Archivo de la vista (lista blanca del servidor).
+     * @return {!Promise<{html:string, source:string}>} source: memory|inflight|server.
+     */
+    function obtenerHtmlVista_(fileName) {
+      if (VIEW_HTML_CACHE_.has(fileName)) {
+        return Promise.resolve({ html: VIEW_HTML_CACHE_.get(fileName), source: "memory" });
+      }
+      if (VIEW_HTML_INFLIGHT_.has(fileName)) {
+        return VIEW_HTML_INFLIGHT_.get(fileName).then(html => ({ html, source: "inflight" }));
+      }
+      const download = new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(html => resolve(html || ""))
+          .withFailureHandler(reject)
+          .APPALMACENController_obtenerContenidoVista(fileName);
+      }).then(
+        html => {
+          VIEW_HTML_INFLIGHT_.delete(fileName);
+          if (html) VIEW_HTML_CACHE_.set(fileName, html);
+          return html;
+        },
+        error => {
+          VIEW_HTML_INFLIGHT_.delete(fileName);
+          throw error;
+        }
+      );
+      VIEW_HTML_INFLIGHT_.set(fileName, download);
+      return download.then(html => ({ html, source: "server" }));
+    }
+
+    /**
+     * Precarga en segundo plano las vistas hermanas de fileName, una por una.
+     * Los errores se ignoran: la vista se pedirá normalmente al navegar.
+     *
+     * @param {string} fileName Vista recién abierta.
+     * @return {void}
+     */
+    function precargarVistasRelacionadas_(fileName) {
+      const related = (VIEW_PREFETCH_[fileName] || []).filter(name => !VIEW_HTML_CACHE_.has(name));
+      if (!related.length) return;
+      setTimeout(() => {
+        related.reduce(
+          (chain, name) => chain.then(() =>
+            VIEW_HTML_CACHE_.has(name) || VIEW_HTML_INFLIGHT_.has(name)
+              ? null
+              : obtenerHtmlVista_(name)
+                  .then(() => registrarDebug_("VIEW", "PREFETCHED", { fileName: name }))
+                  .catch(error => registrarAdvertencia_("VIEW", "PREFETCH_FAILED", error, { fileName: name }))
+          ),
+          Promise.resolve()
+        );
+      }, VIEW_PREFETCH_DELAY_MS_);
+    }
+
+    /**
      * Libera recursos globales de la vista anterior antes de una navegación.
      *
      * @return {void}
@@ -1579,6 +1713,12 @@
       const [activeTool, setActiveTool] = useState("PrototipoTraspasos");
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
       const [viewContent, setViewContent] = useState("");
+      /**
+       * Número de la navegación cuyo HTML está montado. Cambia en cada
+       * navegación aunque el HTML sea idéntico (vista en caché o misma vista),
+       * lo que remonta el contenedor y vuelve a ejecutar los scripts de la vista.
+       */
+      const [viewNonce, setViewNonce] = useState(0);
       const [loading, setLoading] = useState(false);
       const [bootstrapReady, setBootstrapReady] = useState(false);
       const [appVisualReady, setAppVisualReady] = useState(false);
@@ -1624,6 +1764,9 @@
         viewRequestSequenceRef.current += 1;
         const requestSequence = viewRequestSequenceRef.current;
 
+        /* Vista activa: la bitácora de rendimiento etiqueta cada llamada con ella. */
+        window.__APPALMACEN_VISTA_ACTIVA__ = finalId;
+
         if (viewTraceRef.current) {
           perfCancel_(viewTraceRef.current, { reason: "new_navigation" });
         }
@@ -1643,12 +1786,20 @@
         setViewContent("");
         setActiveTool(finalId);
         setLoading(true);
-        perfMark_(traceId, "SERVER_REQUEST_SENT", {
-          controller: "APPALMACENController_obtenerContenidoVista"
+        const cachedHtml = VIEW_HTML_CACHE_.has(finalFile);
+        const prefetching = !cachedHtml && VIEW_HTML_INFLIGHT_.has(finalFile);
+        perfMark_(traceId, cachedHtml ? "HTML_CACHE_HIT" : "SERVER_REQUEST_SENT", {
+          controller: "APPALMACENController_obtenerContenidoVista",
+          reusedPrefetch: prefetching
         });
 
-        google.script.run
-          .withSuccessHandler(html => {
+        /**
+         * Inserta el HTML recibido. Con caché se difiere a la siguiente tarea
+         * para que React pinte primero el estado de carga y luego monte el
+         * contenedor nuevo: así el efecto que ejecuta los scripts de la vista
+         * vuelve a correr aunque se navegue a la misma vista con el mismo HTML.
+         */
+        const onViewHtml = ({ html, source }) => {
             if (requestSequence !== viewRequestSequenceRef.current) {
               registrarDebug_("VIEW", "STALE_RESPONSE_IGNORED", {
                 viewId: finalId,
@@ -1662,14 +1813,18 @@
             const finalHtml = html || "";
             perfMark_(traceId, "SERVER_RESPONSE_RECEIVED", {
               htmlBytes: perfSafeSize_(finalHtml),
-              htmlChars: finalHtml.length
+              htmlChars: finalHtml.length,
+              htmlSource: source
             });
 
             setViewContent(finalHtml);
+            setViewNonce(requestSequence);
             setLoading(false);
             initialViewLoadedRef.current = true;
-          })
-          .withFailureHandler(error => {
+            precargarVistasRelacionadas_(finalFile);
+        };
+
+        const onViewError = error => {
             if (requestSequence !== viewRequestSequenceRef.current) {
               registrarDebug_("VIEW", "STALE_FAILURE_IGNORED", {
                 viewId: finalId,
@@ -1700,8 +1855,14 @@
               4200,
               { title: "Carga fallida" }
             );
-          })
-          .APPALMACENController_obtenerContenidoVista(finalFile);
+        };
+
+        obtenerHtmlVista_(finalFile).then(
+          result => result.source === "memory"
+            ? setTimeout(() => onViewHtml(result), 0)
+            : onViewHtml(result),
+          onViewError
+        );
       };
 
       window.irAVistaShell = (id, file, globals = {}) => {
@@ -1837,15 +1998,13 @@
               scriptStats
             });
 
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                if (cancelled) return;
-                perfMark_(traceId, "TWO_PAINTS_COMPLETED");
-                perfEnd_(traceId, "ok", { viewId: initializedViewId });
-                if (viewTraceRef.current === traceId) {
-                  viewTraceRef.current = null;
-                }
-              });
+            esperarPintado_(({ hidden }) => {
+              if (cancelled) return;
+              perfMark_(traceId, "TWO_PAINTS_COMPLETED", hidden ? { paginaOculta: true } : undefined);
+              perfEnd_(traceId, "ok", { viewId: initializedViewId, paginaOculta: hidden || undefined });
+              if (viewTraceRef.current === traceId) {
+                viewTraceRef.current = null;
+              }
             });
           } catch (error) {
             perfMark_(traceId, "INITIALIZATION_FAILED", {
@@ -1867,7 +2026,7 @@
         return () => {
           cancelled = true;
         };
-      }, [appVisualReady, viewContent, activeTool]);
+      }, [appVisualReady, viewContent, activeTool, viewNonce]);
 
       useEffect(() => {
         const handler = event => setPrintMode(event?.detail?.mode || "LOCAL");
@@ -2128,6 +2287,7 @@
                   })
                 )
               : e("div", {
+                  key: "view-" + viewNonce,
                   ref: containerRef,
                   className: "app-view-container",
                   dangerouslySetInnerHTML: { __html: viewContent }

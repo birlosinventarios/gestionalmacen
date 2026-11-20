@@ -157,6 +157,66 @@ const UbicacionesSurtidoRepository = (() => {
   }
 
   /**
+   * Encabezados aceptados por columna lógica. La hoja física usa ZONA para la
+   * bodega de piso (1 = B1, 2 = B2, 3 = B3, 4 = MO, 5 = CU).
+   *
+   * @private @const {!Object<string, !Array<string>>}
+   */
+  const HEADER_ALIASES = Object.freeze({
+    IDUBICACION: Object.freeze(["IDUBICACION"]),
+    CODIGO: Object.freeze(["CODIGO"]),
+    BODEGA: Object.freeze(["ZONA", "BODEGA"]),
+    PASILLO: Object.freeze(["PASILLO"]),
+    ANAQUEL: Object.freeze(["ANAQUEL"]),
+    REPISA: Object.freeze(["REPISA"]),
+    IDPRODUCTO: Object.freeze(["IDPRODUCTO"]),
+    UBICACION: Object.freeze(["UBICACION"])
+  });
+
+  /**
+   * Columnas resueltas dinámicamente desde la fila de encabezados de la
+   * ejecución actual. Si un encabezado no se encuentra, se usa el índice
+   * declarado en COL como respaldo.
+   *
+   * @private
+   * @type {?Object<string, number>}
+   */
+  let columns_ = null;
+
+  /**
+   * Resuelve los índices de columna leyendo la fila 1 completa.
+   *
+   * @return {!Object<string, number>} Índices base cero por columna lógica.
+   * @private
+   */
+  function _resolveColumns_() {
+    if (columns_ !== null) {
+      return columns_;
+    }
+
+    const fallback = _getColumns_();
+    const sheet = getSheetByKey_(CFG.SOURCE_KEY);
+    const width = Math.max(1, sheet.getLastColumn());
+    const headers = sheet
+      .getRange(1, 1, 1, width)
+      .getDisplayValues()[0]
+      .map(toStrUpper_);
+
+    const resolved = {};
+    REQUIRED_COLUMNS.forEach(function (columnName) {
+      const aliases = HEADER_ALIASES[columnName] || [columnName];
+      let position = -1;
+      for (let i = 0; i < aliases.length && position === -1; i++) {
+        position = headers.indexOf(aliases[i]);
+      }
+      resolved[columnName] = position >= 0 ? position : fallback[columnName];
+    });
+
+    columns_ = Object.freeze(resolved);
+    return columns_;
+  }
+
+  /**
    * Lee todas las filas físicas de la fuente configurada.
    *
    * @return {!Array<!Array<*>>} Filas obtenidas del origen.
@@ -165,7 +225,7 @@ const UbicacionesSurtidoRepository = (() => {
    */
   function _readSource_() {
     _validateDependencies_();
-    _getColumns_();
+    _resolveColumns_();
 
     const rows = getRowsByKey_(CFG.SOURCE_KEY);
     if (!Array.isArray(rows)) {
@@ -194,7 +254,7 @@ const UbicacionesSurtidoRepository = (() => {
       );
     }
 
-    const columns = _getColumns_();
+    const columns = _resolveColumns_();
     return Object.freeze({
       idubicacion: toNum_(row[columns.IDUBICACION]),
       codigo: toStrUpper_(row[columns.CODIGO]),
@@ -338,6 +398,17 @@ const UbicacionesSurtidoRepository = (() => {
   }
 
   /**
+   * Devuelve todos los registros válidos en el orden físico de la hoja, sin
+   * ordenar. Más rápido que getAll() para consumidores que agrupan o filtran
+   * (ordenar 16 mil filas con localeCompare cuesta más de un segundo).
+   *
+   * @return {!Array<!Object>} Copias independientes en orden físico.
+   */
+  function getAllRaw() {
+    return _getCachedData_().map(_copyItem_);
+  }
+
+  /**
    * Busca ubicaciones mediante coincidencia exacta de código normalizado.
    *
    * @param {*} codigo Código solicitado.
@@ -458,11 +529,46 @@ const UbicacionesSurtidoRepository = (() => {
    */
   function clearCache() {
     cache_ = null;
+    columns_ = null;
     console.log(`${CFG.LOG_PREFIX} Caché invalidada.`);
+  }
+
+  /**
+   * Ubicaciones de surtido de varios códigos SIN leer la hoja completa.
+   * Lee la columna CODIGO y solo los tramos de filas coincidentes
+   * (readRowsMatchingKeys_). Si la caché de la ejecución ya está cargada, la
+   * reutiliza.
+   *
+   * @param {!Array<*>} codigos Códigos buscados.
+   * @param {Object=} trace Traza opcional.
+   * @return {!Array<!Object>} Copias normalizadas en orden físico.
+   */
+  function getPorCodigosDirecto(codigos, trace) {
+    const wanted = Object.create(null);
+    (Array.isArray(codigos) ? codigos : []).forEach(function (codigo) {
+      const value = toStrUpper_(codigo);
+      if (value) wanted[value] = true;
+    });
+    if (!Object.keys(wanted).length) return [];
+    if (cache_ !== null) {
+      return _filterAndCopy_(function (item) { return wanted[item.codigo] === true; });
+    }
+    _validateDependencies_();
+    const columns = _resolveColumns_();
+    const sheet = getSheetByKey_(CFG.SOURCE_KEY, trace);
+    const width = REQUIRED_COLUMNS.reduce(function (max, name) {
+      return Math.max(max, columns[name] + 1);
+    }, 1);
+    return readRowsMatchingKeys_(sheet, columns.CODIGO + 1, Object.keys(wanted), width, trace, "SUPPLY_DIRECT_CODES_READ")
+      .map(function (entry, index) { return _normalizeRow_(entry.values, index); })
+      .filter(function (item) { return Boolean(item.codigo); })
+      .map(_copyItem_);
   }
 
   return Object.freeze({
     getAll,
+    getAllRaw,
+    getPorCodigosDirecto,
     getPorCodigo,
     getPorBodega,
     getPorPasillo,

@@ -2,82 +2,119 @@
  * z2-ReabastecimientoPartidasRepository.gs
  *
  * @fileoverview Persistencia de partidas de Reabastecimiento. Una partida
- * representa un SKU solicitado para una ubicación de piso dentro de un ticket.
+ * representa un SKU solicitado para una ubicación de consumo dentro de un ticket.
  *
  * Responsabilidades:
- * - Validar REABASTECIMIENTO_PARTIDAS.
+ * - Resolver dinámicamente las columnas de REABASTECIMIENTO_PARTIDAS por nombre
+ *   de encabezado y agregar las extensiones del proceso bajo ScriptLock.
  * - Consultar partidas por solicitud, consecutivo y código.
  * - Insertar lotes y garantizar un solo registro por código dentro del ticket.
- * - Cambiar una partida de PENDIENTE a ATENDIDO bajo lock externo.
- * - Conservar fecha, hora y usuario de la primera atención.
- *
- * Dependencias globales:
- * - REABASTECIMIENTO_CONFIG, REABASTECIMIENTO_HEADERS y
- *   REABASTECIMIENTO_EXPECTED_WIDTHS.
- * - COL y SHEETS.
- * - getSheetByKey_(), readSheetRows_(), readRowAt_(), writeRowsBatch_() y
- *   writeRowAt_().
- * - assertSheetContract_(), toStr_(), toStrUpper_(), toNum_(),
- *   padPositiveInteger_() y perfMark_().
+ * - Aplicar transiciones de estado PENDIENTE → EN_ATENCION → ATENDIDO /
+ *   ATENDIDO_PARCIAL según REABASTECIMIENTO_CONFIG.TRANSICIONES_PARTIDA.
+ * - Conservar fecha, hora y usuario de la primera atención y registrar fecha,
+ *   hora y usuario de la conclusión.
  *
  * Política de concurrencia:
  * - Los métodos cuyo nombre termina en UnderLock no adquieren un candado.
- * - El Service debe ejecutar la transacción completa dentro de withScriptLock_().
- * - Esto permite escribir cabecera, partidas y detalles bajo un único ScriptLock.
+ * - El Service ejecuta la transacción completa dentro de withScriptLock_().
  *
- * Seguridad y observabilidad:
- * - No registra folios, códigos, ubicaciones, IDUNICO ni nombres de usuario.
- * - Las métricas contienen únicamente cantidades, índices y duraciones.
- * - El Repository no confía en números de fila proporcionados por el navegador.
  * @author Sigifredo de la Cruz Ramos
- * @version REAB-PARTIDAS-REPOSITORY-2026-11-14-04
+ * @version REAB-PARTIDAS-REPOSITORY-2026-11-19-01
  */
 const ReabastecimientoPartidasRepository = (() => {
   "use strict";
+
   const CFG = Object.freeze({
     SHEET_KEY: REABASTECIMIENTO_CONFIG.SHEET_KEYS.PARTIDAS,
-    WIDTH: REABASTECIMIENTO_EXPECTED_WIDTHS.REABASTECIMIENTO_PARTIDAS,
     FIRST_DATA_ROW: 2,
     LOG_PREFIX: "[ReabastecimientoPartidasRepository]"
   });
+
+  const H = Object.freeze({
+    idSolicitud: "ID_SOLICITUD",
+    idPartidaConsecutivo: "ID_PARTIDACONSECUTIVO",
+    codigoSolicitado: "SOLICITUD_CODIGOSOLICITADO",
+    descripcionSolicitada: "SOLICITUD_DESCRIPCIONSOLICITADA",
+    ubicacionSolicitada: "SOLICITUD_CODIGOSOLICITADOUBICACION",
+    estado: "SOLICITUD_CODIGOESTADO",
+    fechaAtencion: "SOLICITUD_FECHAATENCION",
+    horaAtencion: "SOLICITUD_HORAATENCION",
+    usuarioAtencion: "SOLICITUD_USUARIOATENCION",
+    fechaConclusion: "PARTIDA_FECHACONCLUSION",
+    horaConclusion: "PARTIDA_HORACONCLUSION",
+    usuarioConclusion: "PARTIDA_USUARIOCONCLUSION"
+  });
+
+  const STATES = REABASTECIMIENTO_CONFIG.PARTIDA_ESTADOS;
+
+  const layout = createHeaderLayoutAccessor_(
+    CFG.SHEET_KEY,
+    REABASTECIMIENTO_HEADERS.PARTIDAS,
+    REABASTECIMIENTO_HEADERS_EXTENSION.PARTIDAS,
+    {
+      persistentCache: {
+        keyPrefix: REABASTECIMIENTO_CONFIG.REVISION.TABLE_CACHE_PREFIX,
+        ttlSeconds: REABASTECIMIENTO_CONFIG.REVISION.TABLE_CACHE_TTL_SECONDS,
+        /** Revisión vigente de Reabastecimiento (null = no usar la copia). */
+        revision: function() {
+          return typeof reabRevisionRead_ === "function" ? reabRevisionRead_().r : null;
+        }
+      }
+    }
+  );
   let cache_ = null;
 
   function validateContract(trace) {
-    return assertSheetContract_(CFG.SHEET_KEY, REABASTECIMIENTO_HEADERS.PARTIDAS, trace);
-  }
-
-  function normalizeRow_(row, rowNumber) {
-    const c = COL.REABASTECIMIENTO_PARTIDAS;
+    const current = layout.get(trace, false);
     return {
-      numFila: Number(rowNumber || 0),
-      idSolicitud: toStrUpper_(row[c.ID_SOLICITUD]),
-      idPartidaConsecutivo: toStr_(row[c.ID_PARTIDACONSECUTIVO]),
-      codigoSolicitado: toStrUpper_(row[c.SOLICITUD_CODIGOSOLICITADO]),
-      descripcionSolicitada: toStrUpper_(row[c.SOLICITUD_DESCRIPCIONSOLICITADA]),
-      ubicacionSolicitada: toStrUpper_(row[c.SOLICITUD_CODIGOSOLICITADOUBICACION]),
-      estado: toStrUpper_(row[c.SOLICITUD_CODIGOESTADO]),
-      fechaAtencion: row[c.SOLICITUD_FECHAATENCION] || "",
-      horaAtencion: row[c.SOLICITUD_HORAATENCION] || "",
-      usuarioAtencion: toStrUpper_(row[c.SOLICITUD_USUARIOATENCION])
+      sheetKey: CFG.SHEET_KEY,
+      width: current.width,
+      headersOk: true,
+      extensionesPendientes: current.missing.slice()
     };
   }
 
-  function buildRow_(record) {
-    const row = new Array(CFG.WIDTH).fill("");
-    const c = COL.REABASTECIMIENTO_PARTIDAS;
-    row[c.ID_SOLICITUD] = toStrUpper_(record.idSolicitud);
-    row[c.ID_PARTIDACONSECUTIVO] = toStr_(record.idPartidaConsecutivo);
-    row[c.SOLICITUD_CODIGOSOLICITADO] = toStrUpper_(record.codigoSolicitado);
-    row[c.SOLICITUD_DESCRIPCIONSOLICITADA] = toStrUpper_(record.descripcionSolicitada);
-    row[c.SOLICITUD_CODIGOSOLICITADOUBICACION] = toStrUpper_(record.ubicacionSolicitada);
-    row[c.SOLICITUD_CODIGOESTADO] = normalizeEnumValue_(
-      record.estado || REABASTECIMIENTO_CONFIG.PARTIDA_ESTADOS.PENDIENTE,
-      REABASTECIMIENTO_CONFIG.PARTIDA_ESTADOS,
+  function normalizeRow_(row, rowNumber, current) {
+    const read = function(field) { return layout.read(row, current, H[field]); };
+    return {
+      numFila: Number(rowNumber || 0),
+      idSolicitud: toStrUpper_(read("idSolicitud")),
+      idPartidaConsecutivo: toStr_(read("idPartidaConsecutivo")),
+      codigoSolicitado: toStrUpper_(read("codigoSolicitado")),
+      descripcionSolicitada: toStrUpper_(read("descripcionSolicitada")),
+      ubicacionSolicitada: toStrUpper_(read("ubicacionSolicitada")),
+      estado: toStrUpper_(read("estado")) || STATES.PENDIENTE,
+      fechaAtencion: read("fechaAtencion") || "",
+      horaAtencion: read("horaAtencion") || "",
+      usuarioAtencion: toStrUpper_(read("usuarioAtencion")),
+      fechaConclusion: read("fechaConclusion") || "",
+      horaConclusion: read("horaConclusion") || "",
+      usuarioConclusion: toStrUpper_(read("usuarioConclusion"))
+    };
+  }
+
+  function buildRow_(record, current) {
+    const row = layout.blankRow(current);
+    const put = function(field, value) {
+      if (current.index[H[field]] === undefined) return;
+      layout.write(row, current, H[field], value);
+    };
+    put("idSolicitud", toStrUpper_(record.idSolicitud));
+    put("idPartidaConsecutivo", toStr_(record.idPartidaConsecutivo));
+    put("codigoSolicitado", toStrUpper_(record.codigoSolicitado));
+    put("descripcionSolicitada", toStrUpper_(record.descripcionSolicitada));
+    put("ubicacionSolicitada", toStrUpper_(record.ubicacionSolicitada));
+    put("estado", normalizeEnumValue_(
+      record.estado || STATES.PENDIENTE,
+      STATES,
       { fieldName: "SOLICITUD_CODIGOESTADO", required: true }
-    );
-    row[c.SOLICITUD_FECHAATENCION] = record.fechaAtencion || "";
-    row[c.SOLICITUD_HORAATENCION] = record.horaAtencion || "";
-    row[c.SOLICITUD_USUARIOATENCION] = toStrUpper_(record.usuarioAtencion);
+    ));
+    put("fechaAtencion", record.fechaAtencion || "");
+    put("horaAtencion", record.horaAtencion || "");
+    put("usuarioAtencion", toStrUpper_(record.usuarioAtencion));
+    put("fechaConclusion", record.fechaConclusion || "");
+    put("horaConclusion", record.horaConclusion || "");
+    put("usuarioConclusion", toStrUpper_(record.usuarioConclusion));
     return row;
   }
 
@@ -85,9 +122,13 @@ const ReabastecimientoPartidasRepository = (() => {
     if (!cache_) {
       const startedAt = Date.now();
       perfMark_(trace, "PARTS_REPOSITORY_CACHE_MISS");
-      validateContract(trace);
-      cache_ = readSheetRows_(CFG.SHEET_KEY, CFG.WIDTH, trace)
-        .map(function(row, index) { return normalizeRow_(row, index + 2); })
+      // Encabezados y datos en una sola llamada.
+      const table = layout.readTable(trace);
+      const current = table.layout;
+      cache_ = table.rows
+        .map(function(row, index) {
+          return normalizeRow_(row, index + CFG.FIRST_DATA_ROW, current);
+        })
         .filter(function(item) { return Boolean(item.idSolicitud); });
       perfMark_(trace, "PARTS_REPOSITORY_CACHE_READY", {
         rows: cache_.length,
@@ -104,11 +145,22 @@ const ReabastecimientoPartidasRepository = (() => {
     return getAll(trace).filter(function(item) { return item.idSolicitud === id; });
   }
 
+  /** Agrupa todas las partidas por folio en una sola lectura. */
+  function getGroupedBySolicitud(trace) {
+    return getAll(trace).reduce(function(map, item) {
+      if (!map[item.idSolicitud]) map[item.idSolicitud] = [];
+      map[item.idSolicitud].push(item);
+      return map;
+    }, Object.create(null));
+  }
+
   function getByKey(idSolicitud, idPartidaConsecutivo, trace) {
     const id = toStrUpper_(idSolicitud);
     const sequence = toStr_(idPartidaConsecutivo);
     const matches = getAll(trace).filter(function(item) {
-      return item.idSolicitud === id && item.idPartidaConsecutivo === sequence;
+      return item.idSolicitud === id &&
+        (item.idPartidaConsecutivo === sequence ||
+          Number(item.idPartidaConsecutivo) === Number(sequence));
     });
     if (matches.length > 1) throw new Error(CFG.LOG_PREFIX + " Clave duplicada.");
     return matches[0] || null;
@@ -125,16 +177,19 @@ const ReabastecimientoPartidasRepository = (() => {
     }
     return matches[0] || null;
   }
+
   function appendManyUnderLock(records, trace) {
     const source = Array.isArray(records) ? records : [];
     if (!source.length) throw new Error("Se requiere al menos una partida.");
-    const rows = source.map(buildRow_);
+    const current = layout.get(trace, true);
     const unique = Object.create(null);
-    rows.forEach(function(row) {
-      const c = COL.REABASTECIMIENTO_PARTIDAS;
-      if (!row[c.ID_SOLICITUD] || !row[c.ID_PARTIDACONSECUTIVO] || !row[c.SOLICITUD_CODIGOSOLICITADO])
+    source.forEach(function(record) {
+      const id = toStrUpper_(record.idSolicitud);
+      const code = toStrUpper_(record.codigoSolicitado);
+      if (!id || !toStr_(record.idPartidaConsecutivo) || !code) {
         throw new Error("Cada partida requiere solicitud, consecutivo y código.");
-      const key = row[c.ID_SOLICITUD] + "|" + row[c.SOLICITUD_CODIGOSOLICITADO];
+      }
+      const key = id + "|" + code;
       if (unique[key]) {
         const error = new Error("Existe una partida duplicada en el lote.");
         error.code = REABASTECIMIENTO_CONFIG.ERROR_CODES.PARTIDA_DUPLICADA;
@@ -142,68 +197,162 @@ const ReabastecimientoPartidasRepository = (() => {
       }
       unique[key] = true;
     });
+    const rows = source.map(function(record) { return buildRow_(record, current); });
     const startedAt = Date.now();
-    const result = writeRowsBatch_(CFG.SHEET_KEY, rows, CFG.WIDTH, trace);
+    const result = writeRowsBatch_(CFG.SHEET_KEY, rows, current.width, trace);
     perfMark_(trace, "REQUEST_PARTS_PERSISTED", {
       written: result.written,
       elapsedMs: Date.now() - startedAt
     });
+    layout.markDirty();
     cache_ = null;
     return { written: result.written, firstRow: result.firstRow };
   }
 
-  function markAttendedUnderLock(idSolicitud, idPartidaConsecutivo, temporalContext, usuario, trace) {
+  /**
+   * Reemplaza en la caché de la ejecución la partida recién escrita (evita
+   * releer la hoja completa tras ATENDER o confirmar un SKU).
+   */
+  function patchCache_(item) {
+    if (!cache_) return;
+    const position = cache_.findIndex(function(entry) { return entry.numFila === item.numFila; });
+    if (
+      position === -1 ||
+      cache_[position].idSolicitud !== item.idSolicitud ||
+      cache_[position].idPartidaConsecutivo !== item.idPartidaConsecutivo
+    ) {
+      cache_ = null;
+      return;
+    }
+    cache_[position] = item;
+  }
+
+  function partNotFound_() {
+    const error = new Error("La partida no existe.");
+    error.code = REABASTECIMIENTO_CONFIG.ERROR_CODES.PARTIDA_NO_ENCONTRADA;
+    return error;
+  }
+
+  /** Relee la fila física y confirma que sigue perteneciendo a la partida. */
+  function readAuthoritative_(current, trace) {
+    const sheetLayout = layout.get(trace, true);
+    const row = readRowAt_(CFG.SHEET_KEY, current.numFila, sheetLayout.width, trace);
+    if (!row) throw new Error("No fue posible revalidar la partida.");
+    if (
+      toStrUpper_(layout.read(row, sheetLayout, H.idSolicitud)) !== current.idSolicitud ||
+      toStrUpper_(layout.read(row, sheetLayout, H.codigoSolicitado)) !== current.codigoSolicitado
+    ) {
+      throw new Error("La fila de la partida cambió durante la actualización. Reintente.");
+    }
+    return { row: row, sheetLayout: sheetLayout };
+  }
+
+  /**
+   * Marca la partida EN_ATENCION cuando sigue PENDIENTE y conserva la primera
+   * fecha, hora y usuario de atención. Es idempotente para otros estados.
+   */
+  function markInAttentionUnderLock(idSolicitud, idPartidaConsecutivo, temporalContext, usuario, trace) {
     const current = getByKey(idSolicitud, idPartidaConsecutivo, trace);
-    if (!current) {
-      const error = new Error("La partida no existe.");
-      error.code = REABASTECIMIENTO_CONFIG.ERROR_CODES.PARTIDA_NO_ENCONTRADA;
+    if (!current) throw partNotFound_();
+    if (current.estado !== STATES.PENDIENTE) {
+      return { updated: false, estado: current.estado, rowNumber: current.numFila };
+    }
+    const target = readAuthoritative_(current, trace);
+    layout.write(target.row, target.sheetLayout, H.estado, STATES.EN_ATENCION);
+    layout.write(target.row, target.sheetLayout, H.fechaAtencion, temporalContext.fecha);
+    layout.write(target.row, target.sheetLayout, H.horaAtencion, temporalContext.hora);
+    layout.write(target.row, target.sheetLayout, H.usuarioAtencion, toStrUpper_(usuario));
+    writeRowAt_(CFG.SHEET_KEY, current.numFila, target.row, target.sheetLayout.width, trace);
+    layout.markDirty();
+    patchCache_(normalizeRow_(target.row, current.numFila, target.sheetLayout));
+    return { updated: true, estado: STATES.EN_ATENCION, rowNumber: current.numFila };
+  }
+
+  /**
+   * Registra la conclusión del SKU como ATENDIDO o ATENDIDO_PARCIAL.
+   * Si la partida seguía PENDIENTE también registra la primera atención.
+   */
+  function concludeUnderLock(idSolicitud, idPartidaConsecutivo, finalState, temporalContext, usuario, trace) {
+    const state = toStrUpper_(finalState);
+    if (REABASTECIMIENTO_CONFIG.PARTIDA_ESTADOS_CONCLUIDOS.indexOf(state) === -1) {
+      const error = new Error("El resultado de la partida no es válido.");
+      error.code = REABASTECIMIENTO_CONFIG.ERROR_CODES.TRANSICION_INVALIDA;
       throw error;
     }
-    if (current.estado === REABASTECIMIENTO_CONFIG.PARTIDA_ESTADOS.ATENDIDO) {
-      return { updated: false, alreadyAttended: true, rowNumber: current.numFila };
+    const current = getByKey(idSolicitud, idPartidaConsecutivo, trace);
+    if (!current) throw partNotFound_();
+    if (current.estado === state) {
+      return { updated: false, estado: state, rowNumber: current.numFila };
     }
-    const row = readRowAt_(CFG.SHEET_KEY, current.numFila, CFG.WIDTH, trace);
-    if (!row) throw new Error("No fue posible revalidar la partida.");
-    const c = COL.REABASTECIMIENTO_PARTIDAS;
-    row[c.SOLICITUD_CODIGOESTADO] = REABASTECIMIENTO_CONFIG.PARTIDA_ESTADOS.ATENDIDO;
-    row[c.SOLICITUD_FECHAATENCION] = temporalContext.fecha;
-    row[c.SOLICITUD_HORAATENCION] = temporalContext.hora;
-    row[c.SOLICITUD_USUARIOATENCION] = toStrUpper_(usuario);
-    writeRowAt_(CFG.SHEET_KEY, current.numFila, row, CFG.WIDTH, trace);
-    cache_ = null;
-    return { updated: true, alreadyAttended: false, rowNumber: current.numFila };
+    const target = readAuthoritative_(current, trace);
+    if (current.estado === STATES.PENDIENTE) {
+      layout.write(target.row, target.sheetLayout, H.fechaAtencion, temporalContext.fecha);
+      layout.write(target.row, target.sheetLayout, H.horaAtencion, temporalContext.hora);
+      layout.write(target.row, target.sheetLayout, H.usuarioAtencion, toStrUpper_(usuario));
+    }
+    layout.write(target.row, target.sheetLayout, H.estado, state);
+    layout.write(target.row, target.sheetLayout, H.fechaConclusion, temporalContext.fecha);
+    layout.write(target.row, target.sheetLayout, H.horaConclusion, temporalContext.hora);
+    layout.write(target.row, target.sheetLayout, H.usuarioConclusion, toStrUpper_(usuario));
+    writeRowAt_(CFG.SHEET_KEY, current.numFila, target.row, target.sheetLayout.width, trace);
+    layout.markDirty();
+    patchCache_(normalizeRow_(target.row, current.numFila, target.sheetLayout));
+    return { updated: true, estado: state, rowNumber: current.numFila };
+  }
+
+  /** Alias histórico: concluye como ATENDIDO. */
+  function markAttendedUnderLock(idSolicitud, idPartidaConsecutivo, temporalContext, usuario, trace) {
+    const result = concludeUnderLock(
+      idSolicitud,
+      idPartidaConsecutivo,
+      STATES.ATENDIDO,
+      temporalContext,
+      usuario,
+      trace
+    );
+    return {
+      updated: result.updated,
+      alreadyAttended: !result.updated,
+      rowNumber: result.rowNumber
+    };
   }
 
   /**
    * Elimina todas las partidas de un folio durante una compensación.
    * El Service debe mantener adquirido el ScriptLock.
-   *
-   * @param {*} idSolicitud Folio autoritativo.
-   * @param {Object=} trace Traza opcional.
-   * @return {{deleted:number,rowNumbers:!Array<number>}}
    */
   function deleteBySolicitudUnderLock(idSolicitud, trace) {
     const id = toStrUpper_(idSolicitud);
     if (!id) return { deleted: 0, rowNumbers: [] };
+    const current = layout.get(trace, false);
     const result = deleteRowsByTextColumnUnderLock_(
       CFG.SHEET_KEY,
-      CFG.WIDTH,
-      COL.REABASTECIMIENTO_PARTIDAS.ID_SOLICITUD,
+      current.width,
+      layout.columnIndex(current, H.idSolicitud),
       id,
       trace
     );
+    layout.markDirty();
     cache_ = null;
     return result;
   }
-  function clearCache() { cache_ = null; return true; }
+
+  function clearCache() {
+    cache_ = null;
+    layout.reset();
+    return true;
+  }
 
   return Object.freeze({
     getAll,
     getBySolicitud,
+    getGroupedBySolicitud,
     getByKey,
     getByCodigo,
     appendManyUnderLock,
     deleteBySolicitudUnderLock,
+    markInAttentionUnderLock,
+    concludeUnderLock,
     markAttendedUnderLock,
     validateContract,
     clearCache

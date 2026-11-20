@@ -536,6 +536,44 @@ const ExcedentesRepository = (() => {
   }
 
   /**
+   * Lectura directa de las filas de un solo IDUNICO para el estado operativo.
+   *
+   * RENDIMIENTO: getAllForEstado() lee toda BD-EXCEDENTES para consultar una
+   * etiqueta. Aquí se usa TextFinder sobre la columna IDUNICO (coincidencia de
+   * celda completa) y se leen solo las filas encontradas. El formato de salida
+   * es idéntico al de getAllForEstado(), por lo que el estado se calcula con
+   * el mismo código.
+   *
+   * @param {*} idunico Identificador buscado.
+   * @return {!Array<!Object>} Registros del IDUNICO (normalmente uno).
+   */
+  function getForEstadoPorIdUnico(idunico) {
+    const token = _normalizeText_(idunico);
+    if (!token) return [];
+    const contract = _getSourceContract_();
+    const sheet = getSheetByKey_(CFG.SOURCE_KEY);
+    const lastRow = sheet.getLastRow();
+    if (lastRow < CFG.FIRST_DATA_ROW) return [];
+
+    const matches = sheet
+      .getRange(CFG.FIRST_DATA_ROW, contract.columns.IDUNICO + 1, lastRow - CFG.HEADER_ROW, 1)
+      .createTextFinder(String(idunico).trim())
+      .matchEntireCell(true)
+      .matchCase(false)
+      .findAll();
+
+    const result = [];
+    matches.forEach(function (cell) {
+      const row = sheet.getRange(cell.getRow(), 1, 1, contract.width).getValues()[0];
+      const item = _normalizeForEstado_(row, contract.columns);
+      // Fila física: permite a Traspasos actualizar STATUS sin indexar toda la hoja.
+      item.rowNumber = cell.getRow();
+      if (item.idunico === token) result.push(item);
+    });
+    return result;
+  }
+
+  /**
    * Devuelve los últimos registros según su orden físico.
    *
    * @param {*} limit Número máximo de registros.
@@ -655,6 +693,7 @@ const ExcedentesRepository = (() => {
     getAll,
     getAllRaw,
     getAllForEstado,
+    getForEstadoPorIdUnico,
     getUltimos,
     getPorIdUnico,
     getPorFecha,

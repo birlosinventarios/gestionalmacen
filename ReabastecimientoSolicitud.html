@@ -16,11 +16,18 @@
  * - Un IDUNICO se contabiliza una sola vez dentro de cada grupo.
  * - Se muestra el conjunto completo, sin límite artificial de filas.
  * - Solo se permite una ubicación de surtido seleccionada por SKU.
- * - El navegador envía únicamente solicitante, bodega, código y ubicación.
+ * - Proceso REABASTECIMIENTO-v1 (rondín): la solicitud pertenece a una bodega
+ *   de piso (ZONA) y a un área de suministro (PASILLO). Solo se listan SKU del
+ *   área elegida con excedentes acomodados y disponibles.
+ * - El usuario elegido se recuerda en este equipo para cargarlo automáticamente.
+ * - Depende de REAB (z0-ReabastecimientoCliente.html): RPC medido, tracker de
+ *   rendimiento y aviso de cambios en tiempo real. La lista de operaciones medidas
+ *   está documentada al inicio del script de la vista.
+ * - El navegador envía únicamente solicitante, bodega, área, código y ubicación.
  * - El Service conserva la autoridad y revalida antes de persistir.
  *
  * @author Sigifredo de la Cruz Ramos
- * @version REABASTECIMIENTO-SOLICITUD-VIEW-2026-11-12-07
+ * @version REABASTECIMIENTO-SOLICITUD-VIEW-2026-11-20-01
  */
 </script>
 
@@ -47,7 +54,7 @@
 .rs-metric-value{font-size:21px;font-weight:950;line-height:1}.rs-metric-label{color:var(--rs-muted);font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
 .rs-clear{width:100%;min-height:42px;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(197,34,31,.22);border-radius:11px;background:rgba(197,34,31,.09);color:#8c1d18;font-size:9px;font-weight:950;letter-spacing:.07em;text-transform:uppercase;cursor:pointer}.rs-clear:hover:not(:disabled){color:#fff;background:var(--rs-primary)}.rs-clear:disabled{opacity:.4;cursor:not-allowed}
 .rs-actions{position:relative;z-index:1;display:flex;flex-direction:column;gap:8px}.rs-header-btn{min-height:43px;padding:0 12px;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:rgba(255,255,255,.09);color:#fff;font-size:9px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}.rs-header-btn.primary{background:var(--rs-primary);border-color:var(--rs-primary)}.rs-header-btn:disabled{opacity:.45;cursor:not-allowed}
-.rs-controls{flex:0 0 auto;padding:12px 16px;display:grid;grid-template-columns:minmax(230px,1fr) minmax(190px,.62fr) auto;gap:12px;align-items:end;border-bottom:1px solid var(--rs-border);background:linear-gradient(135deg,#fff,#f8f9fa)}
+.rs-controls{flex:0 0 auto;padding:12px 16px;display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.6fr) minmax(170px,.55fr) auto auto;gap:12px;align-items:end;border-bottom:1px solid var(--rs-border);background:linear-gradient(135deg,#fff,#f8f9fa)}
 .rs-field{display:grid;gap:6px;min-width:0}.rs-label{color:var(--rs-muted);font-size:8px;font-weight:950;letter-spacing:.14em;text-transform:uppercase}.rs-input,.rs-select{width:100%;min-height:44px;padding:0 13px;border:1px solid var(--rs-border);border-radius:12px;outline:none;background:#fff;color:var(--rs-text);font-size:12px;font-weight:850}.rs-input:focus,.rs-select:focus{border-color:var(--rs-primary);box-shadow:0 0 0 4px rgba(217,48,37,.09)}
 .rs-btn{min-height:44px;padding:0 15px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--rs-border);border-radius:12px;background:#fff;color:var(--rs-text);font-size:10px;font-weight:950;letter-spacing:.07em;text-transform:uppercase;cursor:pointer}.rs-btn.primary{color:#fff;background:var(--rs-primary);border-color:var(--rs-primary)}.rs-btn:disabled{opacity:.46;cursor:not-allowed}
 .rs-content{flex:1 1 auto;min-height:0;overflow:hidden}.rs-table-wrap{height:100%;overflow:auto}.rs-table{width:100%;min-width:1100px;table-layout:fixed;border-collapse:separate;border-spacing:0}
@@ -60,151 +67,584 @@
 .rs-total{display:block;font-size:24px;font-weight:950;line-height:1;color:var(--rs-text)}.rs-box-summary{display:block;margin-top:7px;font-size:12px;font-weight:900;line-height:1.45;color:#3c4043}.rs-box-breakdown{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}.rs-box-pill{padding:5px 8px;border:1px solid #dfe3e8;border-radius:999px;background:#f8f9fa;color:#3c4043;font:850 10px/1.1 "JetBrains Mono",monospace;white-space:nowrap}
 .rs-sort{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;border:0;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer}.rs-empty{height:100%;min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#9ca3af;text-align:center}.rs-scroll::-webkit-scrollbar{width:7px;height:7px}.rs-scroll::-webkit-scrollbar-thumb{background:#c4c7cc;border-radius:99px}
 @media(max-width:1080px){.rs-header{grid-template-columns:1fr auto}.rs-metrics{grid-column:1/-1;grid-row:2}}@media(max-width:760px){.rs-page{padding:8px}.rs-header{display:flex;flex-direction:column;align-items:stretch}.rs-metrics{grid-template-columns:repeat(2,1fr)}.rs-controls{grid-template-columns:1fr}}
+/* Aviso de cambios en tiempo real */
+.rs-catalogs{display:flex;flex-direction:column;align-items:stretch;gap:4px}.rs-catalogs small{color:var(--rs-muted,#6b7280);font-size:9px;font-weight:850;letter-spacing:.05em;text-transform:uppercase;text-align:center;white-space:nowrap}
+.rs-stale{flex:0 0 auto;margin:10px 16px 0;padding:10px 14px;display:flex;align-items:center;gap:12px;border:1px solid rgba(217,119,6,.32);border-radius:12px;background:rgba(217,119,6,.08);color:#9a5a04;font-size:11px;font-weight:850}.rs-stale span{flex:1}
 </style>
 
 <div id="render-reabastecimiento-solicitud"></div>
 
 <script type="text/babel">
-window.cargar_ReabastecimientoSolicitud=()=>{
-  const{useState,useEffect,useMemo,useCallback,useRef}=React;
-  const LocalIcon=window.FitoComponents?.Icon?.LocalIcon||window.FitoComponents?.LocalIcon;
-  const text=(v)=>String(v??"").trim(),upper=(v)=>text(v).toUpperCase();
-  const natural=(a,b)=>upper(a).localeCompare(upper(b),"es-MX",{numeric:true,sensitivity:"base"});
-  const publicError=(e)=>text(e?.message||e).replace(/^\[[A-Z0-9_]+\]\s*/,"")||"No fue posible completar la operación.";
-  const notify=(m,t="info",d=2800,o={})=>{const fn=window.notificar||window.lanzarNotificacion;if(typeof fn==="function")fn(m,t,d,o)};
-  const formatNumber=(value)=>new Intl.NumberFormat("es-MX",{maximumFractionDigits:2}).format(Number(value||0));
+/* ============================================================================
+ * ReabastecimientoSolicitud · Lógica de la vista (React + Babel en navegador)
+ * ============================================================================
+ *
+ * PROPÓSITO (proceso REABASTECIMIENTO-v1, sección 1 · "Rondín")
+ * ───────────────────────────────────────────────────────────────
+ * 1. El encargado elige su usuario, la bodega de piso y el área de suministro.
+ * 2. Se cargan los SKU del área con excedentes ACOMODADOS y con ubicación.
+ * 3. Durante el recorrido marca los SKU que requieren reabastecimiento.
+ * 4. CREAR SOLICITUD registra el ticket en la cola de los auxiliares.
+ *
+ * ESTRUCTURA DEL CÓDIGO
+ * ─────────────────────
+ * 1. Dependencias y constantes.
+ * 2. Transformaciones puras: consolidateRows(), buildBoxSentence().
+ * 3. Componente View: carga de bodegas, carga de excedentes, selección,
+ *    creación y aviso de cambios en tiempo real.
+ * 4. Montaje en el Shell.
+ *
+ * MEDICIÓN DE RENDIMIENTO (REAB.perf → hoja APPALMACEN_RENDIMIENTO)
+ * ───────────────────────────────────────────────────────────────────────
+ *   SOLICITUD_VISTA_MONTADA       initVista → selector de bodegas visible
+ *   SOLICITUD_CARGAR_BODEGAS      consulta de bodegas y áreas
+ *   SOLICITUD_CARGAR_EXCEDENTES   clic → tabla de SKU pintada (consulta +
+ *                                 consolidación + render)
+ *   SOLICITUD_ORDENAR             cambio de orden de la tabla
+ *   SOLICITUD_LIMPIAR_SELECCION   borrado masivo de la selección
+ *   SOLICITUD_CREAR               clic CREAR → solicitud confirmada
+ *
+ * TIEMPO REAL
+ * ───────────
+ * La vista no recarga sola la tabla para no perder la selección del rondín.
+ * Si otro usuario surte o crea solicitudes mientras hay datos cargados, se
+ * muestra un aviso con el botón "Actualizar excedentes".
+ * ========================================================================== */
+window.cargar_ReabastecimientoSolicitud = () => {
+  const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+  // ==========================================================================
+  // 1. DEPENDENCIAS Y CONSTANTES
+  // ==========================================================================
+
+  const REAB = window.REAB;
+  const LocalIcon = window.FitoComponents?.Icon?.LocalIcon || window.FitoComponents?.LocalIcon;
+  if (!REAB || !LocalIcon) {
+    (window.notificar || console.error)("Faltan dependencias de la vista (REAB o FitoComponents).", "error");
+    return () => {};
+  }
+  const { str, up, fmt, notify, publicError } = REAB.util;
+
+  /** Nombre de la vista en la bitácora de rendimiento. */
+  const VIEW = "ReabastecimientoSolicitud";
+
+  /** Traza de montaje: se cierra cuando las bodegas ya están disponibles. */
+  const mountTrace = REAB.perf.begin("SOLICITUD_VISTA_MONTADA", { view: VIEW, type: "CARGA" });
+
+  /** Bodegas de piso admitidas (ZONA 1..5 de UBICACIONES_SURTIDO). */
+  const SALES_FLOOR_IDS = ["B1", "B2", "B3", "MO", "CU"];
+
+  /** Tiempo máximo de espera de la creación antes de regresar al listado. */
+  const CREATE_TIMEOUT_MS = 45000;
+
+  /** Tiempo máximo de la consulta de excedentes. */
+  const LOAD_TIMEOUT_MS = 25000;
+
+  /** Orden natural (B1-2 antes que B1-10). */
+  const natural = (a, b) => up(a).localeCompare(up(b), "es-MX", { numeric: true, sensitivity: "base" });
+
+  // ==========================================================================
+  // 2. TRANSFORMACIONES PURAS
+  // ==========================================================================
 
   /**
-   * Consolida registros individuales sin perder la cantidad de cada caja.
-   * @param {!Array<!Object>} source Filas del endpoint manual.
-   * @return {!Array<!Object>} Filas agrupadas por SKU y ubicación de surtido.
+   * Consolida las filas del servidor (una por SKU + ubicación de consumo +
+   * IDUNICO) en una fila por SKU + ubicación de consumo, conservando la
+   * cantidad de cada caja y el resumen por bodega física de excedente.
+   *
+   * @param {!Array<!Object>} source Registros de getExcedentesSolicitudManual.
+   * @return {!Array<!Object>} Filas listas para la tabla del rondín.
    */
-  function consolidateRows(source){
-    const groups=new Map();
-    (Array.isArray(source)?source:[]).forEach((row)=>{
-      const code=upper(row?.codigo),supply=upper(row?.ubicacionSurtido),id=upper(row?.idUnico);
-      if(!code||!supply||!id)return;
-      const key=`${code}|${supply}`;
-      if(!groups.has(key))groups.set(key,{codigo:code,descripcion:upper(row.descripcion),ubicacionSurtido:supply,bodegaSurtido:upper(row.bodegaSurtido),boxes:new Map(),warehouses:new Map()});
-      const group=groups.get(key);if(group.boxes.has(id))return;
-      const quantity=Number(row.cantidadIdUnico||0),physicalWarehouse=upper(row.bodegaExcedente)||"SIN BODEGA";
-      group.boxes.set(id,{idUnico:id,cantidad:quantity,bodega:physicalWarehouse});
-      if(!group.warehouses.has(physicalWarehouse))group.warehouses.set(physicalWarehouse,{bodega:physicalWarehouse,cajas:0,piezas:0});
-      const warehouseSummary=group.warehouses.get(physicalWarehouse);warehouseSummary.cajas+=1;warehouseSummary.piezas+=quantity;
+  function consolidateRows(source) {
+    const groups = new Map();
+    (Array.isArray(source) ? source : []).forEach((row) => {
+      const code = up(row?.codigo);
+      const supply = up(row?.ubicacionSurtido);
+      const id = up(row?.idUnico);
+      if (!code || !supply || !id) return;
+
+      const key = `${code}|${supply}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          codigo: code,
+          descripcion: up(row.descripcion),
+          ubicacionSurtido: supply,
+          bodegaSurtido: up(row.bodegaSurtido),
+          areaSuministro: up(row.areaSuministro),
+          boxes: new Map(),
+          warehouses: new Map()
+        });
+      }
+      const group = groups.get(key);
+      if (group.boxes.has(id)) return; // Un IDUNICO cuenta una sola vez.
+
+      const quantity = Number(row.cantidadIdUnico || 0);
+      const physicalWarehouse = up(row.bodegaExcedente) || "SIN BODEGA";
+      group.boxes.set(id, { idUnico: id, cantidad: quantity, bodega: physicalWarehouse });
+
+      if (!group.warehouses.has(physicalWarehouse)) {
+        group.warehouses.set(physicalWarehouse, { bodega: physicalWarehouse, cajas: 0, piezas: 0 });
+      }
+      const summary = group.warehouses.get(physicalWarehouse);
+      summary.cajas += 1;
+      summary.piezas += quantity;
     });
-    return[...groups.values()].map((group)=>{
-      const boxes=[...group.boxes.values()].sort((a,b)=>b.cantidad-a.cantidad||natural(a.idUnico,b.idUnico));
-      return{codigo:group.codigo,descripcion:group.descripcion,ubicacionSurtido:group.ubicacionSurtido,bodegaSurtido:group.bodegaSurtido,cajas:boxes,totalCajas:boxes.length,cantidadTotal:boxes.reduce((sum,box)=>sum+box.cantidad,0),resumenBodegas:[...group.warehouses.values()].sort((a,b)=>natural(a.bodega,b.bodega))};
+
+    return [...groups.values()].map((group) => {
+      const boxes = [...group.boxes.values()].sort((a, b) => b.cantidad - a.cantidad || natural(a.idUnico, b.idUnico));
+      return {
+        codigo: group.codigo,
+        descripcion: group.descripcion,
+        ubicacionSurtido: group.ubicacionSurtido,
+        bodegaSurtido: group.bodegaSurtido,
+        areaSuministro: group.areaSuministro,
+        cajas: boxes,
+        totalCajas: boxes.length,
+        cantidadTotal: boxes.reduce((sum, box) => sum + box.cantidad, 0),
+        resumenBodegas: [...group.warehouses.values()].sort((a, b) => natural(a.bodega, b.bodega))
+      };
     });
   }
 
-  /** Construye la frase: una caja con 1000 y otra con 1000. */
-  function buildBoxSentence(boxes){
-    if(!boxes.length)return"Sin cajas";
-    const labels=boxes.map((box,index)=>`${index===0?"una":"otra"} caja con ${formatNumber(box.cantidad)}`);
-    if(labels.length===1)return labels[0];
-    return`${labels.slice(0,-1).join(", ")} y ${labels.at(-1)}`;
+  /** Frase descriptiva: "una caja con 1,000 y otra caja con 500". */
+  function buildBoxSentence(boxes) {
+    if (!boxes.length) return "Sin cajas";
+    const labels = boxes.map((box, index) => `${index === 0 ? "una" : "otra"} caja con ${fmt(box.cantidad)}`);
+    if (labels.length === 1) return labels[0];
+    return `${labels.slice(0, -1).join(", ")} y ${labels.at(-1)}`;
   }
 
-  const View=()=>{
-    const users=useMemo(()=>(Array.isArray(window.usuariosGlobal)?window.usuariosGlobal:[]).map((u)=>({id:Number(u.idusuario||0),nombre:upper(u.nombre)})).filter((u)=>u.nombre).sort((a,b)=>natural(a.nombre,b.nombre)),[]);
-    const[warehouses,setWarehouses]=useState([]),[user,setUser]=useState(""),[warehouse,setWarehouse]=useState("");
-    const[rows,setRows]=useState([]),[selected,setSelected]=useState(new Map()),[sortDirection,setSortDirection]=useState("ASC");
-    const[loadingBootstrap,setLoadingBootstrap]=useState(true),[loading,setLoading]=useState(false),[creating,setCreating]=useState(false);
-    const sequence=useRef(0),mounted=useRef(true),watchdog=useRef(null);
-    const callServer=useCallback((method,...args)=>new Promise((resolve,reject)=>{if(!window.google?.script?.run)return reject(new Error("google.script.run no está disponible."));const runner=google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);if(typeof runner[method]!=="function")return reject(new Error(`Endpoint no disponible: ${method}`));runner[method](...args)}),[]);
-    const loadWarehouses=useCallback(async()=>{setLoadingBootstrap(true);try{const response=await callServer("ReabastecimientoController_getExcedentesSolicitudManual","");if(!mounted.current)return;const list=(Array.isArray(response?.data?.bodegasPisoVenta)?response.data.bodegasPisoVenta:[]).map((item)=>({id:upper(item.id),label:text(item.label)||upper(item.id)})).filter((item)=>["B1","B2","B3","MO","CU"].includes(item.id));setWarehouses(list);if(!list.length)notify("No existen bodegas de piso configuradas.","warning",4500,{title:"Sin bodegas",sound:true})}catch(error){if(mounted.current){setWarehouses([]);notify(publicError(error),"error",5000,{title:"No se cargaron las bodegas",sound:true})}}finally{if(mounted.current)setLoadingBootstrap(false)}},[callServer]);
-    useEffect(()=>{mounted.current=true;loadWarehouses();return()=>{mounted.current=false;sequence.current+=1;clearTimeout(watchdog.current)}},[loadWarehouses]);
-    const invalidate=()=>{sequence.current+=1;clearTimeout(watchdog.current);setRows([]);setSelected(new Map())};
-    const loadRows=async()=>{if(!users.some((u)=>u.nombre===upper(user)))return notify("Selecciona un solicitante registrado.","warning");if(!warehouse)return notify("Selecciona una bodega de piso.","warning");const current=++sequence.current;setLoading(true);setSelected(new Map());watchdog.current=setTimeout(()=>{if(mounted.current&&sequence.current===current){sequence.current+=1;setLoading(false);notify("La consulta tardó demasiado.","warning",4500,{title:"Tiempo agotado",sound:true})}},25000);try{const response=await callServer("ReabastecimientoController_getExcedentesSolicitudManual",warehouse);if(!mounted.current||sequence.current!==current)return;clearTimeout(watchdog.current);const consolidated=consolidateRows(response?.data?.registros);setRows(consolidated);notify(`${consolidated.length} SKU/ubicación consolidados.`,"success",1800,{title:"Excedentes cargados"})}catch(error){if(mounted.current&&sequence.current===current)notify(publicError(error),"error",5000,{title:"Error de consulta",sound:true})}finally{if(mounted.current&&sequence.current===current)setLoading(false)}};
-    const ordered=useMemo(()=>[...rows].sort((a,b)=>{const order=natural(a.ubicacionSurtido,b.ubicacionSurtido);return(sortDirection==="ASC"?order:-order)||natural(a.codigo,b.codigo)}),[rows,sortDirection]);
-    const totalSkus=useMemo(()=>new Set(rows.map((r)=>r.codigo)).size,[rows]);
-    const toggle=(item)=>setSelected((previous)=>{const next=new Map(previous),current=next.get(item.codigo);if(current?.ubicacionSurtido===item.ubicacionSurtido)next.delete(item.codigo);else next.set(item.codigo,{codigo:item.codigo,ubicacionSurtido:item.ubicacionSurtido});return next});
+  // ==========================================================================
+  // 3. COMPONENTE PRINCIPAL
+  // ==========================================================================
+
+  function View() {
+    /** Catálogo de usuarios del bootstrap del Shell. */
+    const users = useMemo(() => REAB.user.catalog(), []);
+
+    // ── Estado ──────────────────────────────────────────────────────────────
+    const [warehouses, setWarehouses] = useState([]);
+    const [user, setUser] = useState(() => REAB.user.get());
+    const [warehouse, setWarehouse] = useState("");
+    const [area, setArea] = useState("");
+    const [rows, setRows] = useState([]);
+    /** Selección: Map código → {codigo, ubicacionSurtido} (un SKU por solicitud). */
+    const [selected, setSelected] = useState(new Map());
+    const [sortDirection, setSortDirection] = useState("ASC");
+    const [loadingBootstrap, setLoadingBootstrap] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [creating, setCreating] = useState(false);
+    /** true cuando otro usuario cambió datos después de cargar la tabla. */
+    const [stale, setStale] = useState(false);
+    /**
+     * Fecha (ISO) de lectura de UBICACIONES_SURTIDO y CATALOGO que respalda la
+     * vista. El servidor los guarda en caché ~2 minutos; "Actualizar catálogos"
+     * los relee al instante (útil tras cargar layouts nuevos).
+     */
+    const [catalogsAt, setCatalogsAt] = useState("");
+    const [refreshingCatalogs, setRefreshingCatalogs] = useState(false);
+
+    const sequence = useRef(0);
+    const mounted = useRef(true);
+    const rowsLoaded = useRef(false);
+    useEffect(() => { rowsLoaded.current = rows.length > 0; }, [rows]);
+
+    /** Áreas de suministro de la bodega elegida. */
+    const areaOptions = useMemo(() => (warehouses.find((item) => item.id === warehouse)?.areas) || [], [warehouses, warehouse]);
+
+    // ── Carga de bodegas y áreas ────────────────────────────────────────────
+    /**
+     * Consulta las bodegas de piso y sus áreas (bootstrap del rondín).
+     * @param {boolean=} forceRefresh true = relee catálogos sin caché. Se compara
+     *     estrictamente porque onClick entrega el evento como argumento.
+     */
+    const loadWarehouses = useCallback(async (forceRefresh) => {
+      const force = forceRefresh === true;
+      const trace = REAB.perf.begin("SOLICITUD_CARGAR_BODEGAS", { view: VIEW, type: "CONSULTA", meta: { forceRefresh: force } });
+      setLoadingBootstrap(true);
+      try {
+        const payload = force ? { bodega: "", forceRefresh: true } : "";
+        const { data } = await REAB.rpc("ReabastecimientoController_getExcedentesSolicitudManual", payload, { trace, keepOpen: true });
+        if (!mounted.current) return;
+        const list = (Array.isArray(data?.bodegasPisoVenta) ? data.bodegasPisoVenta : [])
+          .map((item) => ({
+            id: up(item.id),
+            label: str(item.label) || up(item.id),
+            areas: (Array.isArray(item.areas) ? item.areas : []).map(up).filter(Boolean)
+          }))
+          .filter((item) => SALES_FLOOR_IDS.includes(item.id));
+        setWarehouses(list);
+        setCatalogsAt(str(data?.catalogosAl));
+        trace.set({ bodegas: list.length, catalogosEnCache: Boolean(data?.catalogosEnCache) });
+        trace.endAfterPaint("ok");
+        mountTrace.endAfterPaint("ok");
+        if (!list.length) notify("No existen bodegas de piso configuradas.", "warning", 4500, { title: "Sin bodegas", sound: true });
+        return true;
+      } catch (error) {
+        trace.end("error", { error });
+        if (!mountTrace.ended) mountTrace.end("error", { error });
+        if (mounted.current) {
+          setWarehouses([]);
+          notify(publicError(error), "error", 5000, { title: "No se cargaron las bodegas", sound: true });
+        }
+      } finally {
+        if (mounted.current) setLoadingBootstrap(false);
+      }
+      return false;
+    }, []);
+
+    // ── Montaje y tiempo real ───────────────────────────────────────────────
+    useEffect(() => {
+      mounted.current = true;
+      loadWarehouses();
+
+      /* Aviso de cambios: solo si ya hay excedentes cargados en la tabla. */
+      const unsubscribe = REAB.sync.subscribe(VIEW, {
+        ids: () => [],
+        onChange: () => { if (rowsLoaded.current) setStale(true); }
+      });
+
+      return () => {
+        mounted.current = false;
+        sequence.current += 1;
+        unsubscribe();
+        if (!mountTrace.ended) mountTrace.end("cancelled", { meta: { reason: "view_unmounted" } });
+      };
+    }, [loadWarehouses]);
+
+    /** Descarta la tabla y la selección al cambiar usuario, bodega o área. */
+    const invalidate = () => {
+      sequence.current += 1;
+      setRows([]);
+      setSelected(new Map());
+      setStale(false);
+    };
+
+    // ── Carga de excedentes del área ────────────────────────────────────────
+    /**
+     * Consulta los excedentes de la bodega y filtra el área elegida.
+     * La traza cubre consulta, consolidación y render de la tabla.
+     */
+    const loadRows = async (forceRefresh) => {
+      const force = forceRefresh === true;
+      if (!users.includes(up(user))) { notify("Selecciona un solicitante registrado.", "warning"); return; }
+      if (!warehouse) { notify("Selecciona una bodega de piso.", "warning"); return; }
+      if (!area) { notify("Selecciona el área de suministro que vas a revisar.", "warning"); return; }
+
+      REAB.user.set(user);
+      const current = ++sequence.current;
+      const trace = REAB.perf.begin("SOLICITUD_CARGAR_EXCEDENTES", { view: VIEW, type: "CONSULTA", meta: { bodega: warehouse, area, forceRefresh: force } });
+      setLoading(true);
+      setSelected(new Map());
+      setStale(false);
+      try {
+        const payload = force ? { bodega: warehouse, forceRefresh: true } : warehouse;
+        const { data } = await REAB.rpc("ReabastecimientoController_getExcedentesSolicitudManual", payload, { trace, keepOpen: true, timeoutMs: LOAD_TIMEOUT_MS });
+        if (!mounted.current || sequence.current !== current) {
+          trace.end("cancelled", { meta: { stale: true } });
+          return;
+        }
+        const areaRows = (Array.isArray(data?.registros) ? data.registros : []).filter((row) => up(row?.areaSuministro) === area);
+        const consolidated = consolidateRows(areaRows);
+        trace.mark("CONSOLIDATED", { registros: areaRows.length, filas: consolidated.length });
+        setRows(consolidated);
+        if (data?.catalogosAl) setCatalogsAt(str(data.catalogosAl));
+        trace.set({ filas: consolidated.length, registros: areaRows.length, catalogosEnCache: Boolean(data?.catalogosEnCache) });
+        trace.endAfterPaint("ok");
+        notify(
+          consolidated.length ? `${consolidated.length} SKU con excedentes en ${area}.` : `No hay SKU con excedentes disponibles en ${area}.`,
+          consolidated.length ? "success" : "warning",
+          2200,
+          { title: "Excedentes cargados" }
+        );
+      } catch (error) {
+        if (!trace.ended) trace.end("error", { error });
+        if (mounted.current && sequence.current === current) notify(publicError(error), "error", 5000, { title: "Error de consulta", sound: true });
+      } finally {
+        if (mounted.current && sequence.current === current) setLoading(false);
+      }
+    };
+
+    /**
+     * Relee UBICACIONES_SURTIDO y CATALOGO sin caché. Se usa después de cargar
+     * layouts o ubicaciones nuevas. Si ya hay una tabla cargada, la vuelve a
+     * consultar (la caché recién reconstruida sirve esa segunda lectura).
+     */
+    const refreshCatalogs = async () => {
+      if (refreshingCatalogs || creating) return;
+      setRefreshingCatalogs(true);
+      try {
+        const ok = await loadWarehouses(true);
+        if (!ok || !mounted.current) return;
+        notify("Bodegas, áreas y catálogo releídos.", "success", 2000, { title: "Catálogos actualizados" });
+        if (rowsLoaded.current && warehouse && area) await loadRows();
+      } finally {
+        if (mounted.current) setRefreshingCatalogs(false);
+      }
+    };
+
+    /** Hora local corta de la lectura de catálogos ("" si no se conoce). */
+    const catalogsClock = useMemo(() => {
+      const date = catalogsAt ? new Date(catalogsAt) : null;
+      return date && !isNaN(date.getTime())
+        ? date.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })
+        : "";
+    }, [catalogsAt]);
+
+    // ── Selección y orden ───────────────────────────────────────────────────
+    /** Filas ordenadas por ubicación de consumo y código. */
+    const ordered = useMemo(() => [...rows].sort((a, b) => {
+      const order = natural(a.ubicacionSurtido, b.ubicacionSurtido);
+      return (sortDirection === "ASC" ? order : -order) || natural(a.codigo, b.codigo);
+    }), [rows, sortDirection]);
+
+    const totalSkus = useMemo(() => new Set(rows.map((row) => row.codigo)).size, [rows]);
+
+    /** Marca o desmarca un SKU (una sola ubicación de consumo por SKU). */
+    const toggle = (item) => setSelected((previous) => {
+      const next = new Map(previous);
+      const current = next.get(item.codigo);
+      if (current?.ubicacionSurtido === item.ubicacionSurtido) next.delete(item.codigo);
+      else next.set(item.codigo, { codigo: item.codigo, ubicacionSurtido: item.ubicacionSurtido });
+      return next;
+    });
+
+    /** Borrado masivo de la selección (proceso 1, punto 9.1). */
+    const clearSelection = () => {
+      const trace = REAB.perf.begin("SOLICITUD_LIMPIAR_SELECCION", { view: VIEW, type: "UI", meta: { seleccionados: selected.size } });
+      setSelected(new Map());
+      trace.endAfterPaint("ok");
+    };
+
+    /** Cambia el orden de la tabla y mide el re-render. */
+    const toggleSort = () => {
+      const trace = REAB.perf.begin("SOLICITUD_ORDENAR", { view: VIEW, type: "UI", meta: { filas: rows.length } });
+      setSortDirection((value) => (value === "ASC" ? "DESC" : "ASC"));
+      trace.endAfterPaint("ok");
+    };
+
+    // ── Creación ────────────────────────────────────────────────────────────
     /** Navega al listado y solicita una recarga autoritativa. */
     const navigateToList = (idSolicitud = "") => {
       window.DATA_ALMACEN_CACHE = window.DATA_ALMACEN_CACHE || {};
       window.DATA_ALMACEN_CACHE.reabastecimientoRefreshRequired = true;
       window.DATA_ALMACEN_CACHE.reabastecimientoUltimaSolicitud = idSolicitud;
       if (typeof window.irAVistaShell === "function") {
-        window.irAVistaShell(
-          "Reabastecimiento",
-          "Reabastecimiento",
-          {
-            REABASTECIMIENTO_REFRESH_REQUIRED: true,
-            REABASTECIMIENTO_ULTIMA_SOLICITUD: idSolicitud,
-          }
-        );
+        window.irAVistaShell("Reabastecimiento", "Reabastecimiento", {
+          REABASTECIMIENTO_REFRESH_REQUIRED: true,
+          REABASTECIMIENTO_ULTIMA_SOLICITUD: idSolicitud
+        });
       }
     };
 
-    /** Crea con watchdog. Un timeout no dispara reintento automático. */
+    /**
+     * CREAR SOLICITUD. Si el servidor tarda más de CREATE_TIMEOUT_MS se regresa
+     * al listado para verificar, sin reintentar automáticamente (evita folios
+     * duplicados).
+     */
     const create = async () => {
       if (creating || !selected.size) return;
+      const trace = REAB.perf.begin("SOLICITUD_CREAR", { view: VIEW, type: "ACCION", meta: { skus: selected.size, bodega: warehouse, area } });
       setCreating(true);
-      let creationTimer = null;
       try {
         const payload = {
-          solicitante: upper(user),
+          solicitante: up(user),
           bodega: warehouse,
-          partidas: [...selected.values()].map((item) => ({
-            codigo: item.codigo,
-            ubicacion: item.ubicacionSurtido,
-          })),
+          areaSuministro: area,
+          partidas: [...selected.values()].map((item) => ({ codigo: item.codigo, ubicacion: item.ubicacionSurtido }))
         };
-        const timeoutPromise = new Promise((_, reject) => {
-          creationTimer = setTimeout(() => {
-            const error = new Error(
-              "La creación superó 45 segundos. La operación pudo concluir en el servidor."
-            );
-            error.code = "REAB_CREATE_TIMEOUT";
-            reject(error);
-          }, 45000);
-        });
-        const response = await Promise.race([
-          callServer("ReabastecimientoController_crearSolicitud", payload),
-          timeoutPromise,
-        ]);
-        clearTimeout(creationTimer);
-        const idSolicitud = text(response?.data?.idSolicitud);
-        notify(
-          `Solicitud ${idSolicitud} creada correctamente.`,
-          "success",
-          2600,
-          { title: "Solicitud creada", sound: true }
-        );
+        const { data } = await REAB.rpc("ReabastecimientoController_crearSolicitud", payload, { trace, keepOpen: true, timeoutMs: CREATE_TIMEOUT_MS });
+        const idSolicitud = str(data?.idSolicitud);
+        trace.idSolicitud = idSolicitud;
+        trace.end("ok");
+        notify(`Solicitud ${idSolicitud} creada correctamente.`, "success", 2600, { title: "Solicitud creada", sound: true });
         navigateToList(idSolicitud);
       } catch (error) {
-        clearTimeout(creationTimer);
-        if (error?.code === "REAB_CREATE_TIMEOUT") {
-          notify(
-            "La respuesta tardó demasiado. Regresaremos al listado para verificar antes de permitir otro intento.",
-            "warning",
-            6500,
-            { title: "Resultado por confirmar", sound: true }
-          );
+        if (error?.code === "REAB_CLIENT_TIMEOUT") {
+          notify("La respuesta tardó demasiado. Regresaremos al listado para verificar antes de permitir otro intento.", "warning", 6500, { title: "Resultado por confirmar", sound: true });
           navigateToList("");
         } else {
-          notify(publicError(error), "error", 5000, {
-            title: "No se creó la solicitud",
-            sound: true,
-          });
+          notify(publicError(error), "error", 5000, { title: "No se creó la solicitud", sound: true });
         }
       } finally {
         if (mounted.current) setCreating(false);
       }
     };
-    return <div className="rs-page"><section className="rs-workspace">
-      <header className="rs-header"><div className="rs-identity"><div className="rs-icon"><LocalIcon name="clipboard-plus" size={23}/></div><div><p className="rs-eyebrow">Solicitud manual</p><h2 className="rs-title">NUEVO REABASTECIMIENTO</h2><p className="rs-subtitle">Excedentes consolidados por SKU, surtido, bodega y caja.</p></div></div>
-      <div className="rs-metrics"><div className="rs-metric"><div className="rs-metric-value">{totalSkus}</div><div className="rs-metric-label">SKU rellenables</div></div><div className="rs-metric green"><div className="rs-metric-value">{selected.size}</div><div className="rs-metric-label">Seleccionados</div></div><div className="rs-metric amber"><div className="rs-metric-value">{Math.max(0,totalSkus-selected.size)}</div><div className="rs-metric-label">Omitidos</div></div><div className="rs-metric red"><button className="rs-clear" onClick={()=>setSelected(new Map())} disabled={!selected.size||creating}><LocalIcon name="eraser" size={15}/>Limpiar selección</button></div></div>
-      <div className="rs-actions"><button className="rs-header-btn" onClick={()=>!creating&&window.irAVistaShell?.("Reabastecimiento","Reabastecimiento")}><LocalIcon name="arrow-left" size={15}/>Volver</button><button className="rs-header-btn primary" onClick={create} disabled={creating||!selected.size}><LocalIcon name="send" size={15}/>{creating?"Creando...":"Crear solicitud"}</button></div></header>
-      <div className="rs-controls"><label className="rs-field"><span className="rs-label">Solicitante</span><input className="rs-input" list="rs-users" value={user} onChange={(e)=>{setUser(e.target.value.toUpperCase());invalidate()}} placeholder="Selecciona un solicitante" disabled={creating}/><datalist id="rs-users">{users.map((u)=><option key={`${u.id}-${u.nombre}`} value={u.nombre}/>)}</datalist></label><label className="rs-field"><span className="rs-label">Bodega de piso de venta</span><select className="rs-select" value={warehouse} onChange={(e)=>{setWarehouse(e.target.value);invalidate()}} disabled={loadingBootstrap||creating||!warehouses.length}><option value="">{loadingBootstrap?"Cargando bodegas...":warehouses.length?"Selecciona una bodega":"Sin bodegas disponibles"}</option>{warehouses.map((w)=><option key={w.id} value={w.id}>{w.label}</option>)}</select>{!loadingBootstrap&&!warehouses.length&&<button className="rs-btn" onClick={loadWarehouses}>Reintentar bodegas</button>}</label><button className="rs-btn primary" onClick={loadRows} disabled={loading||creating||!user||!warehouse}><LocalIcon name="database" size={16}/>{loading?"Consultando...":"Cargar excedentes"}</button></div>
-      <div className="rs-content"><div className="rs-table-wrap rs-scroll"><table className="rs-table"><thead><tr><th>SKU / descripción</th><th><button className="rs-sort" onClick={()=>setSortDirection((v)=>v==="ASC"?"DESC":"ASC")}><span>Ubicación piso de venta</span><span>{sortDirection==="ASC"?"A-Z ↑":"Z-A ↓"}</span></button></th><th>Ubicación excedente</th><th>Cantidad por caja</th></tr></thead><tbody>
-      {ordered.map((item,index)=>{const current=selected.get(item.codigo),isSelected=current?.ubicacionSurtido===item.ubicacionSurtido;return <tr key={`${item.codigo}|${item.ubicacionSurtido}|${index}`} className={`rs-row ${isSelected?"selected":""}`} onClick={()=>toggle(item)}><td><div className="rs-product"><input className="rs-check" type="checkbox" checked={Boolean(isSelected)} onChange={()=>toggle(item)} onClick={(e)=>e.stopPropagation()} disabled={creating}/><div><span className="rs-code">{item.codigo}</span><span className="rs-description">{item.descripcion||"SIN DESCRIPCIÓN"}</span></div></div></td><td><span className="rs-location">{item.ubicacionSurtido}</span><span className="rs-secondary">{warehouses.find((w)=>w.id===item.bodegaSurtido)?.label||item.bodegaSurtido}</span></td><td><div className="rs-warehouse-list">{item.resumenBodegas.map((summary)=><div key={summary.bodega} className="rs-warehouse"><span>{summary.bodega}</span><strong>{summary.cajas} {summary.cajas===1?"CAJA":"CAJAS"}</strong></div>)}</div></td><td><span className="rs-total">{formatNumber(item.cantidadTotal)}</span><span className="rs-box-summary">{formatNumber(item.cantidadTotal)} piezas en {item.totalCajas} {item.totalCajas===1?"caja":"cajas"}, {buildBoxSentence(item.cajas)}</span><div className="rs-box-breakdown">{item.cajas.map((box,index)=><span key={box.idUnico} className="rs-box-pill">Caja {index+1}: {formatNumber(box.cantidad)}</span>)}</div></td></tr>})}
-      </tbody></table>{loading&&<div className="rs-empty"><div className="w-10 h-10 border-4 border-slate-100 border-t-red-600 rounded-full animate-spin"></div><b>CONSOLIDANDO EXCEDENTES...</b></div>}{!loading&&!rows.length&&<div className="rs-empty"><LocalIcon name="package-search" size={32}/><b>SELECCIONA SOLICITANTE Y BODEGA</b><span>Carga los excedentes para consultar el resumen.</span></div>}</div></div>
-    </section></div>;
-  };
 
-  const target=document.getElementById("render-reabastecimiento-solicitud");if(!target||!LocalIcon){notify("Faltan dependencias visuales.","error");return()=>{}};if(window.__REABASTECIMIENTO_SOLICITUD_ROOT__){try{window.__REABASTECIMIENTO_SOLICITUD_ROOT__.unmount()}catch(_){}}window.__REABASTECIMIENTO_SOLICITUD_ROOT__=ReactDOM.createRoot(target);window.__REABASTECIMIENTO_SOLICITUD_ROOT__.render(<View/>);return()=>{if(window.__REABASTECIMIENTO_SOLICITUD_ROOT__){try{window.__REABASTECIMIENTO_SOLICITUD_ROOT__.unmount()}catch(_){}window.__REABASTECIMIENTO_SOLICITUD_ROOT__=null}};
+    // ── Render ──────────────────────────────────────────────────────────────
+    return (
+      <div className="rs-page">
+        <section className="rs-workspace">
+
+          {/* Encabezado: identidad, métricas del rondín y acciones */}
+          <header className="rs-header">
+            <div className="rs-identity">
+              <div className="rs-icon"><LocalIcon name="clipboard-plus" size={23} /></div>
+              <div>
+                <p className="rs-eyebrow">Rondín de reabastecimiento</p>
+                <h2 className="rs-title">NUEVA SOLICITUD</h2>
+                <p className="rs-subtitle">SKU del área con excedentes disponibles, por bodega y caja.</p>
+              </div>
+            </div>
+            <div className="rs-metrics">
+              <div className="rs-metric"><div className="rs-metric-value">{totalSkus}</div><div className="rs-metric-label">SKU rellenables</div></div>
+              <div className="rs-metric green"><div className="rs-metric-value">{selected.size}</div><div className="rs-metric-label">Seleccionados</div></div>
+              <div className="rs-metric amber"><div className="rs-metric-value">{Math.max(0, totalSkus - selected.size)}</div><div className="rs-metric-label">Omitidos</div></div>
+              <div className="rs-metric red">
+                <button className="rs-clear" onClick={clearSelection} disabled={!selected.size || creating}><LocalIcon name="eraser" size={15} />Limpiar selección</button>
+              </div>
+            </div>
+            <div className="rs-actions">
+              <button className="rs-header-btn" onClick={() => !creating && window.irAVistaShell?.("Reabastecimiento", "Reabastecimiento")}><LocalIcon name="arrow-left" size={15} />Volver</button>
+              <button className="rs-header-btn primary" onClick={create} disabled={creating || !selected.size}><LocalIcon name="send" size={15} />{creating ? "Creando..." : "Crear solicitud"}</button>
+            </div>
+          </header>
+
+          {/* Controles: solicitante, bodega, área y carga */}
+          <div className="rs-controls">
+            <label className="rs-field">
+              <span className="rs-label">Solicitante</span>
+              <input
+                className="rs-input"
+                list="rs-users"
+                value={user}
+                onChange={(event) => { setUser(event.target.value.toUpperCase()); invalidate(); }}
+                placeholder="Selecciona un solicitante"
+                disabled={creating}
+              />
+              <datalist id="rs-users">{users.map((name) => <option key={name} value={name} />)}</datalist>
+            </label>
+            <label className="rs-field">
+              <span className="rs-label">Bodega de piso de venta</span>
+              <select className="rs-select" value={warehouse} onChange={(event) => { setWarehouse(event.target.value); setArea(""); invalidate(); }} disabled={loadingBootstrap || creating || !warehouses.length}>
+                <option value="">{loadingBootstrap ? "Cargando bodegas..." : warehouses.length ? "Selecciona una bodega" : "Sin bodegas disponibles"}</option>
+                {warehouses.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+              </select>
+              {!loadingBootstrap && !warehouses.length && <button className="rs-btn" onClick={loadWarehouses}>Reintentar bodegas</button>}
+            </label>
+            <label className="rs-field">
+              <span className="rs-label">Área de suministro</span>
+              <select className="rs-select" value={area} onChange={(event) => { setArea(event.target.value); invalidate(); }} disabled={!warehouse || creating || !areaOptions.length}>
+                <option value="">{!warehouse ? "Primero elige la bodega" : areaOptions.length ? "Selecciona un área" : "Sin áreas registradas"}</option>
+                {areaOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+            <button className="rs-btn primary" onClick={loadRows} disabled={loading || creating || !user || !warehouse || !area}>
+              <LocalIcon name="database" size={16} />{loading ? "Consultando..." : "Cargar excedentes"}
+            </button>
+            <div className="rs-catalogs">
+              <button
+                className="rs-btn"
+                onClick={refreshCatalogs}
+                disabled={refreshingCatalogs || loadingBootstrap || loading || creating}
+                title="Relee UBICACIONES_SURTIDO y CATALOGO sin usar la caché de 2 minutos"
+              >
+                <LocalIcon name="refresh-cw" size={15} />{refreshingCatalogs ? "Actualizando..." : "Actualizar catálogos"}
+              </button>
+              <small>{catalogsClock ? `Catálogos al ${catalogsClock}` : "Catálogos sin leer"}</small>
+            </div>
+          </div>
+
+          {/* Aviso de cambios en tiempo real */}
+          {stale && (
+            <div className="rs-stale">
+              <LocalIcon name="bell-ring" size={16} />
+              <span>Otro usuario modificó excedentes o solicitudes. Actualiza para ver las cantidades vigentes (se reiniciará tu selección).</span>
+              <button className="rs-btn" onClick={loadRows} disabled={loading || creating}>Actualizar excedentes</button>
+            </div>
+          )}
+
+          {/* Tabla del rondín */}
+          <div className="rs-content">
+            <div className="rs-table-wrap rs-scroll">
+              <table className="rs-table">
+                <thead>
+                  <tr>
+                    <th>SKU / descripción</th>
+                    <th><button className="rs-sort" onClick={toggleSort}><span>Ubicación de consumo</span><span>{sortDirection === "ASC" ? "A-Z ↑" : "Z-A ↓"}</span></button></th>
+                    <th>Excedentes por bodega</th>
+                    <th>Cantidad por caja</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ordered.map((item, index) => {
+                    const isSelected = selected.get(item.codigo)?.ubicacionSurtido === item.ubicacionSurtido;
+                    return (
+                      <tr key={`${item.codigo}|${item.ubicacionSurtido}|${index}`} className={`rs-row ${isSelected ? "selected" : ""}`} onClick={() => toggle(item)}>
+                        <td>
+                          <div className="rs-product">
+                            <input className="rs-check" type="checkbox" checked={Boolean(isSelected)} onChange={() => toggle(item)} onClick={(event) => event.stopPropagation()} disabled={creating} />
+                            <div>
+                              <span className="rs-code">{item.codigo}</span>
+                              <span className="rs-description">{item.descripcion || "SIN DESCRIPCIÓN"}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="rs-location">{item.ubicacionSurtido}</span>
+                          <span className="rs-secondary">
+                            {warehouses.find((w) => w.id === item.bodegaSurtido)?.label || item.bodegaSurtido}
+                            {item.areaSuministro ? ` · ${item.areaSuministro}` : ""}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="rs-warehouse-list">
+                            {item.resumenBodegas.map((summary) => (
+                              <div key={summary.bodega} className="rs-warehouse">
+                                <span>{summary.bodega}</span>
+                                <strong>{summary.cajas} {summary.cajas === 1 ? "CAJA" : "CAJAS"}</strong>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td>
+                          <span className="rs-total">{fmt(item.cantidadTotal)}</span>
+                          <span className="rs-box-summary">{fmt(item.cantidadTotal)} piezas en {item.totalCajas} {item.totalCajas === 1 ? "caja" : "cajas"}, {buildBoxSentence(item.cajas)}</span>
+                          <div className="rs-box-breakdown">
+                            {item.cajas.map((box, boxIndex) => <span key={box.idUnico} className="rs-box-pill">Caja {boxIndex + 1}: {fmt(box.cantidad)}</span>)}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {loading && (
+                <div className="rs-empty"><div className="w-10 h-10 border-4 border-slate-100 border-t-red-600 rounded-full animate-spin"></div><b>CONSOLIDANDO EXCEDENTES...</b></div>
+              )}
+              {!loading && !rows.length && (
+                <div className="rs-empty"><LocalIcon name="package-search" size={32} /><b>SELECCIONA SOLICITANTE, BODEGA Y ÁREA</b><span>Carga los excedentes del área para iniciar el rondín.</span></div>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // 4. MONTAJE EN EL SHELL
+  // ==========================================================================
+
+  const target = document.getElementById("render-reabastecimiento-solicitud");
+  if (!target) {
+    notify("No se encontró el contenedor de la vista.", "error");
+    mountTrace.end("error", { error: "Contenedor no encontrado" });
+    return () => {};
+  }
+  if (window.__REABASTECIMIENTO_SOLICITUD_ROOT__) {
+    try { window.__REABASTECIMIENTO_SOLICITUD_ROOT__.unmount(); } catch (_) { /* raíz previa ya desmontada */ }
+  }
+  window.__REABASTECIMIENTO_SOLICITUD_ROOT__ = ReactDOM.createRoot(target);
+  window.__REABASTECIMIENTO_SOLICITUD_ROOT__.render(<View />);
+
+  /** Limpieza que el Shell ejecuta al salir de la vista. */
+  return () => {
+    if (window.__REABASTECIMIENTO_SOLICITUD_ROOT__) {
+      try { window.__REABASTECIMIENTO_SOLICITUD_ROOT__.unmount(); } catch (_) { /* sin acción */ }
+      window.__REABASTECIMIENTO_SOLICITUD_ROOT__ = null;
+    }
+  };
 };
-window.initVista=window.cargar_ReabastecimientoSolicitud;
+window.initVista = window.cargar_ReabastecimientoSolicitud;
 </script>

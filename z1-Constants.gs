@@ -32,6 +32,84 @@
  */
 
 /**
+ * ════════════════════════════════════════════════════════════════════════════
+ *  SWITCH DE REGISTRO DE RENDIMIENTO
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ *  APPALMACEN_RENDIMIENTO.ENABLED
+ *    true  → Se mide TODA la aplicación y se guarda en la hoja
+ *            APPALMACEN_RENDIMIENTO del libro GESTION5:
+ *            · carga de cada vista (navegación → pantalla pintada),
+ *            · bootstrap inicial,
+ *            · acciones de las vistas (APPALMACEN_ACTIONS),
+ *            · cada llamada al servidor de cualquier vista, con su tiempo
+ *              de servidor, de red/cola y sus etapas internas,
+ *            · el detalle fino de Reabastecimiento (REAB.perf).
+ *    false → No se mide, no se envía nada al servidor y no se escribe ninguna
+ *            fila. Las llamadas viajan directas, sin el despachador medido.
+ *
+ *  CÓMO CAMBIARLO
+ *    1. Cambia ENABLED a true o false aquí abajo.
+ *    2. Guarda y sube los cambios (clasp push o el editor de Apps Script).
+ *    3. /dev toma el valor al recargar la página.
+ *    4. Producción toma el valor solo al publicar una versión nueva del
+ *       despliegue (Implementar → Administrar implementaciones → Editar →
+ *       Versión nueva). Antes de publicar a los operadores, déjalo en false
+ *       salvo que se quiera medir en producción.
+ *
+ *  Los demás parámetros ajustan la medición; normalmente no requieren cambios.
+ *
+ * @readonly
+ */
+const APPALMACEN_RENDIMIENTO = Object.freeze({
+  /** ◀◀◀ SWITCH: true = registrar rendimiento · false = no registrar ▶▶▶ */
+  ENABLED: true,
+
+  /** Clave en SHEETS de la hoja donde se guardan los eventos. */
+  SHEET_KEY: "APPALMACEN_RENDIMIENTO",
+
+  /** Parámetros del navegador (se envían a la página en cada carga). */
+  CLIENT: Object.freeze({
+    /** Mide cada llamada google.script.run de todas las vistas. */
+    MEASURE_ALL_RPC: true,
+    /** Mide la carga de cada vista y el bootstrap del Shell. */
+    MEASURE_VIEWS: true,
+    /** Mide las acciones registradas con APPALMACEN_ACTIONS. */
+    MEASURE_ACTIONS: true,
+    /** Envío por lotes al servidor (ms). */
+    FLUSH_INTERVAL_MS: 20000,
+    /** Tamaño de lote que dispara un envío inmediato. */
+    FLUSH_BATCH_SIZE: 15,
+    /** Máximo de eventos por envío. */
+    MAX_BATCH: 60,
+    /** Eventos conservados en el navegador para diagnóstico. */
+    HISTORY_SIZE: 500,
+    /**
+     * Endpoints que no pasan por el despachador medido:
+     * - los de la propia bitácora (evita registros recursivos),
+     * - Reabastecimiento, que ya se mide con más detalle con REAB.perf.
+     */
+    EXCLUDED_METHOD_PREFIXES: Object.freeze([
+      "APPALMACEN_invocarMedido",
+      "APPALMACENRendimiento_",
+      "ReabastecimientoController_"
+    ])
+  }),
+
+  /** Parámetros del servidor. */
+  SERVER: Object.freeze({
+    /** Devuelve al navegador las etapas internas de cada llamada. */
+    RETURN_STAGES: true,
+    /** Máximo de trazas internas adjuntadas por llamada. */
+    MAX_TRACES_PER_CALL: 25,
+    /** Máximo de eventos aceptados por envío. */
+    MAX_EVENTS_PER_BATCH: 60,
+    /** Máximo de caracteres por celda JSON. */
+    MAX_JSON_CELL_CHARS: 45000
+  })
+});
+
+/**
  * Identificadores de los libros de Google Sheets utilizados por la aplicación.
  *
  * Las claves se referencian desde SHEETS.file. Cambiar una clave requiere revisar
@@ -101,6 +179,24 @@ const SHEETS = Object.freeze({
   REABASTECIMIENTO_DETALLES: Object.freeze({
     file: "GESTION5",
     name: "REABASTECIMIENTO_DETALLES"
+  }),
+  /**
+   * Bitácora de rendimiento del módulo de Reabastecimiento. Una fila por evento
+   * medido (consulta, acción o carga). Se crea automáticamente si no existe.
+   */
+  REABASTECIMIENTO_RENDIMIENTO: Object.freeze({
+    file: "GESTION5",
+    name: "REABASTECIMIENTO_RENDIMIENTO"
+  }),
+  /**
+   * Bitácora de rendimiento de TODA la aplicación (todas las vistas y
+   * procesos). Controlada por APPALMACEN_RENDIMIENTO.ENABLED. Se crea
+   * automáticamente si no existe. Sustituye a REABASTECIMIENTO_RENDIMIENTO,
+   * que conserva únicamente los registros históricos.
+   */
+  APPALMACEN_RENDIMIENTO: Object.freeze({
+    file: "GESTION5",
+    name: "APPALMACEN_RENDIMIENTO"
   })
 });
 
@@ -375,6 +471,78 @@ const REABASTECIMIENTO_HEADERS = Object.freeze({
 });
 
 /**
+ * Encabezados de la bitácora de rendimiento REABASTECIMIENTO_RENDIMIENTO.
+ *
+ * - TOTAL_CLIENTE_MS: tiempo percibido por el usuario (clic → pantalla).
+ * - SERVIDOR_MS: tiempo de ejecución dentro de Apps Script.
+ * - RED_COLA_MS: diferencia entre ambos (red, cola y arranque de Apps Script).
+ * - ETAPAS_*: JSON con [etapa, ms del segmento, ms acumulado].
+ *
+ * @readonly
+ * @type {ReadonlyArray<string>}
+ */
+const REABASTECIMIENTO_RENDIMIENTO_HEADERS = Object.freeze([
+  "FECHA",
+  "HORA",
+  "TIMESTAMP_CLIENTE",
+  "SESION_CLIENTE",
+  "VISTA",
+  "TIPO_EVENTO",
+  "OPERACION",
+  "ESTADO",
+  "TOTAL_CLIENTE_MS",
+  "SERVIDOR_MS",
+  "RED_COLA_MS",
+  "RENDER_MS",
+  "BYTES_RESPUESTA",
+  "ID_SOLICITUD",
+  "USUARIO",
+  "ETAPAS_CLIENTE",
+  "ETAPAS_SERVIDOR",
+  "METADATOS",
+  "ERROR"
+]);
+
+/** Encabezados de la bitácora unificada APPALMACEN_RENDIMIENTO (mismo formato). */
+const APPALMACEN_RENDIMIENTO_HEADERS = REABASTECIMIENTO_RENDIMIENTO_HEADERS;
+
+/**
+ * Encabezados de extensión del proceso REABASTECIMIENTO-v1.
+ *
+ * Los Repositories localizan TODAS las columnas por nombre de encabezado leído
+ * dinámicamente de la fila 1; no dependen de la posición física. Si una
+ * extensión no existe en la hoja, se agrega al final de la fila de encabezados
+ * durante la primera escritura protegida por ScriptLock. Las filas históricas
+ * conservan esas celdas vacías.
+ *
+ * @readonly
+ * @type {!Object<string, ReadonlyArray<string>>}
+ */
+const REABASTECIMIENTO_HEADERS_EXTENSION = Object.freeze({
+  SOLICITUDES: Object.freeze([
+    "SOLICITUD_AREASUMINISTRO",
+    "SOLICITUD_USUARIOINICIOATENCION",
+    "SOLICITUD_AUXILIARES",
+    "SOLICITUD_USUARIOCIERRE",
+    "SOLICITUD_CIERRECONPENDIENTES",
+    "SOLICITUD_MOTIVOCIERRE"
+  ]),
+  PARTIDAS: Object.freeze([
+    "PARTIDA_FECHACONCLUSION",
+    "PARTIDA_HORACONCLUSION",
+    "PARTIDA_USUARIOCONCLUSION"
+  ]),
+  DETALLES: Object.freeze([
+    "DETALLE_SALDOANTERIOR",
+    "DETALLE_SALDORESTANTE",
+    "DETALLE_TIPOSURTIDO",
+    "DETALLE_BODEGAORIGEN",
+    "DETALLE_UBICACIONORIGEN",
+    "DETALLE_IDOPERACION"
+  ])
+});
+
+/**
  * Anchos esperados derivados de los contratos de encabezados.
  *
  * @readonly
@@ -434,19 +602,68 @@ const REABASTECIMIENTO_CONFIG = Object.freeze({
     FECHA: "dd/MM/yyyy",
     HORA: "HH:mm"
   }),
+  /**
+   * Estados derivados de la solicitud (proceso REABASTECIMIENTO-v1, 7.1).
+   * - CREADA: registrada y en cola; nadie la ha tomado.
+   * - ASIGNADA: un auxiliar la tomó con ATENDER; ningún SKU en proceso.
+   * - EN_ATENCION: al menos un SKU en atención y ninguno concluido.
+   * - PARCIALMENTE_ATENDIDA: SKU concluidos y SKU pendientes o en atención.
+   * - ATENDIDA: todos los SKU concluidos; falta el cierre.
+   * - CERRADA: cerrada y bloqueada sin pendientes.
+   * - CERRADA_CON_PENDIENTES: cerrada con justificación y SKU sin concluir.
+   * - INCONSISTENTE: marcas temporales inválidas en la hoja (error de datos).
+   * ABIERTA se conserva como alias histórico de CREADA.
+   */
   SOLICITUD_ESTADOS_DERIVADOS: Object.freeze({
-    ABIERTA: "ABIERTA",
+    CREADA: "CREADA",
+    ABIERTA: "CREADA",
+    ASIGNADA: "ASIGNADA",
     EN_ATENCION: "EN_ATENCION",
+    PARCIALMENTE_ATENDIDA: "PARCIALMENTE_ATENDIDA",
+    ATENDIDA: "ATENDIDA",
     CERRADA: "CERRADA",
+    CERRADA_CON_PENDIENTES: "CERRADA_CON_PENDIENTES",
     INCONSISTENTE: "INCONSISTENTE"
   }),
+  /**
+   * Estados persistidos del SKU solicitado (proceso 7.2).
+   * EN_ATENCION se asigna al mostrar ubicaciones; ATENDIDO y ATENDIDO_PARCIAL
+   * los confirma el auxiliar y requieren al menos una caja surtida.
+   */
   PARTIDA_ESTADOS: Object.freeze({
     PENDIENTE: "PENDIENTE",
+    EN_ATENCION: "EN_ATENCION",
+    ATENDIDO_PARCIAL: "ATENDIDO_PARCIAL",
     ATENDIDO: "ATENDIDO"
   }),
   TRANSICIONES_PARTIDA: Object.freeze({
-    PENDIENTE: Object.freeze(["ATENDIDO"]),
-    ATENDIDO: Object.freeze([])
+    PENDIENTE: Object.freeze(["EN_ATENCION"]),
+    EN_ATENCION: Object.freeze(["ATENDIDO_PARCIAL", "ATENDIDO"]),
+    ATENDIDO_PARCIAL: Object.freeze(["ATENDIDO"]),
+    ATENDIDO: Object.freeze(["ATENDIDO_PARCIAL"])
+  }),
+  /** Estados de partida que cuentan como SKU procesado. */
+  PARTIDA_ESTADOS_CONCLUIDOS: Object.freeze(["ATENDIDO", "ATENDIDO_PARCIAL"]),
+  /** Tipos de surtido registrados por cada IDUNICO. */
+  TIPOS_SURTIDO: Object.freeze({
+    TOTAL: "TOTAL",
+    PARCIAL: "PARCIAL"
+  }),
+  /**
+   * Estatus de BD-EXCEDENTES aceptados para surtir desde reabastecimiento.
+   * Equivalen a un excedente acomodado y disponible (proceso 2, punto 13).
+   */
+  ESTATUS_EXCEDENTE_SURTIBLES: Object.freeze(["ACOMODADO", "PARCIAL", "DISPONIBLE"]),
+  /**
+   * Bodegas de piso por valor de UBICACIONES_SURTIDO.ZONA. Si ZONA está vacía,
+   * se infiere por el prefijo de UBICACION.
+   */
+  ZONAS_BODEGA: Object.freeze({
+    "1": "B1",
+    "2": "B2",
+    "3": "B3",
+    "4": "MO",
+    "5": "CU"
   }),
   LIMITES: Object.freeze({
     MAX_SKUS_POR_SOLICITUD: 99,
@@ -458,6 +675,9 @@ const REABASTECIMIENTO_CONFIG = Object.freeze({
     BODEGA_MAX_LENGTH: 150,
     USUARIO_MAX_LENGTH: 250,
     IDUNICO_MAX_LENGTH: 250,
+    AREA_MAX_LENGTH: 150,
+    MOTIVO_MIN_LENGTH: 5,
+    MOTIVO_MAX_LENGTH: 500,
     LOCK_TIMEOUT_MS: 30000
   }),
   CLIENT_REFRESH: Object.freeze({
@@ -477,7 +697,33 @@ const REABASTECIMIENTO_CONFIG = Object.freeze({
     WARN_SHEET_READ_MS: 1200,
     WARN_SHEET_WRITE_MS: 900,
     WARN_LOCK_WAIT_MS: 500,
-    MEASURE_RESPONSE_CHARS: true
+    MEASURE_RESPONSE_CHARS: true,
+    /*
+     * El registro de rendimiento (desglose devuelto al navegador y bitácora)
+     * lo controla ahora el switch global APPALMACEN_RENDIMIENTO.ENABLED, al
+     * inicio de este archivo.
+     */
+  }),
+  /**
+   * Revisión de cambios para la actualización en tiempo real.
+   * Cada escritura confirmada incrementa un contador global y el contador del
+   * folio afectado. Las vistas consultan solo este contador (lectura ligera de
+   * CacheService) y recargan datos únicamente cuando cambia.
+   */
+  REVISION: Object.freeze({
+    PROPERTY_KEY: "APPALMACEN_REAB_REVISION",
+    CACHE_KEY: "APPALMACEN_REAB_REVISION",
+    CACHE_TTL_SECONDS: 21600,
+    MAX_TRACKED_IDS: 120,
+    /**
+     * Copia de las hojas SOLICITUDES/PARTIDAS/DETALLES en CacheService,
+     * válida solo para la revisión con la que se leyó. Toda escritura desde
+     * la app incrementa la revisión, así que la copia nunca queda vieja frente
+     * a la app. Las ediciones manuales en la hoja se ven a más tardar en
+     * TABLE_CACHE_TTL_SECONDS.
+     */
+    TABLE_CACHE_PREFIX: "APPALMACEN_REAB_TABLE_V1_",
+    TABLE_CACHE_TTL_SECONDS: 60
   }),
   ERROR_CODES: Object.freeze({
     PAYLOAD_INVALIDO: "REAB_PAYLOAD_INVALIDO",
@@ -503,7 +749,15 @@ const REABASTECIMIENTO_CONFIG = Object.freeze({
     LIMITE_DIARIO_ALCANZADO: "REAB_LIMITE_DIARIO_ALCANZADO",
     LIMITE_PARTIDAS_EXCEDIDO: "REAB_LIMITE_PARTIDAS_EXCEDIDO",
     LIMITE_DETALLES_EXCEDIDO: "REAB_LIMITE_DETALLES_EXCEDIDO",
-    LOCK_TIMEOUT: "REAB_LOCK_TIMEOUT"
+    LOCK_TIMEOUT: "REAB_LOCK_TIMEOUT",
+    AREA_REQUERIDA: "REAB_AREA_REQUERIDA",
+    SOLICITUD_NO_TOMADA: "REAB_SOLICITUD_NO_TOMADA",
+    IDUNICO_NO_SURTIBLE: "REAB_IDUNICO_NO_SURTIBLE",
+    CANTIDAD_INVALIDA: "REAB_CANTIDAD_INVALIDA",
+    PARTIDA_SIN_CAJAS: "REAB_PARTIDA_SIN_CAJAS",
+    MOTIVO_REQUERIDO: "REAB_MOTIVO_REQUERIDO",
+    SURTIDO_FALLIDO: "REAB_SURTIDO_FALLIDO",
+    REGISTRO_INCOMPLETO: "REAB_REGISTRO_INCOMPLETO"
   })
 });
 
